@@ -99,8 +99,7 @@ import com.etheller.warsmash.viewer5.handlers.w3x.ui.command.CommandErrorListene
 
 public class CSimulation implements CPlayerAPI, CFogMaskSettings {
 	private boolean scriptOrder;
-	private boolean allianceChangesLocked;
-	private boolean sharedAdvancedControl;
+	private final War3MapConfig mapConfig;
 	private final CAbilityData abilityData;
 	private final CUnitData unitData;
 	private final CDestructableData destructableData;
@@ -123,6 +122,7 @@ public class CSimulation implements CPlayerAPI, CFogMaskSettings {
 	private final PathingGrid pathingGrid;
 	private final CWorldCollision worldCollision;
 	private final CPathfindingProcessor[] pathfindingProcessors;
+	private CPathfindingProcessor.SharedGraph pathfindingGraph;
 	private final int mapVersion;
 	private final CGameplayConstants gameplayConstants;
 	private final Random seededRandom;
@@ -145,6 +145,8 @@ public class CSimulation implements CPlayerAPI, CFogMaskSettings {
 	private final EnumMap<JassGameEventsWar3, List<CGlobalEvent>> eventTypeToEvents = new EnumMap<>(
 			JassGameEventsWar3.class);
 	private boolean timeOfDaySuspended;
+	private int divineInterventionGameState;
+	private int disconnectedGameState;
 	private float timeOfDayScale = 1.0f;
 	private int allItemTypeSlots = -1;
 	private int allUnitTypeSlots = -1;
@@ -159,6 +161,10 @@ public class CSimulation implements CPlayerAPI, CFogMaskSettings {
 	private final Set<Integer> queuedRequirementUpdates = new HashSet<>();
 	private final List<Runnable> runningPostUpdateCallbacks = new ArrayList<>();
 	private final CQuestLog questLog = new CQuestLog();
+	private final CTerrainDeformations terrainDeformations = new CTerrainDeformations();
+	private final EnumMap<JassGameEventsWar3, List<Trigger>> gameEventTriggers = new EnumMap<>(
+			JassGameEventsWar3.class);
+	private String saveBasicFilename = "";
 
 	public CSimulation(final War3MapConfig config, final int mapVersion, final DataTable miscData,
 			final ObjectData parsedUnitData, final ObjectData parsedItemData, final ObjectData parsedDestructableData,
@@ -177,6 +183,7 @@ public class CSimulation implements CPlayerAPI, CFogMaskSettings {
 		this.unitData = new CUnitData(this.gameplayConstants, parsedUnitData, this.abilityData, this.upgradeData,
 				this.simulationRenderController);
 		this.unitData.setTechEquivalents(this.itemData.getTechEquivalents());
+		this.unitData.setItemData(this.itemData);
 		this.unitData.getAllUnitTypesLightweight(); // Quick hack to avoid lag on first cast of Mech Critter
 		this.destructableData = new CDestructableData(parsedDestructableData, simulationRenderController);
 		this.units = new ArrayList<>();
@@ -190,8 +197,7 @@ public class CSimulation implements CPlayerAPI, CFogMaskSettings {
 		this.handleIdAllocator = new HandleIdAllocator();
 		this.worldCollision = new CWorldCollision(entireMapBounds, this.gameplayConstants.getMaxCollisionRadius());
 		this.regionManager = new CRegionManager(entireMapBounds, pathingGrid);
-		// Created on first use: each one allocates node grids for the whole map, which
-		// is too much memory to spend on every player slot.
+		// Created on first use; all of them share one node grid.
 		this.pathfindingProcessors = new CPathfindingProcessor[WarsmashConstants.MAX_PLAYERS];
 		this.seededRandom = seededRandom;
 		this.players = new ArrayList<>();
@@ -276,8 +282,7 @@ public class CSimulation implements CPlayerAPI, CFogMaskSettings {
 				}
 			}
 		}
-		this.allianceChangesLocked = config.isMapFlagSet(CMapFlag.MAP_LOCK_ALLIANCE_CHANGES);
-		this.sharedAdvancedControl = config.isMapFlagSet(CMapFlag.MAP_SHARED_ADVANCED_CONTROL);
+		this.mapConfig = config;
 		if (config.isMapFlagSet(CMapFlag.MAP_SHARED_ADVANCED_CONTROL)) {
 			for (int i = 0; i < WarsmashConstants.MAX_PLAYERS; i++) {
 				final CBasePlayer configPlayer = config.getPlayer(i);
@@ -353,6 +358,18 @@ public class CSimulation implements CPlayerAPI, CFogMaskSettings {
 		return this.units;
 	}
 
+	public SimulationRenderController getSimulationRenderController() {
+		return this.simulationRenderController;
+	}
+
+	public List<CItem> getItems() {
+		return this.items;
+	}
+
+	public CDestructable getDestructable(final int handleId) {
+		return this.handleIdToDestructable.get(handleId);
+	}
+
 	public List<CDestructable> getDestructables() {
 		return this.destructables;
 	}
@@ -415,6 +432,9 @@ public class CSimulation implements CPlayerAPI, CFogMaskSettings {
 	}
 
 	public CItem createItem(final War3ID alias, final float unitX, final float unitY) {
+		if (this.itemData.getItemType(alias) == null) {
+			return null;
+		}
 		return this.simulationRenderController.createItem(this, alias, unitX, unitY);
 	}
 
@@ -429,6 +449,9 @@ public class CSimulation implements CPlayerAPI, CFogMaskSettings {
 
 	public CUnit createUnit(final War3ID typeId, final int playerIndex, final float x, final float y,
 			final float facing, final boolean constructing) {
+		if (this.unitData.getUnitType(typeId) == null) {
+			return null;
+		}
 		final CUnit createdUnit = this.simulationRenderController.createUnit(this, typeId, playerIndex, x, y, facing);
 		if (createdUnit != null) {
 			createdUnit.setConstructing(constructing);
@@ -447,6 +470,7 @@ public class CSimulation implements CPlayerAPI, CFogMaskSettings {
 			// Fog is recomputed once a second; without this a script could not order a unit it just made against
 			// anything, because the new unit would not yet see its target.
 			createdUnit.updateFogOfWar(this);
+			createdUnit.onCreatedNightSleep(this);
 			if (createdUnit.isHero()) {
 				heroCreateEvent(createdUnit);
 			}
@@ -513,9 +537,13 @@ public class CSimulation implements CPlayerAPI, CFogMaskSettings {
 			player.setUnitFoodUsed(newUnit, newUnitType.getFoodUsed());
 			player.setUnitFoodMade(newUnit, newUnitType.getFoodMade());
 			player.addTechtreeUnlocked(this, typeId);
+			newUnit.unlockUpgradedFromTypes(this, player);
 			player.scoreUnitGained(newUnitType);
 			// nudge unit
 			newUnit.setPointAndCheckUnstuck(x, y, this);
+			if (newUnit.isGuarding()) {
+				newUnit.setGuardPosition(newUnit.getX(), newUnit.getY());
+			}
 			if (!newUnit.isBuilding()) {
 				newUnit.getUnitAnimationListener().playAnimation(false, PrimaryTag.BIRTH, SequenceUtils.EMPTY, 1.0f,
 						true);
@@ -662,7 +690,11 @@ public class CSimulation implements CPlayerAPI, CFogMaskSettings {
 		final int playerIndex = queueItem.getUnit().getPlayerIndex();
 		CPathfindingProcessor pathfindingProcessor = this.pathfindingProcessors[playerIndex];
 		if (pathfindingProcessor == null) {
-			pathfindingProcessor = new CPathfindingProcessor(this.pathingGrid, this.worldCollision);
+			if (this.pathfindingGraph == null) {
+				this.pathfindingGraph = new CPathfindingProcessor.SharedGraph(this.pathingGrid);
+			}
+			pathfindingProcessor = new CPathfindingProcessor(this.pathingGrid, this.worldCollision,
+					this.pathfindingGraph);
 			this.pathfindingProcessors[playerIndex] = pathfindingProcessor;
 		}
 		pathfindingProcessor.findNaiveSlowPath(ignoreIntersectionsWithThisUnit, ignoreIntersectionsWithThisSecondUnit,
@@ -701,6 +733,7 @@ public class CSimulation implements CPlayerAPI, CFogMaskSettings {
 	}
 
 	public void unitSummoned(final CUnit summoner, final CUnit summoned) {
+		summoner.fireSummonEvents(this);
 		getPlayer(summoner.getPlayerIndex()).fireUnitSummonEvents(summoner, summoned);
 	}
 
@@ -972,12 +1005,24 @@ public class CSimulation implements CPlayerAPI, CFogMaskSettings {
 		return this.questLog;
 	}
 
+	public CTerrainDeformations getTerrainDeformations() {
+		return this.terrainDeformations;
+	}
+
 	public boolean isAllianceChangesLocked() {
-		return this.allianceChangesLocked;
+		return this.mapConfig.isMapFlagSet(CMapFlag.MAP_LOCK_ALLIANCE_CHANGES);
 	}
 
 	public boolean isSharedAdvancedControl() {
-		return this.sharedAdvancedControl;
+		return this.mapConfig.isMapFlagSet(CMapFlag.MAP_SHARED_ADVANCED_CONTROL);
+	}
+
+	public boolean isResourceTradingLocked() {
+		return this.mapConfig.isMapFlagSet(CMapFlag.MAP_LOCK_RESOURCE_TRADING);
+	}
+
+	public boolean isResourceTradingAlliesOnly() {
+		return this.mapConfig.isMapFlagSet(CMapFlag.MAP_RESOURCE_TRADING_ALLIES_ONLY);
 	}
 
 	@Override
@@ -1090,6 +1135,7 @@ public class CSimulation implements CPlayerAPI, CFogMaskSettings {
 			player.setUnitFoodUsed(unit, unit.getUnitType().getFoodUsed());
 			player.setUnitFoodMade(unit, unit.getUnitType().getFoodMade());
 			player.addTechtreeUnlocked(this, unit.getTypeId());
+			unit.unlockUpgradedFromTypes(this, player);
 			player.scoreUnitGained(unit.getUnitType());
 		}
 	}
@@ -1183,12 +1229,47 @@ public class CSimulation implements CPlayerAPI, CFogMaskSettings {
 
 	public RemovableTriggerEvent registerGameEvent(final GlobalScope globalScope, final Trigger trigger,
 			final JassGameEventsWar3 gameEvent) {
-		System.err.println("Game event not yet implemented: " + gameEvent);
-		return new RemovableTriggerEvent(trigger) {
-			@Override
-			public void remove() {
+		final List<Trigger> triggers = this.gameEventTriggers.computeIfAbsent(gameEvent, key -> new ArrayList<>());
+		if ((gameEvent != JassGameEventsWar3.EVENT_GAME_LOADED) && (gameEvent != JassGameEventsWar3.EVENT_GAME_SAVE)) {
+			System.err.println("Game event not yet implemented: " + gameEvent);
+		}
+		triggers.add(trigger);
+		return new GameEventRegistration(trigger, triggers);
+	}
+
+	private static final class GameEventRegistration extends RemovableTriggerEvent {
+		private final Trigger trigger;
+		private final List<Trigger> triggers;
+
+		private GameEventRegistration(final Trigger trigger, final List<Trigger> triggers) {
+			super(trigger);
+			this.trigger = trigger;
+			this.triggers = triggers;
+		}
+
+		@Override
+		public void remove() {
+			this.triggers.remove(this.trigger);
+		}
+	}
+
+	public void fireGameEvent(final JassGameEventsWar3 gameEvent) {
+		final List<Trigger> triggers = this.gameEventTriggers.get(gameEvent);
+		if (triggers != null) {
+			for (final Trigger trigger : new ArrayList<>(triggers)) {
+				final CommonTriggerExecutionScope scope = new CommonTriggerExecutionScope(trigger,
+						TriggerExecutionScope.EMPTY);
+				trigger.fire(this.globalScope, scope, scope);
 			}
-		};
+		}
+	}
+
+	public String getSaveBasicFilename() {
+		return this.saveBasicFilename;
+	}
+
+	public void setSaveBasicFilename(final String saveBasicFilename) {
+		this.saveBasicFilename = saveBasicFilename;
 	}
 
 	private List<CGlobalEvent> getOrCreateEventList(final JassGameEventsWar3 eventType) {
@@ -1304,6 +1385,7 @@ public class CSimulation implements CPlayerAPI, CFogMaskSettings {
 		cItem.forceDropIfHeld(this);
 		cItem.setHidden(true); // TODO fix
 		cItem.setLife(this, 0);
+		this.worldCollision.removeItem(cItem);
 	}
 
 	public void removeDestructable(final CDestructable dest) {
@@ -1434,6 +1516,22 @@ public class CSimulation implements CPlayerAPI, CFogMaskSettings {
 			}
 		}
 		return shops;
+	}
+
+	public int getDivineInterventionGameState() {
+		return this.divineInterventionGameState;
+	}
+
+	public void setDivineInterventionGameState(final int value) {
+		this.divineInterventionGameState = value;
+	}
+
+	public int getDisconnectedGameState() {
+		return this.disconnectedGameState;
+	}
+
+	public void setDisconnectedGameState(final int value) {
+		this.disconnectedGameState = value;
 	}
 
 	public void setTimeOfDaySuspended(final boolean flag) {

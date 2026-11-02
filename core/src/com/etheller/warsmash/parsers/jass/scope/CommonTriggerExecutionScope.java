@@ -94,6 +94,8 @@ public class CommonTriggerExecutionScope extends TriggerExecutionScope {
 	private int triggerCastId; // Warsmash only
 	private float damageTaken;
 	private CUnit damageSource;
+	private String chatString;
+	private String chatStringMatched;
 
 	private JassGameEventsWar3 triggerEventId;
 
@@ -176,6 +178,8 @@ public class CommonTriggerExecutionScope extends TriggerExecutionScope {
 		this.triggerEventId = parentScope.triggerEventId;
 		this.damageTaken = parentScope.damageTaken;
 		this.damageSource = parentScope.damageSource;
+		this.chatString = parentScope.chatString;
+		this.chatStringMatched = parentScope.chatStringMatched;
 	}
 
 	public CUnit getEnumUnit() {
@@ -462,8 +466,30 @@ public class CommonTriggerExecutionScope extends TriggerExecutionScope {
 		return this.damageTaken;
 	}
 
+	public void setDamageTaken(final float damageTaken) {
+		this.damageTaken = damageTaken;
+	}
+
 	public CUnit getDamageSource() {
 		return this.damageSource;
+	}
+
+	public String getChatString() {
+		return this.chatString;
+	}
+
+	public String getChatStringMatched() {
+		return this.chatStringMatched;
+	}
+
+	public static CommonTriggerExecutionScope playerChatScope(final Trigger trigger, final CPlayerJass player,
+			final String chatString, final String chatStringMatched) {
+		final CommonTriggerExecutionScope scope = new CommonTriggerExecutionScope(trigger, TriggerExecutionScope.EMPTY);
+		scope.triggeringPlayer = player;
+		scope.triggerEventId = JassGameEventsWar3.EVENT_PLAYER_CHAT;
+		scope.chatString = chatString;
+		scope.chatStringMatched = chatStringMatched;
+		return scope;
 	}
 
 	public static CommonTriggerExecutionScope filterScope(final TriggerExecutionScope parentScope,
@@ -564,6 +590,18 @@ public class CommonTriggerExecutionScope extends TriggerExecutionScope {
 		scope.summonedUnit = summoned;
 		scope.triggeringPlayer = player;
 		scope.triggerWidget = summoned;
+		scope.triggerEventId = triggerEventId;
+		return scope;
+	}
+
+	/** On 1.29 the unit event gives no summoned unit: GetSummonedUnit is null there, unlike the player event. */
+	public static CommonTriggerExecutionScope unitSummonerScope(final JassGameEventsWar3 triggerEventId,
+			final Trigger trigger, final CUnit summoner, final CPlayerJass player) {
+		final CommonTriggerExecutionScope scope = new CommonTriggerExecutionScope(trigger, TriggerExecutionScope.EMPTY);
+		scope.triggeringUnit = summoner;
+		scope.summoningUnit = summoner;
+		scope.triggeringPlayer = player;
+		scope.triggerWidget = summoner;
 		scope.triggerEventId = triggerEventId;
 		return scope;
 	}

@@ -39,7 +39,7 @@ public final class TouchSettings {
 	}
 
 	public static TouchSettings defaults(final float density) {
-		return new TouchSettings(10 * density, 4 * density, 300, 300, 150, 250, 1.3f, 1.4f, 56 * density,
+		return new TouchSettings(10 * density, 4 * density, 300, 300, 150, 250, 1.5f, 1.5f, 56 * density,
 				48 * density, 40 * density, PalmFilter.PenFingerPolicy.IGNORE);
 	}
 

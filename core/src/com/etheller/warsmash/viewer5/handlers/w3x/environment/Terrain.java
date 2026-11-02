@@ -6,6 +6,8 @@ import java.nio.Buffer;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.FloatBuffer;
+
+import com.badlogic.gdx.utils.BufferUtils;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -13,6 +15,7 @@ import java.util.HashMap;
 import java.util.IdentityHashMap;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
+import java.util.Set;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeSet;
@@ -48,6 +51,7 @@ import com.etheller.warsmash.viewer5.gl.DataTexture;
 import com.etheller.warsmash.viewer5.gl.Extensions;
 import com.etheller.warsmash.viewer5.gl.WebGL;
 import com.etheller.warsmash.viewer5.handlers.w3x.DynamicShadowManager;
+import com.etheller.warsmash.viewer5.handlers.w3x.ui.GameOptions;
 import com.etheller.warsmash.viewer5.handlers.w3x.SplatModel;
 import com.etheller.warsmash.viewer5.handlers.w3x.SplatModel.SplatMover;
 import com.etheller.warsmash.viewer5.handlers.w3x.Variations;
@@ -112,6 +116,9 @@ public class Terrain {
 	private ByteBuffer groundTextureUploadBuffer;
 	private final float[] waterHeights;
 	private final byte[] waterExistsData;
+	/** Script terrain deformations per corner, in terrain height units (128 world units). */
+	private float[] deformation;
+	private FloatBuffer heightUploadBuffer;
 
 	private int groundTextureData = -1;
 	private final int groundHeight;
@@ -130,6 +137,7 @@ public class Terrain {
 
 	private final Map<String, SplatModel> uberSplatModels;
 	private final List<SplatModel> uberSplatModelsList;
+	private final Set<SplatModel> unitShadowSplatModels = Collections.newSetFromMap(new IdentityHashMap<>());
 	private int shadowMap;
 	private int fogOfWarMap;
 	private boolean fogOfWarMapAllocated;
@@ -466,7 +474,8 @@ public class Terrain {
 	private void updateGroundHeights(final Rectangle area) {
 		for (int j = (int) area.y; j < (area.y + area.height); j++) {
 			for (int i = (int) area.x; i < (area.x + area.width); i++) {
-				this.groundHeights[(j * this.columns) + i] = this.corners[i][j].getGroundHeight();
+				final float deformed = this.deformation == null ? 0 : this.deformation[(j * this.columns) + i];
+				this.groundHeights[(j * this.columns) + i] = this.corners[i][j].getGroundHeight() + deformed;
 
 				float rampHeight = 0f;
 				// Check if in one of the configurations the bottom_left is a ramp
@@ -495,31 +504,80 @@ public class Terrain {
 				}
 
 				final RenderCorner corner = this.corners[i][j];
-				final float newGroundCornerHeight = corner.computeFinalGroundHeight() + rampHeight;
+				final float newGroundCornerHeight = corner.computeFinalGroundHeight() + rampHeight + deformed;
 				this.groundCornerHeights[(j * this.columns) + i] = newGroundCornerHeight;
 				corner.depth = corner.getWater() != 0
 						? (this.waterHeightOffset + corner.getWaterHeight()) - newGroundCornerHeight
 						: 0;
 			}
 		}
-		updateGroundHeights();
-		updateCornerHeights();
+		final int firstRow = Math.max(0, (int) area.y);
+		final int lastRow = Math.min(this.rows, (int) (area.y + area.height));
+		uploadHeightRows(this.groundHeight, this.groundHeights, firstRow, lastRow);
+		uploadHeightRows(this.groundCornerHeight, this.groundCornerHeights, firstRow, lastRow);
+		uploadHeightRows(this.groundCornerHeightLinear, this.groundCornerHeights, firstRow, lastRow);
+		refreshSoftwareMeshes((int) area.x - 1, firstRow - 1, (int) (area.x + area.width), lastRow);
 	}
 
-	private void updateGroundHeights() {
-		Gdx.gl30.glBindTexture(GL30.GL_TEXTURE_2D, this.groundHeight);
-		Gdx.gl30.glTexSubImage2D(GL30.GL_TEXTURE_2D, 0, 0, 0, this.columns, this.rows, GL30.GL_RED, GL30.GL_FLOAT,
-				RenderMathUtils.wrap(this.groundHeights));
+	// Deformations change a few rows every game tick; only those rows go to the GPU, through one reused buffer.
+	private void uploadHeightRows(final int texture, final float[] heights, final int firstRow, final int lastRow) {
+		if (lastRow <= firstRow) {
+			return;
+		}
+		if (this.heightUploadBuffer == null) {
+			this.heightUploadBuffer = BufferUtils.newFloatBuffer(this.columns * this.rows);
+		}
+		final FloatBuffer buffer = this.heightUploadBuffer;
+		buffer.clear();
+		buffer.put(heights, firstRow * this.columns, (lastRow - firstRow) * this.columns);
+		buffer.flip();
+		Gdx.gl30.glBindTexture(GL30.GL_TEXTURE_2D, texture);
+		Gdx.gl30.glTexSubImage2D(GL30.GL_TEXTURE_2D, 0, 0, firstRow, this.columns, lastRow - firstRow, GL30.GL_RED,
+				GL30.GL_FLOAT, buffer);
 	}
 
-	private void updateCornerHeights() {
-		final FloatBuffer groundCornerHeightsWrapped = RenderMathUtils.wrap(this.groundCornerHeights);
-		Gdx.gl30.glBindTexture(GL30.GL_TEXTURE_2D, this.groundCornerHeight);
-		Gdx.gl30.glTexSubImage2D(GL30.GL_TEXTURE_2D, 0, 0, 0, this.columns, this.rows, GL30.GL_RED, GL30.GL_FLOAT,
-				groundCornerHeightsWrapped);
-		Gdx.gl30.glBindTexture(GL30.GL_TEXTURE_2D, this.groundCornerHeightLinear);
-		Gdx.gl30.glTexSubImage2D(GL30.GL_TEXTURE_2D, 0, 0, 0, this.columns, this.rows, GL30.GL_RED, GL30.GL_FLOAT,
-				groundCornerHeightsWrapped);
+	/** The meshes clicks are picked on follow the corner heights of the tiles in the given corner range. */
+	private void refreshSoftwareMeshes(final int fromColumn, final int fromRow, final int toColumn, final int toRow) {
+		if ((this.softwareGroundMesh == null) || (this.softwareWaterAndGroundMesh == null)) {
+			return;
+		}
+		final float[][] quadVertices = Shapes.INSTANCE.quadVertices;
+		for (int y = Math.max(0, fromRow); y <= Math.min(this.rows - 2, toRow); y++) {
+			for (int x = Math.max(0, fromColumn); x <= Math.min(this.columns - 2, toColumn); x++) {
+				final int instanceId = (y * (this.columns - 1)) + x;
+				for (int vertexId = 0; vertexId < quadVertices.length; vertexId++) {
+					final int corner = (int) (((quadVertices[vertexId][1] + y) * this.columns)
+							+ (quadVertices[vertexId][0] + x));
+					final int z = (instanceId * 4 * 3) + (vertexId * 3) + 2;
+					final float ground = this.groundCornerHeights[corner];
+					this.softwareGroundMesh.vertices[z] = ground * 128f;
+					this.softwareWaterAndGroundMesh.vertices[z] = (this.waterExistsData[corner] != 0
+							? Math.max(ground, this.waterHeights[corner] + this.waterHeightOffset)
+							: ground) * 128f;
+				}
+			}
+		}
+	}
+
+	public int[] getCornerCount() {
+		return new int[] { this.columns, this.rows };
+	}
+
+	/**
+	 * Sets the script deformation offsets (world units) of the corners in a rectangle; the drawn ground, splats on it
+	 * and GetLocationZ follow them.
+	 */
+	public void setDeformation(final int column, final int row, final int width, final int height,
+			final float[] offsets) {
+		if (this.deformation == null) {
+			this.deformation = new float[this.columns * this.rows];
+		}
+		for (int j = 0; j < height; j++) {
+			for (int i = 0; i < width; i++) {
+				this.deformation[((row + j) * this.columns) + column + i] = offsets[(j * width) + i] / 128f;
+			}
+		}
+		updateGroundHeights(tempRect.set(column, row, width, height));
 	}
 
 	/**
@@ -1121,7 +1179,8 @@ public class Terrain {
 
 		// Render the cliffs
 		for (final SplatModel splat : this.uberSplatModelsList) {
-			if (splat.isHighPriority() == onTopLayer) {
+			if ((splat.isHighPriority() == onTopLayer)
+					&& (GameOptions.get().isUnitShadows() || !this.unitShadowSplatModels.contains(splat))) {
 				splat.render(gl, shader);
 			}
 		}
@@ -1645,6 +1704,22 @@ public class Terrain {
 		return splatModel.add(x - scale, y - scale, x + scale, y + scale, z, this.centerOffset);
 	}
 
+	/** A splat with a batch of its own, so that its colour can change alone (script ubersplats). */
+	public SplatModel addSingleUberSplat(final String key, final String texturePath, final float x, final float y,
+			final float scale) {
+		final SplatModel splatModel = new SplatModel(Gdx.gl30,
+				(Texture) this.viewer.load(texturePath, PathSolver.DEFAULT, null), new ArrayList<>(),
+				this.centerOffset, null, false, false, false, false);
+		splatModel.add(x - scale, y - scale, x + scale, y + scale, 1, this.centerOffset);
+		addSplatBatchModel(key, splatModel);
+		return splatModel;
+	}
+
+	public void removeSingleUberSplat(final String key, final SplatModel model) {
+		removeSplatBatchModel(key);
+		model.dispose(Gdx.gl30);
+	}
+
 	public SplatMover addUnitShadowSplat(final String texture, final float x, final float y, final float x2,
 			final float y2, final float zDepthUpward, final float opacity, final boolean aboveWater) {
 		SplatModel splatModel = this.uberSplatModels.get(texture);
@@ -1653,6 +1728,7 @@ public class Terrain {
 					new ArrayList<>(), this.centerOffset, new ArrayList<>(), false, false, false, aboveWater);
 			splatModel.color[3] = opacity;
 			addSplatBatchModel(texture, splatModel);
+			this.unitShadowSplatModels.add(splatModel);
 		}
 		return splatModel.add(x, y, x2, y2, zDepthUpward, this.centerOffset);
 	}
@@ -1899,6 +1975,34 @@ public class Terrain {
 
 	public int[] getTerrainModBufferSize(float centerX, float centerY, float radius) {
 		return getTerrainModBufferSize(centerX - radius, centerY - radius, radius * 2, radius * 2);
+	}
+
+	public void dispose() {
+		final GL30 gl = Gdx.gl30;
+		for (final GroundTexture texture : this.groundTextures) {
+			texture.dispose(gl);
+		}
+		for (final CliffMesh mesh : this.cliffMeshes) {
+			mesh.dispose();
+		}
+		for (final SplatModel model : this.uberSplatModelsList) {
+			model.dispose(gl);
+		}
+		for (final SplatModel model : this.unitShadowSplatModels) {
+			model.dispose(gl);
+		}
+		gl.glDeleteTexture(this.groundTextureData);
+		gl.glDeleteTexture(this.groundHeight);
+		gl.glDeleteTexture(this.groundCornerHeight);
+		gl.glDeleteTexture(this.groundCornerHeightLinear);
+		gl.glDeleteTexture(this.cliffTextureArray);
+		gl.glDeleteTexture(this.waterHeight);
+		gl.glDeleteTexture(this.waterExists);
+		gl.glDeleteTexture(this.waterTextureArray);
+		gl.glDeleteTexture(this.shadowMap);
+		gl.glDeleteTexture(this.fogOfWarMap);
+		gl.glDeleteBuffer(this.testArrayBuffer);
+		gl.glDeleteBuffer(this.testElementBuffer);
 	}
 
 	public void updateGroundBuffer(int[] rect, float[] modBuffer) {

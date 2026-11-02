@@ -42,6 +42,10 @@ public class DataTexture {
 
 	}
 
+	public void dispose() {
+		this.gl.glDeleteTexture(this.texture);
+	}
+
 	public void bindAndUpdate(final Buffer buffer) {
 		bindAndUpdate(buffer, this.width, this.height);
 	}

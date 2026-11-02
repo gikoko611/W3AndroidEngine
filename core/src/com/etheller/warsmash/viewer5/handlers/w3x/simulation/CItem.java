@@ -30,6 +30,8 @@ public class CItem extends CWidget {
 	private boolean pawnable;
 	private int userData;
 	private War3ID dropId;
+	// Set only by SetItemPlayer; -1 is neutral passive, the owner of every map item.
+	private int playerIndex = -1;
 
 	public CItem(final int handleId, final float x, final float y, final float life, final War3ID typeId,
 			final CItemType itemTypeInstance) {
@@ -225,6 +227,14 @@ public class CItem extends CWidget {
 					COLLISION_SIZE * 2, COLLISION_SIZE * 2);
 		}
 		return this.registeredEnumRectangle;
+	}
+
+	public int getPlayerIndex() {
+		return this.playerIndex;
+	}
+
+	public void setPlayerIndex(final int playerIndex) {
+		this.playerIndex = playerIndex;
 	}
 
 	public boolean isDropOnDeath() {

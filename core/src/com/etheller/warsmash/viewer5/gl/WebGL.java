@@ -56,6 +56,15 @@ public class WebGL {
 		this.instancedArrays = Extensions.angleInstancedArrays;
 	}
 
+	public void dispose() {
+		for (final ShaderProgram program : this.shaderPrograms.values()) {
+			program.dispose();
+		}
+		this.shaderPrograms.clear();
+		this.currentShaderProgram = null;
+		this.emptyTexture.dispose();
+	}
+
 	public ShaderUnitDeprecated createShaderUnit(final String src, final int type) {
 		final int hash = stringHash(src); // TODO: why on earth are we doing this, what about hash collisions?
 		if (!this.shaderUnits.containsKey(hash)) {

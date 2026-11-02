@@ -75,6 +75,7 @@ public class RenderUnit implements RenderWidget {
 	public MdxModel specialArtModel;
 	public SplatMover uberSplat;
 	private boolean decalsRemovedWhileHidden;
+	private int shownTeamColor;
 	private float selectionHeight;
 	private RenderUnit preferredSelectionReplacement;
 	private float[] currentColor = { 1, 1, 1, 1 };
@@ -116,6 +117,7 @@ public class RenderUnit implements RenderWidget {
 //		instance.localRotation.setFromAxisRad(RenderMathUtils.VEC3_UNIT_Z, angle);
 		instance.rotate(tempQuat.setFromAxisRad(RenderMathUtils.VEC3_UNIT_Z, angle));
 		this.playerIndex = playerIndex & 0xFFFF;
+		this.shownTeamColor = this.playerIndex;
 		instance.setTeamColor(this.playerIndex);
 		instance.setScene(map.worldScene);
 		this.unitAnimationListenerImpl = new UnitAnimationListenerImpl(instance, animationWalkSpeed, animationRunSpeed);
@@ -177,6 +179,12 @@ public class RenderUnit implements RenderWidget {
 
 	@Override
 	public void updateAnimations(final War3MapViewer map) {
+		final int teamColor = map.getAllyColorFilter().worldColor(map.simulation, map.getLocalPlayerIndex(),
+				this.simulationUnit.getFakePlayerIndex(), this.playerIndex);
+		if (teamColor != this.shownTeamColor) {
+			this.shownTeamColor = teamColor;
+			this.instance.setTeamColor(teamColor);
+		}
 		final boolean wasHidden = this.instance.hidden();
 		final boolean removed = this.simulationUnit.isHidden();
 		if (removed != this.decalsRemovedWhileHidden) {
@@ -190,8 +198,8 @@ public class RenderUnit implements RenderWidget {
 				createBuildingDecalSplats(map);
 			}
 		}
-		if (this.simulationUnit.isHidden()
-				|| !this.simulationUnit.isVisible(map.simulation, map.getLocalPlayerIndex())) {
+		if (this.simulationUnit.isHidden() || (!map.isObserverView()
+				&& !this.simulationUnit.isVisible(map.simulation, map.getLocalPlayerIndex()))) {
 			if (!wasHidden) {
 				if (this.selectionCircle != null) {
 					this.selectionCircle.hide();
@@ -668,6 +676,7 @@ public class RenderUnit implements RenderWidget {
 
 	public void setPlayerColor(final int ordinal) {
 		this.playerIndex = ordinal;
+		this.shownTeamColor = ordinal;
 		getInstance().setTeamColor(ordinal);
 	}
 

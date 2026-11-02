@@ -15,6 +15,9 @@ import java.util.Map;
 import java.util.Locale;
 import java.util.zip.CRC32C;
 
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.campaign.CSaveStorage;
+import com.etheller.warsmash.viewer5.handlers.w3x.save.SavedGame;
+import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input;
 import com.badlogic.gdx.audio.Music;
@@ -53,6 +56,8 @@ import com.etheller.warsmash.parsers.fdf.frames.BackdropFrame;
 import com.etheller.warsmash.parsers.fdf.frames.EditBoxFrame;
 import com.etheller.warsmash.parsers.fdf.frames.GlueButtonFrame;
 import com.etheller.warsmash.parsers.fdf.frames.GlueTextButtonFrame;
+import com.etheller.warsmash.parsers.fdf.frames.ScrollBarFrame;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.sound.CSoundMixer;
 import com.etheller.warsmash.parsers.fdf.frames.ListBoxFrame;
 import com.etheller.warsmash.parsers.fdf.frames.ListBoxFrame.ListBoxSelelectionListener;
 import com.etheller.warsmash.parsers.fdf.frames.MenuFrame;
@@ -190,6 +195,9 @@ public class MenuUI {
 	private GlueButtonFrame profileButton;
 	private GlueTextButtonFrame campaignButton;
 	private GlueTextButtonFrame loadSavedButton;
+	private SavedGameDialog savedGameDialog;
+	private SimpleFrame savedGameHolder;
+	private GameOptionsDialog optionsDialog;
 	private GlueTextButtonFrame viewReplayButton;
 	private GlueTextButtonFrame customCampaignButton;
 	private GlueTextButtonFrame skirmishButton;
@@ -956,7 +964,9 @@ public class MenuUI {
 		}
 
 		this.localAreaNetworkButton.setEnabled(true);
-		this.optionsButton.setEnabled(false);
+		GameOptions.get().apply();
+		this.optionsButton.setEnabled(true);
+		this.optionsButton.setOnClick(this::showOptions);
 		this.creditsButton.setEnabled(false);
 
 		this.exitButton.setOnClick(new Runnable() {
@@ -1108,6 +1118,7 @@ public class MenuUI {
 		this.profileButton = (GlueButtonFrame) this.rootFrame.getFrameByName("ProfileButton", 0);
 		this.campaignButton = (GlueTextButtonFrame) this.rootFrame.getFrameByName("CampaignButton", 0);
 		this.loadSavedButton = (GlueTextButtonFrame) this.rootFrame.getFrameByName("LoadSavedButton", 0);
+		this.loadSavedButton.setOnClick(this::showSavedGames);
 		this.viewReplayButton = (GlueTextButtonFrame) this.rootFrame.getFrameByName("ViewReplayButton", 0);
 		this.customCampaignButton = (GlueTextButtonFrame) this.rootFrame.getFrameByName("CustomCampaignButton", 0);
 		this.skirmishButton = (GlueTextButtonFrame) this.rootFrame.getFrameByName("SkirmishButton", 0);
@@ -1758,6 +1769,7 @@ public class MenuUI {
 			viewer.enableAudio();
 		}
 		try {
+			viewer.setMapFileName(mapFilename);
 			final War3Map map = War3MapViewer.beginLoadingMap(codebase, mapFilename);
 			final War3MapW3i mapInfo = map.readMapInformation();
 			final DataTable worldEditData = viewer.loadWorldEditData(map);
@@ -1871,6 +1883,11 @@ public class MenuUI {
 					localPlayerIndex = i;
 				}
 			}
+			else if (player.getController() == CMapControl.COMPUTER) {
+				// Measured: the original's -loadfile plays the computer slots of the map script's config.
+				player.setSlotState(CPlayerSlotState.PLAYING);
+				player.setAIDifficulty(AIDifficulty.NORMAL);
+			}
 		}
 		if (computerSlots != null) {
 			for (final String slot : computerSlots.split(",")) {
@@ -1949,6 +1966,11 @@ public class MenuUI {
 	 * take the free locations nearest to their first member's.
 	 */
 	private static void shuffleStartLocations(final War3MapConfig config, final int playerCount) {
+		// Measured: a script's SetGamePlacement(MAP_PLACEMENT_FIXED) keeps each player on the start location its
+		// SetPlayerStartLocation gave it.
+		if (config.getPlacement() == CMapPlacement.FIXED) {
+			return;
+		}
 		final List<Integer> locations = new ArrayList<>();
 		for (int i = 0; i < playerCount; i++) {
 			locations.add(config.getPlayer(i).getStartLocationIndex());
@@ -1997,7 +2019,7 @@ public class MenuUI {
 	protected void setSinglePlayerButtonsEnabled(final boolean b) {
 		this.profileButton.setEnabled(b);
 		this.campaignButton.setEnabled(b);
-		this.loadSavedButton.setEnabled(b && ENABLE_NOT_YET_IMPLEMENTED_BUTTONS);
+		this.loadSavedButton.setEnabled(b);
 		this.viewReplayButton.setEnabled(b && ENABLE_NOT_YET_IMPLEMENTED_BUTTONS);
 		if (this.customCampaignButton != null) {
 			this.customCampaignButton.setEnabled(b && ENABLE_NOT_YET_IMPLEMENTED_BUTTONS);
@@ -2011,7 +2033,7 @@ public class MenuUI {
 		this.battleNetButton.setEnabled(b);
 		this.realmButton.setEnabled(b);
 		this.localAreaNetworkButton.setEnabled(b && ENABLE_NOT_YET_IMPLEMENTED_BUTTONS);
-		this.optionsButton.setEnabled(b && ENABLE_NOT_YET_IMPLEMENTED_BUTTONS);
+		this.optionsButton.setEnabled(b);
 		this.creditsButton.setEnabled(b && ENABLE_NOT_YET_IMPLEMENTED_BUTTONS);
 		this.exitButton.setEnabled(b);
 		if (this.editionButton != null) {
@@ -2466,7 +2488,8 @@ public class MenuUI {
 				this.menuState = MenuState.GOING_TO_SINGLE_PLAYER;
 				break;
 			case SINGLE_PLAYER:
-				this.singlePlayerMenu.setVisible(true);
+				// This state is applied every frame, and the menu has to stay hidden behind the saved games.
+				this.singlePlayerMenu.setVisible((this.savedGameHolder == null) || !this.savedGameHolder.isVisible());
 				this.campaignFade.setVisible(false);
 				setSinglePlayerButtonsEnabled(true);
 				this.glueSpriteLayerTopLeft.setSequence("SinglePlayer Stand");
@@ -2567,6 +2590,13 @@ public class MenuUI {
 
 	}
 
+	public boolean isOverSlider(final int screenX, final int screenY) {
+		screenCoordsVector.set(screenX, screenY);
+		this.uiViewport.unproject(screenCoordsVector);
+		return ScrollBarFrame.isSliderPart(this.rootFrame.getFrameChildUnderMouse(screenCoordsVector.x,
+				screenCoordsVector.y));
+	}
+
 	private FocusableFrame getNextFocusFrame() {
 		return this.rootFrame.getNextFocusFrame();
 	}
@@ -2576,6 +2606,9 @@ public class MenuUI {
 		this.uiViewport.unproject(screenCoordsVector);
 		final UIFrame clickedUIFrame = this.rootFrame.touchDown(screenCoordsVector.x, screenCoordsVector.y, button);
 		closePopupMenusOutside(clickedUIFrame);
+		if (this.optionsDialog != null) {
+			this.optionsDialog.pressed(clickedUIFrame);
+		}
 		if (clickedUIFrame != null) {
 			if (clickedUIFrame instanceof ClickableFrame) {
 				this.mouseDownUIFrame = (ClickableFrame) clickedUIFrame;
@@ -2615,6 +2648,89 @@ public class MenuUI {
 			frame = frame.getParent();
 		}
 		return false;
+	}
+
+	private void showOptions() {
+		if (this.optionsDialog == null) {
+			final SimpleFrame holder = (SimpleFrame) this.rootFrame.createSimpleFrame("SmashEscMenu", this.rootFrame, 0);
+			holder.addAnchor(new AnchorDefinition(FramePoint.TOP, 0, GameUI.convertY(this.uiViewport, -0.05f)));
+			final UIFrame backdrop = this.rootFrame.createFrame("EscMenuBackdrop", holder, 0, 0);
+			holder.add(backdrop);
+			this.rootFrame.add(holder);
+			this.optionsDialog = new GameOptionsDialog(this.rootFrame, this.uiViewport, holder, backdrop,
+					new GameOptionsDialog.Host() {
+						@Override
+						public void closed() {
+							holder.setVisible(false);
+							setMainMenuVisible(true);
+						}
+
+						@Override
+						public void applied() {
+							if (MenuUI.this.currentMusics != null) {
+								for (final Music music : MenuUI.this.currentMusics) {
+									if (music != null) {
+										music.setVolume(CSoundMixer.getMusicOptionScale());
+									}
+								}
+							}
+						}
+					});
+		}
+		setMainMenuVisible(false);
+		this.optionsDialog.getHolder().setVisible(true);
+		this.optionsDialog.show();
+	}
+
+	private void showSavedGames() {
+		if (this.savedGameDialog == null) {
+			final SimpleFrame holder = (SimpleFrame) this.rootFrame.createSimpleFrame("SmashEscMenu", this.rootFrame, 0);
+			holder.addAnchor(new AnchorDefinition(FramePoint.TOP, 0, GameUI.convertY(this.uiViewport, -0.05f)));
+			final UIFrame backdrop = this.rootFrame.createFrame("EscMenuBackdrop", holder, 0, 0);
+			holder.add(backdrop);
+			this.rootFrame.add(holder);
+			this.savedGameDialog = new SavedGameDialog(this.rootFrame, this.uiViewport, holder, backdrop,
+					new SavedGameDialog.Host() {
+						@Override
+						public void focusOn(final FocusableFrame frame) {
+							setFocusFrame(frame);
+						}
+
+						@Override
+						public void saveGame(final String name) {
+						}
+
+						@Override
+						public void loadGame(final String name) {
+							holder.setVisible(false);
+							startSavedGame(name);
+						}
+
+						@Override
+						public void closed() {
+							holder.setVisible(false);
+							MenuUI.this.singlePlayerMenu.setVisible(true);
+						}
+					});
+			this.savedGameHolder = holder;
+		}
+		this.singlePlayerMenu.setVisible(false);
+		this.savedGameHolder.setVisible(true);
+		this.savedGameDialog.showLoad();
+	}
+
+	private void startSavedGame(final String name) {
+		final FileHandle file = CSaveStorage.savedGame(name);
+		try {
+			final SavedGame.Header header = SavedGame.readHeader(file);
+			SavedGame.setPendingLoad(file);
+			this.singlePlayerMenu.setVisible(false);
+			startMap(header.mapFile);
+		}
+		catch (final IOException exc) {
+			exc.printStackTrace();
+			this.singlePlayerMenu.setVisible(true);
+		}
 	}
 
 	private void setFocusFrame(final FocusableFrame clickedFocusableFrame) {
@@ -2846,6 +2962,10 @@ public class MenuUI {
 	}
 
 	public boolean keyDown(final int keycode) {
+		if ((this.optionsDialog != null) && this.optionsDialog.isShowing()) {
+			this.optionsDialog.keyDown(keycode);
+			return true;
+		}
 		if (this.focusUIFrame != null) {
 			this.focusUIFrame.keyDown(keycode);
 		}
@@ -3003,7 +3123,7 @@ public class MenuUI {
 				final String path = MusicPlayerLibGDX.findMusicFile(this.viewer.dataSource, musics[i]);
 				if (path != null) {
 					final Music newMusic = Extensions.audio.newMusic(new DataSourceFileHandle(this.viewer.dataSource, path));
-					newMusic.setVolume(1.0f);
+					newMusic.setVolume(CSoundMixer.getMusicOptionScale());
 					this.currentMusics[i] = newMusic;
 					validMusicCount++;
 				}

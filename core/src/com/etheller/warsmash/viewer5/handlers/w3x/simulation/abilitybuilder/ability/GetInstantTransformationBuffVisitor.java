@@ -57,6 +57,14 @@ public class GetInstantTransformationBuffVisitor implements CAbilityVisitor<ABBu
 	private float duration;
 	private boolean permanent;
 
+	public void release() {
+		this.game = null;
+		this.caster = null;
+		this.localStore = null;
+		this.newType = null;
+		this.actions = null;
+	}
+
 	public GetInstantTransformationBuffVisitor reset(CSimulation game, CUnit caster, Map<String, Object> localStore,
 			CUnitType newType, final boolean keepRatios, OnTransformationActions actions, War3ID buffId,
 			boolean addAlternateTagAfter, float transformationTime, float duration, boolean permanent) {

@@ -5,6 +5,17 @@ public interface CPlayerUnitOrderListener {
 
 	void issuePointOrder(int unitHandleId, int abilityHandleId, int orderId, float x, float y, boolean queue);
 
+	/**
+	 * One point order for several units, each already sent to its own formation slot. Kept as separate orders where
+	 * the group cannot travel as one (network), so the units only lose walking at the group's speed.
+	 */
+	default void issueGroupPointOrder(final int[] unitHandleIds, final int[] abilityHandleIds, final int orderId,
+			final float[] xs, final float[] ys, final boolean queue) {
+		for (int i = 0; i < unitHandleIds.length; i++) {
+			issuePointOrder(unitHandleIds[i], abilityHandleIds[i], orderId, xs[i], ys[i], queue);
+		}
+	}
+
 	void issueDropItemAtPointOrder(int unitHandleId, int abilityHandleId, int orderId, int targetHandleId, float x,
 			float y, final boolean queue);
 

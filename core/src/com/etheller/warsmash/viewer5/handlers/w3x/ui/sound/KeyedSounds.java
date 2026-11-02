@@ -18,6 +18,16 @@ public class KeyedSounds {
 		this.keyToSound = new HashMap<>();
 	}
 
+	/** The key a sound was asked for by, which is what finds it again in another run. */
+	public String keyOf(final UnitSound sound) {
+		for (final Map.Entry<String, UnitSound> entry : this.keyToSound.entrySet()) {
+			if (entry.getValue() == sound) {
+				return entry.getKey();
+			}
+		}
+		return null;
+	}
+
 	public UnitSound getSound(final String key) {
 		UnitSound sound = this.keyToSound.get(key);
 		if (sound == null) {

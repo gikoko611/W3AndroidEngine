@@ -38,6 +38,9 @@ public class MeleeQuestDialog {
 	private static final float BUTTON_INSET = 0.003f;
 	// Measured places of the texts; this engine does not apply FDF FontJustificationOffset.
 	private static final float LIST_TITLE_LEFT = 0.007f;
+	private static final float LIST_TITLE_RAISE = 0.002f;
+	private static final float LIST_STATUS_LEFT = 0.008f;
+	private static final float LIST_STATUS_BOTTOM = 0.005f;
 	private static final float REQUIREMENT_LEFT = 0.012f;
 	private static final int REQUIREMENT_ROWS = 4;
 	private static final float REQUIREMENT_LINE_HEIGHT = 0.013f;
@@ -345,7 +348,10 @@ public class MeleeQuestDialog {
 			this.button.setWidth(GameUI.convertX(viewport, LIST_ITEM_WIDTH - LIST_ICON_SIZE));
 			this.button.setHeight(GameUI.convertY(viewport, LIST_ITEM_FRAME_HEIGHT));
 			this.title.addSetPoint(new SetPoint(FramePoint.LEFT, this.button, FramePoint.LEFT,
-					GameUI.convertX(viewport, LIST_TITLE_LEFT), 0));
+					GameUI.convertX(viewport, LIST_TITLE_LEFT), GameUI.convertY(viewport, LIST_TITLE_RAISE)));
+			// The offsets the FDF gives put the text over the title in this engine; these match a 1.29 picture.
+			this.status.addSetPoint(new SetPoint(FramePoint.BOTTOMLEFT, this.button, FramePoint.BOTTOMLEFT,
+					GameUI.convertX(viewport, LIST_STATUS_LEFT), GameUI.convertY(viewport, LIST_STATUS_BOTTOM)));
 			this.normalBackdrop = backdrop("QuestButtonBackdropTemplate");
 			this.completedBackdrop = backdrop("QuestButtonPushedBackdropTemplate");
 			this.failedBackdrop = backdrop("QuestButtonDisabledPushedBackdropTemplate");

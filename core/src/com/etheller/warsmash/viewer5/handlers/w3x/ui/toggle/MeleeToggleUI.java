@@ -268,6 +268,11 @@ public class MeleeToggleUI implements WarsmashUI {
 	}
 
 	@Override
+	public boolean isOverSlider(final int screenX, final int screenY) {
+		return this.meleeUI.isOverSlider(screenX, screenY);
+	}
+
+	@Override
 	public boolean isOverClickableUi(final int screenX, final int screenY) {
 		return this.meleeUI.isOverClickableUi(screenX, screenY);
 	}
@@ -278,8 +283,23 @@ public class MeleeToggleUI implements WarsmashUI {
 	}
 
 	@Override
+	public boolean isOverAutocastButton(final int screenX, final int screenY) {
+		return this.meleeUI.isOverAutocastButton(screenX, screenY);
+	}
+
+	@Override
 	public boolean hasActiveCommand() {
 		return this.meleeUI.hasActiveCommand();
+	}
+
+	@Override
+	public void screenToWorld(final int screenX, final int screenY, final float[] out) {
+		this.meleeUI.screenToWorld(screenX, screenY, out);
+	}
+
+	@Override
+	public void worldToScreen(final float[] world, final float[] out) {
+		this.meleeUI.worldToScreen(world, out);
 	}
 
 	@Override

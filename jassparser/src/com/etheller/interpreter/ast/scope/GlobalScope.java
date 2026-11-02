@@ -87,6 +87,53 @@ public final class GlobalScope {
 	private final ArrayDeque<JassStackElement> jassStack = new ArrayDeque<>();
 	private boolean debug;
 
+	public Map<String, JassType> getTypes() {
+		return this.types;
+	}
+
+	public List<JassInstruction> getInstructions() {
+		return this.instructions;
+	}
+
+	public Map<String, UserJassFunction> getFunctionDefinitions() {
+		return this.functionNameToDefinition;
+	}
+
+	public List<GlobalScopeAssignable> getIndexedGlobals() {
+		return this.indexedGlobals;
+	}
+
+	public List<JassThread> getThreads() {
+		return this.threads;
+	}
+
+	public List<JassThread> getNewThreads() {
+		return this.newThreads;
+	}
+
+	public ArrayDeque<?> getTriggerQueue() {
+		return this.triggerQueue;
+	}
+
+	public ArrayDeque<?> getRunningTriggerQueue() {
+		return this.runningTriggerQueue;
+	}
+
+	@SuppressWarnings("unchecked")
+	public void restoreThreads(final List<JassThread> threads, final List<JassThread> newThreads,
+			final ArrayDeque<?> triggerQueue, final ArrayDeque<?> runningTriggerQueue) {
+		this.threads.clear();
+		this.threads.addAll(threads);
+		this.newThreads.clear();
+		this.newThreads.addAll(newThreads);
+		this.triggerQueue.clear();
+		this.triggerQueue.addAll((ArrayDeque<QueuedCallback>) triggerQueue);
+		this.runningTriggerQueue.clear();
+		this.runningTriggerQueue.addAll((ArrayDeque<QueuedCallback>) runningTriggerQueue);
+		this.currentThread = null;
+		this.yieldedCurrentThread = false;
+	}
+
 	public GlobalScope() {
 		this.handleType = registerHandleType("handle");// the handle type
 		registerPrimitiveType(JassType.BOOLEAN);

@@ -1,5 +1,9 @@
 package com.etheller.warsmash.viewer5.handlers.w3x.simulation.sound;
 
+import java.util.ArrayDeque;
+import java.util.Deque;
+
+import com.badlogic.gdx.audio.Sound;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.trigger.enumtypes.CSoundVolumeGroup;
 
 /**
@@ -7,7 +11,14 @@ import com.etheller.warsmash.viewer5.handlers.w3x.simulation.trigger.enumtypes.C
  */
 public final class CSoundMixer {
 	private static final float[] GROUP_SCALES = new float[CSoundVolumeGroup.VALUES.length];
+	private static final int MAX_TRACKED_LOOPS = 128;
+	private static final Deque<PlayingLoop> PLAYING_LOOPS = new ArrayDeque<>();
 	private static Runnable musicScaleListener;
+	private static float soundOption = 1f;
+	private static float musicOption = 1f;
+	private static float ambientOption = 1f;
+	private static float movementOption = 1f;
+	private static float unitOption = 1f;
 	static {
 		reset();
 	}
@@ -31,6 +42,10 @@ public final class CSoundMixer {
 		return GROUP_SCALES[group.ordinal()];
 	}
 
+	public static void forgetPlayingLoops() {
+		PLAYING_LOOPS.clear();
+	}
+
 	public static void setMusicScaleListener(final Runnable listener) {
 		musicScaleListener = listener;
 	}
@@ -42,7 +57,65 @@ public final class CSoundMixer {
 	}
 
 	public static float channelScale(final int channel) {
-		return GROUP_SCALES[groupOfChannel(channel).ordinal()];
+		final CSoundVolumeGroup group = groupOfChannel(channel);
+		return GROUP_SCALES[group.ordinal()] * optionScale(group);
+	}
+
+	/** The player's own settings; scripts change only the group scales, so VolumeGroupReset leaves these alone. */
+	public static void setOptionScales(final float sound, final float music, final float ambient, final float movement,
+			final float unit) {
+		soundOption = sound;
+		musicOption = music;
+		ambientOption = ambient;
+		movementOption = movement;
+		unitOption = unit;
+		for (final PlayingLoop loop : PLAYING_LOOPS) {
+			loop.sound.setVolume(loop.id, loop.volume * channelScale(loop.channel));
+		}
+	}
+
+	public static float getMusicOptionScale() {
+		return musicOption;
+	}
+
+	/**
+	 * A one shot sound keeps the volume it started with, but a loop has to follow a change of the settings. Stopped
+	 * loops are not reported here; setting the volume of one does nothing, so they simply age out of the list.
+	 */
+	public static void loopStarted(final Sound sound, final long id, final float volume, final int channel) {
+		if (PLAYING_LOOPS.size() >= MAX_TRACKED_LOOPS) {
+			PLAYING_LOOPS.removeFirst();
+		}
+		PLAYING_LOOPS.addLast(new PlayingLoop(sound, id, volume, channel));
+	}
+
+	private static float optionScale(final CSoundVolumeGroup group) {
+		switch (group) {
+		case MUSIC:
+			return musicOption;
+		case AMBIENTSOUNDS:
+			return soundOption * ambientOption;
+		case UNITMOVEMENT:
+			return soundOption * movementOption;
+		case UNITSOUNDS:
+			return soundOption * unitOption;
+		default:
+			return soundOption;
+		}
+	}
+
+	private static final class PlayingLoop {
+		private final Sound sound;
+		private final long id;
+		private final float volume;
+		private final int channel;
+
+		private PlayingLoop(final Sound sound, final long id, final float volume, final int channel) {
+			this.sound = sound;
+			this.id = id;
+			this.volume = volume;
+			this.channel = channel;
+		}
 	}
 
 	// Channels of the sound data: 0 general, 1 unit selection, 2 unit acknowledgement, 3 unit movement, 4 unit ready,

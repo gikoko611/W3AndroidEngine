@@ -1,11 +1,15 @@
 package com.etheller.warsmash.viewer5.handlers.w3x.simulation.players;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import com.etheller.warsmash.parsers.jass.scope.CommonTriggerExecutionScope;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CSimulation;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CUnit;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.item.shop.CAbilityNeutralBuilding;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.targeting.AbilityPointTarget;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.behaviors.CBehaviorHoldPosition;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.behaviors.CGroupMove;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.orders.COrderDropItemAtPoint;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.orders.COrderDropItemAtTargetWidget;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.orders.COrderNoTarget;
@@ -88,6 +92,21 @@ public class CPlayerUnitOrderExecutor implements CPlayerUnitOrderListener {
 			unit.order(this.game, new COrderTargetPoint(this.playerIndex, abilityHandleId, orderId,
 					new AbilityPointTarget(x, y), queue), queue);
 		}
+	}
+
+	@Override
+	public void issueGroupPointOrder(final int[] unitHandleIds, final int[] abilityHandleIds, final int orderId,
+			final float[] xs, final float[] ys, final boolean queue) {
+		final List<CUnit> walkers = new ArrayList<>();
+		for (int i = 0; i < unitHandleIds.length; i++) {
+			issuePointOrder(unitHandleIds[i], abilityHandleIds[i], orderId, xs[i], ys[i], queue);
+			final CUnit unit = this.game.getUnit(unitHandleIds[i]);
+			if (!queue && (unit != null) && CGroupMove.canTakeSlot(unit)
+					&& ((this.playerIndex == unit.getPlayerIndex()) || sharedControl(unit))) {
+				walkers.add(unit);
+			}
+		}
+		CGroupMove.linkMoving(walkers);
 	}
 
 	@Override

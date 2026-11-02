@@ -5,6 +5,7 @@ import java.util.List;
 
 import com.badlogic.gdx.audio.Sound;
 import com.badlogic.gdx.utils.TimeUtils;
+import com.etheller.warsmash.util.SessionResources;
 import com.etheller.warsmash.datasources.DataSource;
 import com.etheller.warsmash.units.DataTable;
 import com.etheller.warsmash.units.Element;
@@ -87,7 +88,8 @@ public final class UnitSound {
 		Sound sound = this.sounds.get(index);
 		if (sound == null) {
 			try {
-				sound = Extensions.audio.newSound(new DataSourceFileHandle(this.dataSource, this.soundPaths.get(index)));
+				sound = SessionResources.track(
+						Extensions.audio.newSound(new DataSourceFileHandle(this.dataSource, this.soundPaths.get(index))));
 			}
 			catch (final Exception exc) {
 				exc.printStackTrace();
@@ -107,7 +109,8 @@ public final class UnitSound {
 		final String resolvedPath = DataSourceFileHandle.resolveSoundPath(dataSource, filePath + ".wav");
 		if (dataSource.has(resolvedPath)) {
 			try {
-				newSound = Extensions.audio.newSound(new DataSourceFileHandle(dataSource, resolvedPath));
+				newSound = SessionResources.track(
+						Extensions.audio.newSound(new DataSourceFileHandle(dataSource, resolvedPath)));
 			}
 			catch (final Exception exc) {
 				exc.printStackTrace();
@@ -194,6 +197,9 @@ public final class UnitSound {
 					(this.pitch + ((float) Math.random() * this.pitchVariance * 2)) - this.pitchVariance, loopOverride);
 		}
 		this.lastPlayedSound = source.buffer;
+		if ((soundId != -1) && (loopOverride == null ? this.looping : loopOverride)) {
+			CSoundMixer.loopStarted(source.buffer, soundId, this.volume, this.channel);
+		}
 		return soundId;
 	}
 

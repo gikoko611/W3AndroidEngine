@@ -48,6 +48,14 @@ public interface CSound {
 		return getRemainingTimeToPlayOnTheDesyncLocalComputer() > 0;
 	}
 
+	/** KillSoundWhenDone: once the sound is not playing any more, it is released and cannot be started again. */
+	default void killWhenDone() {
+	}
+
+	default boolean isKilled() {
+		return false;
+	}
+
 	default void setDialogueSpeakerNameKey(final String key) {
 	}
 

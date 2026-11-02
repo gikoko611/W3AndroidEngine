@@ -31,11 +31,6 @@ public class ABActionDispelBuffs implements ABAction {
 			theTarget = unit.callback(game, theCaster, localStore, castId);
 		}
 
-		if ((theTarget != null) && theTarget.isIllusion()) {
-			// Any dispel destroys an illusion outright.
-			theTarget.kill(game);
-			return;
-		}
 		if (theTarget != null) {
 			List<CBuff> toRemove = new ArrayList<>();
 			for (CAbility ability : theTarget.getAbilities()) {

@@ -15,6 +15,8 @@ public final class GestureRecognizer {
 		IDLE, PENDING, LONG, DRAG, TWO_FINGER, PAN_REMAINING, IGNORE
 	}
 
+	private static final int PAN_LOCK_SLOPS = 3;
+
 	private final TouchSettings settings;
 	private final GestureListener listener;
 	private final Map<Integer, float[]> pointers = new LinkedHashMap<>();
@@ -34,6 +36,7 @@ public final class GestureRecognizer {
 	private boolean twoMoved;
 	private boolean panStarted;
 	private boolean zoomActive;
+	private boolean panLocked;
 	private boolean twoFingerDirty;
 	private int holdTapPointer = -1;
 	private long holdTapDownTime;
@@ -129,6 +132,7 @@ public final class GestureRecognizer {
 		this.twoMoved = false;
 		this.panStarted = false;
 		this.zoomActive = false;
+		this.panLocked = false;
 	}
 
 	private void move(final PointerEvent event) {
@@ -161,6 +165,15 @@ public final class GestureRecognizer {
 			}
 			break;
 		}
+		case LONG:
+			if ((event.pointerId == this.primaryId)
+					&& (Math.hypot(event.x - this.downX, event.y - this.downY) > this.settings.tapSlopPx)
+					&& this.listener.canDragAfterLongPress(this.downX, this.downY)) {
+				this.state = State.DRAG;
+				this.listener.dragStart(this.downX, this.downY, this.pen);
+				this.listener.drag(event.x, event.y);
+			}
+			break;
 		case DRAG:
 			this.listener.drag(event.x, event.y);
 			break;
@@ -193,10 +206,16 @@ public final class GestureRecognizer {
 		}
 		this.listener.pan(centroid[0], centroid[1]);
 		if (!this.zoomActive) {
+			final float change = Math.abs(distance - this.twoStartDistance);
+			// Fingers drift apart over a long pan, so a gesture that has travelled as a pan stays one until it lifts.
+			if (this.panLocked || ((shift > (this.settings.tapSlopPx * PAN_LOCK_SLOPS)) && (shift > change))) {
+				this.panLocked = true;
+				return;
+			}
 			final float ratio = distance / this.twoStartDistance;
 			final boolean pastStart = (ratio >= this.settings.pinchStartRatio)
 					|| (ratio <= (1 / this.settings.pinchStartRatio));
-			if (pastStart && (Math.abs(distance - this.twoStartDistance) > shift)) {
+			if (pastStart && (change > shift)) {
 				this.zoomActive = true;
 				this.zoomStepDistance = distance;
 				this.listener.zoomStep(ratio > 1 ? 1 : -1);

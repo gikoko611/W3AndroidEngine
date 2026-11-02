@@ -48,6 +48,10 @@ public class CGlobalWidgetEvent extends CGlobalEvent {
 				this.trigger, scope, scope);
 	}
 
+	public static void releaseStaticReferences() {
+		ScopeBuilder.INSTANCE.reset(null);
+	}
+
 	private static final class ScopeBuilder implements AbilityTargetVisitor<CommonTriggerExecutionScope> {
 		public static final ScopeBuilder INSTANCE = new ScopeBuilder();
 		private TriggerExecutionScope parentScope;

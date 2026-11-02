@@ -12,14 +12,32 @@ import com.etheller.warsmash.parsers.jass.scope.CommonTriggerExecutionScope;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.trigger.JassGameEventsWar3;
 
 public class CScriptDialogButton {
-	private final GlueTextButtonFrame buttonFrame;
-	private final StringFrame buttonText;
+	private GlueTextButtonFrame buttonFrame;
+	private StringFrame buttonText;
+	private String text;
+	private boolean quitButton;
 	private final List<Trigger> eventTriggers = new ArrayList<>();
 	private Runnable afterClick;
 
-	public CScriptDialogButton(final GlueTextButtonFrame buttonFrame, final StringFrame buttonText) {
+	public CScriptDialogButton(final GlueTextButtonFrame buttonFrame, final StringFrame buttonText,
+			final String text) {
 		this.buttonFrame = buttonFrame;
 		this.buttonText = buttonText;
+		this.text = text;
+	}
+
+	/** A saved game keeps what the button says and does; the loaded game gives it new frames. */
+	public void attachFrames(final GlueTextButtonFrame buttonFrame, final StringFrame buttonText) {
+		this.buttonFrame = buttonFrame;
+		this.buttonText = buttonText;
+	}
+
+	public String getText() {
+		return this.text;
+	}
+
+	public boolean isQuitButton() {
+		return this.quitButton;
 	}
 
 	public GlueTextButtonFrame getButtonFrame() {
@@ -27,6 +45,7 @@ public class CScriptDialogButton {
 	}
 
 	public void setText(final GameUI rootFrame, final String text) {
+		this.text = text;
 		rootFrame.setText(this.buttonText, text);
 	}
 
@@ -50,7 +69,8 @@ public class CScriptDialogButton {
 	/**
 	 * Runs after the button's triggers are queued, as a quit button (DialogAddQuitButton) leaves the game then.
 	 */
-	public void setAfterClick(final Runnable afterClick) {
+	public void setQuitAction(final Runnable afterClick) {
+		this.quitButton = true;
 		this.afterClick = afterClick;
 	}
 

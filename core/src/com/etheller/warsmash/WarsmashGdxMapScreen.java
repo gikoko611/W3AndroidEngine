@@ -10,6 +10,7 @@ import java.util.Arrays;
 import java.util.List;
 
 import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.Input;
 import com.badlogic.gdx.InputProcessor;
 import com.badlogic.gdx.Screen;
@@ -24,6 +25,10 @@ import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
 import com.badlogic.gdx.math.Matrix4;
 import com.badlogic.gdx.math.Rectangle;
 import com.badlogic.gdx.utils.viewport.ExtendViewport;
+import com.badlogic.gdx.utils.Disposable;
+import com.badlogic.gdx.utils.BufferUtils;
+import com.etheller.warsmash.util.SessionResources;
+import com.etheller.warsmash.input.touch.SliderHost;
 import com.etheller.warsmash.input.touch.TouchTarget;
 import com.etheller.warsmash.datasources.CascDataSourceDescriptor;
 import com.etheller.warsmash.datasources.CompoundDataSource;
@@ -56,12 +61,14 @@ import com.etheller.warsmash.viewer5.handlers.w3x.War3MapViewer;
 import com.etheller.warsmash.viewer5.handlers.w3x.camera.CameraPreset;
 import com.etheller.warsmash.viewer5.handlers.w3x.camera.CameraRates;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.players.CPlayerUnitOrderListener;
+import com.etheller.warsmash.viewer5.handlers.w3x.save.SavedGame;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.campaign.CCampaignProgress;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.campaign.CGameCache;
 import com.etheller.warsmash.viewer5.handlers.w3x.ui.MeleeUI;
 import com.etheller.warsmash.viewer5.handlers.w3x.ui.WarsmashUI;
 import com.etheller.warsmash.viewer5.handlers.w3x.ui.toggle.MeleeToggleUI;
 
-public class WarsmashGdxMapScreen implements InputProcessor, Screen, TouchTarget {
+public class WarsmashGdxMapScreen implements InputProcessor, Screen, TouchTarget, SliderHost {
 	public static final boolean ENABLE_AUDIO = true;
 	private final War3MapViewer viewer;
 	private final Rectangle tempRect = new Rectangle();
@@ -80,12 +87,16 @@ public class WarsmashGdxMapScreen implements InputProcessor, Screen, TouchTarget
 
 	private Scene uiScene;
 	private WarsmashUI meleeUI;
+	private MeleeUI baseMeleeUI;
 
 	private Music currentMusic;
 	private final WarsmashGdxMultiScreenGame screenManager;
 	private final WarsmashGdxMenuScreen menuScreen;
 	private final CPlayerUnitOrderListener uiOrderListener;
 	private CommonEnvironment commonEnv;
+	private int previousVao;
+	private int vao;
+	private List<Disposable> sessionResources;
 
 	public WarsmashGdxMapScreen(final War3MapViewer mapViewer, final WarsmashGdxMultiScreenGame screenManager,
 			final WarsmashGdxMenuScreen menuScreen, final CPlayerUnitOrderListener uiOrderListener) {
@@ -107,8 +118,11 @@ public class WarsmashGdxMapScreen implements InputProcessor, Screen, TouchTarget
 		tempByteBuffer.order(ByteOrder.LITTLE_ENDIAN);
 		final IntBuffer temp = tempByteBuffer.asIntBuffer();
 
+		SessionResources.begin();
 		Gdx.gl30.glGenVertexArrays(1, temp);
-		WarsmashGdxGame.VAO = temp.get(0);
+		this.previousVao = WarsmashGdxGame.VAO;
+		this.vao = temp.get(0);
+		WarsmashGdxGame.VAO = this.vao;
 
 		Gdx.gl30.glBindVertexArray(WarsmashGdxGame.VAO);
 
@@ -196,14 +210,19 @@ public class WarsmashGdxMapScreen implements InputProcessor, Screen, TouchTarget
 				}, this.uiOrderListener, new Runnable() {
 					@Override
 					public void run() {
+						// The menu picks up its own sounds and textures from here on.
+						WarsmashGdxMapScreen.this.endSession();
 						WarsmashGdxMapScreen.this.menuScreen.onReturnFromGame();
 						WarsmashGdxMapScreen.this.screenManager.setScreen(WarsmashGdxMapScreen.this.menuScreen);
+						CGameCache.dropUnsaved();
 						final String nextLevel = CCampaignProgress.consumePendingLevel();
 						if (nextLevel != null) {
-							WarsmashGdxMapScreen.this.menuScreen.startMap(nextLevel);
+							WarsmashGdxMapScreen.this.menuScreen.startMap(nextLevel,
+									CCampaignProgress.consumePendingComputerSlots());
 						}
 					}
 				});
+		this.baseMeleeUI = baseMeleeUI;
 		final MeleeToggleUI toggleUI = new MeleeToggleUI(baseMeleeUI, Arrays.asList(baseMeleeUI));
 		this.meleeUI = toggleUI;
 		this.viewer.getCommandErrorListener().setDelegate(this.meleeUI);
@@ -233,7 +252,21 @@ public class WarsmashGdxMapScreen implements InputProcessor, Screen, TouchTarget
 		}
 		this.commonEnv = Jass2.loadCommon(this.viewer.mapMpq, this.uiViewport, this.uiScene, this.viewer, this.meleeUI,
 				WarsmashConstants.JASS_FILE_LIST);
-		this.commonEnv.main();
+		final FileHandle savedGame = SavedGame.consumePendingLoad();
+		if (savedGame != null) {
+			try {
+				this.commonEnv.loadSavedGame(this.viewer, savedGame);
+			}
+			catch (final IOException e) {
+				// Nothing of the save has been applied yet at this point, so the map can still start normally.
+				System.err.println("Could not load the saved game " + savedGame.name() + ": " + e.getMessage());
+				this.commonEnv.main();
+				this.meleeUI.displayTimedText(0, 0, 10, "Could not load the saved game.");
+			}
+		}
+		else {
+			this.commonEnv.main();
+		}
 	}
 
 	public static DataSource parseDataSources(final DataTable warsmashIni) {
@@ -317,6 +350,7 @@ public class WarsmashGdxMapScreen implements InputProcessor, Screen, TouchTarget
 		this.viewer.webGL.useShaderProgram(null);
 
 		Gdx.gl30.glActiveTexture(GL30.GL_TEXTURE0);
+		GammaOverlay.render(this.batch);
 	}
 
 	private void renderLibGDXContent(final boolean modal) {
@@ -350,9 +384,25 @@ public class WarsmashGdxMapScreen implements InputProcessor, Screen, TouchTarget
 
 	@Override
 	public void dispose() {
+		endSession();
 		this.meleeUI.dispose();
 		this.batch.dispose();
-		this.viewer.getGameUI().dispose();
+		this.shapeRenderer.dispose();
+		for (final Disposable resource : this.sessionResources) {
+			resource.dispose();
+		}
+		this.viewer.dispose();
+		final IntBuffer vaos = BufferUtils.newIntBuffer(1);
+		vaos.put(0, this.vao);
+		Gdx.gl30.glDeleteVertexArrays(1, vaos);
+		WarsmashGdxGame.VAO = this.previousVao;
+		Gdx.gl30.glBindVertexArray(WarsmashGdxGame.VAO);
+	}
+
+	private void endSession() {
+		if (this.sessionResources == null) {
+			this.sessionResources = SessionResources.end();
+		}
 	}
 
 	@Override
@@ -390,7 +440,7 @@ public class WarsmashGdxMapScreen implements InputProcessor, Screen, TouchTarget
 
 	@Override
 	public boolean keyTyped(final char character) {
-		return false;
+		return this.baseMeleeUI != null ? this.baseMeleeUI.keyTyped(character) : false;
 	}
 
 	@Override
@@ -443,6 +493,11 @@ public class WarsmashGdxMapScreen implements InputProcessor, Screen, TouchTarget
 	}
 
 	@Override
+	public boolean isOverSlider(final int screenX, final int screenY) {
+		return this.meleeUI.isOverSlider(screenX, screenY);
+	}
+
+	@Override
 	public boolean isOverClickableUi(final int screenX, final int screenY) {
 		return this.meleeUI.isOverClickableUi(screenX, screenY);
 	}
@@ -453,8 +508,23 @@ public class WarsmashGdxMapScreen implements InputProcessor, Screen, TouchTarget
 	}
 
 	@Override
+	public boolean isOverAutocastButton(final int screenX, final int screenY) {
+		return this.meleeUI.isOverAutocastButton(screenX, screenY);
+	}
+
+	@Override
 	public boolean hasActiveCommand() {
 		return this.meleeUI.hasActiveCommand();
+	}
+
+	@Override
+	public void screenToWorld(final int screenX, final int screenY, final float[] out) {
+		this.meleeUI.screenToWorld(screenX, screenY, out);
+	}
+
+	@Override
+	public void worldToScreen(final float[] world, final float[] out) {
+		this.meleeUI.worldToScreen(world, out);
 	}
 
 	@Override
@@ -606,5 +676,13 @@ public class WarsmashGdxMapScreen implements InputProcessor, Screen, TouchTarget
 	@Override
 	public void hide() {
 		this.meleeUI.gameClosed();
+		endSession();
+		// Leaving the game happens in the middle of this screen's own frame, which still has to finish.
+		Gdx.app.postRunnable(new Runnable() {
+			@Override
+			public void run() {
+				dispose();
+			}
+		});
 	}
 }

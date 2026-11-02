@@ -33,9 +33,13 @@ public class Quadtree<T> {
 	}
 
 	public void translate(final T object, final Rectangle prevBoundsToUpdate, final float xShift, final float yShift) {
-		final Node<T> node = remove(object, prevBoundsToUpdate, null);
+		Node<T> node = remove(object, prevBoundsToUpdate, null);
 		prevBoundsToUpdate.x += xShift;
 		prevBoundsToUpdate.y += yShift;
+		if (node == null) {
+			// Not found under its bounds (moved during an intersect walk); adding it again beats a null node.
+			node = new Node<T>(object, prevBoundsToUpdate);
+		}
 		add(node, 0);
 	}
 
@@ -52,23 +56,28 @@ public class Quadtree<T> {
 			return false;
 		}
 		else {
-			if (this.northeast.bounds.overlaps(bounds)) {
-				if (this.northeast.intersect(bounds, intersector)) {
+			// An intersector may move or remove objects, which can merge this node mid-walk.
+			final Quadtree<T> northeast = this.northeast;
+			final Quadtree<T> northwest = this.northwest;
+			final Quadtree<T> southwest = this.southwest;
+			final Quadtree<T> southeast = this.southeast;
+			if (northeast.bounds.overlaps(bounds)) {
+				if (northeast.intersect(bounds, intersector)) {
 					return true;
 				}
 			}
-			if (this.northwest.bounds.overlaps(bounds)) {
-				if (this.northwest.intersect(bounds, intersector)) {
+			if (northwest.bounds.overlaps(bounds)) {
+				if (northwest.intersect(bounds, intersector)) {
 					return true;
 				}
 			}
-			if (this.southwest.bounds.overlaps(bounds)) {
-				if (this.southwest.intersect(bounds, intersector)) {
+			if (southwest.bounds.overlaps(bounds)) {
+				if (southwest.intersect(bounds, intersector)) {
 					return true;
 				}
 			}
-			if (this.southeast.bounds.overlaps(bounds)) {
-				if (this.southeast.intersect(bounds, intersector)) {
+			if (southeast.bounds.overlaps(bounds)) {
+				if (southeast.intersect(bounds, intersector)) {
 					return true;
 				}
 			}
@@ -89,23 +98,28 @@ public class Quadtree<T> {
 			return false;
 		}
 		else {
-			if (this.northeast.bounds.contains(x, y)) {
-				if (this.northeast.intersect(x, y, intersector)) {
+			// An intersector may move or remove objects, which can merge this node mid-walk.
+			final Quadtree<T> northeast = this.northeast;
+			final Quadtree<T> northwest = this.northwest;
+			final Quadtree<T> southwest = this.southwest;
+			final Quadtree<T> southeast = this.southeast;
+			if (northeast.bounds.contains(x, y)) {
+				if (northeast.intersect(x, y, intersector)) {
 					return true;
 				}
 			}
-			if (this.northwest.bounds.contains(x, y)) {
-				if (this.northwest.intersect(x, y, intersector)) {
+			if (northwest.bounds.contains(x, y)) {
+				if (northwest.intersect(x, y, intersector)) {
 					return true;
 				}
 			}
-			if (this.southwest.bounds.contains(x, y)) {
-				if (this.southwest.intersect(x, y, intersector)) {
+			if (southwest.bounds.contains(x, y)) {
+				if (southwest.intersect(x, y, intersector)) {
 					return true;
 				}
 			}
-			if (this.southeast.bounds.contains(x, y)) {
-				if (this.southeast.intersect(x, y, intersector)) {
+			if (southeast.bounds.contains(x, y)) {
+				if (southeast.intersect(x, y, intersector)) {
 					return true;
 				}
 			}
@@ -175,16 +189,28 @@ public class Quadtree<T> {
 		}
 		else {
 			if (this.northeast.bounds.overlaps(bounds)) {
-				returnValue = this.northeast.remove(object, bounds, this);
+				final Node<T> removed = this.northeast.remove(object, bounds, this);
+				if (removed != null) {
+					returnValue = removed;
+				}
 			}
 			if (this.northwest.bounds.overlaps(bounds)) {
-				returnValue = this.northwest.remove(object, bounds, this);
+				final Node<T> removed = this.northwest.remove(object, bounds, this);
+				if (removed != null) {
+					returnValue = removed;
+				}
 			}
 			if (this.southwest.bounds.overlaps(bounds)) {
-				returnValue = this.southwest.remove(object, bounds, this);
+				final Node<T> removed = this.southwest.remove(object, bounds, this);
+				if (removed != null) {
+					returnValue = removed;
+				}
 			}
 			if (this.southeast.bounds.overlaps(bounds)) {
-				returnValue = this.southeast.remove(object, bounds, this);
+				final Node<T> removed = this.southeast.remove(object, bounds, this);
+				if (removed != null) {
+					returnValue = removed;
+				}
 			}
 			mergeIfNecessary();
 		}

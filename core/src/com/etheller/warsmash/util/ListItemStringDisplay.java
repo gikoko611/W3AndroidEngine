@@ -33,6 +33,8 @@ public class ListItemStringDisplay extends AbstractListItemDisplay {
 
         String val = ((ListItemStringProperty) itemProperty).getRawValue();
         stringFrame.setText(val); 
+        Color color = ((ListItemStringProperty) itemProperty).getColor();
+        stringFrame.setColor(color == null ? Color.WHITE : color);
     }
     
 }

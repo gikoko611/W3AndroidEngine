@@ -211,6 +211,7 @@ public class EditBoxFrame extends AbstractRenderableFrame implements FocusableFr
 
 	public void setText(final String text, final GameUI gameUI, final Viewport uiViewport) {
 		this.editTextFrame.setText(text, gameUI, uiViewport);
+		this.cursorIndex = text == null ? 0 : text.length();
 	}
 
 	public void setOnChange(final Runnable onChange) {

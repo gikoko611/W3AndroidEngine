@@ -139,6 +139,10 @@ public class CUnitAttackMissileSplash extends CUnitAttackMissile {
 		}
 	}
 
+	public static void releaseStaticReferences() {
+		SplashDamageConsumer.INSTANCE.release();
+	}
+
 	private static final class SplashDamageConsumer implements CUnitEnumFunction, CDestructableEnumFunction {
 		private static final SplashDamageConsumer INSTANCE = new SplashDamageConsumer();
 		private final Rectangle rect = new Rectangle();
@@ -153,6 +157,15 @@ public class CUnitAttackMissileSplash extends CUnitAttackMissile {
 		private float bonusDamage;
 		private CUnitAttackListener attackListener;
 		private boolean hitTarget;
+
+		private void release() {
+			this.simulation = null;
+			this.source = null;
+			this.target = null;
+			this.attack = null;
+			this.attackListener = null;
+			this.settings = null;
+		}
 
 		public void doDamage(final CSimulation simulation, final CUnit source, final AbilityTarget target,
 				final CUnitAttackMissileSplash attack, final float x, final float y, final float damage,

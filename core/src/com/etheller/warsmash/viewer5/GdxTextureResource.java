@@ -16,6 +16,13 @@ public abstract class GdxTextureResource extends Texture {
 	}
 
 	@Override
+	public void dispose() {
+		if (this.gdxTexture != null) {
+			this.gdxTexture.dispose();
+		}
+	}
+
+	@Override
 	protected void error(final Exception e) {
 		e.printStackTrace();
 	}

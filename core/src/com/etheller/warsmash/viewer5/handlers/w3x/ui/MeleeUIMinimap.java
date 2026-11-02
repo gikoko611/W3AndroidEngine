@@ -1,6 +1,8 @@
 package com.etheller.warsmash.viewer5.handlers.w3x.ui;
 
 import java.util.Arrays;
+import java.util.function.Function;
+import java.util.function.Supplier;
 
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.Pixmap;
@@ -20,6 +22,12 @@ import com.etheller.warsmash.viewer5.handlers.w3x.simulation.players.vision.CPla
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.trigger.enumtypes.CFogState;
 
 public class MeleeUIMinimap {
+	private boolean observerView;
+	private AllyColorFilter allyColorFilter;
+	private Supplier<String> altIconPath;
+	private Function<String, Texture> altIconLoader;
+	private String loadedAltIconPath;
+	private Texture loadedAltIcon;
 	private static final float HERO_STEP = 0.01f;
 	private final Rectangle minimap;
 	private final Rectangle minimapFilledArea;
@@ -28,7 +36,7 @@ public class MeleeUIMinimap {
 	private final Texture[] teamColors;
 	private final Texture[] specialIcons;
 	private float heroAlpha = 0.90f;
-	private static final int ICON_VALUES = 7;
+	private static final int ICON_VALUES = 8;
 	private Texture[] iconTextures = new Texture[64];
 	private float[] iconValues = new float[64 * ICON_VALUES];
 	private int iconCount;
@@ -59,6 +67,32 @@ public class MeleeUIMinimap {
 		this.minimapFilledArea = new Rectangle(this.minimap.x + ((this.minimap.width - minimapFilledWidth) / 2),
 				this.minimap.y + ((this.minimap.height - minimapFilledHeight) / 2), minimapFilledWidth,
 				minimapFilledHeight);
+	}
+
+	public void setObserverView(final boolean observerView) {
+		this.observerView = observerView;
+	}
+
+	public void setAllyColorFilter(final AllyColorFilter allyColorFilter) {
+		this.allyColorFilter = allyColorFilter;
+	}
+
+	/** Where the map's alternate icon (SetAltMinimapIcon) comes from: its current path and a texture loader. */
+	public void setAltIconSource(final Supplier<String> altIconPath, final Function<String, Texture> loader) {
+		this.altIconPath = altIconPath;
+		this.altIconLoader = loader;
+	}
+
+	private Texture altIcon() {
+		final String path = this.altIconPath == null ? null : this.altIconPath.get();
+		if ((path == null) || path.isEmpty()) {
+			return null;
+		}
+		if (!path.equals(this.loadedAltIconPath)) {
+			this.loadedAltIconPath = path;
+			this.loadedAltIcon = this.altIconLoader.apply(path);
+		}
+		return this.loadedAltIcon;
 	}
 
 	public void render(final CSimulation game, final SpriteBatch batch, final Iterable<RenderUnit> units,
@@ -129,13 +163,19 @@ public class MeleeUIMinimap {
 			final CUnit simUnit = unit.getSimulationUnit();
 			int dimensions = 4;
 			if (!(simUnit.isHidden() || simUnit.isHideMinimapIcon() || simUnit.isDead())
-					&& simUnit.isVisible(game, player.getId())) {
+					&& (this.observerView || simUnit.isVisible(game, player.getId())
+						|| isExploredLandmark(game, simUnit, pathingGrid, fogOfWar))) {
 				float red = 1f;
 				float green = 1f;
+				float blue = 1f;
 				float alpha = 1f;
 				int layer = 1;
 				final Texture minimapIcon;
-				if (simUnit.getGoldMineData() != null) {
+				final Texture altIcon = simUnit.isUsesAltMinimapIcon() ? altIcon() : null;
+				if (altIcon != null) {
+					minimapIcon = altIcon;
+					dimensions = 21;
+				} else if (simUnit.getGoldMineData() != null) {
 					minimapIcon = this.specialIcons[0];
 					dimensions = 21;
 				} else if (simUnit.getOverlayedGoldMineData() != null) {
@@ -152,6 +192,7 @@ public class MeleeUIMinimap {
 				} else if (simUnit.isHero()) {
 					if (!player.hasAlliance(simUnit.getFakePlayerIndex(), CAllianceType.PASSIVE)) {
 						green = 0.2f;
+						blue = 0.2f;
 					}
 					alpha = this.heroAlpha;
 					layer = 2;
@@ -162,7 +203,15 @@ public class MeleeUIMinimap {
 						dimensions = 10;
 					}
 					layer = 0;
-					if (simUnit.getFakePlayerIndex() == player.getId()) {
+					final float[] filtered = this.allyColorFilter == null ? null
+							: this.allyColorFilter.minimapColor(game, player.getId(), simUnit.getFakePlayerIndex());
+					if (filtered != null) {
+						minimapIcon = this.specialIcons[5];
+						red = filtered[0];
+						green = filtered[1];
+						blue = filtered[2];
+					}
+					else if (simUnit.getFakePlayerIndex() == player.getId()) {
 						minimapIcon = this.specialIcons[5];
 					}
 					else {
@@ -174,16 +223,24 @@ public class MeleeUIMinimap {
 						/ (this.playableMapArea.getWidth())) * this.minimapFilledArea.width)) - offset,
 						(this.minimapFilledArea.y + (((unit.location[1] - this.playableMapArea.getY())
 								/ (this.playableMapArea.getHeight())) * this.minimapFilledArea.height)) - offset,
-						dimensions, red, green, alpha);
+						dimensions, red, green, blue, alpha);
 			}
 		}
 		drawIcons(batch);
 	}
 
+	private static boolean isExploredLandmark(final CSimulation game, final CUnit unit, final PathingGrid pathingGrid,
+			final CPlayerFogOfWar fogOfWar) {
+		return ((unit.getGoldMineData() != null) || (unit.getOverlayedGoldMineData() != null)
+				|| unit.getUnitType().isNeutralBuildingShowMinimapIcon())
+				&& !CFogState.MASKED.equals(fogOfWar.getFogState(game, pathingGrid.getFogOfWarIndexX(unit.getX()),
+						pathingGrid.getFogOfWarIndexY(unit.getY())));
+	}
+
 	// Icons are drawn grouped by texture, since every texture change is a separate draw call and the dots of
 	// different players otherwise alternate unit by unit.
 	private void addIcon(final Texture texture, final int layer, final float x, final float y, final int dimensions,
-			final float red, final float green, final float alpha) {
+			final float red, final float green, final float blue, final float alpha) {
 		final int index = this.iconCount++;
 		if (index >= this.iconTextures.length) {
 			final int size = this.iconTextures.length * 2;
@@ -199,7 +256,8 @@ public class MeleeUIMinimap {
 		values[base + 3] = dimensions;
 		values[base + 4] = red;
 		values[base + 5] = green;
-		values[base + 6] = alpha;
+		values[base + 6] = blue;
+		values[base + 7] = alpha;
 	}
 
 	private void drawIcons(final SpriteBatch batch) {
@@ -215,7 +273,7 @@ public class MeleeUIMinimap {
 				for (int j = i; j < count; j++) {
 					if ((textures[j] == texture) && (values[j * ICON_VALUES] == layer)) {
 						final int base = j * ICON_VALUES;
-						batch.setColor(values[base + 4], values[base + 5], values[base + 5], values[base + 6]);
+						batch.setColor(values[base + 4], values[base + 5], values[base + 6], values[base + 7]);
 						batch.draw(texture, values[base + 1], values[base + 2], values[base + 3], values[base + 3]);
 						textures[j] = null;
 					}
@@ -227,6 +285,16 @@ public class MeleeUIMinimap {
 
 	public float[] getCameraFootprint() {
 		return this.cameraFootprint;
+	}
+
+	public void dispose() {
+		if (this.fogTexture != null) {
+			this.fogTexture.dispose();
+			this.fogPixmap.dispose();
+		}
+		if (this.lineTexture != null) {
+			this.lineTexture.dispose();
+		}
 	}
 
 	private void drawCameraFootprint(final SpriteBatch batch) {

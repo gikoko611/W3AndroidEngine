@@ -134,6 +134,11 @@ public class CAbilityHero extends AbstractCAbility {
 		}
 	}
 
+	public void copyProperName(final CAbilityHero source) {
+		this.nameIndex = source.nameIndex;
+		this.properName = source.properName;
+	}
+
 	/**
 	 * Gives an illusion the skills its original learned, at their levels, without spending skill points.
 	 */
@@ -330,6 +335,10 @@ public class CAbilityHero extends AbstractCAbility {
 		return this.properName;
 	}
 
+	public void setProperName(final String properName) {
+		this.properName = properName;
+	}
+
 	public void setAwaitingRevive(final boolean awaitingRevive) {
 		this.awaitingRevive = awaitingRevive;
 	}
@@ -506,8 +515,8 @@ public class CAbilityHero extends AbstractCAbility {
 		unit.setMaximumMana(newMaximumMana);
 		unit.setMana(newMana);
 
-		final int agilityDefenseBonus = Math.round(
-				gameplayConstants.getAgiDefenseBase() + (gameplayConstants.getAgiDefenseBonus() * currentAgilityBase));
+		final float agilityDefenseBonus = gameplayConstants.getAgiDefenseBase()
+				+ (gameplayConstants.getAgiDefenseBonus() * currentAgilityBase);
 		unit.setAgilityDefensePermanentBonus(agilityDefenseBonus);
 		unit.setAgilityDefenseTemporaryBonus(gameplayConstants.getAgiDefenseBonus() * currentAgilityBonus);
 		unit.setLifeRegenStrengthBonus(currentStrength * gameplayConstants.getStrRegenBonus());
@@ -553,8 +562,8 @@ public class CAbilityHero extends AbstractCAbility {
 		unit.setMaximumMana(newMaximumMana);
 		unit.setMana(newMana);
 
-		final int agilityDefenseBonus = Math.round(
-				gameplayConstants.getAgiDefenseBase() + (gameplayConstants.getAgiDefenseBonus() * currentAgilityBase));
+		final float agilityDefenseBonus = gameplayConstants.getAgiDefenseBase()
+				+ (gameplayConstants.getAgiDefenseBonus() * currentAgilityBase);
 		unit.setAgilityDefensePermanentBonus(agilityDefenseBonus);
 		unit.setAgilityDefenseTemporaryBonus(gameplayConstants.getAgiDefenseBonus() * currentAgilityBonus);
 		unit.setLifeRegenStrengthBonus(currentStrength * gameplayConstants.getStrRegenBonus());

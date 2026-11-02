@@ -224,6 +224,10 @@ public class CommandCardIcon extends AbstractRenderableFrame implements Clickabl
 		}
 	}
 
+	public boolean isAutoCastCapable() {
+		return this.autoCastOrderId != 0;
+	}
+
 	@Override
 	public void mouseDragged(final GameUI rootFrame, final Viewport uiViewport, final float x, final float y) {
 

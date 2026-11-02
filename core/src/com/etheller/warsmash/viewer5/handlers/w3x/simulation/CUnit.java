@@ -31,6 +31,8 @@ import com.etheller.warsmash.viewer5.handlers.w3x.environment.PathingGrid;
 import com.etheller.warsmash.viewer5.handlers.w3x.rendersim.RenderUnit;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CUnitStateListener.CUnitStateNotifier;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.CAbility;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.skills.CAbilitySpell;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.generic.GenericSingleIconActiveAbility;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.CAbilityAttack;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.CAbilityCategory;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.CAbilityDisableType;
@@ -53,13 +55,9 @@ import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.mine.CAbi
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.mine.CAbilityOverlayedMine;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.nightelf.root.CAbilityRoot;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.skills.undead.units.CBuffDisease;
-import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.skills.util.CAbilityAuraBase;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.targeting.AbilityPointTarget;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.targeting.AbilityTarget;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.targeting.AbilityTargetVisitor;
-import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilitybuilder.ability.template.CAbilityAbilityBuilderAuraTemplate;
-import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilitybuilder.ability.template.CAbilityAbilityBuilderSimpleAuraTemplate;
-import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilitybuilder.ability.template.CAbilityAbilityBuilderStatAuraTemplate;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilitybuilder.buff.ABGenericTimedBuff;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilitybuilder.buff.CPausedTickingBuff;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.behaviors.BehaviorAbilityVisitor;
@@ -155,7 +153,7 @@ public class CUnit extends CWidget {
 	private static RegionCheckerImpl regionCheckerImpl = new RegionCheckerImpl();
 
 	private static CUnitPriorityLoopData attackModLoop = new CUnitPriorityLoopData();
-	private static StateModBuff pauseBuff = new StateModBuff(StateModBuffType.PAUSED, 1);
+	private static final StateModBuff pauseBuff = new StateModBuff(StateModBuffType.PAUSED, 1);
 
 	private War3ID typeId;
 	private float facing; // degrees
@@ -175,10 +173,11 @@ public class CUnit extends CWidget {
 	private int minSpeed;
 	private int baseSpeed;
 	private int finalSpeed;
-	private int agilityDefensePermanentBonus;
+	private float agilityDefensePermanentBonus;
 	private float agilityDefenseTemporaryBonus;
 	private int permanentDefenseBonus;
 	private float temporaryDefenseBonus;
+	private float scriptDefenseBonus;
 	private float totalTemporaryDefenseBonus;
 
 	private int speedBonus;
@@ -193,6 +192,7 @@ public class CUnit extends CWidget {
 	private final Map<String, List<CBuff>> nonStackingDisplayBuffs = new HashMap<>();
 
 	private int currentDefenseDisplay;
+	private float baseDefense;
 	private float currentDefense;
 	private float baseLifeRegenPerTick;
 	private float currentLifeRegenPerTick;
@@ -203,6 +203,7 @@ public class CUnit extends CWidget {
 	private float flyHeight;
 	private float turnRate;
 	private float propWindow;
+	private int lastWalkTick = Integer.MIN_VALUE / 2;
 	private int playerIndex;
 	private int fakePlayerIndex;
 
@@ -240,6 +241,7 @@ public class CUnit extends CWidget {
 	private boolean illusion;
 	private float illusionDamageDealtFactor = 1;
 	private float illusionDamageTakenFactor = 1;
+	private final Map<Integer, Integer> illusionAbilityLevels = new HashMap<>();
 	private transient static AutoAttackTargetFinderEnum autoAttackTargetFinderEnum = new AutoAttackTargetFinderEnum();
 	private transient static AutocastTargetFinderEnum autocastTargetFinderEnum = new AutocastTargetFinderEnum();
 	private transient CAutocastAbility autocastAbility = null;
@@ -282,17 +284,29 @@ public class CUnit extends CWidget {
 	private CBehavior defaultBehavior;
 	private static final Rectangle callForHelpRect = new Rectangle();
 	private int nextCallForHelpTick;
-	private static final float GUARD_CHECK_SECONDS = 0.5f;
-	private static final float GUARD_HOME_RADIUS = 64f;
+	private CUnit pendingAttackBackSource;
+	private boolean pendingAttackBackWasHit;
+	private static final float CREEP_ALERT_RADIUS = 800f;
 	private boolean guarding;
 	private float guardX;
 	private float guardY;
 	private int lastCombatTick;
-	private int nextGuardCheckTick;
+	private int lastHurtTick = Integer.MIN_VALUE / 2;
+	private static final float GUARD_LOST_STOP = 48f;
+	private static final float GUARD_GIVE_UP_EXTRA_SECONDS = 1.5f;
+	private static final int GUARD_RETURN_NONE = 0;
+	private static final int GUARD_RETURN_LOST = 1;
+	private static final int GUARD_RETURN_GIVE_UP = 2;
+	private int guardReturn = GUARD_RETURN_NONE;
+	private boolean guardEngaged;
+	private int guardAwayTick = -1;
 	private static final War3ID CREEP_SLEEP = War3ID.fromString("Asla");
 	private StateModBuff naturalSleep;
 	private SimulationRenderComponentModel naturalSleepEffect;
-	private int nextSleepCheckTick;
+	private static final float SLEEP_AFTER_WAKE_SECONDS = 2.0f;
+	private int lastWakeTick = Integer.MIN_VALUE / 2;
+	private Boolean canSleepOverride;
+	private String nameOverride;
 	private CBehavior interruptedDefaultBehavior;
 	private CBehavior interruptedBehavior;
 	private COrder lastStartedOrder = null;
@@ -319,6 +333,7 @@ public class CUnit extends CWidget {
 	private final List<CUnitAttackDamageTakenModificationListener> damageTakenModificationListeners = new ArrayList<>();
 	private final List<CUnitAttackFinalDamageTakenModificationListener> finalDamageTakenModificationListeners = new ArrayList<>();
 	private final List<CUnitAttackDamageTakenListener> damageTakenListeners = new ArrayList<>();
+	private float healingReceivedFactor = 1f;
 	private final Map<CUnitDeathReplacementEffectPriority, List<CUnitDeathReplacementEffect>> deathReplacementEffects = new HashMap<>();
 	private final List<CUnitAttackEvasionListener> evasionListeners = new ArrayList<>();
 	private final List<CUnitAttackProjReactionListener> attackProjReactionListeners = new ArrayList<>();
@@ -344,6 +359,7 @@ public class CUnit extends CWidget {
 	private int ultravisionSources = 0;
 
 	private boolean hideMinimapIcon;
+	private boolean usesAltMinimapIcon;
 
 	private long unselectablePlayers = 0;
 	private long untargetablePlayers = 0;
@@ -1186,8 +1202,9 @@ public class CUnit extends CWidget {
 		switch (type) {
 		case DEF:
 		case DEFPCT:
-			this.currentDefenseDisplay = this.unitType.getDefense() + this.agilityDefensePermanentBonus
+			this.baseDefense = this.unitType.getDefense() + this.agilityDefensePermanentBonus
 					+ this.permanentDefenseBonus;
+			this.currentDefenseDisplay = Math.round(this.baseDefense);
 
 			float totalNSDefBuff = 0;
 			buffKeyMap = this.nonStackingBuffs.get(NonStackingStatBuffType.DEF);
@@ -1228,12 +1245,12 @@ public class CUnit extends CWidget {
 				if (buffForKey == null) {
 					continue;
 				}
-				totalNSDefBuff += buffForKey * this.currentDefenseDisplay;
+				totalNSDefBuff += buffForKey * this.baseDefense;
 			}
 
 			this.totalTemporaryDefenseBonus = this.temporaryDefenseBonus + this.agilityDefenseTemporaryBonus
 					+ totalNSDefBuff;
-			this.currentDefense = this.currentDefenseDisplay + this.totalTemporaryDefenseBonus;
+			this.currentDefense = this.baseDefense + this.totalTemporaryDefenseBonus + this.scriptDefenseBonus;
 			break;
 		case HPGEN:
 		case HPGENPCT:
@@ -2018,7 +2035,7 @@ public class CUnit extends CWidget {
 		return this.manaRegen;
 	}
 
-	public void setAgilityDefensePermanentBonus(final int agilityDefensePermanentBonus) {
+	public void setAgilityDefensePermanentBonus(final float agilityDefensePermanentBonus) {
 		this.agilityDefensePermanentBonus = agilityDefensePermanentBonus;
 		computeDerivedFields(NonStackingStatBuffType.DEF);
 	}
@@ -2035,6 +2052,12 @@ public class CUnit extends CWidget {
 
 	public int getPermanentDefenseBonus() {
 		return this.permanentDefenseBonus;
+	}
+
+	/** BlzSetUnitArmor: the base armor changes so the total is the given value; bonuses keep adding on top. */
+	public void setTotalDefense(final float totalDefense) {
+		this.scriptDefenseBonus += totalDefense - this.currentDefense;
+		computeDerivedFields(NonStackingStatBuffType.DEF);
 	}
 
 	public void setTemporaryDefenseBonus(final float temporaryDefenseBonus) {
@@ -2368,6 +2391,9 @@ public class CUnit extends CWidget {
 			}
 			this.stateListenersUpdates.clear();
 		}
+		if ((this.pendingAttackBackSource != null) && !isDead()) {
+			resolveAttackBack(game);
+		}
 		if (this.guarding && !isDead()) {
 			updateGuard(game);
 			updateNightSleep(game);
@@ -2617,8 +2643,7 @@ public class CUnit extends CWidget {
 							final CUnit revivingHero = game.getUnit(queuedRawcode.getValue());
 							final CUnitType trainedUnitType = revivingHero.getUnitType();
 							final CGameplayConstants gameplayConstants = game.getGameplayConstants();
-							if (this.constructionProgress >= gameplayConstants.getHeroReviveTime(
-									trainedUnitType.getBuildTime(), revivingHero.getHeroData().getHeroLevel())) {
+							if (this.constructionProgress >= heroReviveTime(game, revivingHero)) {
 								this.constructionProgress = 0;
 								revivingHero.reviveHeroAt(game, this, gameplayConstants.getHeroReviveLifeFactor(),
 										gameplayConstants.getHeroReviveManaFactor(),
@@ -2741,8 +2766,10 @@ public class CUnit extends CWidget {
 //					}
 					for (int i = this.abilities.size() - 1; i >= 0; i--) {
 						// okay if it removes self from this during onTick() because of reverse
-						// iteration order
-						this.abilities.get(i).onTick(game, this);
+						// iteration order; a timed life running out kills the unit, which can take several
+						if (i < this.abilities.size()) {
+							this.abilities.get(i).onTick(game, this);
+						}
 					}
 					final GlobalScope globalScope = game.getGlobalScope();
 					for (int i = this.onTickTriggers.size() - 1; i >= 0; i--) {
@@ -2803,8 +2830,9 @@ public class CUnit extends CWidget {
 				for (int i = this.abilities.size() - 1; i >= 0; i--) {
 					// okay if it removes self from this during onTick() because of reverse
 					// iteration order
-					if ((this.abilities.get(i) instanceof AbilityGenericSingleIconPassiveAbility)
-							|| (this.abilities.get(i) instanceof CPausedTickingBuff)) {
+					if ((i < this.abilities.size())
+							&& ((this.abilities.get(i) instanceof AbilityGenericSingleIconPassiveAbility)
+									|| (this.abilities.get(i) instanceof CPausedTickingBuff))) {
 						this.abilities.get(i).onTick(game, this);
 					}
 				}
@@ -3177,6 +3205,18 @@ public class CUnit extends CWidget {
 		this.propWindow = propWindow;
 	}
 
+	public void markWalked(final int gameTurnTick) {
+		this.lastWalkTick = gameTurnTick;
+	}
+
+	/**
+	 * Whether the unit stepped forward along a move in the last ticks. Pathing goes through walking units (they will be
+	 * gone by the time it gets there); a unit that waited a few ticks counts as standing.
+	 */
+	public boolean isWalking(final int gameTurnTick) {
+		return (gameTurnTick - this.lastWalkTick) <= 2;
+	}
+
 	public int getPlayerIndex() {
 		return this.playerIndex;
 	}
@@ -3516,7 +3556,8 @@ public class CUnit extends CWidget {
 
 	public boolean isImmuneToDamage(final CSimulation simulation, final CDamageFlags flags,
 			final CAttackType attackType, final CDamageType damageType) {
-		if (flags != null && flags.isOnlyDamageSummons() && !this.isUnitType(CUnitTypeJass.SUMMONED)) {
+		if (flags != null && flags.isOnlyDamageSummons() && !this.illusion
+				&& !this.isUnitType(CUnitTypeJass.SUMMONED)) {
 			return true;
 		}
 		if (simulation.getGameplayConstants().isMagicImmuneResistsDamage()) {
@@ -3592,13 +3633,13 @@ public class CUnit extends CWidget {
 						- (float) StrictMath.pow(1f - simulation.getGameplayConstants().getDefenseArmor(), -defense);
 			}
 			trueDamage = damageRatioFromArmorClass * damageRatioFromDefense * result.computeFinalDamage();
+			if ((source != null) && (trueDamage > 0)) {
+				trueDamage *= simulation.getPlayer(source.getPlayerIndex()).getHandicapDamage();
+			}
 
 			for (final CUnitAttackFinalDamageTakenModificationListener listener : new ArrayList<>(
 					this.finalDamageTakenModificationListeners)) {
 				trueDamage = listener.onDamage(simulation, source, this, flags, attackType, damageType, trueDamage);
-			}
-			if ((source != null) && source.illusion) {
-				trueDamage *= source.illusionDamageDealtFactor;
 			}
 			if (this.illusion) {
 				trueDamage *= this.illusionDamageTakenFactor;
@@ -3607,8 +3648,11 @@ public class CUnit extends CWidget {
 			final List<CWidgetEvent> eventList = getEventList(JassGameEventsWar3.EVENT_UNIT_DAMAGED);
 			if (eventList != null) {
 				for (final CWidgetEvent event : eventList) {
-					event.fire(this, CommonTriggerExecutionScope.unitDamageTakenScope(
-							JassGameEventsWar3.EVENT_UNIT_DAMAGED, event.getTrigger(), this, source, trueDamage));
+					final CommonTriggerExecutionScope damageScope = CommonTriggerExecutionScope.unitDamageTakenScope(
+							JassGameEventsWar3.EVENT_UNIT_DAMAGED, event.getTrigger(), this, source, trueDamage);
+					event.fire(this, damageScope);
+					// BlzSetEventDamage in a damage trigger changes the damage this hit deals.
+					trueDamage = damageScope.getDamageTaken();
 				}
 			}
 
@@ -3639,22 +3683,12 @@ public class CUnit extends CWidget {
 				kill(simulation, source);
 			}
 		} else {
-			if (isIdleForAttack()) {
-				final boolean foundMatchingReturnFireAttack = attackBack(simulation, source);
-				if (!foundMatchingReturnFireAttack && this.unitType.isCanFlee() && !isMovementDisabled()
-						&& (this.moveBehavior != null) && (this.playerIndex != source.getPlayerIndex())) {
-					final double angleTo = source.angleTo(this);
-					final int distanceToFlee = getSpeed();
-					this.beginBehavior(simulation,
-							this.moveBehavior.reset(OrderIds.move,
-									new AbilityPointTarget(
-											(float) (getX() + (distanceToFlee * StrictMath.cos(angleTo))),
-											(float) (getY() + (distanceToFlee * StrictMath.sin(angleTo))))),
-							true);
-				}
+			if (isIdleForAttack() || isReturningFromLostTarget()) {
+				queueAttackBack(source, true);
 			}
 			this.lastCombatTick = simulation.getGameTurnTick();
-			wakeFromNaturalSleep(simulation);
+			this.lastHurtTick = this.lastCombatTick;
+			wakeByHit(simulation);
 			if (source != null) {
 				source.lastCombatTick = this.lastCombatTick;
 			}
@@ -3664,28 +3698,30 @@ public class CUnit extends CWidget {
 	}
 
 	/**
-	 * Creeps that can sleep fall asleep at night once they have been idle at their spot for twice GuardReturnTime,
-	 * snoring under the creep sleep effect, and wake at daybreak, when hit or when called for help.
+	 * Measured on 1.29: a guarding creep that can sleep is asleep the moment it is idle at night (made at night, at
+	 * nightfall, when UnitAddSleep allows it). Called for help or UnitWakeUp, it stays awake at least 2 s; a hit gives
+	 * no such delay and ends one already running (probe creep-wake-sleep). A creep that chased and lost its target
+	 * sleeps once its walk back ends; otherwise it falls asleep where it stands. It snores under the creep sleep
+	 * effect and wakes at daybreak.
 	 */
-	private void updateNightSleep(final CSimulation game) {
-		if (!this.unitType.isCanSleep()) {
+	public void updateNightSleep(final CSimulation game) {
+		if (!this.guarding || isDead()) {
 			return;
 		}
-		final int tick = game.getGameTurnTick();
-		if (tick < this.nextSleepCheckTick) {
+		if (!canSleep() || ((this.naturalSleep == null)
+				&& (game.getPlayer(this.playerIndex).getPlayerState(game, CPlayerState.NO_CREEP_SLEEP) != 0))) {
+			wakeFromNaturalSleep(game);
 			return;
 		}
-		this.nextSleepCheckTick = tick + (int) (1.0f / WarsmashConstants.SIMULATION_STEP_TIME);
 		if (this.naturalSleep != null) {
 			if (game.isDay() || !this.stateModBuffs.contains(this.naturalSleep)) {
 				wakeFromNaturalSleep(game);
 			}
 			return;
 		}
-		final int quietTicks = (int) ((2 * game.getGameplayConstants().getGuardReturnTime())
-				/ WarsmashConstants.SIMULATION_STEP_TIME);
-		if (game.isNight() && isIdleForAttack() && (distance(this.guardX, this.guardY) <= GUARD_HOME_RADIUS)
-				&& ((tick - this.lastCombatTick) >= quietTicks)) {
+		final int tick = game.getGameTurnTick();
+		if (game.isNight() && isIdleForAttack()
+				&& ((tick - this.lastWakeTick) >= (int) (SLEEP_AFTER_WAKE_SECONDS / WarsmashConstants.SIMULATION_STEP_TIME))) {
 			this.naturalSleep = new StateModBuff(StateModBuffType.SLEEPING, 1);
 			addStateModBuff(this.naturalSleep);
 			computeUnitState(game, StateModBuffType.SLEEPING);
@@ -3697,6 +3733,15 @@ public class CUnit extends CWidget {
 		return this.naturalSleep != null;
 	}
 
+	/** Whether the unit may fall asleep at night: its type's setting until a trigger sets it (UnitAddSleep). */
+	public boolean canSleep() {
+		return this.canSleepOverride == null ? this.unitType.isCanSleep() : this.canSleepOverride;
+	}
+
+	public void setCanSleep(final boolean canSleep) {
+		this.canSleepOverride = canSleep;
+	}
+
 	public void wakeFromNaturalSleep(final CSimulation game) {
 		if (this.naturalSleep != null) {
 			removeStateModBuff(this.naturalSleep);
@@ -3706,6 +3751,28 @@ public class CUnit extends CWidget {
 		if (this.naturalSleepEffect != null) {
 			this.naturalSleepEffect.remove();
 			this.naturalSleepEffect = null;
+		}
+	}
+
+	/** Called for help or UnitWakeUp: wakes the creep and keeps it awake for a while even if it already was. */
+	public void wakeUp(final CSimulation game) {
+		this.lastWakeTick = game.getGameTurnTick();
+		wakeFromNaturalSleep(game);
+	}
+
+	private void wakeByHit(final CSimulation game) {
+		this.lastWakeTick = Integer.MIN_VALUE / 2;
+		wakeFromNaturalSleep(game);
+	}
+
+	/**
+	 * Measured on 1.29: a creep made at night is asleep at once, unless an enemy it would attack is already in its
+	 * acquisition range; then it fights instead.
+	 */
+	public void onCreatedNightSleep(final CSimulation game) {
+		if (this.guarding && canSleep() && game.isNight() && isIdleForAttack()
+				&& !autoAcquireAttackTargets(game, this.moveDisabled)) {
+			updateNightSleep(game);
 		}
 	}
 
@@ -3725,34 +3792,125 @@ public class CUnit extends CWidget {
 	}
 
 	/**
-	 * A guard gives up a chase beyond MaxGuardDistance from its spot, and once it has been out of combat for
-	 * GuardReturnTime while idle away from the spot it walks back; on the way it does not stop to fight.
+	 * Measured on 1.29 (probe creep-guard-return): a guard that fought and lost its target (removed, dead) walks back
+	 * a moment later and stops 48 short of its spot, still fighting back when hit on the way. A guard that has been
+	 * fighting beyond GuardDistance gives up about GuardReturnTime + 1.5 s after crossing it, unless it was hit within
+	 * the last GuardReturnTime while not beyond MaxGuardDistance; it then walks to the spot itself, ignoring attacks.
+	 * MaxGuardDistance does not cut a chase short. Guards that never fought (woken, moved) stay where they are.
 	 */
 	private void updateGuard(final CSimulation game) {
-		final int tick = game.getGameTurnTick();
-		if (tick < this.nextGuardCheckTick) {
-			return;
-		}
-		this.nextGuardCheckTick = tick + (int) (GUARD_CHECK_SECONDS / WarsmashConstants.SIMULATION_STEP_TIME);
 		if ((this.moveBehavior == null) || isMovementDisabled()) {
 			return;
 		}
-		final CGameplayConstants constants = game.getGameplayConstants();
-		final double fromHome = distance(this.guardX, this.guardY);
-		final boolean idle = isIdleForAttack();
-		final boolean tooFar = !idle && (this.currentBehavior != this.moveBehavior)
-				&& (fromHome > constants.getMaxGuardDistance());
-		final int returnTicks = (int) (constants.getGuardReturnTime() / WarsmashConstants.SIMULATION_STEP_TIME);
-		final boolean idleAway = idle && (fromHome > GUARD_HOME_RADIUS) && ((tick - this.lastCombatTick) >= returnTicks);
-		if (tooFar || idleAway) {
-			beginBehavior(game, this.moveBehavior.reset(OrderIds.move, new AbilityPointTarget(this.guardX, this.guardY)),
-					true);
+		final CBehavior behavior = this.currentBehavior;
+		if (this.guardReturn != GUARD_RETURN_NONE) {
+			if ((behavior == this.moveBehavior) && (this.moveBehavior.getRangedBehavior() == null)) {
+				if (this.guardReturn == GUARD_RETURN_LOST) {
+					final double fromHome = distanceFromGuardSpot();
+					if (fromHome <= GUARD_LOST_STOP) {
+						// The last step ends GUARD_LOST_STOP out, as in the original; the quarter keeps float rounding
+						// from landing just inside it.
+						final float keep = (float) ((GUARD_LOST_STOP + 0.25f) / Math.max(fromHome, 1.0));
+						setPoint(this.guardX + ((getX() - this.guardX) * keep),
+								this.guardY + ((getY() - this.guardY) * keep), game.getWorldCollision(),
+								game.getRegionManager());
+						this.guardReturn = GUARD_RETURN_NONE;
+						performDefaultBehavior(game);
+					}
+				}
+				return;
+			}
+			this.guardReturn = GUARD_RETURN_NONE;
 		}
+		final int tick = game.getGameTurnTick();
+		final CGameplayConstants constants = game.getGameplayConstants();
+		final boolean fighting = (behavior instanceof CBehaviorAttack) || ((behavior == this.moveBehavior)
+				&& (this.moveBehavior.getRangedBehavior() instanceof CBehaviorAttack));
+		if (fighting) {
+			this.guardEngaged = true;
+			final double fromHome = distanceFromGuardSpot();
+			if (this.guardAwayTick < 0) {
+				if (fromHome > constants.getGuardDistance()) {
+					this.guardAwayTick = tick;
+				}
+			}
+			else if (((tick - this.guardAwayTick) >= secondsToTicks(
+					constants.getGuardReturnTime() + GUARD_GIVE_UP_EXTRA_SECONDS))
+					&& ((fromHome > constants.getMaxGuardDistance())
+							|| ((tick - this.lastHurtTick) >= secondsToTicks(constants.getGuardReturnTime())))) {
+				walkToGuardSpot(game, GUARD_RETURN_GIVE_UP, this.guardX, this.guardY);
+			}
+			return;
+		}
+		this.guardAwayTick = -1;
+		if (!this.guardEngaged || !isIdleForAttack()) {
+			return;
+		}
+		this.guardEngaged = false;
+		if (distanceFromGuardSpot() > GUARD_LOST_STOP) {
+			walkToGuardSpot(game, GUARD_RETURN_LOST, this.guardX, this.guardY);
+		}
+	}
+
+	private double distanceFromGuardSpot() {
+		return StrictMath.sqrt(distanceSquaredNoCollision(this.guardX, this.guardY));
+	}
+
+	private static int secondsToTicks(final float seconds) {
+		return (int) (seconds / WarsmashConstants.SIMULATION_STEP_TIME);
+	}
+
+	private void walkToGuardSpot(final CSimulation game, final int kind, final float x, final float y) {
+		this.guardEngaged = false;
+		this.guardAwayTick = -1;
+		beginBehavior(game, this.moveBehavior.reset(OrderIds.move, new AbilityPointTarget(x, y)), true);
+		this.guardReturn = kind;
+	}
+
+	private boolean isReturningFromLostTarget() {
+		return (this.guardReturn == GUARD_RETURN_LOST) && (this.currentBehavior == this.moveBehavior)
+				&& (this.moveBehavior.getRangedBehavior() == null);
 	}
 
 	private boolean isIdleForAttack() {
 		return (this.currentBehavior == null)
 				|| ((this.currentBehavior == this.defaultBehavior) && this.currentBehavior.interruptable());
+	}
+
+	/**
+	 * Measured on 1.29 (probe creep-hit-removed): a unit hit by a source that the same script call removes or kills
+	 * never answers it; a sleeping creep woken by the hit is asleep again at once and does not move. So the answer
+	 * (attack back, alert, flee) waits for the unit's own update and is dropped if the source is gone by then.
+	 */
+	private void queueAttackBack(final CUnit source, final boolean wasHit) {
+		if ((source != null) && (this.pendingAttackBackSource == null)) {
+			this.pendingAttackBackSource = source;
+			this.pendingAttackBackWasHit = wasHit;
+		}
+	}
+
+	private void resolveAttackBack(final CSimulation simulation) {
+		final CUnit source = this.pendingAttackBackSource;
+		final boolean wasHit = this.pendingAttackBackWasHit;
+		this.pendingAttackBackSource = null;
+		if (source.isDead() || source.isHidden() || source.isRemovedFromGame()
+				|| !(isIdleForAttack() || isReturningFromLostTarget())) {
+			return;
+		}
+		final boolean foundMatchingReturnFireAttack = attackBack(simulation, source);
+		if (wasHit && foundMatchingReturnFireAttack) {
+			alertCreeps(simulation, source);
+		}
+		if (wasHit && !foundMatchingReturnFireAttack && this.unitType.isCanFlee() && !isMovementDisabled()
+				&& (this.moveBehavior != null) && (this.playerIndex != source.getPlayerIndex())) {
+			final double angleTo = source.angleTo(this);
+			final int distanceToFlee = getSpeed();
+			this.beginBehavior(simulation,
+					this.moveBehavior.reset(OrderIds.move,
+							new AbilityPointTarget((float) (getX() + (distanceToFlee * StrictMath.cos(angleTo))),
+									(float) (getY() + (distanceToFlee * StrictMath.sin(angleTo))))),
+					true);
+		}
 	}
 
 	private boolean attackBack(final CSimulation simulation, final CUnit source) {
@@ -3775,7 +3933,7 @@ public class CUnit extends CWidget {
 	}
 
 	/**
-	 * An attacked unit calls idle units of its owner within the CallForHelp range (CreepCallForHelp for creeps) to
+	 * An attacked unit calls idle helpers within the CallForHelp range (CreepCallForHelp for creeps) to
 	 * attack the attacker, at most once a second so a long fight does not search every hit.
 	 */
 	private void callForHelp(final CSimulation simulation, final CUnit attacker) {
@@ -3786,23 +3944,51 @@ public class CUnit extends CWidget {
 		}
 		this.nextCallForHelpTick = simulation.getGameTurnTick()
 				+ (int) (1.0f / WarsmashConstants.SIMULATION_STEP_TIME);
-		final float radius;
+		final CGameplayConstants constants = simulation.getGameplayConstants();
+		float radius;
 		if (simulation.isNeutralAggressive(this.playerIndex)) {
-			radius = simulation.getGameplayConstants().getCreepCallForHelp();
+			radius = constants.getCreepCallForHelp();
 		}
 		else if (simulation.getPlayer(this.playerIndex).getController() == CMapControl.COMPUTER) {
-			radius = simulation.getGameplayConstants().getAICallForHelp();
+			radius = constants.getAICallForHelp();
 		}
 		else {
-			radius = simulation.getGameplayConstants().getCallForHelp();
+			radius = constants.getCallForHelp();
 		}
+		if (radius <= 0) {
+			// 1.29 data has no AICallForHelp entry; its computer players are helped like users.
+			radius = constants.getCallForHelp();
+		}
+		summonHelpers(simulation, attacker, radius);
+	}
+
+	/**
+	 * A creep that starts attacking alerts the idle creeps around it, before any damage is dealt. Measured in 1.29:
+	 * this reach does not follow CreepCallForHelp, GuardDistance or MaxGuardDistance.
+	 */
+	private void alertCreeps(final CSimulation simulation, final CUnit target) {
+		if ((target != null) && simulation.isNeutralAggressive(this.playerIndex)) {
+			summonHelpers(simulation, target, CREEP_ALERT_RADIUS);
+		}
+	}
+
+	/**
+	 * Idle units of this owner, and of players this owner asks for help who answer it, join against the attacker. The
+	 * reach counts to the helper's edge, as the original's thresholds sit one Footman radius past the constant.
+	 */
+	private void summonHelpers(final CSimulation simulation, final CUnit attacker, final float radius) {
+		final CPlayer owner = simulation.getPlayer(this.playerIndex);
 		callForHelpRect.set(getX() - radius, getY() - radius, radius * 2, radius * 2);
 		simulation.getWorldCollision().enumUnitsInRect(callForHelpRect, (helper) -> {
-			if ((helper != this) && (helper.playerIndex == this.playerIndex) && !helper.isDead()
-					&& !helper.isHidden() && (helper.distance(getX(), getY()) <= radius)) {
-				helper.wakeFromNaturalSleep(simulation);
+			if ((helper != this) && !helper.isDead() && !helper.isHidden()
+					&& ((helper.playerIndex == this.playerIndex)
+							|| (owner.hasAlliance(helper.playerIndex, CAllianceType.HELP_REQUEST)
+									&& simulation.getPlayer(helper.playerIndex).hasAlliance(this.playerIndex,
+											CAllianceType.HELP_RESPONSE)))
+					&& ((helper.distance(getX(), getY()) - helper.unitType.getCollisionSize()) <= radius)) {
+				helper.wakeUp(simulation);
 				if (helper.isIdleForAttack()) {
-					helper.attackBack(simulation, attacker);
+					helper.queueAttackBack(attacker, false);
 				}
 			}
 			return false;
@@ -3834,7 +4020,9 @@ public class CUnit extends CWidget {
 		for (int i = this.abilities.size() - 1; i >= 0; i--) {
 			// okay if it removes self from this during onDeath() because of reverse
 			// iteration order
-			this.abilities.get(i).onDeath(simulation, this);
+			if (i < this.abilities.size()) {
+				this.abilities.get(i).onDeath(simulation, this);
+			}
 		}
 		simulation.getPlayer(this.playerIndex).addFogModifer(simulation, new CUnitDeathVisionFogModifier(this), false);
 		if (source != null) {
@@ -3959,7 +4147,8 @@ public class CUnit extends CWidget {
 		fireDeathEvents(simulation);
 		final List<CWidgetEvent> eventList = getEventList(JassGameEventsWar3.EVENT_UNIT_DEATH);
 		if (eventList != null) {
-			for (final CWidgetEvent event : eventList) {
+			// A death trigger may register or destroy events on this unit while it runs.
+			for (final CWidgetEvent event : new ArrayList<>(eventList)) {
 				event.fire(this, CommonTriggerExecutionScope.unitDeathScope(JassGameEventsWar3.EVENT_UNIT_DEATH,
 						event.getTrigger(), this, source, simulation.getPlayer(this.playerIndex)));
 			}
@@ -4110,10 +4299,24 @@ public class CUnit extends CWidget {
 		return this.illusion;
 	}
 
+	public float getIllusionDamageDealtFactor() {
+		return this.illusionDamageDealtFactor;
+	}
+
+	/**
+	 * The level scripts read for an ability the illusion lost, 0 if it never had it. Measured on 1.29: such abilities
+	 * do nothing and refuse their orders but still read as present.
+	 */
+	public int getIllusionAbilityLevel(final int rawcode) {
+		final Integer level = this.illusionAbilityLevels.get(rawcode);
+		return level == null ? 0 : level;
+	}
+
 	/**
 	 * Turns this freshly created unit into an illusion: it keeps moving, attacking, its hero attributes and its
 	 * items (whose stat bonuses still apply) but loses every other ability, the hero skill menu, food use and its
 	 * place in the player's hero list, and on death it vanishes with the buff's special effect instead of a corpse.
+	 * A hero's illusion still reads its learned skills to scripts, a plain unit's its abilities that are not spells.
 	 */
 	public void makeIllusion(final CSimulation simulation, final float damageDealtFactor,
 			final float damageTakenFactor, final War3ID buffId) {
@@ -4133,19 +4336,26 @@ public class CUnit extends CWidget {
 			else if (!(ability instanceof CAbilityMove) && !(ability instanceof CAbilityAttack)
 					&& !(ability instanceof CAbilityInventory) && (ability.getItem() == null)
 					&& !isPassiveKeptByIllusion(ability)) {
+				if ((getHeroData() != null) || !isSpellLostByIllusion(ability)) {
+					this.illusionAbilityLevels.put(ability.getAlias().getValue(),
+							ability instanceof CLevelingAbility ? Math.max(1, ((CLevelingAbility) ability).getLevel())
+									: 1);
+				}
 				remove(simulation, ability);
 			}
 		}
 	}
 
+	private static boolean isSpellLostByIllusion(final CAbility ability) {
+		return (ability instanceof CAbilitySpell) || ((ability instanceof GenericSingleIconActiveAbility)
+				&& (((GenericSingleIconActiveAbility) ability).getUIManaCost() > 0));
+	}
+
 	/**
-	 * The original game keeps passives on an illusion (Bash still stuns), but not auras, which illusions do not give.
+	 * The original game keeps passives on an illusion (Bash still stuns); auras keep their icon but give nothing.
 	 */
 	private static boolean isPassiveKeptByIllusion(final CAbility ability) {
-		return (ability instanceof AbilityGenericSingleIconPassiveAbility) && !(ability instanceof CAbilityAuraBase)
-				&& !(ability instanceof CAbilityAbilityBuilderAuraTemplate)
-				&& !(ability instanceof CAbilityAbilityBuilderSimpleAuraTemplate)
-				&& !(ability instanceof CAbilityAbilityBuilderStatAuraTemplate);
+		return ability instanceof AbilityGenericSingleIconPassiveAbility;
 	}
 
 	public boolean isBoneCorpse() {
@@ -4381,7 +4591,11 @@ public class CUnit extends CWidget {
 	}
 
 	public void heal(final CSimulation game, final float lifeToRegain) {
-		setLife(game, Math.min(getLife() + lifeToRegain, getMaximumLife()));
+		setLife(game, Math.min(getLife() + (lifeToRegain * this.healingReceivedFactor), getMaximumLife()));
+	}
+
+	public void multiplyHealingReceived(final float factor) {
+		this.healingReceivedFactor *= factor;
 	}
 
 	public void restoreMana(final CSimulation game, final float manaToRegain) {
@@ -4450,6 +4664,13 @@ public class CUnit extends CWidget {
 		game.getWorldCollision().addUnit(this);
 		setHidden(false);
 		game.unitRepositioned(this);
+	}
+
+	public static void releaseStaticReferences() {
+		autoAttackTargetFinderEnum = new AutoAttackTargetFinderEnum();
+		autocastTargetFinderEnum = new AutocastTargetFinderEnum();
+		regionCheckerImpl = new RegionCheckerImpl();
+		UseAbilityOnTargetByIdVisitor.INSTANCE.reset(null, null, 0, 0);
 	}
 
 	private static final class AutocastTargetFinderEnum implements CUnitEnumFunction {
@@ -4676,6 +4897,7 @@ public class CUnit extends CWidget {
 						this.source.getAttackBehavior().reset(this.game, OrderIds.attack, this.nearestTargetAttack,
 								this.nearestTarget, this.disableMove, CBehaviorAttackListener.DO_NOTHING),
 						true);
+				this.source.alertCreeps(this.game, this.nearestTarget);
 				this.foundAnyTarget = true;
 			}
 			return this.foundAnyTarget;
@@ -5029,14 +5251,17 @@ public class CUnit extends CWidget {
 			return trainedUnitType.getBuildTime();
 		}
 		case HERO_REVIVE: {
-			final CUnit hero = simulation.getUnit(this.buildQueue[0].getValue());
-			final CUnitType trainedUnitType = hero.getUnitType();
-			return simulation.getGameplayConstants().getHeroReviveTime(trainedUnitType.getBuildTime(),
-					hero.getHeroData().getHeroLevel());
+			return heroReviveTime(simulation, simulation.getUnit(this.buildQueue[0].getValue()));
 		}
 		default:
 			return 0;
 		}
+	}
+
+	private static float heroReviveTime(final CSimulation simulation, final CUnit hero) {
+		return simulation.getGameplayConstants().getHeroReviveTime(hero.getUnitType().getBuildTime(),
+				hero.getHeroData().getHeroLevel())
+				* simulation.getPlayer(hero.getPlayerIndex()).getHandicapReviveTime();
 	}
 
 	public void cancelBuildQueueItem(final CSimulation game, final int cancelIndex) {
@@ -5584,6 +5809,17 @@ public class CUnit extends CWidget {
 		this.structure = flag;
 	}
 
+	/**
+	 * Measured: a Castle placed by script trains a Spell Breaker that requires a Keep, as an upgraded
+	 * Castle would.
+	 */
+	public void unlockUpgradedFromTypes(final CSimulation simulation, final CPlayer player) {
+		for (final War3ID upgradedFromTypeId : simulation.getUnitData().getUpgradedFromTypeIds(this.typeId)) {
+			this.upgradedFromTypeIds.add(upgradedFromTypeId);
+			player.addTechtreeUnlocked(simulation, upgradedFromTypeId);
+		}
+	}
+
 	public void onRemove(final CSimulation simulation) {
 		final CPlayer player = simulation.getPlayer(this.playerIndex);
 		if (WarsmashConstants.FIRE_DEATH_EVENTS_ON_REMOVEUNIT) {
@@ -5653,6 +5889,9 @@ public class CUnit extends CWidget {
 	}
 
 	public void cancelUpgrade(final CSimulation game) {
+		if (this.upgradeIdType == null) {
+			return;
+		}
 		revertUpgrade(game, game.getGameplayConstants().getUpgradeRefundRate());
 	}
 
@@ -5758,7 +5997,7 @@ public class CUnit extends CWidget {
 	public boolean isUnitType(final CUnitTypeJass whichUnitType) {
 		switch (whichUnitType) {
 		case HERO:
-			return isHero();
+			return isHero() && !this.illusion;
 		case DEAD:
 			return isDead();
 		case STRUCTURE:
@@ -6122,6 +6361,15 @@ public class CUnit extends CWidget {
 		this.triggerEditorCustomValue = triggerEditorCustomValue;
 	}
 
+	/** The unit's name: its type's, unless a trigger renamed this unit (BlzSetUnitName). */
+	public String getName() {
+		return this.nameOverride == null ? this.unitType.getName() : this.nameOverride;
+	}
+
+	public void setName(final String name) {
+		this.nameOverride = name;
+	}
+
 	public static String maybeMeaningfulName(final CUnit unit) {
 		if (unit == null) {
 			return "null";
@@ -6381,6 +6629,17 @@ public class CUnit extends CWidget {
 			level++;
 		}
 		return Math.round(gained);
+	}
+
+	public void fireSummonEvents(final CSimulation game) {
+		final List<CWidgetEvent> eventList = getEventList(JassGameEventsWar3.EVENT_UNIT_SUMMON);
+		if (eventList != null) {
+			for (int i = eventList.size() - 1; i >= 0; i--) {
+				final CWidgetEvent event = eventList.get(i);
+				event.fire(this, CommonTriggerExecutionScope.unitSummonerScope(JassGameEventsWar3.EVENT_UNIT_SUMMON,
+						event.getTrigger(), this, game.getPlayer(this.playerIndex)));
+			}
+		}
 	}
 
 	public void fireHeroLevelEvents(final CSimulation game) {
@@ -6943,6 +7202,15 @@ public class CUnit extends CWidget {
 
 	public boolean isHideMinimapIcon() {
 		return hideMinimapIcon;
+	}
+
+	/** UnitSetUsesAltIcon: the minimap shows the map's alternate icon (SetAltMinimapIcon) for this unit. */
+	public boolean isUsesAltMinimapIcon() {
+		return this.usesAltMinimapIcon;
+	}
+
+	public void setUsesAltMinimapIcon(final boolean usesAltMinimapIcon) {
+		this.usesAltMinimapIcon = usesAltMinimapIcon;
 	}
 
 	private final class CTimerUnitFade extends CTimer {

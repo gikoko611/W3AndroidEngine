@@ -22,6 +22,9 @@ public class CScriptDialog {
 	private StringFrame scriptDialogTextFrame;
 	private UIFrame lastAddedComponent;
 	private final List<Trigger> eventTriggers = new ArrayList<>();
+	private final List<CScriptDialogButton> buttons = new ArrayList<>();
+	private String title;
+	private boolean visible;
 
 	public CScriptDialog(final GlobalScope globalScope, final SimpleFrame scriptDialogFrame,
 			final StringFrame scriptDialogTextFrame) {
@@ -44,17 +47,38 @@ public class CScriptDialog {
 	}
 
 	public void setTitle(final GameUI rootFrame, final String text) {
-		rootFrame.setText(this.scriptDialogTextFrame, text);
+		this.title = text;
+		if (this.scriptDialogTextFrame != null) {
+			rootFrame.setText(this.scriptDialogTextFrame, text);
+		}
+	}
+
+	public String getTitle() {
+		return this.title;
+	}
+
+	public List<CScriptDialogButton> getButtons() {
+		return this.buttons;
+	}
+
+	public boolean isVisible() {
+		return this.visible;
 	}
 
 	public void reset(final SimpleFrame scriptDialogFrame, final StringFrame scriptDialogTextFrame) {
 		this.scriptDialogFrame = scriptDialogFrame;
 		this.scriptDialogTextFrame = scriptDialogTextFrame;
 		this.lastAddedComponent = scriptDialogTextFrame;
+		this.buttons.clear();
+		this.title = null;
+		this.visible = false;
 	}
 
 	public void setVisible(final boolean flag) {
-		this.scriptDialogFrame.setVisible(flag);
+		this.visible = flag;
+		if (this.scriptDialogFrame != null) {
+			this.scriptDialogFrame.setVisible(flag);
+		}
 	}
 
 	public RemovableTriggerEvent addEvent(final Trigger trigger) {
@@ -68,7 +92,7 @@ public class CScriptDialog {
 	}
 
 	public void onButtonClick(final CScriptDialogButton cScriptDialogButton) {
-		this.scriptDialogFrame.setVisible(false);
+		setVisible(false);
 		for (final Trigger trigger : this.eventTriggers) {
 			final CommonTriggerExecutionScope scope = CommonTriggerExecutionScope
 					.triggerDialogScope(JassGameEventsWar3.EVENT_DIALOG_CLICK, trigger, this, cScriptDialogButton);
@@ -78,6 +102,7 @@ public class CScriptDialog {
 
 	public void addButton(final GameUI rootFrame, final Viewport uiViewport,
 			final CScriptDialogButton scriptDialogButton) {
+		this.buttons.add(scriptDialogButton);
 		final GlueTextButtonFrame buttonFrame = scriptDialogButton.getButtonFrame();
 		this.scriptDialogFrame.add(buttonFrame);
 		this.lastAddedComponent = buttonFrame;

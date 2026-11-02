@@ -42,6 +42,11 @@ public class W3xScenePortraitLightManager implements SceneLightManager, W3xScene
 	}
 
 	@Override
+	public void dispose() {
+		this.unitLightsTexture.dispose();
+	}
+
+	@Override
 	public void update() {
 		final int numberOfLights = this.lights.size() + 1;
 		final int bytesNeeded = numberOfLights * 4 * 16;

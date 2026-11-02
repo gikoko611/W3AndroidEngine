@@ -21,6 +21,7 @@ public class CSoundFilename implements CSound {
 	private float duration = -1;
 	private long lastSoundId = -1;
 	private boolean started;
+	private boolean killWhenDone;
 
 	public CSoundFilename(final Sound sound, final AudioContext audioContext, final boolean looping,
 			final boolean stopWhenOutOfRange, final int fadeInRate, final int fadeOutRate, final String eaxSetting) {
@@ -107,8 +108,18 @@ public class CSoundFilename implements CSound {
 	}
 
 	@Override
+	public void killWhenDone() {
+		this.killWhenDone = true;
+	}
+
+	@Override
+	public boolean isKilled() {
+		return this.killWhenDone && !isPlaying();
+	}
+
+	@Override
 	public void start() {
-		if (this.audioContext == null) {
+		if ((this.audioContext == null) || isKilled()) {
 			return;
 		}
 		final AudioPanner panner = this.audioContext.createPanner(this.stopWhenOutOfRange);
@@ -136,6 +147,10 @@ public class CSoundFilename implements CSound {
 		this.lastSoundId = source.start(0, this.parameters.scaledVolume(1.0f, this.audioContext), this.parameters.pitch,
 				this.looping);
 		this.started = this.lastSoundId != -1;
+		if (this.started && this.looping) {
+			CSoundMixer.loopStarted(this.sound, this.lastSoundId, this.parameters.unmixedVolume(1.0f, this.audioContext),
+					this.parameters.channel);
+		}
 
 		this.lastStartTimestamp = TimeUtils.millis();
 	}

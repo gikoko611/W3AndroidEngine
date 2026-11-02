@@ -77,6 +77,9 @@ public class CAbilityAbilityBuilderAuraTemplate extends AbilityGenericSingleIcon
 
 	@Override
 	public void onTick(CSimulation game, CUnit unit) {
+		if (unit.isIllusion()) {
+			return;
+		}
 		if (loopTick % LEAVE_GROUP_TICKS == 0) {
 			List<CUnit> unitList;
 			if (lastSeenLevel != getLevel()) {

@@ -214,6 +214,10 @@ public class SimpleButtonFrame extends AbstractRenderableFrame implements Clicka
 		return this.buttonText;
 	}
 
+	public UIFrame getDisabledText() {
+		return this.disabledText;
+	}
+
 	public UIFrame getHighlightText() {
 		return this.highlightText;
 	}

@@ -1,8 +1,35 @@
 package com.etheller.warsmash.viewer5.handlers.w3x;
 
+import java.io.ByteArrayInputStream;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.util.SimulationRenderComponentWeather;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.util.SimulationRenderComponentUbersplat;
+import com.etheller.warsmash.viewer5.handlers.w3x.rendersim.WeatherType;
+import com.etheller.warsmash.viewer5.handlers.w3x.rendersim.RenderWeatherEffect;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.orders.COrder;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.util.ExternStringMsgTargetCheckReceiver;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.jass.RecordingAbilityTargetCheckReceiver;
+import com.etheller.interpreter.ast.value.visitor.ArithmeticJassValueVisitor;
+import com.etheller.interpreter.ast.value.visitor.ArithmeticLeftHandCodeJassValueVisitor;
+import com.etheller.interpreter.ast.value.visitor.ArithmeticLeftHandStructJassValueVisitor;
+import com.etheller.interpreter.ast.value.visitor.ArithmeticLeftHandHandleJassValueVisitor;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CGlobalWidgetEvent;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.unit.CWidgetEvent;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.build.AbstractCAbilityBuild;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.sound.CSoundMixer;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.util.CWidgetAbilityTargetCheckReceiver;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.unit.BuildOnBuildingIntersector;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilitybuilder.ability.GetInstantTransformationBuffVisitor;
+import com.etheller.warsmash.viewer5.handlers.w3x.rendersim.commandbuttons.CommandCardPopulatingAbilityVisitor;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.combat.attacks.CUnitAttackMissileSplash;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.combat.attacks.CUnitAttackMissileBounce;
+import com.etheller.warsmash.viewer5.AudioContext;
+import java.util.IdentityHashMap;
+import com.badlogic.gdx.audio.Sound;
 import java.awt.image.BufferedImage;
 import java.io.BufferedReader;
 import java.io.File;
+import java.io.DataInputStream;
+import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -16,6 +43,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
@@ -28,6 +56,7 @@ import org.apache.commons.compress.utils.IOUtils;
 import org.apache.commons.compress.utils.SeekableInMemoryByteChannel;
 
 import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.math.Intersector;
@@ -116,6 +145,7 @@ import com.etheller.warsmash.viewer5.handlers.w3x.rendersim.RenderLightningEffec
 import com.etheller.warsmash.viewer5.handlers.w3x.rendersim.RenderProjectile;
 import com.etheller.warsmash.viewer5.handlers.w3x.rendersim.RenderShadowType;
 import com.etheller.warsmash.viewer5.handlers.w3x.rendersim.RenderSpellEffect;
+import com.etheller.warsmash.viewer5.handlers.w3x.rendersim.SpellEffectModel;
 import com.etheller.warsmash.viewer5.handlers.w3x.rendersim.RenderUnit;
 import com.etheller.warsmash.viewer5.handlers.w3x.rendersim.RenderUnitType;
 import com.etheller.warsmash.viewer5.handlers.w3x.rendersim.RenderUnitTypeData;
@@ -125,6 +155,8 @@ import com.etheller.warsmash.viewer5.handlers.w3x.rendersim.ability.AbilityUI;
 import com.etheller.warsmash.viewer5.handlers.w3x.rendersim.ability.BuffUI;
 import com.etheller.warsmash.viewer5.handlers.w3x.rendersim.ability.EffectAttachmentUI;
 import com.etheller.warsmash.viewer5.handlers.w3x.rendersim.ability.EffectAttachmentUIMissile;
+import com.etheller.warsmash.viewer5.handlers.w3x.save.SavedGame;
+import com.etheller.warsmash.viewer5.handlers.w3x.save.SavedInterfaceState;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CDestructable;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CItem;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CSimulation;
@@ -134,6 +166,7 @@ import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CWidget;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CWidgetFilterFunction;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.blight.CAbilityBlight;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.targeting.AbilityTarget;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.combat.CTargetType;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.combat.attacks.CUnitAttackInstant;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.combat.attacks.CUnitAttackListener;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.combat.attacks.CUnitAttackMissile;
@@ -221,6 +254,10 @@ public class War3MapViewer extends AbstractMdxModelViewer implements MdxAssetLoa
 	public List<RenderWidget> widgets = new ArrayList<>();
 	public List<RenderUnit> units = new ArrayList<>();
 	public List<RenderEffect> projectiles = new ArrayList<>();
+	private final List<RenderLightningEffect> lightnings = new ArrayList<>();
+	private final List<RenderWeatherEffect> weatherEffects = new ArrayList<>();
+	private final List<com.etheller.warsmash.viewer5.handlers.w3x.rendersim.RenderUbersplat> scriptUbersplats = new ArrayList<>();
+	private Map<War3ID, WeatherType> weatherTypes;
 	public boolean unitsReady;
 	public War3Map mapMpq;
 
@@ -237,6 +274,9 @@ public class War3MapViewer extends AbstractMdxModelViewer implements MdxAssetLoa
 	private DataTable unitAckSoundsTable;
 	private DataTable unitCombatSoundsTable;
 	public DataTable miscData;
+	private com.etheller.warsmash.viewer5.handlers.w3x.ui.AllyColorFilter allyColorFilter;
+	private boolean restartMissionDisabled;
+	private String altMinimapIcon;
 	private Element misc;
 	private final Map<String, TextTagConfig> keyToTextTagConfig = new HashMap<>();
 	private DataTable unitGlobalStrings;
@@ -279,10 +319,26 @@ public class War3MapViewer extends AbstractMdxModelViewer implements MdxAssetLoa
 	public final List<TextTag> textTags = new ArrayList<>();
 
 	private final War3MapConfig mapConfig;
+	private CPlayerFogOfWar observerFogOfWar;
 
 	private GameTurnManager gameTurnManager;
 
 	private War3MapW3i lastLoadedMapInformation;
+	private String mapFileName;
+	private InterfaceStateKeeper interfaceStateKeeper;
+	private Object scriptEnvironment;
+	private final List<SavedGame.AiEntry> loadedScripts = new ArrayList<>();
+	private String dayNightTerrainModel;
+	private String dayNightUnitModel;
+	private String skyModel;
+	private float[] waterColor;
+	private AudioContext uiAudioContext;
+	private final Map<Sound, String> fileSounds = new IdentityHashMap<>();
+	private final List<CreatedDestructable> createdDestructables = new ArrayList<>();
+	private FileHandle pendingSave;
+	private FileHandle pendingLoad;
+	private SaveGameListener saveGameListener;
+	private LoadGameListener loadGameListener;
 
 	private FogSettings defaultFogSettings;
 
@@ -351,6 +407,7 @@ public class War3MapViewer extends AbstractMdxModelViewer implements MdxAssetLoa
 				stringDataCallback);
 
 		loadLightningData(worldEditStrings);
+		loadWeatherData(worldEditStrings);
 
 		// == when loaded, which is always in our system ==
 		this.unitsAndItemsLoaded = true;
@@ -555,6 +612,56 @@ public class War3MapViewer extends AbstractMdxModelViewer implements MdxAssetLoa
 		}
 	}
 
+	private void loadWeatherData(final WorldEditStrings worldEditStrings) throws IOException {
+		final DataTable weatherTable = new DataTable(worldEditStrings);
+		try (InputStream slkStream = this.dataSource.getResourceAsStream("TerrainArt\\Weather.slk")) {
+			if (slkStream == null) {
+				this.weatherTypes = new HashMap<>();
+				return;
+			}
+			weatherTable.readSLK(slkStream);
+		}
+		this.weatherTypes = new HashMap<>();
+		for (final String key : weatherTable.keySet()) {
+			this.weatherTypes.put(War3ID.fromString(key), new WeatherType(key, weatherTable.get(key)));
+		}
+	}
+
+	public SimulationRenderComponentWeather createWeatherEffect(final War3ID weatherId, final float minX,
+			final float minY, final float maxX, final float maxY) {
+		final WeatherType type = this.weatherTypes == null ? null : this.weatherTypes.get(weatherId);
+		if (type == null) {
+			return SimulationRenderComponentWeather.DO_NOTHING;
+		}
+		final MdxModel model = new MdxModel((MdxHandler) findHandler(".mdx")[0], this, ".mdx", this.mapPathSolver,
+				"<weather:" + type.getKey() + ">");
+		model.loadData(new ByteArrayInputStream(type.buildModel().saveMdx().array()), null);
+		if (!model.ok) {
+			return SimulationRenderComponentWeather.DO_NOTHING;
+		}
+		final RenderWeatherEffect weather = new RenderWeatherEffect(this, weatherId, type, model, minX, minY, maxX,
+				maxY);
+		this.weatherEffects.removeIf(RenderWeatherEffect::isRemoved);
+		this.weatherEffects.add(weather);
+		return weather;
+	}
+
+	public List<RenderWeatherEffect> getWeatherEffects() {
+		return this.weatherEffects;
+	}
+
+	public com.etheller.warsmash.viewer5.handlers.w3x.rendersim.RenderUbersplat createUbersplat(
+			final SimulationRenderComponentUbersplat.State state) {
+		final com.etheller.warsmash.viewer5.handlers.w3x.rendersim.RenderUbersplat splat = new com.etheller.warsmash.viewer5.handlers.w3x.rendersim.RenderUbersplat(
+				this, state);
+		this.scriptUbersplats.add(splat);
+		return splat;
+	}
+
+	public List<com.etheller.warsmash.viewer5.handlers.w3x.rendersim.RenderUbersplat> getScriptUbersplats() {
+		return this.scriptUbersplats;
+	}
+
 	private static Color parseColor(final Element selectionCircleData, final String field) {
 		return new Color(selectionCircleData.getFieldFloatValue(field, 1) / 255f,
 				selectionCircleData.getFieldFloatValue(field, 2) / 255f,
@@ -597,6 +704,45 @@ public class War3MapViewer extends AbstractMdxModelViewer implements MdxAssetLoa
 		} catch (final IOException e) {
 			throw new RuntimeException(e);
 		}
+	}
+
+	@Override
+	public void dispose() {
+		if (this.terrain != null) {
+			this.terrain.dispose();
+		}
+		this.dynamicShadowManager.dispose();
+		if (this.lightningTypeToModel != null) {
+			for (final LightningEffectModel model : this.lightningTypeToModel.values()) {
+				model.dispose();
+			}
+		}
+		super.dispose();
+		try {
+			this.dataSource.close();
+		}
+		catch (final IOException e) {
+			System.err.println("Could not close the data of the finished map: " + e.getMessage());
+		}
+		CUnit.releaseStaticReferences();
+		CWidgetEvent.releaseStaticReferences();
+		CGlobalWidgetEvent.releaseStaticReferences();
+		ArithmeticJassValueVisitor.INSTANCE.reset(null, null);
+		ArithmeticLeftHandHandleJassValueVisitor.INSTANCE.reset(null, null);
+		RecordingAbilityTargetCheckReceiver.getInstance().reset();
+		ExternStringMsgTargetCheckReceiver.getInstance().reset();
+		COrder.targetCheckReceiver.reset();
+		ArithmeticLeftHandStructJassValueVisitor.INSTANCE.reset(null, null);
+		ArithmeticLeftHandCodeJassValueVisitor.INSTANCE.reset(null, null);
+		AbstractCAbilityBuild.releaseStaticReferences();
+		CUnitAttackMissileBounce.releaseStaticReferences();
+		CUnitAttackMissileSplash.releaseStaticReferences();
+		CommandCardPopulatingAbilityVisitor.INSTANCE.release();
+		GetInstantTransformationBuffVisitor.getInstance().release();
+		BuildOnBuildingIntersector.INSTANCE.reset(0, 0);
+		TreeBlightingCallback.INSTANCE.reset(null);
+		CWidgetAbilityTargetCheckReceiver.INSTANCE.reset();
+		CSoundMixer.forgetPlayingLoops();
 	}
 
 	public MapLoader createMapLoader(final War3Map war3Map, final War3MapW3i w3iFile, final int localPlayerIndex)
@@ -645,7 +791,8 @@ public class War3MapViewer extends AbstractMdxModelViewer implements MdxAssetLoa
 			target.setLocation(0, 0, renderPeerTarget.getSimulationWidget().getImpactZ());
 			source.setScene(this.worldScene);
 			target.setScene(this.worldScene);
-			return new RenderLightningEffect(source, target, this);
+			return addLightning(new RenderLightningEffect(source, target, this, lightningId,
+					renderPeerSource.getSimulationUnit(), renderPeerTarget.getSimulationWidget(), 0, 0, 0, 0, 0, 0));
 		}
 		return SimulationRenderComponentLightning.DO_NOTHING;
 	}
@@ -663,9 +810,20 @@ public class War3MapViewer extends AbstractMdxModelViewer implements MdxAssetLoa
 			target.setLocation(x2, y2, z2);
 			source.setScene(this.worldScene);
 			target.setScene(this.worldScene);
-			return new RenderLightningEffect(source, target, this);
+			return addLightning(
+					new RenderLightningEffect(source, target, this, lightningId, null, null, x1, y1, z1, x2, y2, z2));
 		}
 		return SimulationRenderComponentLightningMovable.DO_NOTHING;
+	}
+
+	private RenderLightningEffect addLightning(final RenderLightningEffect lightning) {
+		this.lightnings.removeIf(RenderLightningEffect::isRemoved);
+		this.lightnings.add(lightning);
+		return lightning;
+	}
+
+	public List<RenderLightningEffect> getLightnings() {
+		return this.lightnings;
 	}
 
 	public void spawnFxOnOrigin(final RenderUnit renderUnit, final String heroLevelUpArt) {
@@ -1158,31 +1316,6 @@ public class War3MapViewer extends AbstractMdxModelViewer implements MdxAssetLoa
 		return null;
 	}
 
-	/**
-	 * CreateUbersplat: the name is a row of Splats\\UberSplatData.slk.
-	 */
-	public SplatMover addNamedUberSplat(final float x, final float y, final String name) {
-		final Element row = this.terrain.uberSplatTable.get(name);
-		if (row == null) {
-			return null;
-		}
-		final String texture = row.getField("Dir") + "\\" + row.getField("file") + ".blp";
-		return addUberSplatIngame(x, y, texture, row.getFieldFloatValue("Scale"));
-	}
-
-	public void destroyUberSplat(final SplatMover splat) {
-		splat.destroy(Gdx.gl30, this.terrain.centerOffset);
-	}
-
-	public void showUberSplat(final SplatMover splat, final boolean show) {
-		if (show) {
-			splat.show(this.terrain.centerOffset);
-		}
-		else {
-			splat.hide();
-		}
-	}
-
 	public SplatMover addUberSplatIngame(final float unitX, final float unitY, final String texturePath,
 			final float s) {
 		SplatMover buildingUberSplatDynamicIngame;
@@ -1247,6 +1380,282 @@ public class War3MapViewer extends AbstractMdxModelViewer implements MdxAssetLoa
 		return this.pauseSources.contains(source);
 	}
 
+	/**
+	 * Scripts ask in the middle of a thread, and the menu in the middle of a frame; the game state is only whole
+	 * between two simulation steps.
+	 */
+	public void requestSaveGame(final FileHandle file) {
+		this.pendingSave = file;
+	}
+
+	public void requestLoadGame(final FileHandle file) {
+		this.pendingLoad = file;
+	}
+
+	public void setLoadGameListener(final LoadGameListener loadGameListener) {
+		this.loadGameListener = loadGameListener;
+	}
+
+	private void runPendingSaveRequests() {
+		if (this.pendingSave != null) {
+			final FileHandle file = this.pendingSave;
+			this.pendingSave = null;
+			final boolean saved = SavedGame.save(this, file);
+			if (this.saveGameListener != null) {
+				this.saveGameListener.saveFinished(file, saved);
+			}
+		}
+		if ((this.pendingLoad != null) && (this.loadGameListener != null)) {
+			final FileHandle file = this.pendingLoad;
+			this.pendingLoad = null;
+			this.loadGameListener.loadRequested(file);
+		}
+	}
+
+	public void setSaveGameListener(final SaveGameListener saveGameListener) {
+		this.saveGameListener = saveGameListener;
+	}
+
+	public interface SaveGameListener {
+		void saveFinished(FileHandle file, boolean saved);
+	}
+
+	public interface LoadGameListener {
+		void loadRequested(FileHandle file);
+	}
+
+	public SavedInterfaceState captureInterfaceState() {
+		final SavedInterfaceState state = this.interfaceStateKeeper == null ? new SavedInterfaceState()
+				: this.interfaceStateKeeper.captureInterfaceState();
+		state.dayNightTerrainModel = this.dayNightTerrainModel;
+		state.dayNightUnitModel = this.dayNightUnitModel;
+		state.skyModel = this.skyModel;
+		final FogSettings fog = this.worldScene.fogSettings;
+		state.fogStyle = fog.style.ordinal();
+		state.fogColor = new float[] { fog.color.r, fog.color.g, fog.color.b, fog.color.a };
+		state.fogDensity = fog.density;
+		state.fogStart = fog.start;
+		state.fogEnd = fog.end;
+		state.waterColor = this.waterColor;
+		state.allyColorFilterState = getAllyColorFilter().getState();
+		state.restartMissionDisabled = this.restartMissionDisabled;
+		state.altMinimapIcon = this.altMinimapIcon;
+		return state;
+	}
+
+	public void restoreInterfaceState(final SavedInterfaceState state) {
+		if (state.dayNightTerrainModel != null) {
+			setDayNightModels(state.dayNightTerrainModel, state.dayNightUnitModel);
+		}
+		if (state.skyModel != null) {
+			setSkyModel(state.skyModel);
+		}
+		if (state.fogColor != null) {
+			final FogSettings fog = this.worldScene.fogSettings;
+			fog.setStyleByIndex(state.fogStyle);
+			fog.color = new Color(state.fogColor[0], state.fogColor[1], state.fogColor[2], state.fogColor[3]);
+			fog.density = state.fogDensity;
+			fog.start = state.fogStart;
+			fog.end = state.fogEnd;
+		}
+		if (state.waterColor != null) {
+			setWaterBaseColor(state.waterColor);
+		}
+		getAllyColorFilter().setState(state.allyColorFilterState);
+		this.restartMissionDisabled = state.restartMissionDisabled;
+		this.altMinimapIcon = state.altMinimapIcon;
+		if (this.interfaceStateKeeper != null) {
+			this.interfaceStateKeeper.restoreInterfaceState(state);
+		}
+	}
+
+	public void setInterfaceStateKeeper(final InterfaceStateKeeper keeper) {
+		this.interfaceStateKeeper = keeper;
+	}
+
+	public void addLoadedScript(final SavedGame.AiEntry script) {
+		this.loadedScripts.add(script);
+	}
+
+	public List<SavedGame.AiEntry> getLoadedScripts() {
+		return this.loadedScripts;
+	}
+
+	public void setScriptEnvironment(final Object scriptEnvironment, final AudioContext uiAudioContext) {
+		this.scriptEnvironment = scriptEnvironment;
+		this.uiAudioContext = uiAudioContext;
+	}
+
+	public Object getScriptEnvironment() {
+		return this.scriptEnvironment;
+	}
+
+	public AudioContext getUiAudioContext() {
+		return this.uiAudioContext;
+	}
+
+	public void rememberFileSound(final Sound sound, final String fileName) {
+		if (sound != null) {
+			this.fileSounds.put(sound, fileName);
+		}
+	}
+
+	public String getFileSoundName(final Sound sound) {
+		return this.fileSounds.get(sound);
+	}
+
+	public interface InterfaceStateKeeper {
+		SavedInterfaceState captureInterfaceState();
+
+		void restoreInterfaceState(SavedInterfaceState state);
+	}
+
+	/** How a destructable the game made after the map loaded was made; saved games start again from the map. */
+	public static final class CreatedDestructable {
+		public final int savedHandleId;
+		private final int typeId;
+		private final float x;
+		private final float y;
+		private final float z;
+		private final float facing;
+		private final float scale;
+		private final int variation;
+
+		CreatedDestructable(final int savedHandleId, final int typeId, final float x, final float y, final float z,
+				final float facing, final float scale, final int variation) {
+			this.savedHandleId = savedHandleId;
+			this.typeId = typeId;
+			this.x = x;
+			this.y = y;
+			this.z = z;
+			this.facing = facing;
+			this.scale = scale;
+			this.variation = variation;
+		}
+
+		public void write(final DataOutputStream out) throws IOException {
+			out.writeInt(this.savedHandleId);
+			out.writeInt(this.typeId);
+			out.writeFloat(this.x);
+			out.writeFloat(this.y);
+			out.writeFloat(this.z);
+			out.writeFloat(this.facing);
+			out.writeFloat(this.scale);
+			out.writeInt(this.variation);
+		}
+
+		public static CreatedDestructable read(final DataInputStream in) throws IOException {
+			return new CreatedDestructable(in.readInt(), in.readInt(), in.readFloat(), in.readFloat(), in.readFloat(),
+					in.readFloat(), in.readFloat(), in.readInt());
+		}
+	}
+
+	public List<CreatedDestructable> getCreatedDestructables() {
+		final List<CreatedDestructable> alive = new ArrayList<>();
+		for (final CreatedDestructable created : this.createdDestructables) {
+			if (this.simulation.getDestructable(created.savedHandleId) != null) {
+				alive.add(created);
+			}
+		}
+		return alive;
+	}
+
+	public CDestructable createDestructableForSavedGame(final CreatedDestructable created) {
+		final CDestructable destructable = this.simulation.getSimulationRenderController().createDestructableZ(
+				new War3ID(created.typeId), created.x, created.y, created.z, created.facing, created.scale,
+				created.variation);
+		// The simulation's handle id comes back with the saved state; this list keeps the saved game's numbers.
+		this.createdDestructables.remove(this.createdDestructables.size() - 1);
+		this.createdDestructables.add(created);
+		return destructable;
+	}
+
+	public void clearRenderPeersForSavedGame() {
+		final CSimulation game = this.simulation;
+		final SimulationRenderController controller = game.getSimulationRenderController();
+		for (final CUnit unit : new ArrayList<>(game.getUnits())) {
+			controller.removeUnit(unit);
+		}
+		for (final RenderItem item : new ArrayList<>(this.itemToRenderPeer.values())) {
+			this.widgets.remove(item);
+			this.worldScene.removeInstance(item.instance);
+		}
+		this.itemToRenderPeer.clear();
+	}
+
+	/**
+	 * Destructables kept their peers (they were read into the objects the map or {@link #createDestructableForSavedGame}
+	 * made); units and items get new ones.
+	 */
+	public void finishLoadingSavedGame(final Collection<CDestructable> preparedDestructables) {
+		final Set<CDestructable> current = new HashSet<>(this.simulation.getDestructables());
+		for (final CDestructable destructable : preparedDestructables) {
+			if (!current.contains(destructable)) {
+				final RenderDestructable peer = this.destructableToRenderPeer.get(destructable);
+				if (peer != null) {
+					this.widgets.remove(peer);
+					this.decals.remove(peer);
+					this.simulation.getSimulationRenderController().removeDestructable(destructable);
+				}
+			}
+		}
+		for (final CUnit unit : this.simulation.getUnits()) {
+			createRenderUnitForSavedGame(unit);
+		}
+		for (final CItem item : this.simulation.getItems()) {
+			createRenderItemForSavedGame(item);
+		}
+		this.terrain.setFogOfWarData(this.simulation, this.simulation.getPlayer(this.localPlayerIndex).getFogOfWar());
+	}
+
+	private void createRenderItemForSavedGame(final CItem item) {
+		final RenderItemType renderItemType = this.renderItemTypeData.get(item.getTypeId());
+		if (renderItemType != null) {
+			final float x = item.getX();
+			final float y = item.getY();
+			final float z = Math.max(getWalkableRenderHeight(x, y), this.terrain.getGroundHeight(x, y));
+			final RenderItem renderItem = new RenderItem(this, renderItemType, x, y, z, 0, item);
+			this.widgets.add(renderItem);
+			this.itemToRenderPeer.put(item, renderItem);
+			renderItem.shadow = createUnitShadow(renderItemType.getRenderShadowType(), x, y);
+		}
+	}
+
+	private void createRenderUnitForSavedGame(final CUnit unit) {
+		final RenderUnitType renderUnitType = this.renderUnitTypeData.get(unit.getTypeId());
+		if (renderUnitType == null) {
+			return;
+		}
+		final float x = unit.getX();
+		final float y = unit.getY();
+		final int teamColor = renderUnitType.getTeamColor() != -1 ? renderUnitType.getTeamColor()
+				: this.simulation.getPlayer(unit.getPlayerIndex()).getColor();
+		final float z = Math.max(getWalkableRenderHeight(x, y), this.terrain.getGroundHeight(x, y))
+				+ unit.getFlyHeight();
+		final String buildingShadow = renderUnitType.getBuildingShadow();
+		final BuildingShadow shadow = buildingShadow == null ? null : this.terrain.addShadow(buildingShadow, x, y);
+		final RenderUnit renderUnit = new RenderUnit(this, x, y, z, teamColor, unit, renderUnitType, shadow,
+				this.selectionCircleScaleFactor, renderUnitType.getAnimationWalkSpeed(),
+				renderUnitType.getAnimationRunSpeed(), renderUnitType.getScalingValue());
+		this.unitToRenderPeer.put(unit, renderUnit);
+		this.widgets.add(renderUnit);
+		this.units.add(renderUnit);
+		renderUnit.shadow = createUnitShadow(renderUnitType.getRenderShadowType(), x, y);
+		if (renderUnitType.getUberSplat() != null) {
+			renderUnit.uberSplat = addUberSplatIngame(x, y, renderUnitType.getUberSplat(),
+					renderUnitType.getUberSplatScaleValue());
+		}
+	}
+
+	public void setMapFileName(final String mapFileName) {
+		this.mapFileName = mapFileName;
+		WarsmashConstants.selectMapGameVersion(mapFileName);
+	}
+
+	public String getMapFileName() {
+		return this.mapFileName;
+	}
+
 	public static enum PauseSource {
 		SCRIPT,
 		PLAYER,
@@ -1279,6 +1688,10 @@ public class War3MapViewer extends AbstractMdxModelViewer implements MdxAssetLoa
 			for (final RenderWidget unit : this.widgets) {
 				unit.updateAnimations(this);
 			}
+			for (int i = 0, n = this.weatherEffects.size(); i < n; i++) {
+				this.weatherEffects.get(i).update(this);
+			}
+			this.scriptUbersplats.removeIf(splat -> !splat.update());
 			final Iterator<RenderEffect> projectileIterator = this.projectiles.iterator();
 			while (projectileIterator.hasNext()) {
 				final RenderEffect projectile = projectileIterator.next();
@@ -1302,6 +1715,10 @@ public class War3MapViewer extends AbstractMdxModelViewer implements MdxAssetLoa
 			}
 
 			PerfStats.end(PerfStats.Section.WIDGETS);
+			if (this.worldHidden) {
+				// The game is over on the score screen; its scores must not change behind it.
+				this.updateTime = 0;
+			}
 			int stepsThisFrame = 0;
 			while (this.updateTime >= WarsmashConstants.SIMULATION_STEP_TIME) {
 				if (stepsThisFrame >= MAX_STEPS_PER_FRAME) {
@@ -1316,6 +1733,7 @@ public class War3MapViewer extends AbstractMdxModelViewer implements MdxAssetLoa
 					this.simulation.update();
 					PerfStats.simulationStep();
 					this.gameTurnManager.turnCompleted(this.simulation.getGameTurnTick());
+					runPendingSaveRequests();
 				} else {
 					if (this.updateTime > (WarsmashConstants.SIMULATION_STEP_TIME * 3)) {
 						this.gameTurnManager.framesSkipped(this.updateTime / WarsmashConstants.SIMULATION_STEP_TIME);
@@ -1325,6 +1743,9 @@ public class War3MapViewer extends AbstractMdxModelViewer implements MdxAssetLoa
 				}
 			}
 			PerfStats.end(PerfStats.Section.SIMULATION);
+			if (paused) {
+				runPendingSaveRequests();
+			}
 			if (this.dncTerrain != null) {
 				this.dncTerrain.setFrameByRatio(
 						this.simulation.getGameTimeOfDay() / this.simulation.getGameplayConstants().getGameDayHours());
@@ -1352,7 +1773,13 @@ public class War3MapViewer extends AbstractMdxModelViewer implements MdxAssetLoa
 	 * SetSkyModel. The sky draws behind everything and moves with the camera, so it has a scene of its own whose far
 	 * plane the map's camera distance settings cannot cut through.
 	 */
+	public void setWaterBaseColor(final float[] color) {
+		this.waterColor = color;
+		this.terrain.setWaterBaseColor(color[0], color[1], color[2], color[3]);
+	}
+
 	public void setSkyModel(final String path) {
+		this.skyModel = path;
 		if (this.skyInstance != null) {
 			this.skyInstance.detach();
 			this.skyInstance = null;
@@ -1912,6 +2339,41 @@ public class War3MapViewer extends AbstractMdxModelViewer implements MdxAssetLoa
 		return best;
 	}
 
+	/**
+	 * A fingertip covers more ground than a trunk, so a tap that misses every tree model takes the tree nearest the
+	 * touched ground point, when that point lies within the tree's selection circle widened by the finger tolerance.
+	 */
+	public RenderWidget pickNearestTree(final float x, final float y, final float tolerancePx,
+			final CWidgetFilterFunction filter) {
+		getClickLocation(this.constructionPickHeap, (int) x, (int) y, false, false);
+		final float pickX = this.constructionPickHeap.x;
+		final float pickY = this.constructionPickHeap.y;
+		getClickLocation(this.constructionPickHeap, (int) (x + tolerancePx), (int) y, false, false);
+		final float tolerance = (float) Math.hypot(this.constructionPickHeap.x - pickX,
+				this.constructionPickHeap.y - pickY);
+		RenderWidget best = null;
+		float bestDistance = Float.MAX_VALUE;
+		for (final RenderWidget widget : this.widgets) {
+			if (!(widget instanceof RenderDestructable)) {
+				continue;
+			}
+			final CDestructable tree = ((RenderDestructable) widget).getSimulationDestructable();
+			if (tree.isDead() || !tree.getDestType().getTargetedAs().contains(CTargetType.TREE)
+					|| !widget.getInstance().shown() || !widget.getInstance().isVisible(this.worldScene.camera)) {
+				continue;
+			}
+			final float radius = (widget.getSelectionScale() / 2) + tolerance;
+			final float dx = tree.getX() - pickX;
+			final float dy = tree.getY() - pickY;
+			final float distance = (dx * dx) + (dy * dy);
+			if ((distance <= (radius * radius)) && (distance < bestDistance) && filter.call(tree)) {
+				best = widget;
+				bestDistance = distance;
+			}
+		}
+		return best;
+	}
+
 	private static final class MappedDataCallbackImplementation implements LoadGenericCallback {
 		@Override
 		public Object call(final InputStream data) {
@@ -2027,6 +2489,8 @@ public class War3MapViewer extends AbstractMdxModelViewer implements MdxAssetLoa
 	}
 
 	public void setDayNightModels(final String terrainDNCFile, final String unitDNCFile) {
+		this.dayNightTerrainModel = terrainDNCFile;
+		this.dayNightUnitModel = unitDNCFile;
 		final MdxModel terrainDNCModel = loadModelMdx(terrainDNCFile);
 		this.dncTerrain = (MdxComplexInstance) terrainDNCModel.addInstance();
 		this.dncTerrain.setSequenceLoopMode(SequenceLoopMode.ALWAYS_LOOP);
@@ -2120,6 +2584,30 @@ public class War3MapViewer extends AbstractMdxModelViewer implements MdxAssetLoa
 
 	public int getLocalPlayerIndex() {
 		return this.localPlayerIndex;
+	}
+
+	public com.etheller.warsmash.viewer5.handlers.w3x.ui.AllyColorFilter getAllyColorFilter() {
+		if (this.allyColorFilter == null) {
+			this.allyColorFilter = new com.etheller.warsmash.viewer5.handlers.w3x.ui.AllyColorFilter(this.miscData);
+		}
+		return this.allyColorFilter;
+	}
+
+	/** DisableRestartMission: the game menu's Restart button stays greyed out. */
+	public boolean isRestartMissionDisabled() {
+		return this.restartMissionDisabled;
+	}
+
+	public void setRestartMissionDisabled(final boolean restartMissionDisabled) {
+		this.restartMissionDisabled = restartMissionDisabled;
+	}
+
+	public String getAltMinimapIcon() {
+		return this.altMinimapIcon;
+	}
+
+	public void setAltMinimapIcon(final String altMinimapIcon) {
+		this.altMinimapIcon = altMinimapIcon;
 	}
 
 	public RenderUnit getRenderPeer(final CUnit unit) {
@@ -2233,6 +2721,10 @@ public class War3MapViewer extends AbstractMdxModelViewer implements MdxAssetLoa
 
 	public void setLocalPlayerServerSlot(final int localPlayerServerSlot) {
 		this.localPlayerServerSlot = localPlayerServerSlot;
+	}
+
+	public boolean isNetworkGame() {
+		return this.gameTurnManager instanceof com.etheller.warsmash.networking.WarsmashClient;
 	}
 
 	public void setGameTurnManager(final GameTurnManager gameTurnManager) {
@@ -2473,6 +2965,7 @@ public class War3MapViewer extends AbstractMdxModelViewer implements MdxAssetLoa
 						: renderUnit.getTypeData().getRequiredAnimationNamesForAttachments();
 				final RenderSpellEffect renderAttackInstant = new RenderSpellEffect(modelInstance, War3MapViewer.this,
 						yaw, RenderSpellEffect.DEFAULT_ANIMATION_QUEUE, requiredAnimationNamesForAttachments);
+				renderAttackInstant.setOrigin(modelName, targetWidget, attachPointNames, 0, 0, 0);
 				War3MapViewer.this.projectiles.add(renderAttackInstant);
 				return renderAttackInstant;
 			}
@@ -2534,6 +3027,7 @@ public class War3MapViewer extends AbstractMdxModelViewer implements MdxAssetLoa
 				modelInstance.setScene(War3MapViewer.this.worldScene);
 				final RenderSpellEffect renderAttackInstant = new RenderSpellEffect(modelInstance, War3MapViewer.this,
 						0, RenderSpellEffect.DEFAULT_ANIMATION_QUEUE, SequenceUtils.EMPTY);
+				renderAttackInstant.setOrigin(modelName, targetWidget, attachPointNames, 0, 0, 0);
 				War3MapViewer.this.projectiles.add(renderAttackInstant);
 				return renderAttackInstant;
 			}
@@ -2552,6 +3046,7 @@ public class War3MapViewer extends AbstractMdxModelViewer implements MdxAssetLoa
 			modelInstance.setScene(War3MapViewer.this.worldScene);
 			final RenderSpellEffect renderAttackInstant = new RenderSpellEffect(modelInstance, War3MapViewer.this, yaw,
 					RenderSpellEffect.DEFAULT_ANIMATION_QUEUE, SequenceUtils.EMPTY);
+			renderAttackInstant.setOrigin(modelName, null, null, x, y, yaw);
 			War3MapViewer.this.projectiles.add(renderAttackInstant);
 			return renderAttackInstant;
 		}
@@ -2728,7 +3223,26 @@ public class War3MapViewer extends AbstractMdxModelViewer implements MdxAssetLoa
 	}
 
 	public CPlayerFogOfWar getFogOfWar() {
+		if (this.observerFogOfWar != null) {
+			return this.observerFogOfWar;
+		}
 		return this.simulation.getPlayer(this.localPlayerIndex).getFogOfWar();
+	}
+
+	/**
+	 * What a player defeated with observers on death sees: the whole map. Only the picture changes, the original's
+	 * IsVisibleToPlayer and its like keep answering from the player's own fog.
+	 */
+	public void startObserverView() {
+		if (this.observerFogOfWar == null) {
+			this.observerFogOfWar = new CPlayerFogOfWar(this.simulation.getPathingGrid());
+			this.observerFogOfWar.revealAll();
+			this.terrain.setFogOfWarData(this.simulation, this.observerFogOfWar);
+		}
+	}
+
+	public boolean isObserverView() {
+		return this.observerFogOfWar != null;
 	}
 
 	public static byte fadeLineOfSightColor(final byte lastFogStateColor, final byte state) {
@@ -3466,6 +3980,9 @@ public class War3MapViewer extends AbstractMdxModelViewer implements MdxAssetLoa
 								final float[] scale3d = { scale, scale, scale };
 								final RenderDestructable newDestructable = createNewDestructable(typeId, row, variation,
 										location3d, (float) Math.toRadians(facing), (short) 100, scale3d);
+								War3MapViewer.this.createdDestructables
+										.add(new CreatedDestructable(newDestructable.getSimulationDestructable().getHandleId(),
+												typeId.getValue(), x, y, z, facing, scale, variation));
 								return newDestructable.getSimulationDestructable();
 							}
 
@@ -3578,21 +4095,7 @@ public class War3MapViewer extends AbstractMdxModelViewer implements MdxAssetLoa
 								if ((specialEffects == null) || specialEffects.isEmpty()) {
 									return SimulationRenderComponentModel.DO_NOTHING;
 								}
-								return new SimulationRenderComponentModel() {
-									@Override
-									public void remove() {
-										for (final RenderSpellEffect effect : specialEffects) {
-											effect.setAnimations(RenderSpellEffect.DEATH_ONLY, true);
-										}
-									}
-
-									@Override
-									public void setHeight(final float height) {
-										for (final RenderSpellEffect effect : specialEffects) {
-											effect.setHeight(height);
-										}
-									}
-								};
+								return new SpellEffectModel(specialEffects, 0);
 							}
 
 							@Override
@@ -3603,17 +4106,7 @@ public class War3MapViewer extends AbstractMdxModelViewer implements MdxAssetLoa
 								if (specialEffect == null) {
 									return SimulationRenderComponentModel.DO_NOTHING;
 								}
-								return new SimulationRenderComponentModel() {
-									@Override
-									public void remove() {
-										specialEffect.setAnimations(RenderSpellEffect.DEATH_ONLY, true);
-									}
-
-									@Override
-									public void setHeight(final float height) {
-										specialEffect.setHeight(height);
-									}
-								};
+								return new SpellEffectModel(Collections.singletonList(specialEffect), 0);
 							}
 
 							@Override
@@ -3662,18 +4155,9 @@ public class War3MapViewer extends AbstractMdxModelViewer implements MdxAssetLoa
 								if (specialEffect == null) {
 									return SimulationRenderComponentModel.DO_NOTHING;
 								}
-								return new SimulationRenderComponentModel() {
-									@Override
-									public void remove() {
-										specialEffect.setAnimations(RenderSpellEffect.DEATH_ONLY, true);
-									}
-
-									@Override
-									public void setHeight(final float height) {
-										specialEffect.setHeight(Math.max(getWalkableRenderHeight(x, y),
-												War3MapViewer.this.terrain.getGroundHeight(x, y)) + height);
-									}
-								};
+								return new SpellEffectModel(Collections.singletonList(specialEffect),
+										Math.max(getWalkableRenderHeight(x, y),
+												War3MapViewer.this.terrain.getGroundHeight(x, y)));
 							}
 
 							@Override
@@ -4022,6 +4506,17 @@ public class War3MapViewer extends AbstractMdxModelViewer implements MdxAssetLoa
 							@Override
 							public float getTerrainSpaceY(final float y) {
 								return War3MapViewer.this.terrain.getTerrainSpaceY(y);
+							}
+
+							@Override
+							public int[] getTerrainCornerCount() {
+								return War3MapViewer.this.terrain.getCornerCount();
+							}
+
+							@Override
+							public void setTerrainDeformation(final int column, final int row, final int width,
+									final int height, final float[] offsets) {
+								War3MapViewer.this.terrain.setDeformation(column, row, width, height, offsets);
 							}
 
 							@Override

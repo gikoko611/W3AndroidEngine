@@ -101,6 +101,7 @@ public class EventObjectEmitterObject extends GenericObject implements EmitterOb
 	public float pitch;
 	public float pitchVariance;
 	public float volume;
+	public int channel;
 	public boolean footprint;
 	public List<Sound> decodedBuffers = new ArrayList<>();
 	/**
@@ -299,6 +300,7 @@ public class EventObjectEmitterObject extends GenericObject implements EmitterOb
 						this.pitch = getFloat(animSoundsRow, "Pitch");
 						this.pitchVariance = getFloat(animSoundsRow, "PitchVariance");
 						this.volume = getFloat(animSoundsRow, "Volume") / 127f;
+						this.channel = (int) getFloat(animSoundsRow, "Channel");
 
 						final String[] fileNames = ((String) animSoundsRow.get("FileNames")).split(",");
 						final GenericResource[] resources = new GenericResource[fileNames.length];

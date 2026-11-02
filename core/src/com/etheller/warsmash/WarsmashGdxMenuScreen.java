@@ -22,6 +22,7 @@ import com.badlogic.gdx.math.Vector3;
 import com.badlogic.gdx.utils.viewport.ExtendViewport;
 import com.badlogic.gdx.utils.viewport.FitViewport;
 import com.badlogic.gdx.utils.viewport.Viewport;
+import com.etheller.warsmash.input.touch.SliderHost;
 import com.etheller.warsmash.datasources.DataSource;
 import com.etheller.warsmash.networking.uberserver.GamingNetworkConnectionImpl;
 import com.etheller.warsmash.parsers.fdf.GameUI;
@@ -54,7 +55,7 @@ import com.etheller.warsmash.viewer5.handlers.w3x.SequenceUtils;
 import com.etheller.warsmash.viewer5.handlers.w3x.War3MapViewer;
 import com.etheller.warsmash.viewer5.handlers.w3x.ui.MenuUI;
 
-public class WarsmashGdxMenuScreen implements InputProcessor, Screen, SingleModelScreen {
+public class WarsmashGdxMenuScreen implements InputProcessor, Screen, SingleModelScreen, SliderHost {
 	private static final String MAPS_DOWNLOAD_DEFAULT = "Maps/Download";
 	private static final boolean ENABLE_AUDIO = true;
 	private DataSource codebase;
@@ -652,6 +653,12 @@ public class WarsmashGdxMenuScreen implements InputProcessor, Screen, SingleMode
 		this.viewer.webGL.useShaderProgram(null);
 
 		Gdx.gl30.glActiveTexture(GL30.GL_TEXTURE0);
+		GammaOverlay.render(this.batch);
+	}
+
+	@Override
+	public boolean isOverSlider(final int screenX, final int screenY) {
+		return (this.menuUI != null) && this.menuUI.isOverSlider(screenX, screenY);
 	}
 
 	@Override

@@ -38,8 +38,11 @@ final class CSoundParameters {
 	}
 
 	float scaledVolume(final float fallback, final AudioContext audioContext) {
-		float result = this.volume >= 0 ? this.volume / MAX_VOLUME : fallback;
-		result *= CSoundMixer.channelScale(this.channel);
+		return unmixedVolume(fallback, audioContext) * CSoundMixer.channelScale(this.channel);
+	}
+
+	float unmixedVolume(final float fallback, final AudioContext audioContext) {
+		final float result = this.volume >= 0 ? this.volume / MAX_VOLUME : fallback;
 		return result * coneScale(audioContext);
 	}
 

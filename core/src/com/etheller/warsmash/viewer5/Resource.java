@@ -39,6 +39,9 @@ public abstract class Resource {
 		}
 	}
 
+	public void dispose() {
+	}
+
 	public boolean detach() {
 		return this.viewer.unload(this);
 	}

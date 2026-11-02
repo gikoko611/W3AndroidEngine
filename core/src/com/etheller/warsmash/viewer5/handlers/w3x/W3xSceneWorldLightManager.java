@@ -43,6 +43,12 @@ public class W3xSceneWorldLightManager implements SceneLightManager, W3xSceneLig
 	}
 
 	@Override
+	public void dispose() {
+		this.unitLightsTexture.dispose();
+		this.terrainLightsTexture.dispose();
+	}
+
+	@Override
 	public void update() {
 		final int numberOfLights = this.lights.size() + 1;
 		final int bytesNeeded = numberOfLights * 4 * 16;

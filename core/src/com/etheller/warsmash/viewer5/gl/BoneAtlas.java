@@ -27,6 +27,14 @@ public class BoneAtlas {
 		this.gl = gl;
 	}
 
+	public void dispose() {
+		for (final DataTexture texture : this.textures) {
+			if (texture != null) {
+				texture.dispose();
+			}
+		}
+	}
+
 	public void begin() {
 		this.usedTexels = 0;
 		this.stamp++;

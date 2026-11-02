@@ -10,10 +10,19 @@ public interface TouchTarget {
 
 	boolean isOverInventorySlot(int screenX, int screenY);
 
+	/** Whether a command button with autocast is under the point, in screen pixels. */
+	boolean isOverAutocastButton(int screenX, int screenY);
+
 	boolean hasActiveCommand();
 
 	/** Whether the active command shows a building ghost to place. */
 	boolean isPlacingBuilding();
+
+	/** Writes the map point under the screen point (x, y, z) to out. */
+	void screenToWorld(int screenX, int screenY, float[] out);
+
+	/** Writes the screen point of the map point to out (x, y); it may lie outside the screen. */
+	void worldToScreen(float[] world, float[] out);
 
 	/**
 	 * @return the touch overlay slot under the point: 0 to 9 for control groups, 10 for Shift, 11 for the plus button, -1 for none

@@ -81,6 +81,10 @@ public class CUnitAttackMissileBounce extends CUnitAttackMissile {
 		}
 	}
 
+	public static void releaseStaticReferences() {
+		BounceMissileConsumer.INSTANCE.release();
+	}
+
 	private static final class BounceMissileConsumer implements CUnitEnumFunction {
 		private static final BounceMissileConsumer INSTANCE = new BounceMissileConsumer();
 		private final Rectangle rect = new Rectangle();
@@ -95,6 +99,15 @@ public class CUnitAttackMissileBounce extends CUnitAttackMissile {
 		private CUnitAttackListener attackListener;
 		private boolean launched = false;
 		private CUnitAttackSettings settings;
+
+		private void release() {
+			this.simulation = null;
+			this.source = null;
+			this.target = null;
+			this.attack = null;
+			this.attackListener = null;
+			this.settings = null;
+		}
 
 		public void nextBounce(final CSimulation simulation, final CUnit source, final CWidget target,
 				final CUnitAttackMissileBounce attack, final float x, final float y, final float damage,

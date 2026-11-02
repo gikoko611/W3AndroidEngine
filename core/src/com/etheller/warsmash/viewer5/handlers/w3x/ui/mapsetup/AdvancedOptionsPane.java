@@ -1,5 +1,6 @@
 package com.etheller.warsmash.viewer5.handlers.w3x.ui.mapsetup;
 
+import com.badlogic.gdx.graphics.Color;
 import com.etheller.warsmash.parsers.fdf.GameUI;
 import com.etheller.warsmash.parsers.fdf.frames.CheckBoxFrame;
 import com.etheller.warsmash.parsers.fdf.frames.GlueTextButtonFrame;
@@ -48,6 +49,9 @@ public class AdvancedOptionsPane {
 		this.lockTeams.setChecked(true);
 		this.teamsTogether.setChecked(true);
 		setUpMenu(rootFrame, "ObserversMenu", OBSERVER_ITEMS, this.observers, (index) -> this.observers = index);
+		// The original's single player custom game keeps this on No Observers, greyed out; it is for network games.
+		((PopupMenuFrame) rootFrame.getFrameByName("ObserversMenu", 0)).setEnabled(false);
+		((StringFrame) rootFrame.getFrameByName("ObserversLabel", 0)).setColor(Color.GRAY);
 		setUpMenu(rootFrame, "MapVisibilityMenu", VISIBILITY_ITEMS, this.visibility,
 				(index) -> this.visibility = index);
 	}

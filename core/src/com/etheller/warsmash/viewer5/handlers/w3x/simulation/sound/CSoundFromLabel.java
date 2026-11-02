@@ -19,6 +19,7 @@ public class CSoundFromLabel implements CSound {
 	private long lastStartTimestamp;
 	private final CSoundParameters parameters = new CSoundParameters();
 	private boolean started;
+	private boolean killWhenDone;
 
 	public CSoundFromLabel(final UnitSound sound, final AudioContext audioContext, final boolean looping,
 			final boolean is3d, final boolean stopWhenOutOfRange, final int fadeInRate, final int fadeOutRate) {
@@ -70,7 +71,20 @@ public class CSoundFromLabel implements CSound {
 	}
 
 	@Override
+	public void killWhenDone() {
+		this.killWhenDone = true;
+	}
+
+	@Override
+	public boolean isKilled() {
+		return this.killWhenDone && !isPlaying();
+	}
+
+	@Override
 	public void start() {
+		if (isKilled()) {
+			return;
+		}
 		this.parameters.updatePositionFromUnit();
 		final float x = this.parameters.x;
 		final float y = this.parameters.y;

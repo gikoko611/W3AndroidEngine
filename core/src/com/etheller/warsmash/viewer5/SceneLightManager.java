@@ -6,4 +6,7 @@ public interface SceneLightManager {
 	public void remove(final SceneLightInstance lightInstance);
 
 	public void update();
+
+	default void dispose() {
+	}
 }

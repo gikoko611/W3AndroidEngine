@@ -581,6 +581,7 @@ public class MdxComplexInstance extends ModelInstance {
 			if (this.boneTexture == null) {
 				this.boneTexture = new DataTexture(this.model.viewer.gl, 4,
 						((MdxModel) this.model).bones.size() * 4, 1);
+				this.model.viewer.trackDataTexture(this.boneTexture);
 			}
 			if (this.boneTextureStale) {
 				this.worldMatricesCopyHeap.clear();

@@ -27,6 +27,11 @@ public interface GestureListener {
 
 	void dragEnd(float x, float y);
 
+	/** A finger held long enough for a long press may still start a drag here, if it is on a slider. */
+	default boolean canDragAfterLongPress(final float x, final float y) {
+		return false;
+	}
+
 	void panStart(float x, float y);
 
 	void pan(float x, float y);

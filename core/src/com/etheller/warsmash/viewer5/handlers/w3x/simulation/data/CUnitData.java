@@ -248,8 +248,10 @@ public class CUnitData {
 	private final Map<War3ID, CUnitType> unitIdToUnitTypeLightweight = new HashMap<>();
 	private final Map<String, War3ID> jassLegacyNameToUnitId = new HashMap<>();
 	private final Map<War3ID, List<War3ID>> unitIdToTechEquivalents = new HashMap<>();
+	private Map<War3ID, List<War3ID>> unitIdToUpgradedFrom;
 	private final CAbilityData abilityData;
 	private final CUpgradeData upgradeData;
+	private CItemData itemData;
 	private final SimulationRenderController simulationRenderController;
 
 	public CUnitData(final CGameplayConstants gameplayConstants, final ObjectData unitData,
@@ -782,12 +784,12 @@ public class CUnitData {
 
 			final boolean revivesHeroes = unitType.getFieldAsBoolean(REVIVES_HEROES, 0);
 
-			final List<War3ID> unitsTrained = parseIDList(unitType.getFieldAsList(UNITS_TRAINED));
-			final List<War3ID> unitsSold = parseIDList(unitType.getFieldAsList(UNITS_SOLD));
+			final List<War3ID> unitsTrained = inMapVersion(unitType.getFieldAsList(UNITS_TRAINED));
+			final List<War3ID> unitsSold = inMapVersion(unitType.getFieldAsList(UNITS_SOLD));
 
-			final List<War3ID> upgradesTo = parseIDList(unitType.getFieldAsList(UPGRADES_TO));
+			final List<War3ID> upgradesTo = inMapVersion(unitType.getFieldAsList(UPGRADES_TO));
 
-			final List<War3ID> researchesAvailable = parseIDList(unitType.getFieldAsList(RESEARCHES_AVAILABLE));
+			final List<War3ID> researchesAvailable = inMapVersion(unitType.getFieldAsList(RESEARCHES_AVAILABLE));
 
 			final List<War3ID> dependencyOr = parseIDList(unitType.getFieldAsList(DEPENDENCY_EQUIVALENTS));
 
@@ -803,10 +805,10 @@ public class CUnitData {
 				}
 			}
 
-			final List<War3ID> structuresBuilt = parseIDList(unitType.getFieldAsList(STRUCTURES_BUILT));
+			final List<War3ID> structuresBuilt = inMapVersion(unitType.getFieldAsList(STRUCTURES_BUILT));
 
-			final List<War3ID> itemsSold = parseIDList(unitType.getFieldAsList(ITEMS_SOLD));
-			final List<War3ID> itemsMade = parseIDList(unitType.getFieldAsList(ITEMS_MADE));
+			final List<War3ID> itemsSold = inMapVersion(unitType.getFieldAsList(ITEMS_SOLD));
+			final List<War3ID> itemsMade = inMapVersion(unitType.getFieldAsList(ITEMS_MADE));
 
 			final War3ID defaultAutocastAbilityId;
 			if ((defaultAutocastAbility != null) && !defaultAutocastAbility.isBlank()
@@ -888,6 +890,20 @@ public class CUnitData {
 			}
 		}
 		return enabledAttacks;
+	}
+
+	public void setItemData(final CItemData itemData) {
+		this.itemData = itemData;
+	}
+
+	private List<War3ID> inMapVersion(final List<String> ids) {
+		final List<War3ID> available = parseIDList(ids);
+		if (WarsmashConstants.MAP_GAME_VERSION < WarsmashConstants.GAME_VERSION) {
+			available.removeIf(id -> WarsmashConstants.isOutOfMapVersion(this.unitData.get(id.asStringValue()))
+					|| this.upgradeData.isOutOfMapVersion(id)
+					|| ((this.itemData != null) && this.itemData.isOutOfMapVersion(id)));
+		}
+		return available;
 	}
 
 	public static List<War3ID> parseIDList(final List<String> structuresBuiltString) {
@@ -1035,6 +1051,11 @@ public class CUnitData {
 		return this.unitData.get(unitTypeId.asStringValue()).getFieldAsFloat(PROPULSION_WINDOW, 0);
 	}
 
+	public int getFormationRank(final War3ID unitTypeId) {
+		final GameObject unitType = this.unitData.get(unitTypeId.asStringValue());
+		return unitType == null ? 0 : unitType.getFieldAsInteger("formation", 0);
+	}
+
 	public float getTurnRate(final War3ID unitTypeId) {
 		return this.unitData.get(unitTypeId.asStringValue()).getFieldAsFloat(TURN_RATE, 0);
 	}
@@ -1152,7 +1173,7 @@ public class CUnitData {
 			return unitTypeInstance;
 		}
 		final GameObject unitType = this.unitData.get(rawcode.asStringValue());
-		if (unitType == null) {
+		if ((unitType == null) || WarsmashConstants.isOutOfMapVersion(unitType)) {
 			return null;
 		}
 		final ArgbImage buildingPathingPixelMap = this.simulationRenderController
@@ -1403,12 +1424,12 @@ public class CUnitData {
 
 			final boolean revivesHeroes = unitType.getFieldAsBoolean(REVIVES_HEROES, 0);
 
-			final List<War3ID> unitsTrained = parseIDList(unitType.getFieldAsList(UNITS_TRAINED));
-			final List<War3ID> unitsSold = parseIDList(unitType.getFieldAsList(UNITS_SOLD));
+			final List<War3ID> unitsTrained = inMapVersion(unitType.getFieldAsList(UNITS_TRAINED));
+			final List<War3ID> unitsSold = inMapVersion(unitType.getFieldAsList(UNITS_SOLD));
 
-			final List<War3ID> upgradesTo = parseIDList(unitType.getFieldAsList(UPGRADES_TO));
+			final List<War3ID> upgradesTo = inMapVersion(unitType.getFieldAsList(UPGRADES_TO));
 
-			final List<War3ID> researchesAvailable = parseIDList(unitType.getFieldAsList(RESEARCHES_AVAILABLE));
+			final List<War3ID> researchesAvailable = inMapVersion(unitType.getFieldAsList(RESEARCHES_AVAILABLE));
 
 			final List<War3ID> dependencyOr = parseIDList(unitType.getFieldAsList(DEPENDENCY_EQUIVALENTS));
 
@@ -1424,10 +1445,10 @@ public class CUnitData {
 				}
 			}
 
-			final List<War3ID> structuresBuilt = parseIDList(unitType.getFieldAsList(STRUCTURES_BUILT));
+			final List<War3ID> structuresBuilt = inMapVersion(unitType.getFieldAsList(STRUCTURES_BUILT));
 
-			final List<War3ID> itemsSold = parseIDList(unitType.getFieldAsList(ITEMS_SOLD));
-			final List<War3ID> itemsMade = parseIDList(unitType.getFieldAsList(ITEMS_MADE));
+			final List<War3ID> itemsSold = inMapVersion(unitType.getFieldAsList(ITEMS_SOLD));
+			final List<War3ID> itemsMade = inMapVersion(unitType.getFieldAsList(ITEMS_MADE));
 
 			final War3ID defaultAutocastAbilityId;
 			if ((defaultAutocastAbility != null) && !defaultAutocastAbility.isBlank()
@@ -1500,7 +1521,7 @@ public class CUnitData {
 			return unitTypeInstance;
 		}
 		final GameObject unitType = this.unitData.get(rawcode.asStringValue());
-		if (unitType == null) {
+		if ((unitType == null) || WarsmashConstants.isOutOfMapVersion(unitType)) {
 			return null;
 		}
 		return getUnitTypeInstanceLightweight(rawcode, unitType);
@@ -1546,5 +1567,40 @@ public class CUnitData {
 			}
 		}
 		return this.unitIdToUnitTypeLightweight.values();
+	}
+
+	/**
+	 * Every type that upgrades into the given one, directly or through a chain: a Castle yields Keep and Town Hall.
+	 */
+	public List<War3ID> getUpgradedFromTypeIds(final War3ID typeId) {
+		if (this.unitIdToUpgradedFrom == null) {
+			final Map<War3ID, List<War3ID>> directSources = new HashMap<>();
+			for (final CUnitType type : new ArrayList<>(getAllUnitTypesLightweight())) {
+				for (final War3ID upgradeTarget : type.getUpgradesTo()) {
+					directSources.computeIfAbsent(upgradeTarget, (key) -> new ArrayList<>()).add(type.getTypeId());
+				}
+			}
+			final Map<War3ID, List<War3ID>> allSources = new HashMap<>();
+			for (final War3ID target : directSources.keySet()) {
+				final Set<War3ID> visited = new HashSet<>();
+				visited.add(target);
+				final List<War3ID> sources = new ArrayList<>();
+				final List<War3ID> open = new ArrayList<>(directSources.get(target));
+				while (!open.isEmpty()) {
+					final War3ID source = open.remove(open.size() - 1);
+					if (visited.add(source)) {
+						sources.add(source);
+						final List<War3ID> further = directSources.get(source);
+						if (further != null) {
+							open.addAll(further);
+						}
+					}
+				}
+				allSources.put(target, sources);
+			}
+			this.unitIdToUpgradedFrom = allSources;
+		}
+		final List<War3ID> sources = this.unitIdToUpgradedFrom.get(typeId);
+		return sources == null ? Collections.<War3ID>emptyList() : sources;
 	}
 }

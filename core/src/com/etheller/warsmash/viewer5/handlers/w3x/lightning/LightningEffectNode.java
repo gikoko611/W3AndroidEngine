@@ -122,6 +122,10 @@ public class LightningEffectNode extends BatchedInstance {
 
 	}
 
+	public float getLifeSpanRemaining() {
+		return this.lifeSpanRemaining;
+	}
+
 	public void setLifeSpanRemaining(float duration) {
 		this.lifeSpanRemaining = duration;
 	}

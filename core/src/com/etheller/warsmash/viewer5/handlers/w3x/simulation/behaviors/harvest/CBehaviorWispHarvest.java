@@ -16,7 +16,9 @@ import com.etheller.warsmash.viewer5.handlers.w3x.simulation.util.ResourceType;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.util.SimulationRenderComponent;
 
 public class CBehaviorWispHarvest extends CAbstractRangedBehavior {
+	private static final int MAX_RETARGETS = 4;
 	private int lastIncomeTick;
+	private int retargets;
 	private final CAbilityWispHarvest abilityWispHarvest;
 	private boolean harvesting = false;
 	private SimulationRenderComponent spellEffectOverDestructable;
@@ -27,7 +29,54 @@ public class CBehaviorWispHarvest extends CAbstractRangedBehavior {
 	}
 
 	public CBehavior reset(final CSimulation game, final CWidget target) {
+		this.retargets = 0;
 		return innerReset(game, target, false);
+	}
+
+	private CBehavior retarget(final CSimulation game, final CDestructable tree) {
+		this.retargets++;
+		return innerReset(game, tree, false);
+	}
+
+	/**
+	 * Measured: a Wisp sent onto a tree closed in by other trees harvests a free tree beside the end of its path
+	 * instead; pushing on toward the closed in tree kept it searching paths forever.
+	 *
+	 * @return the behavior to continue with, or null when the move should go on as for any target
+	 */
+	public CBehavior onPathEnd(final CSimulation simulation) {
+		if (!(this.target instanceof CDestructable) || isWithinRange(simulation)) {
+			return null;
+		}
+		if (this.retargets >= MAX_RETARGETS) {
+			return this.unit.pollNextOrderBehavior(simulation);
+		}
+		CDestructable next = nearestFreeTree(simulation, (CDestructable) this.target, true);
+		if (next == null) {
+			next = nearestFreeTree(simulation, (CDestructable) this.target, false);
+		}
+		if (next == null) {
+			return this.unit.pollNextOrderBehavior(simulation);
+		}
+		return retarget(simulation, next);
+	}
+
+	private CDestructable nearestFreeTree(final CSimulation simulation, final CDestructable exclude,
+			final boolean withinReachOnly) {
+		CDestructable nearest = null;
+		double nearestDistance = this.abilityWispHarvest.getCastRange() * this.abilityWispHarvest.getCastRange();
+		for (final CDestructable tree : simulation.getDestructables()) {
+			if ((tree != exclude) && !tree.isDead() && !simulation.isTreeOwned(tree)
+					&& tree.canBeTargetedBy(simulation, this.unit, CAbilityWispHarvest.TREE_ALIVE_TYPE_ONLY)
+					&& (!withinReachOnly || this.unit.canReach(tree, 0))) {
+				final double distance = tree.distanceSquaredNoCollision(this.unit);
+				if (distance < nearestDistance) {
+					nearestDistance = distance;
+					nearest = tree;
+				}
+			}
+		}
+		return nearest;
 	}
 
 	@Override
@@ -49,6 +98,7 @@ public class CBehaviorWispHarvest extends CAbstractRangedBehavior {
 		if (!this.harvesting) {
 			onStartHarvesting(simulation);
 			this.harvesting = true;
+			this.retargets = 0;
 		}
 		return this;
 	}
@@ -89,7 +139,7 @@ public class CBehaviorWispHarvest extends CAbstractRangedBehavior {
 			final CDestructable nearestTree = findNearestTree(this.unit, this.abilityWispHarvest, simulation,
 					this.unit);
 			if (nearestTree != null) {
-				return reset(simulation, nearestTree);
+				return retarget(simulation, nearestTree);
 			}
 		}
 		return this.unit.pollNextOrderBehavior(simulation);

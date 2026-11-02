@@ -25,7 +25,10 @@ public class FontGeneratorHolder {
 	}
 
 	public void dispose() {
+		for (final BitmapFont font : this.sizeToFont.values()) {
+			font.dispose();
+		}
+		this.sizeToFont.clear();
 		this.generator.dispose();
-		// TODO maybe dispose the fonts
 	}
 }

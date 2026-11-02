@@ -19,6 +19,7 @@ public class CGameplayConstants {
 	private final float callForHelp;
 	private final float creepCallForHelp;
 	private final float aiCallForHelp;
+	private final float guardDistance;
 	private final float maxGuardDistance;
 	private final float guardReturnTime;
 	private final float boneDecayTime;
@@ -156,6 +157,7 @@ public class CGameplayConstants {
 		this.callForHelp = miscData.getFieldFloatValue("CallForHelp");
 		this.creepCallForHelp = miscData.getFieldFloatValue("CreepCallForHelp");
 		this.aiCallForHelp = miscData.getFieldFloatValue("AICallForHelp");
+		this.guardDistance = miscData.getFieldFloatValue("GuardDistance");
 		this.maxGuardDistance = miscData.getFieldFloatValue("MaxGuardDistance");
 		this.guardReturnTime = miscData.getFieldFloatValue("GuardReturnTime");
 		this.boneDecayTime = miscData.getFieldFloatValue("BoneDecayTime");
@@ -379,6 +381,10 @@ public class CGameplayConstants {
 
 	public float getAICallForHelp() {
 		return this.aiCallForHelp;
+	}
+
+	public float getGuardDistance() {
+		return this.guardDistance;
 	}
 
 	public float getMaxGuardDistance() {

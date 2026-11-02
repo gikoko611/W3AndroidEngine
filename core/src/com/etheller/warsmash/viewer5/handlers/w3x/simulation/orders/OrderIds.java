@@ -199,6 +199,10 @@ public class OrderIds {
 	public static final int darkritual = 852219;
 	public static final int darksummoning = 852220;
 	public static final int deathanddecay = 852221;
+	// Reforged orders; the table comes from older data, so their numbers are ours.
+	public static final int consecration = 859001;
+	public static final int righteousfury = 859002;
+	public static final int cleansingfire = 859003;
 	public static final int deathcoil = 852222;
 	public static final int deathpact = 852223;
 	public static final int decouple = 852509;

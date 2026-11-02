@@ -24,6 +24,11 @@ public class LightningEffectModel extends Model<LightningEffectModelHandler> {
 	public int elementBuffer;
 	protected Texture texture;
 
+	@Override
+	public void dispose() {
+		this.viewer.gl.glDeleteBuffer(this.elementBuffer);
+	}
+
 	public LightningEffectModel(LightningEffectModelHandler handler, ModelViewer viewer, String extension,
 								PathSolver pathSolver, String fetchUrl, War3ID typeId, String textureFilePath,
 								float avgSegLen, float width, float[] color, float noiseScale, float texCoordScale,

@@ -19,6 +19,8 @@ public interface MusicPlayer {
 
 	public void setVolume(int volume);
 
+	public void optionsChanged();
+
 	MusicPlayer DO_NOTHING = new MusicPlayer() {
 		@Override
 		public void update() {
@@ -53,6 +55,10 @@ public interface MusicPlayer {
 
 		@Override
 		public void setVolume(int volume) {
+		}
+
+		@Override
+		public void optionsChanged() {
 		}
 	};
 }

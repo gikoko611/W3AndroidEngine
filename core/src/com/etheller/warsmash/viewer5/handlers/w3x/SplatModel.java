@@ -68,8 +68,7 @@ public class SplatModel implements Comparable<SplatModel> {
 		}
 	}
 
-	public void compact(final GL30 gl, final float[] centerOffset) {
-		// delete all the batches
+	public void dispose(final GL30 gl) {
 		for (final Batch b : this.batches) {
 			// Vertices
 			gl.glDeleteBuffer(b.vertexBuffer);
@@ -78,6 +77,11 @@ public class SplatModel implements Comparable<SplatModel> {
 			gl.glDeleteBuffer(b.faceBuffer);
 		}
 		this.batches.clear();
+	}
+
+	public void compact(final GL30 gl, final float[] centerOffset) {
+		// delete all the batches
+		dispose(gl);
 
 		loadBatches(gl, centerOffset);
 	}
@@ -235,7 +239,9 @@ public class SplatModel implements Comparable<SplatModel> {
 	}
 
 	public void render(final GL30 gl, final ShaderProgram shader) {
-		// Texture
+		if (this.color[3] <= 0) {
+			return;
+		}
 
 		if (this.noDepthTest) {
 			gl.glDisable(GL20.GL_DEPTH_TEST);

@@ -342,6 +342,13 @@ public abstract class Scene {
 
 	}
 
+	public void dispose() {
+		if (this.boneAtlas != null) {
+			this.boneAtlas.dispose();
+		}
+		this.lightManager.dispose();
+	}
+
 	public void clearEmitterObjects() {
 		for (final EmittedObject object : this.emitterObjectUpdater.objects) {
 			object.health = 0;

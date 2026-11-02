@@ -123,6 +123,10 @@ public class AICaptain {
 		this.orderedGeneration.put(unit, this.generation);
 	}
 
+	public void clearOrders() {
+		this.orderedGeneration.clear();
+	}
+
 	public void forgetOrders() {
 		this.orderedGeneration.keySet().retainAll(this.members);
 	}

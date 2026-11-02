@@ -1,6 +1,7 @@
 package com.etheller.warsmash.util;
 
 import java.util.List;
+import java.util.Locale;
 
 import com.etheller.warsmash.units.DataTable;
 import com.etheller.warsmash.units.Element;
@@ -29,6 +30,12 @@ public class WarsmashConstants {
 	 * whatever for custom mods and other stuff
 	 */
 	public static int GAME_VERSION = 1;
+	/**
+	 * The game the current map is played in. Measured on 1.29: Reign of Chaos has no object marked version 1 in its
+	 * data, whatever the files hold, and its campaign is reached only from that game; here every campaign is on one
+	 * menu, so a campaign map saved as .w3m selects it by itself.
+	 */
+	public static int MAP_GAME_VERSION = 1;
 	public static final int REPLACEABLE_TEXTURE_LIMIT = 64;
 	public static final float SIMULATION_STEP_TIME = 1 / 20f;
 	public static final int PORT_NUMBER = GamingNetwork.UDP_SINGLE_GAME_PORT;
@@ -40,8 +47,9 @@ public class WarsmashConstants {
 	// Low - unknown ?
 	// Medium - 1.0f
 	// High - 1.5f
-	public static final float MODEL_DETAIL_PARTICLE_FACTOR = 1.5f;
-	public static final float MODEL_DETAIL_PARTICLE_FACTOR_INVERSE = 1f / MODEL_DETAIL_PARTICLE_FACTOR;
+	public static float MODEL_DETAIL_PARTICLE_FACTOR = 1.5f;
+	// Fixed at the High factor: loaded models keep the alpha computed from it, so a lower setting just thins effects.
+	public static final float MODEL_DETAIL_PARTICLE_FACTOR_INVERSE = 1f / 1.5f;
 
 	// I know this default string is from somewhere, maybe a language file? Didn't
 	// find it yet so I used this
@@ -70,7 +78,9 @@ public class WarsmashConstants {
 
 	public static CRaceManager RACE_MANAGER;
 
-	public static String[] JASS_FILE_LIST = { "Scripts\\common.j", "Scripts\\Blizzard.j", "Scripts\\war3map.j" };
+	private static final String[] DEFAULT_JASS_FILE_LIST = { "Scripts\\common.j", "Scripts\\Blizzard.j",
+			"Scripts\\war3map.j" };
+	public static String[] JASS_FILE_LIST = DEFAULT_JASS_FILE_LIST;
 	public static final float GAME_SPEED_TIME_FACTOR = 1f;
 	public static final int ONGOING_BEHAVIOR_NOTIFICATION_TICKS = (int) (0.5f / SIMULATION_STEP_TIME);
 
@@ -78,13 +88,27 @@ public class WarsmashConstants {
 
 	public static List<String> ABILITY_COMPATIBILITY = null;
 
+	public static void selectMapGameVersion(final String mapFileName) {
+		final String name = mapFileName == null ? "" : mapFileName.toLowerCase(Locale.ROOT).replace('\\', '/');
+		final boolean reignOfChaosCampaign = name.endsWith(".w3m") && name.contains("campaign/");
+		MAP_GAME_VERSION = reignOfChaosCampaign ? 0 : GAME_VERSION;
+	}
+
+	public static boolean isOutOfMapVersion(final GameObject gameObject) {
+		return (gameObject != null) && (gameObject.getFieldAsInteger("version", 0) > MAP_GAME_VERSION);
+	}
+
 	public static void loadConstants(final GameObject emulatorConstants, final DataTable warsmashIni) {
 		MAX_PLAYERS = emulatorConstants.getFieldValue(KEY_MAX_PLAYERS);
 		GAME_VERSION = emulatorConstants.getFieldValue(KEY_GAME_VERSION);
+		MAP_GAME_VERSION = GAME_VERSION;
 		CATCH_CURSOR = emulatorConstants.getFieldValue(KEY_CATCH_CURSOR) == 1;
 		if (!emulatorConstants.getField(KEY_FULL_SCREEN_MENU_BACKDROP).isEmpty()) {
 			FULL_SCREEN_MENU_BACKDROP = emulatorConstants.getFieldValue(KEY_FULL_SCREEN_MENU_BACKDROP) == 1;
 		}
+		// On Android the process outlives the activity, so a list from an earlier ini (a test run's extra script) must
+		// not survive into a launch whose ini no longer names it.
+		JASS_FILE_LIST = DEFAULT_JASS_FILE_LIST;
 		final List<String> jassFileList = emulatorConstants.getFieldAsList(KEY_JASS_FILE_LIST);
 		if ((jassFileList != null) && !jassFileList.isEmpty()
 				&& !((jassFileList.size() == 1) && jassFileList.get(0).isEmpty())) {

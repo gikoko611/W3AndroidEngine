@@ -18,4 +18,9 @@ public class CPathPoint {
 	public double distance(final CPathPoint point) {
 		return distance(point.x, point.y);
 	}
+
+	@Override
+	public String toString() {
+		return "(" + this.x + "," + this.y + ")";
+	}
 }

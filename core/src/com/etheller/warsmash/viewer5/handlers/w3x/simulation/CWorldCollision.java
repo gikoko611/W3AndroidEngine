@@ -27,10 +27,10 @@ public class CWorldCollision {
 	private final float maxCollisionRadius;
 	private final List<Set<CUnit>> enumSets = new ArrayList<>();
 	private int enumSetDepth;
+	private final List<Set<Object>> otherEnumSets = new ArrayList<>();
+	private int otherEnumSetDepth;
 	private final AnyUnitExceptTwoIntersector anyUnitExceptTwoIntersector;
 	private final EachUnitOnlyOnceIntersector eachUnitOnlyOnceIntersector;
-	private final DestructableEnumIntersector destructableEnumIntersector;
-	private final ItemEnumIntersector itemEnumIntersector;
 	private final ItemEnumIntersectorBoolean itemEnumIntersectorBoolean;
 
 	public CWorldCollision(final Rectangle entireMapBounds, final float maxCollisionRadius) {
@@ -45,8 +45,6 @@ public class CWorldCollision {
 		this.maxCollisionRadius = maxCollisionRadius;
 		this.anyUnitExceptTwoIntersector = new AnyUnitExceptTwoIntersector();
 		this.eachUnitOnlyOnceIntersector = new EachUnitOnlyOnceIntersector();
-		this.destructableEnumIntersector = new DestructableEnumIntersector();
-		this.itemEnumIntersector = new ItemEnumIntersector();
 		this.itemEnumIntersectorBoolean = new ItemEnumIntersectorBoolean();
 	}
 
@@ -259,12 +257,46 @@ public class CWorldCollision {
 		this.buildingUnitCollision.intersect(x, y, callback);
 	}
 
+	// The quadtree keeps an object in every leaf its bounds touch, so a rect across leaf edges meets it more than
+	// once; the set lets each callback see it once. Lambdas, not the shared intersectors, so that a callback can
+	// start another enumeration.
 	public void enumItemsInRect(final Rectangle rect, final CItemEnumFunction callback) {
-		this.itemsForEnum.intersect(rect, this.itemEnumIntersector.reset(callback));
+		final Set<Object> seen = acquireOtherEnumSet();
+		try {
+			this.itemsForEnum.intersect(rect, (item) -> {
+				if (item.isHidden() || !seen.add(item)) {
+					return false;
+				}
+				return callback.call(item);
+			});
+		}
+		finally {
+			this.otherEnumSetDepth--;
+		}
 	}
 
 	public void enumDestructablesInRect(final Rectangle rect, final CDestructableEnumFunction callback) {
-		this.destructablesForEnum.intersect(rect, this.destructableEnumIntersector.reset(callback));
+		final Set<Object> seen = acquireOtherEnumSet();
+		try {
+			this.destructablesForEnum.intersect(rect, (dest) -> {
+				if (!seen.add(dest)) {
+					return false;
+				}
+				return callback.call(dest);
+			});
+		}
+		finally {
+			this.otherEnumSetDepth--;
+		}
+	}
+
+	private Set<Object> acquireOtherEnumSet() {
+		if (this.otherEnumSetDepth == this.otherEnumSets.size()) {
+			this.otherEnumSets.add(Collections.newSetFromMap(new IdentityHashMap<>()));
+		}
+		final Set<Object> set = this.otherEnumSets.get(this.otherEnumSetDepth++);
+		set.clear();
+		return set;
 	}
 
 	public void enumDestructablesInRange(final float x, final float y, final float radius,
@@ -287,6 +319,19 @@ public class CWorldCollision {
 			final CUnit sourceSecondUnitToIgnore, final MovementType movementType, final boolean forConstruction) {
 		return intersectsAnythingOtherThan(newPossibleRectangle, sourceUnitToIgnore, sourceSecondUnitToIgnore,
 				movementType, forConstruction, null, -1);
+	}
+
+	/** As intersectsAnythingOtherThan, but units walking at gameTurnTick do not count. */
+	public boolean intersectsStandingUnitOtherThan(final Rectangle newPossibleRectangle, final CUnit sourceUnitToIgnore,
+			final CUnit sourceSecondUnitToIgnore, final MovementType movementType, final int gameTurnTick) {
+		this.anyUnitExceptTwoIntersector.walkingTick = gameTurnTick;
+		try {
+			return intersectsAnythingOtherThan(newPossibleRectangle, sourceUnitToIgnore, sourceSecondUnitToIgnore,
+					movementType, false);
+		}
+		finally {
+			this.anyUnitExceptTwoIntersector.walkingTick = NOT_A_TICK;
+		}
 	}
 
 	// Units the player ignoredControllerIndex controls (its own and those of players sharing control with it) are
@@ -388,6 +433,8 @@ public class CWorldCollision {
 		}
 	}
 
+	private static final int NOT_A_TICK = Integer.MIN_VALUE;
+
 	private static final class AnyUnitExceptTwoIntersector implements QuadtreeIntersector<CUnit> {
 		private CUnit firstUnit;
 		private CUnit secondUnit;
@@ -395,6 +442,7 @@ public class CWorldCollision {
 
 		private CSimulation simulation;
 		private int ignoredControllerIndex = -1;
+		private int walkingTick = NOT_A_TICK;
 
 		public AnyUnitExceptTwoIntersector reset(final CUnit firstUnit, final CUnit secondUnit,
 				final boolean forConstruction) {
@@ -415,6 +463,9 @@ public class CWorldCollision {
 					|| MovementType.FOOT_NO_COLLISION.equals(intersectingObject.getMovementType())
 					|| (this.forConstruction && intersectingObject.isNoBuildingCollision())
 					|| (!this.forConstruction && intersectingObject.isNoUnitCollision())) {
+				return false;
+			}
+			if ((this.walkingTick != NOT_A_TICK) && intersectingObject.isWalking(this.walkingTick)) {
 				return false;
 			}
 			if (this.ignoredControllerIndex >= 0) {
@@ -456,40 +507,6 @@ public class CWorldCollision {
 				return this.done;
 			}
 			return false;
-		}
-	}
-
-	private static final class DestructableEnumIntersector implements QuadtreeIntersector<CDestructable> {
-		private CDestructableEnumFunction consumerDelegate;
-
-		public DestructableEnumIntersector reset(final CDestructableEnumFunction consumerDelegate) {
-			this.consumerDelegate = consumerDelegate;
-			return this;
-		}
-
-		@Override
-		public boolean onIntersect(final CDestructable intersectingObject) {
-//			if (intersectingObject.isHidden()) { // at time of writing CDestructable did not have isHidden(), uncomment when available
-//				return false;
-//			}
-			return this.consumerDelegate.call(intersectingObject);
-		}
-	}
-
-	private static final class ItemEnumIntersector implements QuadtreeIntersector<CItem> {
-		private CItemEnumFunction consumerDelegate;
-
-		public ItemEnumIntersector reset(final CItemEnumFunction consumerDelegate) {
-			this.consumerDelegate = consumerDelegate;
-			return this;
-		}
-
-		@Override
-		public boolean onIntersect(final CItem intersectingObject) {
-			if (intersectingObject.isHidden()) {
-				return false;
-			}
-			return this.consumerDelegate.call(intersectingObject);
 		}
 	}
 

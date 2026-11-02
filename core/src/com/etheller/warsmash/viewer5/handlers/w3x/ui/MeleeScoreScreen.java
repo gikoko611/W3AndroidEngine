@@ -21,8 +21,10 @@ import com.etheller.warsmash.parsers.fdf.frames.SpriteFrame;
 import com.etheller.warsmash.parsers.fdf.frames.StringFrame;
 import com.etheller.warsmash.parsers.fdf.frames.TextureFrame;
 import com.etheller.warsmash.parsers.fdf.frames.UIFrame;
+import com.etheller.warsmash.units.GameObject;
 import com.etheller.warsmash.util.WarsmashConstants;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CSimulation;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CUnit;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.players.CPlayer;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.players.CPlayerGameResult;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.players.CPlayerScore;
@@ -35,7 +37,7 @@ import com.etheller.warsmash.viewer5.handlers.w3x.simulation.trigger.enumtypes.C
 public class MeleeScoreScreen {
 	private static final String[][] COLUMN_KEYS = {
 			{ "OVERVIEW_COLUMN0", "OVERVIEW_COLUMN1", "OVERVIEW_COLUMN2", "OVERVIEW_COLUMN3" },
-			{ "UNITS_COLUMN0", "UNITS_COLUMN1", "UNITS_COLUMN2", "UNITS_COLUMN3", "UNITS_COLUMN4" },
+			{ "UNIT_COLUMN0", "UNIT_COLUMN1", "UNIT_COLUMN2", "UNIT_COLUMN3", "UNIT_COLUMN4" },
 			{ "HEROES_COLUMN0", "HEROES_COLUMN1", "HEROES_COLUMN2", "HEROES_COLUMN3", "HEROES_COLUMN4" },
 			{ "RESOURCES_COLUMN0", "RESOURCES_COLUMN1", "RESOURCES_COLUMN2", "RESOURCES_COLUMN3",
 					"RESOURCES_COLUMN4" } };
@@ -56,10 +58,23 @@ public class MeleeScoreScreen {
 	private static final int VISIBLE_ROWS = 12;
 	private static final float TEAM_COLOR_ICON_INSET = 0.004f;
 	private static final float VALUE_SHADOW_OFFSET = 0.001f;
+	// The column each tab is sorted by, shown checked: Total Score, Largest Army, Heroes Used, Gold Mined.
+	private static final int[] SORT_COLUMN = { 3, 4, 0, 0 };
+	private static final int HEROES_TAB = 2;
+	// Measured on the original Heroes tab (1.29): the portrait fills the left 34 of its 64 texels, the level is just
+	// right of it; a hero with its level is 0.0233 wide.
+	private static final float HERO_TEXTURE_SIZE = 0.0313f;
+	private static final float HERO_TEXTURE_LEFT = -0.0007f;
+	private static final float HERO_ICON_RISE = 0.002f;
+	private static final float HERO_LEVEL_LEFT = 0.0193f;
+	private static final float HERO_ENTRY_WIDTH = 0.0233f;
+	private static final float HERO_GAP = 0.004f;
 
 	private final GameUI rootFrame;
 	private final Viewport uiViewport;
 	private final CSimulation simulation;
+	private final com.etheller.warsmash.parsers.w3x.objectdata.Warcraft3MapRuntimeObjectData objectData;
+	private final Map<CPlayer, List<HeroEntry>> heroes = new HashMap<>();
 	private final Runnable onOk;
 	private final int localPlayerIndex;
 	private AbstractUIFrame frame;
@@ -70,11 +85,13 @@ public class MeleeScoreScreen {
 	private int tab;
 
 	public MeleeScoreScreen(final GameUI rootFrame, final Viewport uiViewport, final CSimulation simulation,
+			final com.etheller.warsmash.parsers.w3x.objectdata.Warcraft3MapRuntimeObjectData objectData,
 			final int localPlayerIndex, final Runnable onOk) {
 		this.localPlayerIndex = localPlayerIndex;
 		this.rootFrame = rootFrame;
 		this.uiViewport = uiViewport;
 		this.simulation = simulation;
+		this.objectData = objectData;
 		this.onOk = onOk;
 	}
 
@@ -111,6 +128,7 @@ public class MeleeScoreScreen {
 			}
 		}
 		players.sort(Comparator.comparingInt(CPlayer::getTeam).thenComparingInt(CPlayer::getId));
+		collectHeroes();
 		// The rows beyond the twelfth are reached with the scroll bar: the shown rows take the next players.
 		final int shownRows = Math.min(players.size(), VISIBLE_ROWS);
 		float rowTop = FIRST_ROW_TOP;
@@ -218,16 +236,22 @@ public class MeleeScoreScreen {
 		// The tabs model has one sequence per selected tab; without one it draws every tab's art at once.
 		((SpriteFrame) this.rootFrame.getFrameByName("ScoreScreenPageTab", 0)).setSequence(tab);
 		final String[] keys = COLUMN_KEYS[tab];
+		// The background draws the header boxes: its first sequence has five of them, the second four.
+		((SpriteFrame) this.rootFrame.getFrameByName("ScoreScreenBackground", 0))
+				.setSequence(keys.length == 5 ? 0 : 1);
 		final String columnFrame = keys.length == 4 ? "ScoreScreen4Column" : "ScoreScreen5Column";
 		this.rootFrame.getFrameByName("ScoreScreen4ColumnFrame", 0).setVisible(keys.length == 4);
 		this.rootFrame.getFrameByName("ScoreScreen5ColumnFrame", 0).setVisible(keys.length == 5);
 		for (int i = 0; i < keys.length; i++) {
 			this.rootFrame.setText(header(columnFrame, i), this.rootFrame.getTemplates().getDecoratedString(keys[i]));
 		}
-		// The original shows the sort column's header checked: the total score on the Overview.
+		// The headers made here belong to the screen, not to the column frame hidden above.
+		for (final Map.Entry<String, StringFrame> entry : this.headers.entrySet()) {
+			entry.getValue().setVisible(entry.getKey().startsWith(columnFrame + "Header"));
+		}
 		for (int i = 0; i < keys.length; i++) {
 			((CheckBoxFrame) this.rootFrame.getFrameByName(columnFrame + "Button" + i, 0))
-					.setChecked((tab == 0) && (i == (keys.length - 1)));
+					.setChecked(i == SORT_COLUMN[tab]);
 		}
 		// The original draws each column's best value (above zero) in gold and the others in white.
 		final int[] best = new int[keys.length];
@@ -337,10 +361,12 @@ public class MeleeScoreScreen {
 			case 1:
 				return score(player, CPlayerScore.LUMBER_TOTAL);
 			case 2:
-				return Integer.toString(player.getScore(CPlayerScore.GOLD_GIVEN)
-						+ player.getScore(CPlayerScore.LUMBER_GIVEN));
+				// The original shows the resources given and received as "given/received".
+				return (player.getScore(CPlayerScore.GOLD_GIVEN) + player.getScore(CPlayerScore.LUMBER_GIVEN)) + "/"
+						+ (player.getScore(CPlayerScore.GOLD_RECEIVED)
+								+ player.getScore(CPlayerScore.LUMBER_RECEIVED));
 			case 3:
-				return player.getScore(CPlayerScore.TECH_PERCENT) + "%";
+				return score(player, CPlayerScore.TECH_PERCENT);
 			default:
 				return score(player, CPlayerScore.GOLD_LOST_UPKEEP);
 			}
@@ -348,7 +374,51 @@ public class MeleeScoreScreen {
 	}
 
 	private static int number(final String value) {
-		return Integer.parseInt(value.endsWith("%") ? value.substring(0, value.length() - 1) : value);
+		final int slash = value.indexOf('/');
+		if (slash >= 0) {
+			return Integer.parseInt(value.substring(0, slash)) + Integer.parseInt(value.substring(slash + 1));
+		}
+		return Integer.parseInt(value);
+	}
+
+	// The game is over when the screen opens; a hero's level is the one it ended with, dead or alive.
+	private void collectHeroes() {
+		for (final CPlayer player : this.players) {
+			this.heroes.put(player, new ArrayList<>());
+		}
+		final List<CUnit> units = new ArrayList<>(this.simulation.getUnits());
+		units.sort(Comparator.comparingInt(CUnit::getHandleId));
+		for (final CUnit unit : units) {
+			if (!unit.isHero() || (unit.getHeroData() == null)) {
+				continue;
+			}
+			final List<HeroEntry> list = this.heroes.get(this.simulation.getPlayer(unit.getPlayerIndex()));
+			if (list != null) {
+				list.add(new HeroEntry(heroIcon(unit), unit.getHeroData().getHeroLevel()));
+			}
+		}
+	}
+
+	private String heroIcon(final CUnit unit) {
+		final GameObject type = this.objectData.getUnits().get(unit.getTypeId());
+		if (type == null) {
+			return null;
+		}
+		final String icon = type.getFieldAsString("ScoreScreenIcon", 0);
+		if ((icon != null) && !icon.isEmpty() && !"_".equals(icon)) {
+			return icon;
+		}
+		return type.getFieldAsString("Art", 0);
+	}
+
+	private static final class HeroEntry {
+		private final String icon;
+		private final int level;
+
+		private HeroEntry(final String icon, final int level) {
+			this.icon = icon;
+			this.level = level;
+		}
 	}
 
 	private static String score(final CPlayer player, final CPlayerScore score) {
@@ -387,8 +457,12 @@ public class MeleeScoreScreen {
 		private final StringFrame team;
 		private final StringFrame name;
 		private final StringFrame[] values = new StringFrame[5];
+		private final int index;
+		private final List<TextureFrame> heroIcons = new ArrayList<>();
+		private final List<StringFrame> heroLevels = new ArrayList<>();
 
 		private Row(final int index, final int kind, final float top, final UIFrame previousBar) {
+			this.index = index;
 			this.barCenter = top + BAR_CENTER[kind];
 			final GameUI root = MeleeScoreScreen.this.rootFrame;
 			final Viewport viewport = MeleeScoreScreen.this.uiViewport;
@@ -471,12 +545,74 @@ public class MeleeScoreScreen {
 				if (i >= columns) {
 					continue;
 				}
-				value.clearFramePointAssignments();
-				value.addSetPoint(new SetPoint(FramePoint.CENTER, root.getFrameByName(columnFrame + "Button" + i, 0),
-						FramePoint.CENTER, 0, GameUI.convertY(viewport, -below)));
+				final UIFrame column = root.getFrameByName(columnFrame + "Button" + i, 0);
 				final String text = columnValue(this.player, i);
+				final Color color = ((best[i] > 0) && (number(text) == best[i])) ? GOLD : Color.WHITE;
+				if ((MeleeScoreScreen.this.tab == HEROES_TAB) && (i == 0)) {
+					// The original shows each hero used, with its level, in place of a count.
+					value.setVisible(false);
+					showHeroes(column, below, color);
+					continue;
+				}
+				value.clearFramePointAssignments();
+				value.addSetPoint(new SetPoint(FramePoint.CENTER, column, FramePoint.CENTER, 0,
+						GameUI.convertY(viewport, -below)));
 				root.setText(value, text);
-				value.setColor(((best[i] > 0) && (number(text) == best[i])) ? GOLD : Color.WHITE);
+				value.setColor(color);
+			}
+			if (MeleeScoreScreen.this.tab != HEROES_TAB) {
+				for (int i = 0; i < this.heroIcons.size(); i++) {
+					this.heroIcons.get(i).setVisible(false);
+					this.heroLevels.get(i).setVisible(false);
+				}
+			}
+		}
+
+		private void showHeroes(final UIFrame column, final float below, final Color color) {
+			final GameUI root = MeleeScoreScreen.this.rootFrame;
+			final Viewport viewport = MeleeScoreScreen.this.uiViewport;
+			final List<HeroEntry> entries = MeleeScoreScreen.this.heroes.get(this.player);
+			final int count = entries == null ? 0 : entries.size();
+			float left = -((count * HERO_ENTRY_WIDTH) + (Math.max(0, count - 1) * HERO_GAP)) / 2;
+			final float y = -below + HERO_ICON_RISE;
+			while (this.heroIcons.size() < count) {
+				final int n = this.heroIcons.size();
+				final TextureFrame icon = root.createTextureFrame(
+						"SmashScoreScreenHero" + this.index + "_" + n, MeleeScoreScreen.this.frame, false, null);
+				icon.setWidth(GameUI.convertX(viewport, HERO_TEXTURE_SIZE));
+				icon.setHeight(GameUI.convertY(viewport, HERO_TEXTURE_SIZE));
+				own(icon);
+				this.heroIcons.add(icon);
+				final StringFrame level = root.createStringFrame("SmashScoreScreenHeroLevel" + this.index + "_" + n,
+						MeleeScoreScreen.this.frame, GOLD, TextJustify.LEFT, TextJustify.MIDDLE, 0.010f);
+				level.setFontShadowColor(Color.BLACK);
+				level.setFontShadowOffsetX(GameUI.convertX(viewport, VALUE_SHADOW_OFFSET));
+				level.setFontShadowOffsetY(GameUI.convertY(viewport, -VALUE_SHADOW_OFFSET));
+				own(level);
+				this.heroLevels.add(level);
+			}
+			for (int i = 0; i < this.heroIcons.size(); i++) {
+				final TextureFrame icon = this.heroIcons.get(i);
+				final StringFrame level = this.heroLevels.get(i);
+				final boolean shown = i < count;
+				icon.setVisible(shown && (entries.get(i).icon != null));
+				level.setVisible(shown);
+				if (!shown) {
+					continue;
+				}
+				final HeroEntry entry = entries.get(i);
+				if (entry.icon != null) {
+					icon.setTexture(entry.icon, root);
+				}
+				icon.clearFramePointAssignments();
+				icon.addSetPoint(new SetPoint(FramePoint.LEFT, column, FramePoint.CENTER,
+						GameUI.convertX(viewport, left + HERO_TEXTURE_LEFT), GameUI.convertY(viewport, y)));
+				level.clearFramePointAssignments();
+				level.addSetPoint(new SetPoint(FramePoint.LEFT, column, FramePoint.CENTER,
+						GameUI.convertX(viewport, left + HERO_LEVEL_LEFT), GameUI.convertY(viewport, y)));
+				root.setText(level, Integer.toString(entry.level));
+				level.setColor(color);
+				left += HERO_ENTRY_WIDTH + HERO_GAP;
 			}
 		}
 	}

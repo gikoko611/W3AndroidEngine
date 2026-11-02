@@ -23,12 +23,14 @@ public final class TouchInputRouter {
 	private final PalmFilter palmFilter;
 	private final LongSupplier clock;
 	private final boolean debugLog;
+	private final RtsTouchAdapter adapter;
 
 	/**
 	 * @param clock the time base of the events, for example Android uptime
 	 */
 	public TouchInputRouter(final TouchSettings settings, final LongSupplier clock, final boolean debugLog) {
-		this.recognizer = new GestureRecognizer(settings, new RtsTouchAdapter(settings, debugLog));
+		this.adapter = new RtsTouchAdapter(settings, debugLog);
+		this.recognizer = new GestureRecognizer(settings, this.adapter);
 		this.palmFilter = new PalmFilter(settings.palmTouchMajorPx, settings.penFingerPolicy);
 		this.clock = clock;
 		this.debugLog = debugLog;
@@ -60,6 +62,7 @@ public final class TouchInputRouter {
 			dispatch(event);
 		}
 		this.recognizer.update(this.clock.getAsLong());
+		this.adapter.update();
 	}
 
 	/**

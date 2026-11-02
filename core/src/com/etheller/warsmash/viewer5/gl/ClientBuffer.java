@@ -42,6 +42,10 @@ public class ClientBuffer {
 		}
 	}
 
+	public void dispose() {
+		this.gl.glDeleteBuffer(this.buffer);
+	}
+
 	public void bindAndUpdate() {
 		bindAndUpdate(this.size);
 	}

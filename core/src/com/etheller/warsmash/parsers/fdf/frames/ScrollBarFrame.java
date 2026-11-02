@@ -10,7 +10,16 @@ import com.etheller.warsmash.viewer5.handlers.w3x.ui.command.ClickableFrame;
 
 public class ScrollBarFrame extends AbstractRenderableFrame implements ClickableFrame {
 	private final boolean vertical;
+	// Fingers need more than the thin track of a slider to land on.
+	private static final float SLIDER_GRAB_HEIGHT = 0.024f;
+	private static final float SLIDER_GRAB_SIDE = 0.006f;
 	private UIFrame controlBackdrop;
+	private UIFrame controlDisabledBackdrop;
+	private boolean enabled = true;
+	private float grabMarginX;
+	private float grabMarginY;
+	private float pressX;
+	private float pressY;
 	private UIFrame incButtonFrame;
 	private UIFrame decButtonFrame;
 	private UIFrame thumbButtonFrame;
@@ -27,6 +36,28 @@ public class ScrollBarFrame extends AbstractRenderableFrame implements Clickable
 
 	public void setControlBackdrop(final UIFrame controlBackdrop) {
 		this.controlBackdrop = controlBackdrop;
+	}
+
+	public void setControlDisabledBackdrop(final UIFrame controlDisabledBackdrop) {
+		this.controlDisabledBackdrop = controlDisabledBackdrop;
+	}
+
+	public void setEnabled(final boolean enabled) {
+		this.enabled = enabled;
+		if (this.thumbButtonFrame instanceof GlueButtonFrame) {
+			((GlueButtonFrame) this.thumbButtonFrame).setEnabled(enabled);
+		}
+	}
+
+	public boolean isEnabled() {
+		return this.enabled;
+	}
+
+	private boolean isInGrabArea(final float screenX, final float screenY) {
+		return isVisible() && this.enabled && (screenX >= (this.renderBounds.x - this.grabMarginX))
+				&& (screenX <= (this.renderBounds.x + this.renderBounds.width + this.grabMarginX))
+				&& (screenY >= (this.renderBounds.y - this.grabMarginY))
+				&& (screenY <= (this.renderBounds.y + this.renderBounds.height + this.grabMarginY));
 	}
 
 	public void setIncButtonFrame(final UIFrame incButtonFrame) {
@@ -165,6 +196,14 @@ public class ScrollBarFrame extends AbstractRenderableFrame implements Clickable
 		if (this.controlBackdrop != null) {
 			this.controlBackdrop.positionBounds(gameUI, viewport);
 		}
+		if (this.controlDisabledBackdrop != null) {
+			this.controlDisabledBackdrop.positionBounds(gameUI, viewport);
+		}
+		if (!this.vertical) {
+			this.grabMarginX = GameUI.convertX(viewport, SLIDER_GRAB_SIDE);
+			this.grabMarginY = Math.max(0,
+					(GameUI.convertY(viewport, SLIDER_GRAB_HEIGHT) - this.renderBounds.height) / 2);
+		}
 		if (this.incButtonFrame != null) {
 			this.incButtonFrame.positionBounds(gameUI, viewport);
 		}
@@ -179,8 +218,10 @@ public class ScrollBarFrame extends AbstractRenderableFrame implements Clickable
 
 	@Override
 	protected void internalRender(final SpriteBatch batch, final BitmapFont baseFont, final GlyphLayout glyphLayout) {
-		if (this.controlBackdrop != null) {
-			this.controlBackdrop.render(batch, baseFont, glyphLayout);
+		final UIFrame backdrop = !this.enabled && (this.controlDisabledBackdrop != null) ? this.controlDisabledBackdrop
+				: this.controlBackdrop;
+		if (backdrop != null) {
+			backdrop.render(batch, baseFont, glyphLayout);
 		}
 		if (this.incButtonFrame != null) {
 			this.incButtonFrame.render(batch, baseFont, glyphLayout);
@@ -195,6 +236,9 @@ public class ScrollBarFrame extends AbstractRenderableFrame implements Clickable
 
 	@Override
 	public void mouseDown(final GameUI gameUI, final Viewport uiViewport) {
+		if (!this.vertical && this.enabled) {
+			mouseDragged(gameUI, uiViewport, this.pressX, this.pressY);
+		}
 	}
 
 	@Override
@@ -239,7 +283,7 @@ public class ScrollBarFrame extends AbstractRenderableFrame implements Clickable
 
 	@Override
 	public UIFrame touchUp(final float screenX, final float screenY, final int button) {
-		if (isVisible() && this.renderBounds.contains(screenX, screenY)) {
+		if (isInGrabArea(screenX, screenY)) {
 			UIFrame frameChildUnderMouse = this.thumbButtonFrame.touchUp(screenX, screenY, button);
 			if (frameChildUnderMouse != null) {
 				return frameChildUnderMouse;
@@ -269,7 +313,9 @@ public class ScrollBarFrame extends AbstractRenderableFrame implements Clickable
 
 	@Override
 	public UIFrame touchDown(final float screenX, final float screenY, final int button) {
-		if (isVisible() && this.renderBounds.contains(screenX, screenY)) {
+		if (isInGrabArea(screenX, screenY)) {
+			this.pressX = screenX;
+			this.pressY = screenY;
 			UIFrame frameChildUnderMouse = this.thumbButtonFrame.touchDown(screenX, screenY, button);
 			if (frameChildUnderMouse != null) {
 				return frameChildUnderMouse;
@@ -299,7 +345,7 @@ public class ScrollBarFrame extends AbstractRenderableFrame implements Clickable
 
 	@Override
 	public UIFrame getFrameChildUnderMouse(final float screenX, final float screenY) {
-		if (isVisible() && this.renderBounds.contains(screenX, screenY)) {
+		if (isInGrabArea(screenX, screenY)) {
 			UIFrame frameChildUnderMouse = this.thumbButtonFrame.getFrameChildUnderMouse(screenX, screenY);
 			if (frameChildUnderMouse != null) {
 				return frameChildUnderMouse;
@@ -325,6 +371,13 @@ public class ScrollBarFrame extends AbstractRenderableFrame implements Clickable
 			return this;
 		}
 		return super.getFrameChildUnderMouse(screenX, screenY);
+	}
+
+	/** Whether the frame is a slider or its thumb, which a held finger may still drag. */
+	public static boolean isSliderPart(final UIFrame frame) {
+		final UIFrame slider = (frame != null) && (frame.getParent() instanceof ScrollBarFrame) ? frame.getParent()
+				: frame;
+		return (slider instanceof ScrollBarFrame) && !((ScrollBarFrame) slider).vertical;
 	}
 
 	public void setChangeListener(final ScrollBarChangeListener changeListener) {

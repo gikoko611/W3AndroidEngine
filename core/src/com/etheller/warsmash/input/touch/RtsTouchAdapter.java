@@ -7,12 +7,13 @@ import com.badlogic.gdx.InputProcessor;
 /**
  * Gives gestures their mouse meaning on whichever screen owns input: tap is a left click, a long press is a right
  * click (an order) the moment it is recognized, one finger drag is a left drag (selection box), two finger drag is a
- * middle drag (camera) and pinch steps are wheel steps. On an interface button a long press only shows the tooltip,
- * so it never toggles autocast by accident, and a two finger tap cancels an active command.
+ * middle drag (camera) and pinch steps are wheel steps. On an interface button a long press shows the tooltip, and on
+ * a button with autocast it is the right click that toggles it. A two finger tap cancels an active command.
  * <p>
  * While a command waits for a target, a one finger drag aims instead of drawing a box: the cursor follows the finger
  * (raised above it for a building, so the ghost is not hidden under the finger) and releasing casts. A building ghost
- * is only put down on release; tapping the ghost builds there and tapping elsewhere moves it.
+ * is only put down on release; tapping the ghost builds there and tapping elsewhere moves it. A ghost that was put
+ * down belongs to its map point, so the cursor follows that point when the camera moves.
  */
 public final class RtsTouchAdapter implements GestureListener {
 	private static final String LOG_TAG = "WarsmashTouch";
@@ -30,10 +31,42 @@ public final class RtsTouchAdapter implements GestureListener {
 	private boolean ghostPlaced;
 	private float ghostX;
 	private float ghostY;
+	private final float[] ghostWorld = new float[3];
+	private final float[] ghostScreen = new float[2];
 
 	public RtsTouchAdapter(final TouchSettings settings, final boolean debugLog) {
 		this.settings = settings;
 		this.debugLog = debugLog;
+	}
+
+	private void putGhost(final TouchTarget target, final float x, final float y) {
+		this.ghostX = x;
+		this.ghostY = y;
+		this.ghostPlaced = true;
+		target.screenToWorld(Math.round(x), Math.round(y), this.ghostWorld);
+	}
+
+	/** Called once a frame after the gestures of the frame. */
+	void update() {
+		if (!this.ghostPlaced) {
+			return;
+		}
+		final TouchTarget target = target();
+		if ((target == null) || !target.isPlacingBuilding()) {
+			this.ghostPlaced = false;
+			return;
+		}
+		if (this.aiming) {
+			return;
+		}
+		target.worldToScreen(this.ghostWorld, this.ghostScreen);
+		// Only on a real change: the cursor may rest on a button under a finger in the meantime.
+		if ((Math.round(this.ghostScreen[0]) != Math.round(this.ghostX))
+				|| (Math.round(this.ghostScreen[1]) != Math.round(this.ghostY))) {
+			this.ghostX = this.ghostScreen[0];
+			this.ghostY = this.ghostScreen[1];
+			moveTo(processor(), this.ghostX, this.ghostY);
+		}
 	}
 
 	private void aimAt(final InputProcessor processor, final float x, final float y) {
@@ -98,10 +131,8 @@ public final class RtsTouchAdapter implements GestureListener {
 				log("tap on ghost -> build" + (this.ghostPlaced ? " refused, ghost kept" : ""));
 			}
 			else {
-				this.ghostX = x;
-				this.ghostY = y;
-				this.ghostPlaced = true;
 				moveTo(processor, x, y);
+				putGhost(target, x, y);
 				log("ghost moved to " + (int) x + "," + (int) y);
 			}
 			return;
@@ -133,6 +164,10 @@ public final class RtsTouchAdapter implements GestureListener {
 		if (processor == null) {
 			return;
 		}
+		if ((processor instanceof SliderHost) && ((SliderHost) processor).isOverSlider(Math.round(x), Math.round(y))) {
+			moveTo(processor, x, y);
+			return;
+		}
 		final TouchTarget target = target();
 		if ((target != null) && target.skipCinematic()) {
 			log("long press -> skip cinematic");
@@ -148,12 +183,23 @@ public final class RtsTouchAdapter implements GestureListener {
 		if (slot == SHIFT_SLOT) {
 			return;
 		}
+		if ((target != null) && target.isOverAutocastButton(Math.round(x), Math.round(y))) {
+			click(processor, x, y, Input.Buttons.RIGHT);
+			log("long press on autocast button -> right click");
+			return;
+		}
 		if ((target != null) && target.isOverClickableUi(Math.round(x), Math.round(y))) {
 			log("long press on interface: tooltip only");
 			return;
 		}
 		click(processor, x, y, Input.Buttons.RIGHT);
 		log("long press " + (int) x + "," + (int) y + " -> right click");
+	}
+
+	@Override
+	public boolean canDragAfterLongPress(final float x, final float y) {
+		final InputProcessor processor = processor();
+		return (processor instanceof SliderHost) && ((SliderHost) processor).isOverSlider(Math.round(x), Math.round(y));
 	}
 
 	@Override
@@ -168,10 +214,12 @@ public final class RtsTouchAdapter implements GestureListener {
 	public void holdTap(final float heldX, final float heldY) {
 		final InputProcessor processor = processor();
 		final TouchTarget target = target();
+		// The hold itself has already toggled autocast; a second right click would only undo it.
 		if ((processor != null) && (target != null)
-				&& target.isOverClickableUi(Math.round(heldX), Math.round(heldY))) {
+				&& target.isOverClickableUi(Math.round(heldX), Math.round(heldY))
+				&& !target.isOverAutocastButton(Math.round(heldX), Math.round(heldY))) {
 			click(processor, heldX, heldY, Input.Buttons.RIGHT);
-			log("hold and tap -> right click on button (autocast, item pick up)");
+			log("hold and tap -> right click on button (item pick up)");
 		}
 	}
 
@@ -250,9 +298,7 @@ public final class RtsTouchAdapter implements GestureListener {
 			aimAt(processor, x, y);
 			final TouchTarget target = target();
 			if ((target != null) && target.isPlacingBuilding()) {
-				this.ghostX = this.aimX;
-				this.ghostY = this.aimY;
-				this.ghostPlaced = true;
+				putGhost(target, this.aimX, this.aimY);
 				log("ghost placed at " + (int) this.aimX + "," + (int) this.aimY);
 			}
 			else {

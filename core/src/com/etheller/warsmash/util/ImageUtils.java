@@ -21,6 +21,7 @@ import com.badlogic.gdx.graphics.Pixmap;
 import com.badlogic.gdx.graphics.Pixmap.Format;
 import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.Texture.TextureFilter;
+import com.etheller.warsmash.util.SessionResources;
 import com.etheller.warsmash.datasources.DataSource;
 import com.etheller.warsmash.viewer5.handlers.blp.BlpDecoder;
 import com.etheller.warsmash.viewer5.handlers.blp.DdsDecoder;
@@ -165,7 +166,9 @@ public final class ImageUtils {
 		pixels.position(0);
 		pixels.put(rgba.duplicate());
 		pixels.position(0);
-		final Texture texture = new Texture(pixmap);
+		// An unmanaged texture has its pixels on the GPU once constructed; only the native copy would stay behind.
+		final Texture texture = SessionResources.track(new Texture(pixmap));
+		pixmap.dispose();
 		texture.setFilter(TextureFilter.Linear, TextureFilter.Linear);
 		return texture;
 	}
@@ -267,7 +270,9 @@ public final class ImageUtils {
 				pixmap.drawPixel(x, y, (pixel << 8) | (pixel >>> 24));
 			}
 		}
-		final Texture texture = new Texture(pixmap);
+		// An unmanaged texture has its pixels on the GPU once constructed; only the native copy would stay behind.
+		final Texture texture = SessionResources.track(new Texture(pixmap));
+		pixmap.dispose();
 		texture.setFilter(TextureFilter.Linear, TextureFilter.Linear);
 		return texture;
 	}
@@ -290,7 +295,9 @@ public final class ImageUtils {
 				pixmap.drawPixel(x, y, (pixel << 8) | (pixel >>> 24));
 			}
 		}
-		final Texture texture = new Texture(pixmap);
+		// An unmanaged texture has its pixels on the GPU once constructed; only the native copy would stay behind.
+		final Texture texture = SessionResources.track(new Texture(pixmap));
+		pixmap.dispose();
 		texture.setFilter(TextureFilter.Linear, TextureFilter.Linear);
 		return texture;
 	}
@@ -303,7 +310,9 @@ public final class ImageUtils {
 				pixmap.drawPixel(x, y, (pixel << 8) | (pixel >>> 24));
 			}
 		}
-		final Texture texture = new Texture(pixmap);
+		// An unmanaged texture has its pixels on the GPU once constructed; only the native copy would stay behind.
+		final Texture texture = SessionResources.track(new Texture(pixmap));
+		pixmap.dispose();
 		texture.setFilter(TextureFilter.Linear, TextureFilter.Linear);
 		return texture;
 	}

@@ -181,7 +181,17 @@ public interface SimulationRenderController {
 	float getTerrainSpaceX(float x);
 
 	float getTerrainSpaceY(float y);
-	
+
+	/** Terrain corner columns and rows, or null without a drawn terrain. */
+	default int[] getTerrainCornerCount() {
+		return null;
+	}
+
+	/** Height offsets (world units) of the terrain corners in a rectangle, replacing the ones set before. */
+	default void setTerrainDeformation(final int column, final int row, final int width, final int height,
+			final float[] offsets) {
+	}
+
 	int getTerrainHeight(float x, float y);
 
 	boolean isTerrainRomp(float x, float y);

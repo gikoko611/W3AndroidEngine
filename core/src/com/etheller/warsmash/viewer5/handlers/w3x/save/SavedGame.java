@@ -1,0 +1,463 @@
+package com.etheller.warsmash.viewer5.handlers.w3x.save;
+
+import com.etheller.warsmash.viewer5.handlers.w3x.rendersim.RenderWeatherEffect;
+import java.io.BufferedInputStream;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.DataInputStream;
+import java.io.DataOutputStream;
+import java.io.IOException;
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.zip.GZIPInputStream;
+import java.util.zip.GZIPOutputStream;
+
+import com.badlogic.gdx.files.FileHandle;
+import com.etheller.interpreter.ast.execution.JassThread;
+import com.etheller.interpreter.ast.scope.GlobalScope;
+import com.etheller.interpreter.ast.scope.GlobalScopeAssignable;
+import com.etheller.warsmash.parsers.jass.JassAIEnvironment;
+import com.etheller.warsmash.util.WarsmashConstants;
+import com.etheller.warsmash.viewer5.handlers.w3x.War3MapViewer;
+import com.etheller.warsmash.viewer5.handlers.w3x.rendersim.RenderEffect;
+import com.etheller.warsmash.viewer5.handlers.w3x.rendersim.RenderLightningEffect;
+import com.etheller.warsmash.viewer5.handlers.w3x.rendersim.RenderSpellEffect;
+import com.etheller.warsmash.viewer5.handlers.w3x.rendersim.RenderUbersplat;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CDestructable;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CSimulation;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.campaign.CGameCache;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.campaign.CSaveStorage;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.players.CPlayer;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.trigger.JassGameEventsWar3;
+
+/**
+ * A saved game file: a short header the Load dialog can read alone, then the game's object graph. The map's data and
+ * script are not in the file: loading starts the map again, leaves out its main function and replaces the state with
+ * the saved one.
+ */
+public final class SavedGame {
+	private static final int MAGIC = 0x57534D53;
+	/** Raised whenever the file layout changes; changed fields are found by the class table without it. */
+	private static final int FORMAT_VERSION = 2;
+
+	private SavedGame() {
+	}
+
+	public static final class Header {
+		public String mapFile;
+		public int localPlayerIndex;
+		public float gameTime;
+		public List<AiEntry> aiScripts = new ArrayList<>();
+		/** Script positions are stored by index, so they only mean something on the same scripts and game data. */
+		public List<Integer> scopeSizes = new ArrayList<>();
+		/** Scripts the game loaded while running, in that order: instructions are found by index, and AI programs start from what the map's program had by then. */
+		public List<AiEntry> loadedScripts = new ArrayList<>();
+		public List<War3MapViewer.CreatedDestructable> createdDestructables = new ArrayList<>();
+
+		private void write(final DataOutputStream out) throws IOException {
+			out.writeInt(MAGIC);
+			out.writeInt(FORMAT_VERSION);
+			out.writeUTF(this.mapFile);
+			out.writeInt(this.localPlayerIndex);
+			out.writeFloat(this.gameTime);
+			out.writeInt(this.scopeSizes.size());
+			for (final int size : this.scopeSizes) {
+				out.writeInt(size);
+			}
+			out.writeInt(this.loadedScripts.size());
+			for (final AiEntry entry : this.loadedScripts) {
+				out.writeInt(entry.playerIndex);
+				out.writeUTF(entry.scriptFile);
+				out.writeUTF(entry.mainFunction);
+			}
+			out.writeInt(this.aiScripts.size());
+			for (final AiEntry entry : this.aiScripts) {
+				out.writeInt(entry.playerIndex);
+				out.writeUTF(entry.scriptFile);
+				out.writeUTF(entry.mainFunction);
+			}
+			out.writeInt(this.createdDestructables.size());
+			for (final War3MapViewer.CreatedDestructable created : this.createdDestructables) {
+				created.write(out);
+			}
+		}
+
+		private static Header read(final DataInputStream in) throws IOException {
+			if (in.readInt() != MAGIC) {
+				throw new IOException("Not a saved game of this engine");
+			}
+			final int version = in.readInt();
+			if (version != FORMAT_VERSION) {
+				throw new IOException("Saved game format " + version + ", this engine reads " + FORMAT_VERSION);
+			}
+			final Header header = new Header();
+			header.mapFile = in.readUTF();
+			header.localPlayerIndex = in.readInt();
+			header.gameTime = in.readFloat();
+			final int scopeCount = in.readInt();
+			for (int i = 0; i < scopeCount; i++) {
+				header.scopeSizes.add(in.readInt());
+			}
+			final int scriptCount = in.readInt();
+			for (int i = 0; i < scriptCount; i++) {
+				final int playerIndex = in.readInt();
+				final String scriptFile = in.readUTF();
+				header.loadedScripts.add(new AiEntry(playerIndex, scriptFile, in.readUTF()));
+			}
+			final int aiCount = in.readInt();
+			for (int i = 0; i < aiCount; i++) {
+				final int playerIndex = in.readInt();
+				final String scriptFile = in.readUTF();
+				header.aiScripts.add(new AiEntry(playerIndex, scriptFile, in.readUTF()));
+			}
+			final int createdCount = in.readInt();
+			for (int i = 0; i < createdCount; i++) {
+				header.createdDestructables.add(War3MapViewer.CreatedDestructable.read(in));
+			}
+			return header;
+		}
+	}
+
+	public static final class AiEntry {
+		public final int playerIndex;
+		public final String scriptFile;
+		public final String mainFunction;
+
+		public AiEntry(final int playerIndex, final String scriptFile, final String mainFunction) {
+			this.playerIndex = playerIndex;
+			this.scriptFile = scriptFile;
+			this.mainFunction = mainFunction;
+		}
+	}
+
+	/** What the graph starts from. */
+	private static final class Root {
+		private CSimulation simulation;
+		private List<ScopeThreads> scopes;
+		private List<JassAIEnvironment> aiEnvironments;
+		private byte[] gameCaches;
+		private SavedInterfaceState interfaceState;
+		private boolean scriptPaused;
+		private boolean playerPaused;
+		private List<SavedEffect> effects;
+		private List<SavedLightning> lightnings;
+		private List<SavedWeather> weathers;
+		private List<SavedUbersplat> ubersplats;
+	}
+
+	private static final class ScopeThreads {
+		private List<GlobalScopeAssignable> globals;
+		private List<JassThread> threads;
+		private List<JassThread> newThreads;
+		private ArrayDeque<?> triggerQueue;
+		private ArrayDeque<?> runningTriggerQueue;
+	}
+
+	public static Header readHeader(final FileHandle file) throws IOException {
+		try (DataInputStream in = new DataInputStream(new BufferedInputStream(file.read()))) {
+			return Header.read(in);
+		}
+	}
+
+	public enum Loadability {
+		LOADABLE,
+		/** Not a save of this engine, or cut short. */
+		DAMAGED,
+		/** A save of another engine build: its format or its classes differ from this one's. */
+		OTHER_VERSION
+	}
+
+	/** Reads only the header and class table, so a list can ask without reading the whole save. */
+	public static boolean isLoadable(final FileHandle file) {
+		return loadability(file) == Loadability.LOADABLE;
+	}
+
+	public static Loadability loadability(final FileHandle file) {
+		try (DataInputStream in = new DataInputStream(new BufferedInputStream(file.read()))) {
+			if (in.readInt() != MAGIC) {
+				return Loadability.DAMAGED;
+			}
+			if (in.readInt() != FORMAT_VERSION) {
+				return Loadability.OTHER_VERSION;
+			}
+		}
+		catch (final IOException | RuntimeException e) {
+			return Loadability.DAMAGED;
+		}
+		final byte[] table;
+		try (DataInputStream in = new DataInputStream(new BufferedInputStream(file.read()))) {
+			Header.read(in);
+			final byte[] tableBytes = new byte[in.readInt()];
+			in.readFully(tableBytes);
+			table = readFully(gunzip(tableBytes));
+		}
+		catch (final IOException | RuntimeException e) {
+			return Loadability.DAMAGED;
+		}
+		try {
+			SavedObjectGraph.checkClassesMatch(table);
+			return Loadability.LOADABLE;
+		}
+		catch (final IOException | RuntimeException e) {
+			return Loadability.OTHER_VERSION;
+		}
+	}
+
+	private static List<GlobalScope> scopesOf(final CSimulation simulation, final List<JassAIEnvironment> aiEnvironments) {
+		final List<GlobalScope> scopes = new ArrayList<>();
+		scopes.add(simulation.getGlobalScope());
+		for (final JassAIEnvironment environment : aiEnvironments) {
+			scopes.add(environment.getGlobalScope());
+		}
+		return scopes;
+	}
+
+	public static boolean save(final War3MapViewer viewer, final FileHandle file) {
+		final CSimulation simulation = viewer.simulation;
+		final List<JassAIEnvironment> aiEnvironments = new ArrayList<>();
+		final Header header = new Header();
+		header.mapFile = viewer.getMapFileName();
+		header.localPlayerIndex = viewer.getLocalPlayerIndex();
+		header.gameTime = simulation.getGameTurnTick() * WarsmashConstants.SIMULATION_STEP_TIME;
+		for (int i = 0; i < WarsmashConstants.MAX_PLAYERS; i++) {
+			final CPlayer player = simulation.getPlayer(i);
+			final JassAIEnvironment aiScript = player.getAiScript();
+			if (aiScript != null) {
+				aiEnvironments.add(aiScript);
+				header.aiScripts.add(new AiEntry(i, aiScript.getScriptFile(), aiScript.getMainFunction()));
+			}
+		}
+		header.loadedScripts.addAll(viewer.getLoadedScripts());
+		header.createdDestructables.addAll(viewer.getCreatedDestructables());
+		final List<GlobalScope> scopes = scopesOf(simulation, aiEnvironments);
+		for (final GlobalScope scope : scopes) {
+			header.scopeSizes.add(scope.getInstructions().size());
+		}
+		final SavedGameRules rules = new SavedGameRules(viewer, scopes, aiEnvironments);
+		for (final CDestructable destructable : simulation.getDestructables()) {
+			rules.nameDestructable(destructable, destructable.getHandleId());
+		}
+		try {
+			final Root root = new Root();
+			root.simulation = simulation;
+			root.aiEnvironments = aiEnvironments;
+			root.scopes = new ArrayList<>();
+			for (final GlobalScope scope : scopes) {
+				final ScopeThreads state = new ScopeThreads();
+				state.globals = scope.getIndexedGlobals();
+				state.threads = scope.getThreads();
+				state.newThreads = scope.getNewThreads();
+				state.triggerQueue = scope.getTriggerQueue();
+				state.runningTriggerQueue = scope.getRunningTriggerQueue();
+				root.scopes.add(state);
+			}
+			root.gameCaches = bytesOf(CGameCache::writeAll);
+			root.interfaceState = viewer.captureInterfaceState();
+			root.scriptPaused = viewer.isGamePaused(War3MapViewer.PauseSource.SCRIPT);
+			root.playerPaused = viewer.isGamePaused(War3MapViewer.PauseSource.PLAYER);
+			root.effects = new ArrayList<>();
+			for (final RenderEffect effect : viewer.projectiles) {
+				if ((effect instanceof RenderSpellEffect) && ((RenderSpellEffect) effect).isLasting()) {
+					root.effects.add(SavedEffect.of((RenderSpellEffect) effect));
+				}
+			}
+			root.lightnings = new ArrayList<>();
+			for (final RenderLightningEffect lightning : viewer.getLightnings()) {
+				if (!lightning.isRemoved()) {
+					root.lightnings.add(SavedLightning.of(lightning));
+				}
+			}
+			root.weathers = new ArrayList<>();
+			for (final RenderWeatherEffect weather : viewer.getWeatherEffects()) {
+				if (!weather.isRemoved()) {
+					root.weathers.add(SavedWeather.of(weather));
+				}
+			}
+			root.ubersplats = new ArrayList<>();
+			for (final RenderUbersplat splat : viewer.getScriptUbersplats()) {
+				if (!splat.isGone()) {
+					root.ubersplats.add(SavedUbersplat.of(splat));
+				}
+			}
+
+			final ByteArrayOutputStream bodyBytes = new ByteArrayOutputStream(1 << 20);
+			final SavedObjectGraph.Writer writer;
+			try (DataOutputStream bodies = new DataOutputStream(new GZIPOutputStream(bodyBytes, 1 << 16))) {
+				writer = new SavedObjectGraph.Writer(rules, bodies);
+				writer.writeRoot(root);
+			}
+			final ByteArrayOutputStream tableBytes = new ByteArrayOutputStream(1 << 16);
+			try (GZIPOutputStream table = new GZIPOutputStream(tableBytes)) {
+				table.write(writer.finishTable());
+			}
+			final boolean written = CSaveStorage.writeAtomically(file, out -> {
+				header.write(out);
+				out.writeInt(tableBytes.size());
+				tableBytes.writeTo(out);
+				out.writeInt(bodyBytes.size());
+				bodyBytes.writeTo(out);
+			});
+			final StringBuilder report = new StringBuilder("Saved game ").append(file.name()).append(": ")
+					.append(writer.objectCount()).append(" objects, ")
+					.append(bodyBytes.size() + tableBytes.size()).append(" bytes, ")
+					.append(root.effects.size()).append(" effects, ").append(root.lightnings.size()).append(" lightnings");
+			for (final Map.Entry<String, Integer> dropped : rules.getDroppedReport().entrySet()) {
+				report.append("\n  left out ").append(dropped.getKey()).append(" x").append(dropped.getValue());
+			}
+			System.err.println(report);
+			return written;
+		}
+		catch (final Exception exc) {
+			exc.printStackTrace();
+			return false;
+		}
+	}
+
+	private static byte[] readFully(final DataInputStream compressed) throws IOException {
+		try (DataInputStream in = compressed) {
+			final ByteArrayOutputStream out = new ByteArrayOutputStream(1 << 16);
+			final byte[] buffer = new byte[1 << 16];
+			int read;
+			while ((read = in.read(buffer)) != -1) {
+				out.write(buffer, 0, read);
+			}
+			return out.toByteArray();
+		}
+	}
+
+	/**
+	 * Replaces the state of a map just started, whose main function has not run, with the saved one.
+	 *
+	 * @param aiStarter sets up the AI script of a player, without running it
+	 */
+	public static void load(final War3MapViewer viewer, final FileHandle file, final AiScriptStarter aiStarter)
+			throws IOException {
+		final CSimulation simulation = viewer.simulation;
+		final Header header;
+		final byte[] tableBytes;
+		final byte[] bodyBytes;
+		final byte[] table;
+		try (DataInputStream in = new DataInputStream(new BufferedInputStream(file.read(), 1 << 16))) {
+			header = Header.read(in);
+			tableBytes = new byte[in.readInt()];
+			in.readFully(tableBytes);
+			bodyBytes = new byte[in.readInt()];
+			in.readFully(bodyBytes);
+			checkIntact(tableBytes);
+			checkIntact(bodyBytes);
+			table = readFully(gunzip(tableBytes));
+			// A save from another engine build must be refused here, while the map can still start normally.
+			SavedObjectGraph.checkClassesMatch(table);
+		}
+		catch (final RuntimeException e) {
+			throw new IOException("Damaged save", e);
+		}
+		for (final AiEntry entry : header.loadedScripts) {
+			aiStarter.start(entry);
+		}
+		final List<JassAIEnvironment> aiEnvironments = new ArrayList<>();
+		for (final AiEntry entry : header.aiScripts) {
+			aiEnvironments.add(simulation.getPlayer(entry.playerIndex).getAiScript());
+		}
+		final Map<Integer, CDestructable> placedDestructables = new HashMap<>();
+		for (final CDestructable destructable : simulation.getDestructables()) {
+			placedDestructables.put(destructable.getHandleId(), destructable);
+		}
+		for (final War3MapViewer.CreatedDestructable created : header.createdDestructables) {
+			placedDestructables.put(created.savedHandleId, viewer.createDestructableForSavedGame(created));
+		}
+		final List<GlobalScope> loadedScopes = scopesOf(simulation, aiEnvironments);
+		for (int i = 0; i < loadedScopes.size(); i++) {
+			if ((i >= header.scopeSizes.size())
+					|| (loadedScopes.get(i).getInstructions().size() != header.scopeSizes.get(i))) {
+				throw new IOException("Saved with other scripts or game data");
+			}
+		}
+		// From here on the map's own state is gone, so everything that can refuse the save comes before this.
+		viewer.clearRenderPeersForSavedGame();
+		final SavedGameRules rules = new SavedGameRules(viewer, loadedScopes, aiEnvironments);
+		for (final Map.Entry<Integer, CDestructable> destructable : placedDestructables.entrySet()) {
+			rules.nameDestructable(destructable.getValue(), destructable.getKey());
+		}
+		final Root root;
+		try (DataInputStream bodies = gunzip(bodyBytes)) {
+			root = (Root) new SavedObjectGraph.Reader(rules, table, bodies).readRoot();
+		}
+		catch (final IOException e) {
+			// The simulation is read in place, so past this point starting the map normally is no longer possible.
+			throw new IllegalStateException("Could not read the saved game " + file.name(), e);
+		}
+		final List<GlobalScope> scopes = scopesOf(simulation, aiEnvironments);
+		for (int i = 0; i < scopes.size(); i++) {
+			scopes.get(i).restoreThreads(root.scopes.get(i).threads, root.scopes.get(i).newThreads,
+					root.scopes.get(i).triggerQueue, root.scopes.get(i).runningTriggerQueue);
+		}
+		for (int i = 0; i < aiEnvironments.size(); i++) {
+			simulation.getPlayer(header.aiScripts.get(i).playerIndex).setAiScript(aiEnvironments.get(i));
+		}
+		try (DataInputStream caches = new DataInputStream(new ByteArrayInputStream(root.gameCaches))) {
+			CGameCache.restoreAll(caches);
+		}
+		viewer.finishLoadingSavedGame(placedDestructables.values());
+		for (final SavedEffect effect : root.effects) {
+			effect.show(viewer);
+		}
+		for (final SavedLightning lightning : root.lightnings) {
+			lightning.show(viewer);
+		}
+		for (final SavedWeather weather : root.weathers) {
+			weather.show(viewer);
+		}
+		for (final SavedUbersplat splat : root.ubersplats) {
+			splat.show(viewer);
+		}
+		simulation.getTerrainDeformations().restore(simulation);
+		viewer.setGamePaused(War3MapViewer.PauseSource.SCRIPT, root.scriptPaused);
+		viewer.setGamePaused(War3MapViewer.PauseSource.PLAYER, root.playerPaused);
+		viewer.restoreInterfaceState(root.interfaceState);
+		simulation.setSaveBasicFilename(file.nameWithoutExtension());
+		simulation.fireGameEvent(JassGameEventsWar3.EVENT_GAME_LOADED);
+	}
+
+	/** Loads a script again without running it: for a player's AI, or for the map's own program at index -1. */
+	public interface AiScriptStarter {
+		void start(AiEntry entry);
+	}
+
+	private static FileHandle pendingLoad;
+
+	private static void checkIntact(final byte[] compressed) throws IOException {
+		try (DataInputStream in = gunzip(compressed)) {
+			final byte[] buffer = new byte[1 << 16];
+			while (in.read(buffer) != -1) {
+				// Reading to the end makes the gzip stream compare its checksum.
+			}
+		}
+	}
+
+	public static void setPendingLoad(final FileHandle file) {
+		pendingLoad = file;
+	}
+
+	public static FileHandle consumePendingLoad() {
+		final FileHandle file = pendingLoad;
+		pendingLoad = null;
+		return file;
+	}
+
+	private static byte[] bytesOf(final CSaveStorage.Writer writer) throws IOException {
+		final ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+		try (DataOutputStream out = new DataOutputStream(bytes)) {
+			writer.write(out);
+		}
+		return bytes.toByteArray();
+	}
+
+	static DataInputStream gunzip(final byte[] compressed) throws IOException {
+		return new DataInputStream(
+				new BufferedInputStream(new GZIPInputStream(new ByteArrayInputStream(compressed), 1 << 16), 1 << 16));
+	}
+}

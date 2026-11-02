@@ -1,0 +1,34 @@
+package com.etheller.warsmash.viewer5.handlers.w3x.save;
+
+/**
+ * What the player sees of a saved game that is not in the simulation: where the camera is and what is selected.
+ */
+public final class SavedInterfaceState {
+	public float cameraX;
+	public float cameraY;
+	public int[] selectedUnitHandleIds;
+	public int[][] controlGroupHandleIds;
+	public boolean userControlEnabled;
+	public boolean cinematicMode;
+	public java.util.List<com.etheller.warsmash.viewer5.handlers.w3x.ui.dialog.CTimerDialog> timerDialogs;
+	public java.util.List<com.etheller.warsmash.viewer5.handlers.w3x.ui.dialog.CScriptDialog> scriptDialogs;
+	public float[] cameraFields;
+	public boolean userUIEnabled = true;
+	public String dayNightTerrainModel;
+	public String dayNightUnitModel;
+	public String skyModel;
+	public int fogStyle;
+	public float[] fogColor;
+	public float fogDensity;
+	public float fogStart;
+	public float fogEnd;
+	public float[] waterColor;
+	public float[] cameraBounds;
+	public String mapMusic;
+	public boolean mapMusicRandom;
+	public int mapMusicIndex;
+	public String playingMusic;
+	public int allyColorFilterState;
+	public boolean restartMissionDisabled;
+	public String altMinimapIcon;
+}

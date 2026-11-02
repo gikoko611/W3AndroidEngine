@@ -312,6 +312,14 @@ public class CAbilityData {
 
 		// ----Undead----
 		// Lich
+		this.codeToAbilityTypeDefinition.put(War3ID.fromString("AHcr"),
+				new CAbilityTypeDefinitionSpellBase((handleId, alias) -> new com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.skills.neutral.forsakenpaladin.CAbilityConsecration(handleId, alias)));
+		this.codeToAbilityTypeDefinition.put(War3ID.fromString("AHcl"),
+				new CAbilityTypeDefinitionSpellBase((handleId, alias) -> new com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.skills.neutral.forsakenpaladin.CAbilityCleansingFire(handleId, alias)));
+		this.codeToAbilityTypeDefinition.put(War3ID.fromString("ANcp"),
+				new CAbilityTypeDefinitionSpellBase((handleId, alias) -> new com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.skills.neutral.forsakenpaladin.CAbilityRighteousFury(handleId, alias)));
+		this.codeToAbilityTypeDefinition.put(War3ID.fromString("AHas"),
+				new CAbilityTypeDefinitionSpellBase((handleId, alias) -> new com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.skills.neutral.forsakenpaladin.CAbilitySacredAura(handleId, War3ID.fromString("AHas"), alias)));
 		this.codeToAbilityTypeDefinition.put(War3ID.fromString("AUdd"),
 				new CAbilityTypeDefinitionSpellBase((handleId, alias) -> new CAbilityDeathAndDecay(handleId, alias)));
 		this.codeToAbilityTypeDefinition.put(War3ID.fromString("AUfn"),
@@ -610,11 +618,15 @@ public class CAbilityData {
 		this.codeToAbilityTypeDefinition.put(war3id, configuration.createDefinition());
 	}
 
+	public GameObject getEditorData(final String id) {
+		return this.abilityData.get(id);
+	}
+
 	public CAbilityType<?> getAbilityType(final War3ID alias) {
 		CAbilityType<?> abilityType = this.aliasToAbilityType.get(alias);
 		if (abilityType == null) {
 			final GameObject gameObject = this.abilityData.get(alias);
-			if (gameObject == null) {
+			if ((gameObject == null) || WarsmashConstants.isOutOfMapVersion(gameObject)) {
 				return null;
 			}
 			final String codeSLKTag = gameObject.readSLKTag("code");

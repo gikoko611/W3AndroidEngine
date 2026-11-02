@@ -31,6 +31,7 @@ public final class CIllusions {
 			imageHero.setAgilityBase(simulation, image, originalHero.getAgility().getBase());
 			imageHero.setIntelligenceBase(simulation, image, originalHero.getIntelligence().getBase());
 			imageHero.copyLearnedSkills(simulation, image, originalHero);
+			imageHero.copyProperName(originalHero);
 		}
 		image.makeIllusion(simulation, damageDealtFactor, damageTakenFactor, buffId);
 		final CAbilityInventory originalInventory = original.getInventoryData();
@@ -48,7 +49,14 @@ public final class CIllusions {
 			}
 		}
 		image.setLife(simulation, image.getMaximumLife() * share(original.getLife(), original.getMaximumLife()));
-		image.setMana(image.getMaximumMana() * share(original.getMana(), original.getMaximumMana()));
+		if (imageHero != null) {
+			image.setMana(image.getMaximumMana() * share(original.getMana(), original.getMaximumMana()));
+		}
+		else {
+			// Measured on 1.29: only a hero's illusion has mana.
+			image.setMaximumMana(0);
+			image.setMana(0);
+		}
 		image.add(simulation,
 				new CBuffTimedLife(simulation.getHandleIdAllocator().createId(), buffId, duration, false));
 		return image;

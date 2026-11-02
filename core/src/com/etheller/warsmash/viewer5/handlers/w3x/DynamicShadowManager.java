@@ -19,6 +19,11 @@ public class DynamicShadowManager {
 	private final Matrix4 biasMatrix = new Matrix4();
 	private final Matrix4 depthBiasMVP = new Matrix4();
 
+	public void dispose() {
+		Gdx.gl30.glDeleteFramebuffer(this.framebufferName);
+		Gdx.gl30.glDeleteTexture(this.depthTexture);
+	}
+
 	public boolean setup(final WebGL webGL) {
 		// The framebuffer, which regroups 0, 1, or more textures, and 0 or 1 depth
 		// buffer.

@@ -3,6 +3,7 @@ package com.etheller.warsmash.viewer5.handlers.w3x.ui;
 import java.util.ArrayList;
 import java.util.List;
 
+import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.utils.viewport.Viewport;
 import com.etheller.warsmash.parsers.fdf.GameUI;
 import com.etheller.warsmash.parsers.fdf.datamodel.AnchorDefinition;
@@ -66,8 +67,7 @@ public class MeleeAllianceDialog {
 			if ((playerIndex == localPlayer.getId()) || (other.getSlotState() != CPlayerSlotState.PLAYING)) {
 				continue;
 			}
-			final Row row = new Row(other, this.rows.size());
-			this.rows.add(row);
+			this.rows.add(new Row(other));
 		}
 
 		final GlueTextButtonFrame acceptButton = (GlueTextButtonFrame) rootFrame
@@ -98,10 +98,32 @@ public class MeleeAllianceDialog {
 		return isVisible() && ((AbstractRenderableFrame) this.dialog).getRenderBounds().contains(uiX, uiY);
 	}
 
+	/**
+	 * The original greys the Allies button out when the local player has nobody to deal with, for instance alone on the
+	 * map.
+	 */
+	public boolean isAvailable() {
+		if ((this.localPlayer.getSlotState() != CPlayerSlotState.PLAYING) || this.localPlayer.isObserver()) {
+			return false;
+		}
+		for (final Row row : this.rows) {
+			if (row.isInGame()) {
+				return true;
+			}
+		}
+		return false;
+	}
+
 	public void setVisible(final boolean visible) {
 		if (visible) {
+			int rowIndex = 0;
 			for (final Row row : this.rows) {
-				row.refresh();
+				final boolean inGame = row.isInGame();
+				row.slot.setVisible(inGame);
+				if (inGame) {
+					row.moveTo(rowIndex++);
+					row.refresh();
+				}
 			}
 			this.alliedVictory.setChecked(
 					this.localPlayer.getPlayerState(this.simulation, CPlayerState.ALLIED_VICTORY) != 0);
@@ -121,6 +143,9 @@ public class MeleeAllianceDialog {
 		}
 		final int step = largeStep ? TRADING_INC_LARGE : TRADING_INC_SMALL;
 		for (final Row row : this.rows) {
+			if (!row.isInGame() || !row.canTrade()) {
+				continue;
+			}
 			if (row.goldField.getRenderBounds().contains(uiX, uiY)) {
 				row.gold = changeAmount(row.gold, decrease ? -step : step, this.localPlayer.getGold() - sentGold(row));
 				row.updateTradeTexts();
@@ -162,7 +187,9 @@ public class MeleeAllianceDialog {
 
 	private void apply() {
 		for (final Row row : this.rows) {
-			row.apply();
+			if (row.isInGame()) {
+				row.apply();
+			}
 		}
 		this.localPlayer.setPlayerState(this.simulation, CPlayerState.ALLIED_VICTORY,
 				this.alliedVictory.isChecked() ? 1 : 0);
@@ -170,6 +197,7 @@ public class MeleeAllianceDialog {
 
 	private final class Row {
 		private final CPlayer other;
+		private final UIFrame slot;
 		private final CheckBoxFrame ally;
 		private final CheckBoxFrame vision;
 		private final CheckBoxFrame units;
@@ -177,18 +205,19 @@ public class MeleeAllianceDialog {
 		private final AbstractRenderableFrame lumberField;
 		private final StringFrame goldText;
 		private final StringFrame lumberText;
+		private boolean allyShown;
+		private boolean visionShown;
+		private boolean unitsShown;
 		private int gold;
 		private int lumber;
 
-		private Row(final CPlayer other, final int rowIndex) {
+		private Row(final CPlayer other) {
 			this.other = other;
 			final int context = other.getId();
-			final UIFrame slot = MeleeAllianceDialog.this.rootFrame.createFrame("AllianceSlot",
+			this.slot = MeleeAllianceDialog.this.rootFrame.createFrame("AllianceSlot",
 					MeleeAllianceDialog.this.container, 0, context);
-			slot.addSetPoint(new SetPoint(FramePoint.TOPLEFT, MeleeAllianceDialog.this.dialog, FramePoint.TOPLEFT,
-					GameUI.convertX(MeleeAllianceDialog.this.uiViewport, FIRST_ROW_LEFT),
-					GameUI.convertY(MeleeAllianceDialog.this.uiViewport, FIRST_ROW_TOP - (rowIndex * ROW_HEIGHT))));
-			MeleeAllianceDialog.this.container.add(slot);
+			moveTo(MeleeAllianceDialog.this.rows.size());
+			MeleeAllianceDialog.this.container.add(this.slot);
 			final GameUI rootFrame = MeleeAllianceDialog.this.rootFrame;
 			((BackdropFrame) rootFrame.getFrameByName("ColorBackdrop", context))
 					.setBackground(rootFrame.loadTexture("ReplaceableTextures\\" + ReplaceableIds.getPathString(1)
@@ -205,6 +234,22 @@ public class MeleeAllianceDialog {
 			updateTradeTexts();
 		}
 
+		private void moveTo(final int rowIndex) {
+			this.slot.addSetPoint(new SetPoint(FramePoint.TOPLEFT, MeleeAllianceDialog.this.dialog, FramePoint.TOPLEFT,
+					GameUI.convertX(MeleeAllianceDialog.this.uiViewport, FIRST_ROW_LEFT),
+					GameUI.convertY(MeleeAllianceDialog.this.uiViewport, FIRST_ROW_TOP - (rowIndex * ROW_HEIGHT))));
+		}
+
+		private boolean isInGame() {
+			return (this.other.getSlotState() == CPlayerSlotState.PLAYING) && !this.other.isObserver();
+		}
+
+		private boolean canTrade() {
+			final CSimulation simulation = MeleeAllianceDialog.this.simulation;
+			return !simulation.isResourceTradingLocked()
+					&& (!simulation.isResourceTradingAlliesOnly() || this.ally.isChecked());
+		}
+
 		private void updateTradeTexts() {
 			MeleeAllianceDialog.this.rootFrame.setText(this.goldText, Integer.toString(this.gold));
 			MeleeAllianceDialog.this.rootFrame.setText(this.lumberText, Integer.toString(this.lumber));
@@ -216,9 +261,12 @@ public class MeleeAllianceDialog {
 			updateTradeTexts();
 			final CPlayer local = MeleeAllianceDialog.this.localPlayer;
 			final int otherIndex = this.other.getId();
-			this.ally.setChecked(local.hasAlliance(otherIndex, CAllianceType.PASSIVE));
-			this.vision.setChecked(local.hasAlliance(otherIndex, CAllianceType.SHARED_VISION));
-			this.units.setChecked(local.hasAlliance(otherIndex, CAllianceType.SHARED_CONTROL));
+			this.allyShown = local.hasAlliance(otherIndex, CAllianceType.PASSIVE);
+			this.visionShown = local.hasAlliance(otherIndex, CAllianceType.SHARED_VISION);
+			this.unitsShown = local.hasAlliance(otherIndex, CAllianceType.SHARED_CONTROL);
+			this.ally.setChecked(this.allyShown);
+			this.vision.setChecked(this.visionShown);
+			this.units.setChecked(this.unitsShown);
 			this.ally.setEnabled(!MeleeAllianceDialog.this.simulation.isAllianceChangesLocked());
 			updateEnabled();
 		}
@@ -227,20 +275,36 @@ public class MeleeAllianceDialog {
 		private void updateEnabled() {
 			this.vision.setEnabled(this.ally.isChecked());
 			this.units.setEnabled(this.ally.isChecked());
+			final boolean canTrade = canTrade();
+			if (!canTrade) {
+				this.gold = 0;
+				this.lumber = 0;
+				updateTradeTexts();
+			}
+			this.goldText.setColor(canTrade ? Color.WHITE : Color.GRAY);
+			this.lumberText.setColor(canTrade ? Color.WHITE : Color.GRAY);
 		}
 
 		private void apply() {
 			final CPlayer local = MeleeAllianceDialog.this.localPlayer;
 			final int otherIndex = this.other.getId();
 			final boolean allied = this.ally.isChecked();
-			for (final CAllianceType type : ALLY_TYPES) {
-				local.setAlliance(otherIndex, type, allied);
+			// Only what the player changed is set: a script's partial alliance stays as it is on a plain Accept.
+			if (allied != this.allyShown) {
+				for (final CAllianceType type : ALLY_TYPES) {
+					local.setAlliance(otherIndex, type, allied);
+				}
 			}
-			local.setAlliance(otherIndex, CAllianceType.SHARED_VISION, allied && this.vision.isChecked());
+			final boolean shareVision = allied && this.vision.isChecked();
+			if (shareVision != this.visionShown) {
+				local.setAlliance(otherIndex, CAllianceType.SHARED_VISION, shareVision);
+			}
 			final boolean shareUnits = allied && this.units.isChecked();
-			local.setAlliance(otherIndex, CAllianceType.SHARED_CONTROL, shareUnits);
-			if (MeleeAllianceDialog.this.simulation.isSharedAdvancedControl()) {
-				local.setAlliance(otherIndex, CAllianceType.SHARED_ADVANCED_CONTROL, shareUnits);
+			if (shareUnits != this.unitsShown) {
+				local.setAlliance(otherIndex, CAllianceType.SHARED_CONTROL, shareUnits);
+				if (MeleeAllianceDialog.this.simulation.isSharedAdvancedControl()) {
+					local.setAlliance(otherIndex, CAllianceType.SHARED_ADVANCED_CONTROL, shareUnits);
+				}
 			}
 			final int goldToSend = Math.min(this.gold, local.getGold());
 			final int lumberToSend = Math.min(this.lumber, local.getLumber());

@@ -13,6 +13,7 @@ import com.badlogic.gdx.graphics.g2d.BitmapFont;
 import com.badlogic.gdx.graphics.g2d.GlyphLayout;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.utils.viewport.Viewport;
+import com.etheller.warsmash.util.SessionResources;
 import com.etheller.warsmash.util.AbstractListItemDisplay;
 import com.etheller.warsmash.util.AbstractListItemProperty;
 import com.etheller.warsmash.util.ListItemEnum;
@@ -58,11 +59,13 @@ public class ListBoxFrame extends ControlFrame
 		final Pixmap pixmap = new Pixmap(1, 1, Format.RGBA8888);
 		pixmap.setColor(SELECT_COLOR);
 		pixmap.fill();
-		this.selectionFrame.setTexture(new Texture(pixmap));
+		this.selectionFrame.setTexture(SessionResources.track(new Texture(pixmap)));
+		pixmap.dispose();
 		final Pixmap mousePixmap = new Pixmap(1, 1, Format.RGBA8888);
 		mousePixmap.setColor(MOUSE_OVER_HIGHLIGHT_COLOR);
 		mousePixmap.fill();
-		this.mouseHighlightFrame.setTexture(new Texture(mousePixmap));
+		this.mouseHighlightFrame.setTexture(SessionResources.track(new Texture(mousePixmap)));
+		mousePixmap.dispose();
 
 		this.dataSource = dataSource;
 	}

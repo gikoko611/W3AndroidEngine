@@ -1,5 +1,6 @@
 package com.etheller.warsmash.viewer5.handlers.w3x.simulation.pathing;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
@@ -17,14 +18,16 @@ import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CWorldCollision;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.behaviors.CBehaviorMove;
 
 public class CPathfindingProcessor {
-	private static final Rectangle tempRect = new Rectangle();
+	private final Rectangle tempRect = new Rectangle();
+	private int gameTurnTick;
 	private final PathingGrid pathingGrid;
 	private final CWorldCollision worldCollision;
 	private final LinkedList<PathfindingJob> moveQueue = new LinkedList<>();
+	private final SharedGraph graph;
 	// things with modified state per current job:
 	private final Node[][] nodes;
 	private final Node[][] cornerNodes;
-	private final Node[] goalSet = new Node[4];
+	private final Node[] goalSet = new Node[9];
 	private int goals = 0;
 	private int pathfindJobId = 0;
 	private static final int NEAREST_PATHABLE_RINGS = 32;
@@ -33,12 +36,39 @@ public class CPathfindingProcessor {
 	private int totalJobLoops = 0;
 	private final int pathingGridCellCount;
 
-	public CPathfindingProcessor(final PathingGrid pathingGrid, final CWorldCollision worldCollision) {
+	public CPathfindingProcessor(final PathingGrid pathingGrid, final CWorldCollision worldCollision,
+			final SharedGraph graph) {
 		this.pathingGrid = pathingGrid;
 		this.worldCollision = worldCollision;
-		this.nodes = new Node[pathingGrid.getHeight()][pathingGrid.getWidth()];
-		this.cornerNodes = new Node[pathingGrid.getHeight() + 1][pathingGrid.getWidth() + 1];
+		this.graph = graph;
+		this.nodes = graph.nodes;
+		this.cornerNodes = graph.cornerNodes;
 		this.pathingGridCellCount = pathingGrid.getWidth() * pathingGrid.getHeight();
+	}
+
+	/**
+	 * One node grid for all players' processors: a grid per player filled during long cross-map searches ran the
+	 * device out of memory. A search may pause between ticks with its state in the nodes, so only one processor at a
+	 * time holds a started search; the others wait, and the first one that waited goes next.
+	 */
+	public static final class SharedGraph {
+		private final Node[][] nodes;
+		private final Node[][] cornerNodes;
+		private int lastJobId = 0;
+		private CPathfindingProcessor owner;
+		private CPathfindingProcessor reservedFor;
+
+		public SharedGraph(final PathingGrid pathingGrid) {
+			this.nodes = new Node[pathingGrid.getHeight()][pathingGrid.getWidth()];
+			this.cornerNodes = new Node[pathingGrid.getHeight() + 1][pathingGrid.getWidth() + 1];
+		}
+	}
+
+	private void finishJob() {
+		this.moveQueue.poll();
+		if (this.graph.owner == this) {
+			this.graph.owner = null;
+		}
 	}
 
 	/**
@@ -109,8 +139,8 @@ public class CPathfindingProcessor {
 
 	private boolean isPathableDynamically(final float x, final float y, final CUnit ignoreIntersectionsWithThisUnit,
 			final CUnit ignoreIntersectionsWithThisSecondUnit, final PathingGrid.MovementType movementType) {
-		return !this.worldCollision.intersectsAnythingOtherThan(tempRect.setCenter(x, y),
-				ignoreIntersectionsWithThisUnit, ignoreIntersectionsWithThisSecondUnit, movementType, false);
+		return !this.worldCollision.intersectsStandingUnitOtherThan(tempRect.setCenter(x, y),
+				ignoreIntersectionsWithThisUnit, ignoreIntersectionsWithThisSecondUnit, movementType, this.gameTurnTick);
 	}
 
 	public static boolean isCollisionSizeBetterSuitedForCorners(final float collisionSize) {
@@ -207,6 +237,17 @@ public class CPathfindingProcessor {
 		private final int yOffset;
 		private final double length;
 
+		private static Direction of(final float dx, final float dy) {
+			final int xOffset = (int) Math.signum(dx);
+			final int yOffset = (int) Math.signum(dy);
+			for (final Direction direction : VALUES) {
+				if ((direction.xOffset == xOffset) && (direction.yOffset == yOffset)) {
+					return direction;
+				}
+			}
+			return null;
+		}
+
 		private Direction(final int xOffset, final int yOffset) {
 			this.xOffset = xOffset;
 			this.yOffset = yOffset;
@@ -248,12 +289,32 @@ public class CPathfindingProcessor {
 	}
 
 	public void update(final CSimulation simulation) {
+		this.gameTurnTick = simulation.getGameTurnTick();
+		final SharedGraph graph = this.graph;
+		if ((graph.owner == this) && (this.moveQueue.isEmpty() || !this.moveQueue.peek().jobStarted)) {
+			graph.owner = null;
+		}
+		if ((graph.reservedFor == this) && this.moveQueue.isEmpty()) {
+			graph.reservedFor = null;
+		}
+		if ((graph.owner != null) && (graph.owner != this)) {
+			if (!this.moveQueue.isEmpty() && (graph.reservedFor == null)) {
+				graph.reservedFor = this;
+			}
+			return;
+		}
 		int workIterations = 0;
 		JobsLoop: while (!this.moveQueue.isEmpty()) {
 			this.totalJobLoops++;
 			final PathfindingJob job = this.moveQueue.peek();
+			this.tempRect.set(0, 0, job.collisionSize * 2, job.collisionSize * 2);
 			if (!job.jobStarted) {
-				this.pathfindJobId++;
+				if ((graph.reservedFor != null) && (graph.reservedFor != this)) {
+					break JobsLoop;
+				}
+				graph.owner = this;
+				graph.reservedFor = null;
+				this.pathfindJobId = ++graph.lastJobId;
 				this.totalIterations = 0;
 				this.totalJobLoops = 0;
 				job.jobStarted = true;
@@ -261,9 +322,19 @@ public class CPathfindingProcessor {
 				workIterations += 5; // setup of job predicted cost
 				job.goalX = job.goal.x;
 				job.goalY = job.goal.y;
+				job.goalMoved = false;
 				job.weightForHittingWalls = 1E9f;
+				job.bestNode = null;
+				job.bestDistance = Float.MAX_VALUE;
+				job.bestGLimit = Double.MAX_VALUE;
 				if (!this.pathingGrid.isPathable(job.goalX, job.goalY, job.movementType, job.collisionSize)) {
-					moveGoalToNearestPathable(job);
+					if (!moveGoalToNearest(job, true)) {
+						moveGoalToNearest(job, false);
+					}
+				}
+				else if (!isPathableDynamically(job.goalX, job.goalY, job.ignoreIntersectionsWithThisUnit,
+						job.ignoreIntersectionsWithThisSecondUnit, job.movementType)) {
+					moveGoalToNearest(job, true);
 				}
 				if (!this.pathingGrid.isPathable(job.goalX, job.goalY, job.movementType, job.collisionSize)
 						|| !isPathableDynamically(job.goalX, job.goalY, job.ignoreIntersectionsWithThisUnit,
@@ -274,11 +345,10 @@ public class CPathfindingProcessor {
 				job.iterationLimit = (int) Math.min(this.pathingGridCellCount,
 						Math.max(MIN_SEARCH_ITERATIONS, 4 * straightCells * straightCells));
 				if ((job.startX == job.goalX) && (job.startY == job.goalY)) {
-					job.queueItem.pathFound(Collections.emptyList(), simulation);
-					this.moveQueue.poll();
+					finishJob();
+					job.queueItem.pathFound(new LinkedList<>(), !job.goalMoved, simulation);
 					continue JobsLoop;
 				}
-				tempRect.set(0, 0, job.collisionSize * 2, job.collisionSize * 2);
 				if (isCollisionSizeBetterSuitedForCorners(job.collisionSize)) {
 					job.searchGraph = this.cornerNodes;
 					job.gridMapping = GridMapping.CORNERS;
@@ -357,6 +427,7 @@ public class CPathfindingProcessor {
 									job.collisionSize, x, y)) {
 
 								final double tentativeScore = possibleNode.point.distance(job.startX, job.startY);
+								job.bestGLimit = Math.min(job.bestGLimit, tentativeScore + job.weightForHittingWalls);
 								possibleNode.g = tentativeScore;
 								possibleNode.f = tentativeScore + h(possibleNode);
 								openAdd(job, possibleNode);
@@ -364,6 +435,9 @@ public class CPathfindingProcessor {
 							}
 							else {
 								final double tentativeScore = job.weightForHittingWalls;
+								// A unit squeezed among others at its start still looks for the nearest point it
+								// can walk to.
+								job.bestGLimit = Math.min(job.bestGLimit, tentativeScore + job.weightForHittingWalls);
 								possibleNode.g = tentativeScore;
 								possibleNode.f = tentativeScore + h(possibleNode);
 								openAdd(job, possibleNode);
@@ -379,72 +453,17 @@ public class CPathfindingProcessor {
 				current.touch(this.pathfindJobId);
 				current.open = false;
 				if (isGoal(current)) {
-					final LinkedList<CPathPoint> totalPath = new LinkedList<>();
-					Direction lastCameFromDirection = null;
-
-					if ((current.cameFrom != null)
-							&& pathableBetween(job.ignoreIntersectionsWithThisUnit,
-									job.ignoreIntersectionsWithThisSecondUnit, current.point.x, current.point.y,
-									job.movementType, job.collisionSize, job.goalX, job.goalY)
-							&& pathableBetween(job.ignoreIntersectionsWithThisUnit,
-									job.ignoreIntersectionsWithThisSecondUnit, current.cameFrom.point.x,
-									current.cameFrom.point.y, job.movementType, job.collisionSize, current.point.x,
-									current.point.y)
-							&& pathableBetween(job.ignoreIntersectionsWithThisUnit,
-									job.ignoreIntersectionsWithThisSecondUnit, current.cameFrom.point.x,
-									current.cameFrom.point.y, job.movementType, job.collisionSize, job.goalX, job.goalY)
-							&& job.allowSmoothing) {
-						// do some basic smoothing to walk straight to the goal if it is not obstructed,
-						// skipping the last grid location
-						totalPath.addFirst(job.goal);
-						current = current.cameFrom;
-					}
-					else {
-						totalPath.addFirst(job.goal);
-						totalPath.addFirst(current.point);
-					}
-					lastCameFromDirection = current.cameFromDirection;
-					Node lastNode = null;
-					int stepsBackward = 0;
-					while (current.cameFrom != null) {
-						lastNode = current;
-						current = current.cameFrom;
-						if ((lastCameFromDirection == null) || (current.cameFromDirection != lastCameFromDirection)
-								|| (current.cameFromDirection == null)) {
-							if ((current.cameFromDirection != null) || (lastNode == null)
-									|| !pathableBetween(job.ignoreIntersectionsWithThisUnit,
-											job.ignoreIntersectionsWithThisSecondUnit, job.startX, job.startY,
-											job.movementType, job.collisionSize, current.point.x, current.point.y)
-									|| !pathableBetween(job.ignoreIntersectionsWithThisUnit,
-											job.ignoreIntersectionsWithThisSecondUnit, current.point.x, current.point.y,
-											job.movementType, job.collisionSize, lastNode.point.x, lastNode.point.y)
-									|| !pathableBetween(job.ignoreIntersectionsWithThisUnit,
-											job.ignoreIntersectionsWithThisSecondUnit, job.startX, job.startY,
-											job.movementType, job.collisionSize, lastNode.point.x, lastNode.point.y)
-									|| !job.allowSmoothing) {
-								// Add the point if it's not the first one, or if we can only complete
-								// the journey by specifically walking to the first one
-								totalPath.addFirst(current.point);
-								lastCameFromDirection = current.cameFromDirection;
-							}
-						}
-						if (stepsBackward > this.pathingGridCellCount) {
-							new IllegalStateException(
-									"PATHING SYSTEM ERROR: The path finding algorithm hit an infinite cycle at or near pt: "
-											+ current.cameFrom.point
-											+ ".\nThis means the A* search algorithm heuristic 'admissable' constraint was probably violated.\n\nUnit1:"
-											+ CUnit.maybeMeaningfulName(job.ignoreIntersectionsWithThisUnit)
-											+ "\nUnit2:"
-											+ CUnit.maybeMeaningfulName(job.ignoreIntersectionsWithThisSecondUnit))
-									.printStackTrace();
-							totalPath.clear();
-							break;
-						}
-						stepsBackward++;
-					}
-					job.queueItem.pathFound(totalPath, simulation);
-					this.moveQueue.poll();
+					final LinkedList<CPathPoint> totalPath = buildPath(job, current, true);
+					finishJob();
+					job.queueItem.pathFound(totalPath, !job.goalMoved, simulation);
 					continue JobsLoop;
+				}
+				if (current.g < job.bestGLimit) {
+					final float distanceToGoal = (float) current.point.distance(job.goalX, job.goalY);
+					if (distanceToGoal < job.bestDistance) {
+						job.bestDistance = distanceToGoal;
+						job.bestNode = current;
+					}
 				}
 
 				for (final Direction direction : Direction.VALUES) {
@@ -491,18 +510,113 @@ public class CPathfindingProcessor {
 					break JobsLoop;
 				}
 			}
-			job.queueItem.pathFound(Collections.emptyList(), simulation);
-			this.moveQueue.poll();
+			// Measured: the original walks to the reachable point nearest the target and stops there.
+			final LinkedList<CPathPoint> partialPath;
+			if ((job.bestNode != null)
+					&& (job.bestDistance < (StrictMath.hypot(job.goalX - job.startX, job.goalY - job.startY) - 16))) {
+				partialPath = buildPath(job, job.bestNode, false);
+			}
+			else {
+				partialPath = new LinkedList<>();
+				partialPath.add(new CPathPoint(job.startX, job.startY));
+			}
+			finishJob();
+			job.queueItem.pathFound(partialPath, false, simulation);
 		}
 	}
 
-	// Measured: ordered onto ground it cannot stand on, the original walks to the nearest ground it can. Searching
-	// toward the blocked point itself explored nearly the whole map before the unit moved.
-	private void moveGoalToNearestPathable(final PathfindingJob job) {
+	private static final float MAX_SMOOTHED_SEGMENT = 1024f;
+
+	/**
+	 * The path from the start through the searched nodes to endNode (and on to the goal when it was reached). With
+	 * smoothing, a node is skipped whenever the unit can walk straight past it, so units walk any-angle lines instead
+	 * of the grid's zigzag.
+	 */
+	private LinkedList<CPathPoint> buildPath(final PathfindingJob job, final Node endNode, final boolean reachedGoal) {
+		final ArrayList<CPathPoint> chain = new ArrayList<>();
+		Node node = endNode;
+		while (node != null) {
+			chain.add(node.point);
+			node = node.cameFrom;
+			if (chain.size() > this.pathingGridCellCount) {
+				new IllegalStateException("PATHING SYSTEM ERROR: cycle in the path near " + endNode.point + ", unit "
+						+ CUnit.maybeMeaningfulName(job.ignoreIntersectionsWithThisUnit)).printStackTrace();
+				return new LinkedList<>();
+			}
+		}
+		Collections.reverse(chain);
+		if (reachedGoal) {
+			if (!job.goalMoved) {
+				chain.add(job.goal);
+			}
+			else {
+				chain.add(new CPathPoint(job.goalX, job.goalY));
+			}
+		}
+		final LinkedList<CPathPoint> path = new LinkedList<>();
+		float anchorX = job.startX;
+		float anchorY = job.startY;
+		Direction lastDirection = null;
+		for (int i = 0; i < chain.size(); i++) {
+			final CPathPoint point = chain.get(i);
+			if (i < (chain.size() - 1)) {
+				final CPathPoint next = chain.get(i + 1);
+				if (job.allowSmoothing) {
+					if ((next.distance(anchorX, anchorY) <= MAX_SMOOTHED_SEGMENT)
+							&& segmentClear(job, anchorX, anchorY, next.x, next.y)) {
+						continue;
+					}
+				}
+				else {
+					final Direction direction = Direction.of(next.x - point.x, next.y - point.y);
+					if ((direction != null) && (direction == lastDirection)) {
+						lastDirection = direction;
+						continue;
+					}
+					lastDirection = direction;
+				}
+			}
+			path.add(point);
+			anchorX = point.x;
+			anchorY = point.y;
+		}
+		return path;
+	}
+
+	/** Whether the job's unit can walk the straight line between two points: the same tests its movement makes. */
+	private boolean segmentClear(final PathfindingJob job, final float x0, final float y0, final float x1,
+			final float y1) {
+		final float dx = x1 - x0;
+		final float dy = y1 - y0;
+		final int steps = Math.max(1, (int) Math.ceil(StrictMath.hypot(dx, dy) / 8));
+		for (int step = 1; step <= steps; step++) {
+			final float x = x0 + ((dx * step) / steps);
+			final float y = y0 + ((dy * step) / steps);
+			if (!this.pathingGrid.isPathable(x, y, job.movementType, job.collisionSize)
+					|| !isPathableDynamically(x, y, job.ignoreIntersectionsWithThisUnit,
+							job.ignoreIntersectionsWithThisSecondUnit, job.movementType)) {
+				return false;
+			}
+		}
+		return true;
+	}
+
+	/**
+	 * Measured: ordered onto ground it cannot stand on, or onto a point other units stand on, the original walks to the
+	 * free point nearest the target (around a wall of units if that is where it is). Searching toward the blocked point
+	 * itself explored nearly the whole map, or made walls of units cheap to cross so the unit stopped in front of them.
+	 */
+	private boolean moveGoalToNearest(final PathfindingJob job, final boolean freeOfUnits) {
+		float bestX = 0;
+		float bestY = 0;
+		double bestDistance = Double.MAX_VALUE;
+		double bestStartDistance = Double.MAX_VALUE;
+		int foundRing = -1;
 		for (int ring = 1; ring <= NEAREST_PATHABLE_RINGS; ring++) {
-			float bestX = 0;
-			float bestY = 0;
-			double bestDistance = Double.MAX_VALUE;
+			// a point on the next ring can still be nearer than the corners of this one
+			if ((foundRing != -1) && (ring > (foundRing + 1))) {
+				break;
+			}
 			for (int i = -ring; i <= ring; i++) {
 				for (int j = -ring; j <= ring; j++) {
 					if ((Math.abs(i) != ring) && (Math.abs(j) != ring)) {
@@ -510,23 +624,36 @@ public class CPathfindingProcessor {
 					}
 					final float x = job.goalX + (i * 32);
 					final float y = job.goalY + (j * 32);
+					final double distance = StrictMath.hypot(i * 32, j * 32);
+					if (distance > bestDistance) {
+						continue;
+					}
+					final double startDistance = StrictMath.hypot(x - job.startX, y - job.startY);
+					if ((distance == bestDistance) && (startDistance >= bestStartDistance)) {
+						continue;
+					}
 					if (this.pathingGrid.contains(x, y)
-							&& this.pathingGrid.isPathable(x, y, job.movementType, job.collisionSize)) {
-						final double distance = StrictMath.hypot(x - job.startX, y - job.startY);
-						if (distance < bestDistance) {
-							bestDistance = distance;
-							bestX = x;
-							bestY = y;
+							&& this.pathingGrid.isPathable(x, y, job.movementType, job.collisionSize)
+							&& (!freeOfUnits || isPathableDynamically(x, y, job.ignoreIntersectionsWithThisUnit,
+									job.ignoreIntersectionsWithThisSecondUnit, job.movementType))) {
+						bestDistance = distance;
+						bestStartDistance = startDistance;
+						bestX = x;
+						bestY = y;
+						if (foundRing == -1) {
+							foundRing = ring;
 						}
 					}
 				}
 			}
-			if (bestDistance != Double.MAX_VALUE) {
-				job.goalX = bestX;
-				job.goalY = bestY;
-				return;
-			}
 		}
+		if (foundRing == -1) {
+			return false;
+		}
+		job.goalX = bestX;
+		job.goalY = bestY;
+		job.goalMoved = true;
+		return true;
 	}
 
 	public static final class PathfindingJob {
@@ -544,6 +671,10 @@ public class CPathfindingProcessor {
 		public float goalX;
 		public float weightForHittingWalls;
 		int iterationLimit;
+		boolean goalMoved;
+		Node bestNode;
+		float bestDistance;
+		double bestGLimit;
 		Node[][] searchGraph;
 		GridMapping gridMapping;
 		PriorityQueue<Node> openSet;

@@ -34,6 +34,10 @@ public class GroundTexture {
 		}
 	}
 
+	public void dispose(final GL30 gl) {
+		gl.glDeleteTexture(this.id);
+	}
+
 	public boolean isBuildable() {
 		return this.buildable;
 	}

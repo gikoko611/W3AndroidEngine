@@ -10,6 +10,7 @@ import com.etheller.warsmash.viewer5.AudioPanner;
 import com.etheller.warsmash.viewer5.EmittedObject;
 import com.etheller.warsmash.viewer5.ModelViewer;
 import com.etheller.warsmash.viewer5.Scene;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.sound.CSoundMixer;
 
 public class EventObjectSnd extends EmittedObject<MdxComplexInstance, EventObjectSndEmitter> {
 	public EventObjectSnd(final EventObjectSndEmitter emitter) {
@@ -46,7 +47,7 @@ public class EventObjectSnd extends EmittedObject<MdxComplexInstance, EventObjec
 			source.connect(panner);
 
 			// Make a sound.
-			source.start(0, emitterObject.volume,
+			source.start(0, emitterObject.volume * CSoundMixer.channelScale(emitterObject.channel),
 					(emitterObject.pitch + ((float) Math.random() * emitterObject.pitchVariance * 2))
 							- emitterObject.pitchVariance,
 					false);

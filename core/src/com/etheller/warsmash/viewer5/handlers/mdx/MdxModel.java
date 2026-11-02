@@ -71,6 +71,12 @@ public class MdxModel extends com.etheller.warsmash.viewer5.Model<MdxHandler> {
 	public int arrayBuffer;
 	public int elementBuffer;
 
+	@Override
+	public void dispose() {
+		this.viewer.gl.glDeleteBuffer(this.arrayBuffer);
+		this.viewer.gl.glDeleteBuffer(this.elementBuffer);
+	}
+
 	public MdxModel(final MdxHandler handler, final ModelViewer viewer, final String extension,
 			final PathSolver pathSolver, final String fetchUrl) {
 		super(handler, viewer, extension, pathSolver, fetchUrl);

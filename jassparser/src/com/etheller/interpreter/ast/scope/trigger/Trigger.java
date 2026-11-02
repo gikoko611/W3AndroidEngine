@@ -43,6 +43,23 @@ public class Trigger implements CHandle {
 		return index;
 	}
 
+	public JassFunction getActionAt(final int index) {
+		return this.actions.get(index);
+	}
+
+	public void removeAction(final JassFunction action) {
+		for (int i = 0; i < this.actions.size(); i++) {
+			if (this.actions.get(i) == action) {
+				this.actions.remove(i);
+				return;
+			}
+		}
+	}
+
+	public void clearActions() {
+		this.actions.clear();
+	}
+
 	public int addCondition(final TriggerBooleanExpression boolexpr) {
 		final int index = this.conditions.size();
 		this.conditions.add(boolexpr);

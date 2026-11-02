@@ -10,6 +10,7 @@ import java.util.Random;
 import com.etheller.warsmash.units.DataTable;
 import com.etheller.warsmash.units.Element;
 import com.etheller.warsmash.units.GameObject;
+import com.etheller.warsmash.util.WarsmashConstants;
 import com.etheller.warsmash.units.ObjectData;
 import com.etheller.warsmash.units.StandardObjectData.WarcraftData;
 import com.etheller.warsmash.util.War3ID;
@@ -63,7 +64,9 @@ public class CItemData {
 		// TODO the below is a bit hacky, but needed to build the list of random choices
 		for (final String key : this.itemData.keySet()) {
 			final GameObject mutableGameObject = this.itemData.get(key);
-			getItemTypeInstance(War3ID.fromString(key), mutableGameObject);
+			if (!WarsmashConstants.isOutOfMapVersion(mutableGameObject)) {
+				getItemTypeInstance(War3ID.fromString(key), mutableGameObject);
+			}
 		}
 	}
 
@@ -75,9 +78,13 @@ public class CItemData {
 		return new CItem(handleId, x, y, itemTypeInstance.getMaxLife(), typeId, itemTypeInstance);
 	}
 
+	public boolean isOutOfMapVersion(final War3ID typeId) {
+		return WarsmashConstants.isOutOfMapVersion(this.itemData.get(typeId.asStringValue()));
+	}
+
 	public CItemType getItemType(final War3ID typeId) {
 		final GameObject itemType = this.itemData.get(typeId.asStringValue());
-		if (itemType == null) {
+		if ((itemType == null) || WarsmashConstants.isOutOfMapVersion(itemType)) {
 			return null;
 		}
 		return getItemTypeInstance(typeId, itemType);

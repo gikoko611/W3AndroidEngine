@@ -5,6 +5,7 @@ import java.util.List;
 import com.badlogic.gdx.utils.viewport.Viewport;
 import com.etheller.interpreter.ast.function.JassFunction;
 import com.etheller.interpreter.ast.function.JassNativeManager;
+import com.etheller.interpreter.ast.scope.GlobalScope;
 import com.etheller.interpreter.ast.util.JassLog;
 import com.etheller.interpreter.ast.util.JassProgram;
 import com.etheller.interpreter.ast.value.BooleanJassValue;
@@ -43,6 +44,34 @@ public class JassAIEnvironment {
 	private final HandleJassType unitType;
 	private boolean paused;
 	private int errors;
+	private String scriptFile;
+	private String mainFunction;
+
+	public void setScript(final String scriptFile, final String mainFunction) {
+		this.scriptFile = scriptFile;
+		this.mainFunction = mainFunction;
+	}
+
+	public String getScriptFile() {
+		return this.scriptFile;
+	}
+
+	public String getMainFunction() {
+		return this.mainFunction;
+	}
+
+	/** The script's natives keep this object, so a saved game has to fill it in place. */
+	public AIController getController() {
+		return this.controller;
+	}
+
+	public JassProgram getProgram() {
+		return this.jassProgram;
+	}
+
+	public GlobalScope getGlobalScope() {
+		return this.jassProgram.getGlobalScope();
+	}
 
 	public JassAIEnvironment(final JassProgram jassProgramVisitor, final DataSource dataSource,
 			final Viewport uiViewport, final Scene uiScene, final CSimulation simulation, final int playerIndex,
@@ -84,13 +113,14 @@ public class JassAIEnvironment {
 		});
 		natives.createNative("GetTownUnitCount", (arguments, globalScope, triggerScope) -> IntegerJassValue
 				.of(ai.getTownUnitCount(integer(arguments, 0), integer(arguments, 1), bool(arguments, 2))));
+		// Measured on 1.29: 0 for heroes, so the build loop never waits for a hero's price and goes on past it.
 		natives.createNative("GetUnitGoldCost", (arguments, globalScope, triggerScope) -> {
 			final CUnitType type = simulation.getUnitData().getUnitType(new War3ID(integer(arguments, 0)));
-			return IntegerJassValue.of(type == null ? 0 : type.getGoldCost());
+			return IntegerJassValue.of((type == null) || type.isHero() ? 0 : type.getGoldCost());
 		});
 		natives.createNative("GetUnitWoodCost", (arguments, globalScope, triggerScope) -> {
 			final CUnitType type = simulation.getUnitData().getUnitType(new War3ID(integer(arguments, 0)));
-			return IntegerJassValue.of(type == null ? 0 : type.getLumberCost());
+			return IntegerJassValue.of((type == null) || type.isHero() ? 0 : type.getLumberCost());
 		});
 		natives.createNative("IgnoredUnits", (arguments, globalScope, triggerScope) -> IntegerJassValue.ZERO);
 
@@ -134,7 +164,7 @@ public class JassAIEnvironment {
 			return null;
 		});
 		natives.createNative("SetNewHeroes", setter((value) -> ai.setNewHeroes(value)));
-		// Zeppelins come from goblin laboratories; the melee scripts only buy them late and can do without.
+		// Measured: buys nothing with a neutral or own laboratory and a patron beside it; what it needs is not known.
 		natives.createNative("PurchaseZeppelin", (arguments, globalScope, triggerScope) -> null);
 		natives.createNative("MergeUnits", (arguments, globalScope, triggerScope) -> BooleanJassValue.of(ai
 				.mergeUnits(integer(arguments, 0), integer(arguments, 1), integer(arguments, 2), integer(arguments, 3))));
@@ -191,10 +221,18 @@ public class JassAIEnvironment {
 			ai.stopGathering();
 			return null;
 		});
-		// Guard posts belong to campaign scripts; melee units defend through the defense captain.
-		natives.createNative("AddGuardPost", (arguments, globalScope, triggerScope) -> null);
-		natives.createNative("FillGuardPosts", (arguments, globalScope, triggerScope) -> null);
-		natives.createNative("ReturnGuardPosts", (arguments, globalScope, triggerScope) -> null);
+		natives.createNative("AddGuardPost", (arguments, globalScope, triggerScope) -> {
+			ai.addGuardPost(integer(arguments, 0), real(arguments, 1), real(arguments, 2));
+			return null;
+		});
+		natives.createNative("FillGuardPosts", (arguments, globalScope, triggerScope) -> {
+			ai.fillGuardPosts();
+			return null;
+		});
+		natives.createNative("ReturnGuardPosts", (arguments, globalScope, triggerScope) -> {
+			ai.returnGuardPosts();
+			return null;
+		});
 
 		// Captains
 		natives.createNative("CreateCaptains", (arguments, globalScope, triggerScope) -> {
@@ -281,8 +319,14 @@ public class JassAIEnvironment {
 			ai.removeSiege();
 			return null;
 		});
-		natives.createNative("SetStagePoint", (arguments, globalScope, triggerScope) -> null);
-		natives.createNative("LoadZepWave", (arguments, globalScope, triggerScope) -> null);
+		natives.createNative("SetStagePoint", (arguments, globalScope, triggerScope) -> {
+			ai.setStagePoint(real(arguments, 0), real(arguments, 1));
+			return null;
+		});
+		natives.createNative("LoadZepWave", (arguments, globalScope, triggerScope) -> {
+			ai.loadZepWave(integer(arguments, 0), integer(arguments, 1));
+			return null;
+		});
 		natives.createNative("SuicidePlayer", (arguments, globalScope, triggerScope) -> BooleanJassValue
 				.of(ai.suicidePlayer(object(arguments, 0), bool(arguments, 1), true)));
 		natives.createNative("SuicidePlayerUnits", (arguments, globalScope, triggerScope) -> BooleanJassValue

@@ -40,7 +40,8 @@ public enum ArithmeticSigns implements ArithmeticSign {
 
 		@Override
 		public JassValue apply(final String left, final String right) {
-			return new StringJassValue(left + right);
+			// A null string joins as "" (Java would write "null").
+			return new StringJassValue((left == null ? "" : left) + (right == null ? "" : right));
 		}
 
 		@Override

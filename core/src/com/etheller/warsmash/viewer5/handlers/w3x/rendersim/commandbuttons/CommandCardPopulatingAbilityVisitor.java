@@ -77,6 +77,16 @@ public class CommandCardPopulatingAbilityVisitor implements CAbilityVisitor<Void
 	private boolean hasCancel;
 	private Set<String> buffVisibleGroups;
 
+	public void release() {
+		this.game = null;
+		this.gameUI = null;
+		this.unit = null;
+		this.commandButtonListener = null;
+		this.abilityDataUI = null;
+		this.buffVisibleGroups = null;
+		this.previewCallback.setup(null, null, null);
+	}
+
 	public CommandCardPopulatingAbilityVisitor reset(final CSimulation game, final GameUI gameUI, final CUnit unit,
 			final CommandButtonListener commandButtonListener, final AbilityDataUI abilityDataUI,
 			final int menuBaseOrderId, final boolean multiSelect, final int localPlayerIndex) {
@@ -430,6 +440,10 @@ public class CommandCardPopulatingAbilityVisitor implements CAbilityVisitor<Void
 				if (this.unit.getPlayerIndex() == this.localPlayerIndex) {
 					this.commandButtonListener.timedLifeBar(buff.getLevel(), iconUI.getToolTip(),
 							buff.getDurationRemaining(this.game, this.unit), buff.getDurationMax());
+					if (this.unit.isIllusion() && (iconUI != null)) {
+						this.commandButtonListener.buff(iconUI.getIcon(), buff.getLevel(), iconUI.getToolTip(),
+								iconUI.getUberTip(), buff.isPositive(), buff.isLeveled());
+					}
 				}
 			} else {
 				if (buff.isIconShowing()) {

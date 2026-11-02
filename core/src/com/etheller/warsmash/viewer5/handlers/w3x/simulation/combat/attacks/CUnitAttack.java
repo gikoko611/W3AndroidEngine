@@ -270,6 +270,10 @@ public abstract class CUnitAttack {
 		this.attackType = attackType;
 	}
 
+	public float getCooldownTimeBase() {
+		return this.cooldownTimeBase;
+	}
+
 	public void setCooldownTime(final float cooldownTime) {
 		this.cooldownTimeBase = cooldownTime;
 		computeDerivedFields();
@@ -483,6 +487,12 @@ public abstract class CUnitAttack {
 																															// cheating
 																															// here
 			}
+		}
+
+		// Measured on 1.29: the dealt factor scales an illusion's attacks only, not damage scripts make it deal.
+		if (attacker.isIllusion()) {
+			result.setDamageMultiplier(result.getDamageMultiplier() * attacker.getIllusionDamageDealtFactor());
+			result.setBonusDamage(result.getBonusDamage() * attacker.getIllusionDamageDealtFactor());
 		}
 
 		if (!result.isMiss() && (result.getDamageMultiplier() != 1) && (result.getDamageMultiplier() != 0)) {

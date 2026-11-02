@@ -44,6 +44,11 @@ public abstract class RawOpenGLTextureResource extends Texture {
 	}
 
 	@Override
+	public void dispose() {
+		this.viewer.gl.glDeleteTexture(this.handle);
+	}
+
+	@Override
 	protected void error(final Exception e) {
 		e.printStackTrace();
 	}

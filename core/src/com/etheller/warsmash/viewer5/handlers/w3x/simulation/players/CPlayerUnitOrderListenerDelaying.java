@@ -28,6 +28,14 @@ public class CPlayerUnitOrderListenerDelaying implements CPlayerUnitOrderListene
 	}
 
 	@Override
+	public void issueGroupPointOrder(final int[] unitHandleIds, final int[] abilityHandleIds, final int orderId,
+			final float[] xs, final float[] ys, final boolean queue) {
+		this.actions.add(() -> {
+			this.delegate.issueGroupPointOrder(unitHandleIds, abilityHandleIds, orderId, xs, ys, queue);
+		});
+	}
+
+	@Override
 	public void issueDropItemAtPointOrder(final int unitHandleId, final int abilityHandleId, final int orderId,
 			final int targetHandleId, final float x, final float y, final boolean queue) {
 		this.actions.add(() -> {

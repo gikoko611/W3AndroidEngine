@@ -293,6 +293,9 @@ public class CAbilityAbilityBuilderStatAuraTemplate extends AbilityGenericSingle
 
 	@Override
 	public void onTick(CSimulation game, CUnit unit) {
+		if (unit.isIllusion()) {
+			return;
+		}
 		if (loopTick % LEAVE_GROUP_TICKS == 0) {
 			List<CUnit> unitList = new ArrayList<>(auraGroup);
 			for (CUnit iter : unitList) {

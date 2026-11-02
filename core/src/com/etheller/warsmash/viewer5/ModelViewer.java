@@ -12,6 +12,7 @@ import java.util.Set;
 
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.graphics.GL20;
+import com.etheller.warsmash.viewer5.gl.DataTexture;
 import com.etheller.warsmash.common.FetchDataTypeName;
 import com.etheller.warsmash.common.LoadGenericCallback;
 import com.etheller.warsmash.datasources.DataSource;
@@ -38,6 +39,7 @@ public abstract class ModelViewer {
 	public boolean audioEnabled;
 	private final Map<Model, List<TextureMapper>> textureMappers;
 	private final Set<ResourceHandler> handlers;
+	private final List<DataTexture> dataTextures = new ArrayList<>();
 
 	public ModelViewer(final DataSource dataSource, final CanvasProvider canvas) {
 		this.dataSource = dataSource;
@@ -121,6 +123,29 @@ public abstract class ModelViewer {
 
 	public boolean removeScene(final Scene scene) {
 		return this.scenes.remove(scene);
+	}
+
+	public void trackDataTexture(final DataTexture texture) {
+		this.dataTextures.add(texture);
+	}
+
+	public void dispose() {
+		for (final Resource resource : this.resources) {
+			resource.dispose();
+		}
+		this.resources.clear();
+		this.fetchCache.clear();
+		for (final Scene scene : this.scenes) {
+			scene.dispose();
+		}
+		this.scenes.clear();
+		for (final DataTexture texture : this.dataTextures) {
+			texture.dispose();
+		}
+		this.dataTextures.clear();
+		this.gl.glDeleteBuffer(this.rectBuffer);
+		this.buffer.dispose();
+		this.webGL.dispose();
 	}
 
 	public void clear() {

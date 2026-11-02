@@ -198,6 +198,10 @@ public abstract class AbstractCAbilityBuild extends AbstractCAbility implements 
 	private static final Rectangle footprintRect = new Rectangle();
 	private static final List<CUnit> unitsToMoveAside = new ArrayList<>();
 
+	public static void releaseStaticReferences() {
+		unitsToMoveAside.clear();
+	}
+
 	public static void moveControlledUnitsAside(final CSimulation simulation, final CUnit structure,
 			final CUnit worker) {
 		final ArgbImage pathingMap = structure.getUnitType().getBuildingPathingPixelMap();

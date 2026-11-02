@@ -30,6 +30,10 @@ public class CPlayerFogOfWar {
 		this.fogOfWarBuffer = ByteBuffer.wrap(this.fogOfWar);
 	}
 
+	public void revealAll() {
+		Arrays.fill(this.fogOfWar, (byte) 0);
+	}
+
 	public int getWidth() {
 		return this.width;
 	}

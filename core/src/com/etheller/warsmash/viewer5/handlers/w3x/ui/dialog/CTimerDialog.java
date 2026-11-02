@@ -8,11 +8,15 @@ import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CSimulation;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.timers.CTimer;
 
 public class CTimerDialog {
-	private final GameUI rootFrame;
+	private GameUI rootFrame;
 	private final CTimer timer;
-	private final UIFrame timerDialogFrame;
-	private final StringFrame valueFrame;
-	private final StringFrame titleFrame;
+	private UIFrame timerDialogFrame;
+	private StringFrame valueFrame;
+	private StringFrame titleFrame;
+	private String title;
+	private boolean visible;
+	private Integer titleColor;
+	private Integer timeColor;
 
 	public CTimerDialog(final GameUI rootFrame, final CTimer timer, final UIFrame timerDialogFrame,
 			final StringFrame valueFrame, final StringFrame titleFrame) {
@@ -23,19 +27,45 @@ public class CTimerDialog {
 		this.titleFrame = titleFrame;
 	}
 
+	/** A saved game keeps what the dialog shows; the loaded game gives it new frames to show it in. */
+	public void attachFrames(final GameUI rootFrame, final UIFrame timerDialogFrame, final StringFrame valueFrame,
+			final StringFrame titleFrame) {
+		this.rootFrame = rootFrame;
+		this.timerDialogFrame = timerDialogFrame;
+		this.valueFrame = valueFrame;
+		this.titleFrame = titleFrame;
+		if (this.title != null) {
+			setTitle(this.title);
+		}
+		if (this.titleColor != null) {
+			setTitleColor(this.titleColor);
+		}
+		if (this.timeColor != null) {
+			setTimeColor(this.timeColor);
+		}
+		setVisible(this.visible);
+	}
+
+	public CTimer getTimer() {
+		return this.timer;
+	}
+
 	public void setTitleColor(final int rgba) {
+		this.titleColor = rgba;
 		if (this.titleFrame != null) {
 			this.titleFrame.setColor(new Color(rgba));
 		}
 	}
 
 	public void setTimeColor(final int rgba) {
+		this.timeColor = rgba;
 		if (this.valueFrame != null) {
 			this.valueFrame.setColor(new Color(rgba));
 		}
 	}
 
 	public void setTitle(final String title) {
+		this.title = title;
 		this.rootFrame.setText(this.titleFrame, title);
 	}
 
@@ -44,6 +74,7 @@ public class CTimerDialog {
 	}
 
 	public void setVisible(final boolean visible) {
+		this.visible = visible;
 		this.timerDialogFrame.setVisible(visible);
 	}
 

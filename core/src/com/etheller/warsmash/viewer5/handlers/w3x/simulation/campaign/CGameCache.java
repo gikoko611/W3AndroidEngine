@@ -1,5 +1,8 @@
 package com.etheller.warsmash.viewer5.handlers.w3x.simulation.campaign;
 
+import java.io.DataInputStream;
+import java.io.DataOutputStream;
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
@@ -9,26 +12,97 @@ import java.util.Map;
  * the data, keys ignore case and each value type has its own keys; FlushGameCache empties the file and leaves the
  * handle dead (stores through it are lost).
  *
- * The data lives as long as the process, which is what carries it from one mission to the next. It is not written to
- * disk: that belongs with saved games (D-100).
+ * Measured on 1.29, on disk: SaveGameCache writes every cache as it is at that moment, not only the one it names, and
+ * returns false for a dead handle; nothing else writes (a store or a flush after the last save is lost at exit);
+ * ReloadGameCachesFromDisk puts every cache back to the last save, and a new game starts from it.
  */
 public final class CGameCache {
+	private static final String STORE_FILE = "GameCaches.w3v";
+	private static final int STORE_VERSION = 1;
 	private static final Map<String, Data> FILES = new HashMap<>();
+	private static boolean loadedFromDisk;
 
 	private final String fileName;
 	private Data data;
+	private boolean flushed;
 
 	public CGameCache(final String fileName) {
+		loadFromDiskOnce();
 		this.fileName = fileName.toLowerCase(Locale.ROOT);
 		this.data = FILES.computeIfAbsent(this.fileName, key -> new Data());
 	}
 
 	public void flush() {
-		if (this.data != null) {
-			this.data.dead = true;
-			FILES.remove(this.fileName);
-		}
+		FILES.remove(this.fileName);
 		this.data = null;
+		this.flushed = true;
+	}
+
+	public boolean save() {
+		return live() && saveAllToDisk();
+	}
+
+	public static boolean saveAllToDisk() {
+		return CSaveStorage.writeAtomically(CSaveStorage.profileFile(STORE_FILE), CGameCache::writeAll);
+	}
+
+	public static void reloadAllFromDisk() {
+		final Map<String, Data> saved = new HashMap<>();
+		CSaveStorage.read(CSaveStorage.profileFile(STORE_FILE), in -> readAll(in, saved));
+		FILES.clear();
+		FILES.putAll(saved);
+		loadedFromDisk = true;
+	}
+
+	private static void loadFromDiskOnce() {
+		if (!loadedFromDisk) {
+			reloadAllFromDisk();
+		}
+	}
+
+	/**
+	 * Measured on 1.29: after ChangeLevel the next map sees only what was saved; stores after the last save and caches
+	 * never saved are gone.
+	 */
+	public static void dropUnsaved() {
+		forgetLoaded();
+	}
+
+	/** Another player profile has its own caches. */
+	static void forgetLoaded() {
+		FILES.clear();
+		loadedFromDisk = false;
+	}
+
+	public static void writeAll(final DataOutputStream out) throws IOException {
+		out.writeInt(STORE_VERSION);
+		out.writeInt(FILES.size());
+		for (final Map.Entry<String, Data> file : FILES.entrySet()) {
+			out.writeUTF(file.getKey());
+			file.getValue().write(out);
+		}
+	}
+
+	private static void readAll(final DataInputStream in, final Map<String, Data> into) throws IOException {
+		if (in.readInt() != STORE_VERSION) {
+			throw new IOException("Unknown game cache version");
+		}
+		final int files = in.readInt();
+		for (int i = 0; i < files; i++) {
+			final String name = in.readUTF();
+			final Data data = new Data();
+			data.read(in);
+			into.put(name, data);
+		}
+	}
+
+	/** A saved game carries the caches of the moment it was saved. */
+	public static void restoreAll(final DataInputStream in) throws IOException {
+		final Map<String, Data> saved = new HashMap<>();
+		readAll(in, saved);
+		FILES.clear();
+		FILES.putAll(saved);
+		loadedFromDisk = true;
 	}
 
 	public void flushMission(final String mission) {
@@ -126,8 +200,13 @@ public final class CGameCache {
 		}
 	}
 
+	/** A reload or a loaded game replaces the data behind every handle that was not flushed. */
 	private boolean live() {
-		return (this.data != null) && !this.data.dead;
+		if (this.flushed) {
+			return false;
+		}
+		this.data = FILES.computeIfAbsent(this.fileName, key -> new Data());
+		return true;
 	}
 
 	private static String key(final String text) {
@@ -157,6 +236,56 @@ public final class CGameCache {
 		private final Map<String, Map<String, Boolean>> booleans = new HashMap<>();
 		private final Map<String, Map<String, String>> strings = new HashMap<>();
 		private final Map<String, Map<String, CStoredUnit>> units = new HashMap<>();
-		private boolean dead;
+
+		private void write(final DataOutputStream out) throws IOException {
+			writeValues(out, this.integers, DataOutputStream::writeInt);
+			writeValues(out, this.reals, DataOutputStream::writeFloat);
+			writeValues(out, this.booleans, DataOutputStream::writeBoolean);
+			writeValues(out, this.strings, (stream, text) -> stream.writeUTF(text));
+			writeValues(out, this.units, (stream, unit) -> unit.write(stream));
+		}
+
+		private void read(final DataInputStream in) throws IOException {
+			readValues(in, this.integers, DataInputStream::readInt);
+			readValues(in, this.reals, DataInputStream::readFloat);
+			readValues(in, this.booleans, DataInputStream::readBoolean);
+			readValues(in, this.strings, stream -> stream.readUTF());
+			readValues(in, this.units, CStoredUnit::read);
+		}
+	}
+
+	private interface ValueWriter<T> {
+		void write(DataOutputStream out, T value) throws IOException;
+	}
+
+	private interface ValueReader<T> {
+		T read(DataInputStream in) throws IOException;
+	}
+
+	private static <T> void writeValues(final DataOutputStream out, final Map<String, Map<String, T>> values,
+			final ValueWriter<T> writer) throws IOException {
+		out.writeInt(values.size());
+		for (final Map.Entry<String, Map<String, T>> mission : values.entrySet()) {
+			out.writeUTF(mission.getKey());
+			out.writeInt(mission.getValue().size());
+			for (final Map.Entry<String, T> entry : mission.getValue().entrySet()) {
+				out.writeUTF(entry.getKey());
+				writer.write(out, entry.getValue());
+			}
+		}
+	}
+
+	private static <T> void readValues(final DataInputStream in, final Map<String, Map<String, T>> values,
+			final ValueReader<T> reader) throws IOException {
+		final int missions = in.readInt();
+		for (int i = 0; i < missions; i++) {
+			final Map<String, T> mission = new HashMap<>();
+			values.put(in.readUTF(), mission);
+			final int entries = in.readInt();
+			for (int j = 0; j < entries; j++) {
+				final String key = in.readUTF();
+				mission.put(key, reader.read(in));
+			}
+		}
 	}
 }

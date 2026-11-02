@@ -9,6 +9,7 @@ import com.badlogic.gdx.math.Rectangle;
 import com.badlogic.gdx.math.Vector2;
 import com.etheller.warsmash.viewer5.handlers.w3x.rendersim.RenderUnit;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.trigger.enumtypes.CCameraField;
+import com.etheller.warsmash.viewer5.handlers.w3x.ui.GameOptions;
 
 public final class GameCameraManager extends CameraManager {
 	private Vector2 quickPosition;
@@ -258,6 +259,10 @@ public final class GameCameraManager extends CameraManager {
 		else {
 			final float velocityX;
 			final float velocityY;
+			final float scrollFactor = this.cameraPanControls.up || this.cameraPanControls.down
+					|| this.cameraPanControls.left || this.cameraPanControls.right
+							? GameOptions.get().getKeyboardScrollFactor()
+							: GameOptions.get().getMouseScrollFactor();
 			up |= this.cameraPanControls.up;
 			down |= this.cameraPanControls.down;
 			left |= this.cameraPanControls.left;
@@ -294,7 +299,7 @@ public final class GameCameraManager extends CameraManager {
 			else {
 				velocityX = 0;
 			}
-			this.target.add(velocityX * deltaTime, velocityY * deltaTime, 0);
+			this.target.add(velocityX * scrollFactor * deltaTime, velocityY * scrollFactor * deltaTime, 0);
 		}
 		if (this.cameraBounds != null) {
 			if (this.target.x < this.cameraBounds.x) {

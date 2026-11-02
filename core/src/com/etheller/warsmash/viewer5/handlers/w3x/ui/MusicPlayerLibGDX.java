@@ -4,10 +4,12 @@ import java.util.ArrayList;
 import java.util.List;
 
 import com.badlogic.gdx.audio.Music;
+import com.etheller.warsmash.util.SessionResources;
 import com.etheller.warsmash.datasources.DataSource;
 import com.etheller.warsmash.units.DataTable;
 import com.etheller.warsmash.util.DataSourceFileHandle;
 import com.etheller.warsmash.viewer5.gl.Extensions;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.sound.CSoundMixer;
 
 public class MusicPlayerLibGDX implements MusicPlayer {
 	private static final float GAME_MSECS_DIVISOR = 1000f;
@@ -74,15 +76,19 @@ public class MusicPlayerLibGDX implements MusicPlayer {
 
 	@Override
 	public void setVolume(int volume) {
-		final float volumeFloat = volume / 127f;
+		this.volume = volume / 127f;
+		optionsChanged();
+	}
+
+	@Override
+	public void optionsChanged() {
 		if (this.currentMusics != null) {
 			for (final Music music : this.currentMusics) {
 				if (music != null) {
-					music.setVolume(volumeFloat);
+					music.setVolume(this.volume * CSoundMixer.getMusicOptionScale());
 				}
 			}
 		}
-		this.volume = volumeFloat;
 	}
 
 	@Override
@@ -134,8 +140,9 @@ public class MusicPlayerLibGDX implements MusicPlayer {
 		for (int i = 0; i < musics.length; i++) {
 			final String path = findMusicFile(this.dataSource, musics[i]);
 			if (path != null) {
-				final Music newMusic = Extensions.audio.newMusic(new DataSourceFileHandle(this.dataSource, path));
-				newMusic.setVolume(this.volume);
+				final Music newMusic = SessionResources
+						.track(Extensions.audio.newMusic(new DataSourceFileHandle(this.dataSource, path)));
+				newMusic.setVolume(this.volume * CSoundMixer.getMusicOptionScale());
 				this.currentMusics[i] = newMusic;
 				validMusicCount++;
 			}

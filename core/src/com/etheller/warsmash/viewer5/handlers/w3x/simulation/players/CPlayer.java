@@ -84,6 +84,8 @@ public class CPlayer extends CBasePlayer {
 	// which fields shouldn't be persisted if we do game state save later
 	private transient CPlayerStateNotifier stateNotifier = new CPlayerStateNotifier();
 	private float handicapXP = 1.0f;
+	private float handicapDamage = 1.0f;
+	private float handicapReviveTime = 1.0f;
 	private final CPlayerFogOfWar fogOfWar;
 	private JassAIEnvironment aiScript;
 
@@ -180,6 +182,7 @@ public class CPlayer extends CBasePlayer {
 	public int addHarvestedGold(final CSimulation game, final int gold) {
 		final int received = game.getGameplayConstants().applyUpkeepGoldTax(gold, this.foodUsed);
 		addGold(received);
+		this.goldGathered += gold;
 		addScore(CPlayerScore.GOLD_MINED_TOTAL, gold);
 		addScore(CPlayerScore.GOLD_MINED_UPKEEP, received);
 		addScore(CPlayerScore.GOLD_LOST_UPKEEP, gold - received);
@@ -189,6 +192,7 @@ public class CPlayer extends CBasePlayer {
 	public int addHarvestedLumber(final CSimulation game, final int lumber) {
 		final int received = game.getGameplayConstants().applyUpkeepLumberTax(lumber, this.foodUsed);
 		addLumber(received);
+		this.lumberGathered += lumber;
 		addScore(CPlayerScore.LUMBER_TOTAL, lumber);
 		addScore(CPlayerScore.LUMBER_LOST_UPKEEP, lumber - received);
 		return received;
@@ -258,6 +262,10 @@ public class CPlayer extends CBasePlayer {
 
 	// Measured: the tech percentage is the researched upgrade levels of the player's race over all of them, rounded down.
 	private void scoreResearch(final CSimulation simulation, final CUpgradeType upgradeType, final int levels) {
+		// Neutral slots have no race; at game end they inherit unfinished research.
+		if (this.race == null) {
+			return;
+		}
 		final CRaceManagerEntry raceEntry = WarsmashConstants.RACE_MANAGER.tryGet(this.race);
 		if ((levels == 0) || (raceEntry == null)
 				|| (upgradeType.getUnitRace() != CUnitRace.parseRace(raceEntry.getKey()))) {
@@ -506,6 +514,17 @@ public class CPlayer extends CBasePlayer {
 		if (eventList != null) {
 			for (final CPlayerEvent event : eventList) {
 				event.fire(this, eventScopeBuilder.create(eventType, event.getTrigger(), this));
+			}
+		}
+	}
+
+	public void fireChatEvents(final String message) {
+		final List<CPlayerEvent> eventList = getEventList(JassGameEventsWar3.EVENT_PLAYER_CHAT);
+		if (eventList != null) {
+			for (final CPlayerEvent event : new ArrayList<>(eventList)) {
+				if (event instanceof CPlayerChatEvent) {
+					((CPlayerChatEvent) event).fireChat(message);
+				}
 			}
 		}
 	}
@@ -861,6 +880,22 @@ public class CPlayer extends CBasePlayer {
 
 	public float getHandicapXP() {
 		return this.handicapXP;
+	}
+
+	public void setHandicapDamage(final float handicapDamage) {
+		this.handicapDamage = handicapDamage;
+	}
+
+	public float getHandicapDamage() {
+		return this.handicapDamage;
+	}
+
+	public void setHandicapReviveTime(final float handicapReviveTime) {
+		this.handicapReviveTime = handicapReviveTime;
+	}
+
+	public float getHandicapReviveTime() {
+		return this.handicapReviveTime;
 	}
 
 	public void fireAbilityEffectEventsTarget(final CAbility spellAbility, final CUnit spellAbilityUnit,

@@ -1,5 +1,8 @@
 package com.etheller.warsmash.viewer5.handlers.w3x.simulation.campaign;
 
+import java.io.DataInputStream;
+import java.io.DataOutputStream;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -55,6 +58,53 @@ public final class CStoredUnit {
 				}
 			}
 		}
+	}
+
+	private CStoredUnit(final War3ID typeId) {
+		this.typeId = typeId;
+	}
+
+	void write(final DataOutputStream out) throws IOException {
+		out.writeInt(this.typeId.getValue());
+		out.writeBoolean(this.hero);
+		out.writeInt(this.xp);
+		out.writeInt(this.skillPoints);
+		out.writeInt(this.strength);
+		out.writeInt(this.agility);
+		out.writeInt(this.intelligence);
+		out.writeInt(this.skills.size());
+		for (final StoredSkill skill : this.skills) {
+			out.writeInt(skill.abilityId.getValue());
+			out.writeInt(skill.level);
+		}
+		out.writeInt(this.items.size());
+		for (final StoredItem item : this.items) {
+			out.writeInt(item.typeId.getValue());
+			out.writeInt(item.charges);
+			out.writeInt(item.slot);
+		}
+	}
+
+	static CStoredUnit read(final DataInputStream in) throws IOException {
+		final CStoredUnit unit = new CStoredUnit(new War3ID(in.readInt()));
+		unit.hero = in.readBoolean();
+		unit.xp = in.readInt();
+		unit.skillPoints = in.readInt();
+		unit.strength = in.readInt();
+		unit.agility = in.readInt();
+		unit.intelligence = in.readInt();
+		final int skillCount = in.readInt();
+		for (int i = 0; i < skillCount; i++) {
+			final War3ID abilityId = new War3ID(in.readInt());
+			unit.skills.add(new StoredSkill(abilityId, in.readInt()));
+		}
+		final int itemCount = in.readInt();
+		for (int i = 0; i < itemCount; i++) {
+			final War3ID itemType = new War3ID(in.readInt());
+			final int charges = in.readInt();
+			unit.items.add(new StoredItem(itemType, charges, in.readInt()));
+		}
+		return unit;
 	}
 
 	public CUnit restore(final CSimulation game, final int playerIndex, final float x, final float y,

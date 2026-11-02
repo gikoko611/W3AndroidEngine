@@ -13,7 +13,7 @@ import com.etheller.warsmash.viewer5.handlers.w3x.simulation.unit.StateModBuffTy
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.util.SimulationRenderComponent;
 
 public class ABBuffStun extends ABGenericTimedBuff {
-	private static StateModBuff stunBuff = new StateModBuff(StateModBuffType.STUN, 1);
+	private static final StateModBuff stunBuff = new StateModBuff(StateModBuffType.STUN, 1);
 
 	private NonStackingFx fx;
 	private SimulationRenderComponent sfx;

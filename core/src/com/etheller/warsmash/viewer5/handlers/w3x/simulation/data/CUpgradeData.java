@@ -98,9 +98,13 @@ public class CUpgradeData {
 		return total;
 	}
 
+	public boolean isOutOfMapVersion(final War3ID typeId) {
+		return WarsmashConstants.isOutOfMapVersion(this.upgradeData.get(typeId));
+	}
+
 	public CUpgradeType getType(final War3ID typeId) {
 		final GameObject upgradeType = this.upgradeData.get(typeId);
-		if (upgradeType == null) {
+		if ((upgradeType == null) || WarsmashConstants.isOutOfMapVersion(upgradeType)) {
 			return null;
 		}
 		return getUpgradeTypeInstance(typeId, upgradeType);

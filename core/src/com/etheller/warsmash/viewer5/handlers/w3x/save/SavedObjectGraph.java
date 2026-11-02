@@ -1,0 +1,1025 @@
+package com.etheller.warsmash.viewer5.handlers.w3x.save;
+
+import com.google.gson.internal.LinkedTreeMap;
+
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.DataInputStream;
+import java.io.DataOutputStream;
+import java.io.IOException;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
+import java.io.Serializable;
+import java.lang.reflect.Array;
+import java.lang.reflect.Field;
+import java.lang.reflect.Modifier;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.EnumMap;
+import java.util.EnumSet;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.IdentityHashMap;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.TreeMap;
+import java.util.TreeSet;
+
+/**
+ * Writes and reads a whole graph of game objects by their fields, so that the hundreds of ability, buff and behavior
+ * classes need no code of their own. Fields are stored by name and type, and a save whose classes no longer match this
+ * engine, with a field missing, added or changed, is refused when it is read.
+ *
+ * Objects get numbers in the order they are first met. The table of what each number is comes after the bodies in the
+ * stream because bodies are what discover objects; reading takes the table first, allocates everything, then fills.
+ * Hash collections are filled last, since a key's hash can depend on fields of objects read later.
+ */
+public final class SavedObjectGraph {
+	private static final byte KIND_OBJECT = 0;
+	private static final byte KIND_ARRAY = 1;
+	private static final byte KIND_STRING = 2;
+	private static final byte KIND_BOX = 3;
+	private static final byte KIND_ENUM = 4;
+	private static final byte KIND_CLASS = 5;
+	private static final byte KIND_EXTERNAL = 6;
+	private static final byte KIND_LIST = 7;
+	private static final byte KIND_HASH_COLLECTION = 8;
+	private static final byte KIND_MAP = 9;
+	private static final byte KIND_ENUM_MAP = 10;
+	private static final byte KIND_ENUM_SET = 11;
+	private static final byte KIND_SERIALIZED = 12;
+	private static final byte KIND_BYTE_BUFFER = 13;
+
+	private static final int DROPPED = -1;
+
+	private static final Map<Class<?>, List<Field>> FIELDS = new HashMap<>();
+
+	private SavedObjectGraph() {
+	}
+
+	public interface Rules {
+		/** A name for an object the loading game already has (the same one, found again by this name), or null. */
+		String externalName(Object object);
+
+		/** Whether an external object's fields are stored too and put back into the existing object when loading. */
+		boolean isInPlace(Object object);
+
+		/** Whether references to this object are left out, to be set again after loading. */
+		boolean isDropped(Object object);
+
+		/** What to store instead, for objects that cannot be stored themselves but stand for something. */
+		Object replace(Object object);
+
+		Object resolveExternal(String name);
+
+		void reportDropped(Class<?> holder, String field, Object object);
+	}
+
+	private static List<Field> fieldsOf(final Class<?> type) {
+		List<Field> fields = FIELDS.get(type);
+		if (fields == null) {
+			fields = new ArrayList<>();
+			for (Class<?> current = type; (current != null) && !current.getName().startsWith("java."); current = current
+					.getSuperclass()) {
+				for (final Field field : current.getDeclaredFields()) {
+					final int modifiers = field.getModifiers();
+					if (!Modifier.isStatic(modifiers)) {
+						field.setAccessible(true);
+						fields.add(field);
+					}
+				}
+			}
+			FIELDS.put(type, fields);
+		}
+		return fields;
+	}
+
+	/** The type is part of the key: a field that changed type would otherwise be read with the wrong width. */
+	private static String fieldKey(final Field field) {
+		return field.getDeclaringClass().getName() + "#" + field.getName() + "#" + field.getType().getName();
+	}
+
+	public static final class Writer {
+		private final Rules rules;
+		private final DataOutputStream bodies;
+		private final ByteArrayOutputStream tableBytes = new ByteArrayOutputStream();
+		private final DataOutputStream table = new DataOutputStream(this.tableBytes);
+		private final IdentityHashMap<Object, Integer> ids = new IdentityHashMap<>();
+		private final ArrayDeque<Object> queue = new ArrayDeque<>();
+		private final Map<Class<?>, Integer> classIds = new HashMap<>();
+		private int nextId = 1;
+		private Class<?> currentHolder;
+		private String currentField;
+
+		public Writer(final Rules rules, final DataOutputStream bodies) {
+			this.rules = rules;
+			this.bodies = bodies;
+		}
+
+		public void writeRoot(final Object root) throws IOException {
+			this.bodies.writeInt(ref(root));
+			while (!this.queue.isEmpty()) {
+				writeBody(this.queue.removeFirst());
+			}
+		}
+
+		/** Goes after the bodies; a reader needs it first, so the caller stores it where it can be found. */
+		public byte[] finishTable() throws IOException {
+			this.table.flush();
+			final ByteArrayOutputStream result = new ByteArrayOutputStream();
+			final DataOutputStream out = new DataOutputStream(result);
+			out.writeInt(this.nextId);
+			out.writeInt(this.classIds.size());
+			final Class<?>[] classes = new Class<?>[this.classIds.size()];
+			for (final Map.Entry<Class<?>, Integer> entry : this.classIds.entrySet()) {
+				classes[entry.getValue()] = entry.getKey();
+			}
+			for (final Class<?> type : classes) {
+				out.writeUTF(type.getName());
+				final List<Field> fields = type.isArray() || type.isEnum() ? new ArrayList<>() : fieldsOf(type);
+				out.writeInt(fields.size());
+				for (final Field field : fields) {
+					out.writeUTF(fieldKey(field));
+				}
+			}
+			out.write(this.tableBytes.toByteArray());
+			return result.toByteArray();
+		}
+
+		public int objectCount() {
+			return this.nextId - 1;
+		}
+
+		private int classId(final Class<?> type) {
+			Integer id = this.classIds.get(type);
+			if (id == null) {
+				id = this.classIds.size();
+				this.classIds.put(type, id);
+			}
+			return id;
+		}
+
+		private int ref(final Object given) throws IOException {
+			if (given == null) {
+				return 0;
+			}
+			final Object object = this.rules.replace(given);
+			if (object == null) {
+				return 0;
+			}
+			final Integer known = this.ids.get(object);
+			if (known != null) {
+				return known;
+			}
+			final String externalName = this.rules.externalName(object);
+			if ((externalName == null) && (this.rules.isDropped(object) || isUnstorable(object))) {
+				this.rules.reportDropped(this.currentHolder, this.currentField, object);
+				return DROPPED;
+			}
+			final int id = this.nextId++;
+			this.ids.put(object, id);
+			writeTableEntry(object, externalName);
+			return id;
+		}
+
+		/**
+		 * Platform objects and lambdas cannot come back from their fields. Whatever is left to hit this is reported by
+		 * the rules; the game itself must not hold such state in what a save reaches.
+		 */
+		private static boolean isUnstorable(final Object object) {
+			final Class<?> type = object.getClass();
+			if (type.isArray() || (object instanceof String) || (object instanceof Number) || (object instanceof Boolean)
+					|| (object instanceof Character) || (object instanceof Enum) || (object instanceof Class)) {
+				return false;
+			}
+			final String name = type.getName();
+			if (name.contains("$$Lambda") || name.contains("ExternalSyntheticLambda")) {
+				return true;
+			}
+			return name.startsWith("java.") && !isListType(type) && !isHashCollection(type) && !isMapType(type)
+					&& !(object instanceof EnumMap) && !(object instanceof EnumSet) && !(object instanceof ByteBuffer)
+					&& !(object instanceof Serializable);
+		}
+
+		private void writeTableEntry(final Object object, final String externalName) throws IOException {
+			final Class<?> type = object.getClass();
+			if (externalName != null) {
+				this.table.writeByte(KIND_EXTERNAL);
+				this.table.writeUTF(externalName);
+				if (this.rules.isInPlace(object)) {
+					classId(type);
+				}
+				this.queue.addLast(object);
+			}
+			else if (object instanceof String) {
+				writeLongUtf(this.table, (String) object, KIND_STRING);
+			}
+			else if (object instanceof Number) {
+				this.table.writeByte(KIND_BOX);
+				if (object instanceof Integer) {
+					this.table.writeByte('I');
+					this.table.writeInt((Integer) object);
+				}
+				else if (object instanceof Float) {
+					this.table.writeByte('F');
+					this.table.writeFloat((Float) object);
+				}
+				else if (object instanceof Double) {
+					this.table.writeByte('D');
+					this.table.writeDouble((Double) object);
+				}
+				else if (object instanceof Long) {
+					this.table.writeByte('J');
+					this.table.writeLong((Long) object);
+				}
+				else if (object instanceof Short) {
+					this.table.writeByte('S');
+					this.table.writeShort((Short) object);
+				}
+				else if (object instanceof Byte) {
+					this.table.writeByte('B');
+					this.table.writeByte((Byte) object);
+				}
+				else {
+					throw new IOException("Unsupported number " + type);
+				}
+			}
+			else if (object instanceof Boolean) {
+				this.table.writeByte(KIND_BOX);
+				this.table.writeByte('Z');
+				this.table.writeBoolean((Boolean) object);
+			}
+			else if (object instanceof Character) {
+				this.table.writeByte(KIND_BOX);
+				this.table.writeByte('C');
+				this.table.writeChar((Character) object);
+			}
+			else if (object instanceof Enum) {
+				this.table.writeByte(KIND_ENUM);
+				this.table.writeInt(classId(((Enum<?>) object).getDeclaringClass()));
+				this.table.writeUTF(((Enum<?>) object).name());
+			}
+			else if (object instanceof Class) {
+				this.table.writeByte(KIND_CLASS);
+				this.table.writeUTF(((Class<?>) object).getName());
+			}
+			else if (type.isArray()) {
+				this.table.writeByte(KIND_ARRAY);
+				this.table.writeInt(classId(type));
+				this.table.writeInt(Array.getLength(object));
+				this.queue.addLast(object);
+			}
+			else if (isListType(type)) {
+				this.table.writeByte(KIND_LIST);
+				this.table.writeUTF(listName(type));
+				this.queue.addLast(object);
+			}
+			else if (isHashCollection(type)) {
+				this.table.writeByte(KIND_HASH_COLLECTION);
+				this.table.writeUTF(type.getName().startsWith("java.util.Collections$") ? HashSet.class.getName()
+						: type.getName());
+				this.queue.addLast(object);
+			}
+			else if (isMapType(type)) {
+				this.table.writeByte(KIND_MAP);
+				this.table.writeUTF(mapName(type));
+				this.queue.addLast(object);
+			}
+			else if (object instanceof EnumMap) {
+				writeEmptyAwareEnumEntry(object, KIND_ENUM_MAP, ((EnumMap<?, ?>) object).isEmpty()
+						? null
+						: ((EnumMap<?, ?>) object).keySet().iterator().next().getDeclaringClass());
+				this.queue.addLast(object);
+			}
+			else if (object instanceof EnumSet) {
+				writeEmptyAwareEnumEntry(object, KIND_ENUM_SET, ((EnumSet<?>) object).isEmpty()
+						? null
+						: ((Enum<?>) ((EnumSet<?>) object).iterator().next()).getDeclaringClass());
+				this.queue.addLast(object);
+			}
+			else if (object instanceof ByteBuffer) {
+				final ByteBuffer buffer = ((ByteBuffer) object).duplicate();
+				this.table.writeByte(KIND_BYTE_BUFFER);
+				this.table.writeBoolean(buffer.isDirect());
+				this.table.writeBoolean(buffer.order() == ByteOrder.LITTLE_ENDIAN);
+				this.table.writeInt(buffer.capacity());
+				this.table.writeInt(buffer.position());
+				this.table.writeInt(buffer.limit());
+				buffer.clear();
+				final byte[] bytes = new byte[buffer.remaining()];
+				buffer.get(bytes);
+				this.table.write(bytes);
+			}
+			else if (type.getName().startsWith("java.") && (object instanceof Serializable)) {
+				this.table.writeByte(KIND_SERIALIZED);
+				final byte[] bytes = javaSerialize(object);
+				this.table.writeInt(bytes.length);
+				this.table.write(bytes);
+			}
+			else {
+				this.table.writeByte(KIND_OBJECT);
+				this.table.writeInt(classId(type));
+				this.queue.addLast(object);
+			}
+		}
+
+		/** An empty EnumMap or EnumSet does not tell its key type, but it can go through Java's own form as it is. */
+		private void writeEmptyAwareEnumEntry(final Object object, final byte kind, final Class<?> keyType)
+				throws IOException {
+			this.table.writeByte(kind);
+			if (keyType != null) {
+				this.table.writeBoolean(true);
+				this.table.writeUTF(keyType.getName());
+			}
+			else {
+				this.table.writeBoolean(false);
+				final byte[] bytes = javaSerialize(object);
+				this.table.writeInt(bytes.length);
+				this.table.write(bytes);
+			}
+		}
+
+		private void writeBody(final Object object) throws IOException {
+			final Class<?> type = object.getClass();
+			this.currentHolder = type;
+			this.currentField = null;
+			if (this.rules.externalName(object) != null) {
+				writeExternalBody(object);
+			}
+			else if (type.isArray()) {
+				writeArrayBody(object, type.getComponentType());
+			}
+			else if (isMapType(type) || (object instanceof EnumMap)) {
+				writeMapContents((Map<?, ?>) object);
+			}
+			else if (isListType(type) || isHashCollection(type) || (object instanceof EnumSet)) {
+				writeCollectionContents((Collection<?>) object);
+			}
+			else {
+				writeFields(object, fieldsOf(type));
+				if (object instanceof Collection) {
+					writeCollectionContents((Collection<?>) object);
+				}
+				else if (object instanceof Map) {
+					writeMapContents((Map<?, ?>) object);
+				}
+			}
+		}
+
+		private void writeMapContents(final Map<?, ?> map) throws IOException {
+			final List<Integer> entries = new ArrayList<>(map.size() * 2);
+			for (final Map.Entry<?, ?> entry : map.entrySet()) {
+				final int key = ref(entry.getKey());
+				final int value = ref(entry.getValue());
+				if ((key != DROPPED) && (value != DROPPED)) {
+					entries.add(key);
+					entries.add(value);
+				}
+			}
+			this.bodies.writeInt(entries.size() / 2);
+			for (final int entry : entries) {
+				this.bodies.writeInt(entry);
+			}
+		}
+
+		private void writeCollectionContents(final Collection<?> collection) throws IOException {
+			final List<Integer> elements = new ArrayList<>(collection.size());
+			for (final Object element : collection) {
+				final int id = ref(element);
+				if (id != DROPPED) {
+					elements.add(id);
+				}
+			}
+			this.bodies.writeInt(elements.size());
+			for (final int element : elements) {
+				this.bodies.writeInt(element);
+			}
+		}
+
+		private void writeExternalBody(final Object object) throws IOException {
+			final boolean inPlace = this.rules.isInPlace(object);
+			this.bodies.writeBoolean(inPlace);
+			if (inPlace) {
+				writeFields(object, fieldsOf(object.getClass()));
+			}
+		}
+
+		private void writeFields(final Object object, final List<Field> fields) throws IOException {
+			for (final Field field : fields) {
+				this.currentField = field.getName();
+				final Class<?> fieldType = field.getType();
+				try {
+					if (fieldType == int.class) {
+						this.bodies.writeInt(field.getInt(object));
+					}
+					else if (fieldType == float.class) {
+						this.bodies.writeFloat(field.getFloat(object));
+					}
+					else if (fieldType == boolean.class) {
+						this.bodies.writeBoolean(field.getBoolean(object));
+					}
+					else if (fieldType == long.class) {
+						this.bodies.writeLong(field.getLong(object));
+					}
+					else if (fieldType == double.class) {
+						this.bodies.writeDouble(field.getDouble(object));
+					}
+					else if (fieldType == short.class) {
+						this.bodies.writeShort(field.getShort(object));
+					}
+					else if (fieldType == byte.class) {
+						this.bodies.writeByte(field.getByte(object));
+					}
+					else if (fieldType == char.class) {
+						this.bodies.writeChar(field.getChar(object));
+					}
+					else {
+						this.bodies.writeInt(ref(field.get(object)));
+					}
+				}
+				catch (final IllegalAccessException exc) {
+					throw new IOException(exc);
+				}
+			}
+		}
+
+		private void writeArrayBody(final Object array, final Class<?> componentType) throws IOException {
+			final int length = Array.getLength(array);
+			if (componentType == int.class) {
+				for (final int value : (int[]) array) {
+					this.bodies.writeInt(value);
+				}
+			}
+			else if (componentType == float.class) {
+				for (final float value : (float[]) array) {
+					this.bodies.writeFloat(value);
+				}
+			}
+			else if (componentType == boolean.class) {
+				for (final boolean value : (boolean[]) array) {
+					this.bodies.writeBoolean(value);
+				}
+			}
+			else if (componentType == byte.class) {
+				this.bodies.write((byte[]) array);
+			}
+			else if (componentType == short.class) {
+				for (final short value : (short[]) array) {
+					this.bodies.writeShort(value);
+				}
+			}
+			else if (componentType == long.class) {
+				for (final long value : (long[]) array) {
+					this.bodies.writeLong(value);
+				}
+			}
+			else if (componentType == double.class) {
+				for (final double value : (double[]) array) {
+					this.bodies.writeDouble(value);
+				}
+			}
+			else if (componentType == char.class) {
+				for (final char value : (char[]) array) {
+					this.bodies.writeChar(value);
+				}
+			}
+			else {
+				for (int i = 0; i < length; i++) {
+					final int id = ref(Array.get(array, i));
+					this.bodies.writeInt(id == DROPPED ? 0 : id);
+				}
+			}
+		}
+	}
+
+	private static void writeLongUtf(final DataOutputStream out, final String text, final byte kind)
+			throws IOException {
+		out.writeByte(kind);
+		final byte[] bytes = text.getBytes("UTF-8");
+		out.writeInt(bytes.length);
+		out.write(bytes);
+	}
+
+	private static byte[] javaSerialize(final Object object) throws IOException {
+		final ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+		try (ObjectOutputStream out = new ObjectOutputStream(bytes)) {
+			out.writeObject(object);
+		}
+		return bytes.toByteArray();
+	}
+
+	private static Object javaDeserialize(final byte[] bytes) throws IOException {
+		try (ObjectInputStream in = new ObjectInputStream(new ByteArrayInputStream(bytes))) {
+			return in.readObject();
+		}
+		catch (final ClassNotFoundException exc) {
+			throw new IOException(exc);
+		}
+	}
+
+	private static boolean isListType(final Class<?> type) {
+		return (type == ArrayList.class) || (type == LinkedList.class) || (type == ArrayDeque.class)
+				|| type.getName().startsWith("java.util.Collections$") && Collection.class.isAssignableFrom(type)
+						&& !Set.class.isAssignableFrom(type)
+				|| type.getName().equals("java.util.Arrays$ArrayList")
+				|| type.getName().startsWith("java.util.ImmutableCollections$List");
+	}
+
+	private static String listName(final Class<?> type) {
+		return (type == LinkedList.class) || (type == ArrayDeque.class) ? type.getName() : ArrayList.class.getName();
+	}
+
+	private static boolean isHashCollection(final Class<?> type) {
+		return (type == HashSet.class) || (type == LinkedHashSet.class) || (type == TreeSet.class)
+				|| type.getName().startsWith("java.util.Collections$") && Set.class.isAssignableFrom(type);
+	}
+
+	private static boolean isMapType(final Class<?> type) {
+		return (type == HashMap.class) || (type == LinkedHashMap.class) || (type == TreeMap.class) || (type == LinkedTreeMap.class)
+				|| type.getName().startsWith("java.util.Collections$") && Map.class.isAssignableFrom(type);
+	}
+
+	private static String mapName(final Class<?> type) {
+		return (type == LinkedHashMap.class) || (type == TreeMap.class) || (type == LinkedTreeMap.class) ? type.getName() : HashMap.class.getName();
+	}
+
+	/**
+	 * Fails when the table names a class or field this engine build no longer has. Changes nothing.
+	 */
+	public static void checkClassesMatch(final byte[] tableBytes) throws IOException {
+		final DataInputStream in = new DataInputStream(new ByteArrayInputStream(tableBytes));
+		in.readInt();
+		final int classCount = in.readInt();
+		for (int i = 0; i < classCount; i++) {
+			final String name = in.readUTF();
+			final String[] fieldKeys = new String[in.readInt()];
+			for (int j = 0; j < fieldKeys.length; j++) {
+				fieldKeys[j] = in.readUTF();
+			}
+			new ClassInfo(name, fieldKeys).fields();
+		}
+	}
+
+	public static final class Reader {
+		private final Rules rules;
+		private final DataInputStream bodies;
+		private Object[] objects;
+		private byte[] kinds;
+		private ClassInfo[] classes;
+		private int[] classOfObject;
+		private final List<Runnable> deferred = new ArrayList<>();
+
+		public Reader(final Rules rules, final byte[] tableBytes, final DataInputStream bodies) throws IOException {
+			this.rules = rules;
+			this.bodies = bodies;
+			readTable(new DataInputStream(new ByteArrayInputStream(tableBytes)));
+		}
+
+		private void readTable(final DataInputStream in) throws IOException {
+			final int count = in.readInt();
+			this.objects = new Object[count];
+			this.kinds = new byte[count];
+			this.classOfObject = new int[count];
+			final int classCount = in.readInt();
+			this.classes = new ClassInfo[classCount];
+			for (int i = 0; i < classCount; i++) {
+				final String name = in.readUTF();
+				final int fieldCount = in.readInt();
+				final String[] fieldNames = new String[fieldCount];
+				for (int j = 0; j < fieldCount; j++) {
+					fieldNames[j] = in.readUTF();
+				}
+				this.classes[i] = new ClassInfo(name, fieldNames);
+			}
+			for (int id = 1; id < count; id++) {
+				final byte kind = in.readByte();
+				this.kinds[id] = kind;
+				this.objects[id] = allocate(id, kind, in);
+			}
+		}
+
+		private Object allocate(final int id, final byte kind, final DataInputStream in) throws IOException {
+			try {
+				switch (kind) {
+				case KIND_EXTERNAL:
+					final Object external = this.rules.resolveExternal(in.readUTF());
+					return external;
+				case KIND_STRING:
+					final byte[] utf = new byte[in.readInt()];
+					in.readFully(utf);
+					return new String(utf, "UTF-8");
+				case KIND_BOX:
+					return readBox(in);
+				case KIND_ENUM: {
+					final Class<?> enumType = this.classes[in.readInt()].type();
+					return enumValue(enumType, in.readUTF());
+				}
+				case KIND_CLASS:
+					return classForName(in.readUTF());
+				case KIND_ARRAY: {
+					final int classId = in.readInt();
+					this.classOfObject[id] = classId;
+					return Array.newInstance(this.classes[classId].type().getComponentType(), in.readInt());
+				}
+				case KIND_LIST:
+				case KIND_HASH_COLLECTION:
+				case KIND_MAP:
+					return classForName(in.readUTF()).getDeclaredConstructor().newInstance();
+				case KIND_ENUM_MAP:
+					return readEnumContainer(in, true);
+				case KIND_ENUM_SET:
+					return readEnumContainer(in, false);
+				case KIND_BYTE_BUFFER: {
+					final boolean direct = in.readBoolean();
+					final boolean littleEndian = in.readBoolean();
+					final int capacity = in.readInt();
+					final int position = in.readInt();
+					final int limit = in.readInt();
+					final byte[] bytes = new byte[capacity];
+					in.readFully(bytes);
+					final ByteBuffer buffer = direct ? ByteBuffer.allocateDirect(capacity) : ByteBuffer.allocate(capacity);
+					buffer.order(littleEndian ? ByteOrder.LITTLE_ENDIAN : ByteOrder.BIG_ENDIAN);
+					buffer.put(bytes);
+					buffer.limit(limit);
+					buffer.position(position);
+					return buffer;
+				}
+				case KIND_SERIALIZED: {
+					final byte[] bytes = new byte[in.readInt()];
+					in.readFully(bytes);
+					return javaDeserialize(bytes);
+				}
+				case KIND_OBJECT: {
+					final int classId = in.readInt();
+					this.classOfObject[id] = classId;
+					return ObjectAllocator.allocate(this.classes[classId].type());
+				}
+				default:
+					throw new IOException("Unknown object kind " + kind);
+				}
+			}
+			catch (final ReflectiveOperationException exc) {
+				throw new IOException(exc);
+			}
+		}
+
+		@SuppressWarnings({ "unchecked", "rawtypes" })
+		private Object readEnumContainer(final DataInputStream in, final boolean map)
+				throws IOException, ClassNotFoundException {
+			if (in.readBoolean()) {
+				final Class keyType = classForName(in.readUTF());
+				return map ? new EnumMap(keyType) : EnumSet.noneOf(keyType);
+			}
+			final byte[] bytes = new byte[in.readInt()];
+			in.readFully(bytes);
+			return javaDeserialize(bytes);
+		}
+
+		@SuppressWarnings({ "unchecked", "rawtypes" })
+		private static Object enumValue(final Class<?> type, final String name) {
+			return Enum.valueOf((Class) type, name);
+		}
+
+		private static Object readBox(final DataInputStream in) throws IOException {
+			final byte type = in.readByte();
+			switch (type) {
+			case 'I':
+				return in.readInt();
+			case 'F':
+				return in.readFloat();
+			case 'D':
+				return in.readDouble();
+			case 'J':
+				return in.readLong();
+			case 'S':
+				return in.readShort();
+			case 'B':
+				return in.readByte();
+			case 'Z':
+				return in.readBoolean();
+			case 'C':
+				return in.readChar();
+			default:
+				throw new IOException("Unknown box " + type);
+			}
+		}
+
+		public Object readRoot() throws IOException {
+			final int rootId = this.bodies.readInt();
+			for (int id = 1; id < this.objects.length; id++) {
+				readBody(id);
+			}
+			for (final Runnable fill : this.deferred) {
+				fill.run();
+			}
+			return this.objects[rootId];
+		}
+
+		@SuppressWarnings({ "unchecked", "rawtypes" })
+		private void readBody(final int id) throws IOException {
+			final Object object = this.objects[id];
+			switch (this.kinds[id]) {
+			case KIND_EXTERNAL:
+				if (this.bodies.readBoolean()) {
+					readFields(object, classInfoOf(object));
+				}
+				break;
+			case KIND_ARRAY:
+				readArrayBody(object, object.getClass().getComponentType());
+				break;
+			case KIND_LIST: {
+				final Collection list = (Collection) object;
+				final int size = this.bodies.readInt();
+				for (int i = 0; i < size; i++) {
+					list.add(this.objects[this.bodies.readInt()]);
+				}
+				break;
+			}
+			case KIND_HASH_COLLECTION:
+			case KIND_ENUM_SET:
+				readCollectionContents((Collection) object);
+				break;
+			case KIND_MAP:
+			case KIND_ENUM_MAP:
+				readMapContents((Map) object);
+				break;
+			case KIND_OBJECT:
+				readFields(object, this.classes[this.classOfObject[id]]);
+				if (object instanceof Collection) {
+					readCollectionContents((Collection) object);
+				}
+				else if (object instanceof Map) {
+					readMapContents((Map) object);
+				}
+				break;
+			default:
+				break;
+			}
+		}
+
+		private void readCollectionContents(final Collection collection) throws IOException {
+			final int[] elements = new int[this.bodies.readInt()];
+			for (int i = 0; i < elements.length; i++) {
+				elements[i] = this.bodies.readInt();
+			}
+			this.deferred.add(() -> {
+				for (final int element : elements) {
+					collection.add(this.objects[element]);
+				}
+			});
+		}
+
+		private void readMapContents(final Map map) throws IOException {
+			final int[] entries = new int[this.bodies.readInt() * 2];
+			for (int i = 0; i < entries.length; i++) {
+				entries[i] = this.bodies.readInt();
+			}
+			this.deferred.add(() -> {
+				for (int i = 0; i < entries.length; i += 2) {
+					map.put(this.objects[entries[i]], this.objects[entries[i + 1]]);
+				}
+			});
+		}
+
+		private ClassInfo classInfoOf(final Object object) throws IOException {
+			final String name = object.getClass().getName();
+			for (final ClassInfo info : this.classes) {
+				if (info.name.equals(name)) {
+					return info;
+				}
+			}
+			throw new IOException("No fields stored for " + name);
+		}
+
+		private void readFields(final Object object, final ClassInfo info) throws IOException {
+			final Field[] fields = info.fields();
+			final Class<?>[] storedTypes = info.storedTypes();
+			try {
+				for (int i = 0; i < fields.length; i++) {
+					final Field field = fields[i];
+					final Class<?> type = storedTypes[i];
+					if (type == int.class) {
+						final int value = this.bodies.readInt();
+						if (field != null) {
+							field.setInt(object, value);
+						}
+					}
+					else if (type == float.class) {
+						final float value = this.bodies.readFloat();
+						if (field != null) {
+							field.setFloat(object, value);
+						}
+					}
+					else if (type == boolean.class) {
+						final boolean value = this.bodies.readBoolean();
+						if (field != null) {
+							field.setBoolean(object, value);
+						}
+					}
+					else if (type == long.class) {
+						final long value = this.bodies.readLong();
+						if (field != null) {
+							field.setLong(object, value);
+						}
+					}
+					else if (type == double.class) {
+						final double value = this.bodies.readDouble();
+						if (field != null) {
+							field.setDouble(object, value);
+						}
+					}
+					else if (type == short.class) {
+						final short value = this.bodies.readShort();
+						if (field != null) {
+							field.setShort(object, value);
+						}
+					}
+					else if (type == byte.class) {
+						final byte value = this.bodies.readByte();
+						if (field != null) {
+							field.setByte(object, value);
+						}
+					}
+					else if (type == char.class) {
+						final char value = this.bodies.readChar();
+						if (field != null) {
+							field.setChar(object, value);
+						}
+					}
+					else {
+						final int id = this.bodies.readInt();
+						if ((id != DROPPED) && (field != null)) {
+							field.set(object, this.objects[id]);
+						}
+					}
+				}
+			}
+			catch (final IllegalAccessException | IllegalArgumentException exc) {
+				throw new IOException("Reading " + info.name, exc);
+			}
+		}
+
+		private void readArrayBody(final Object array, final Class<?> componentType) throws IOException {
+			if (componentType == int.class) {
+				final int[] values = (int[]) array;
+				for (int i = 0; i < values.length; i++) {
+					values[i] = this.bodies.readInt();
+				}
+			}
+			else if (componentType == float.class) {
+				final float[] values = (float[]) array;
+				for (int i = 0; i < values.length; i++) {
+					values[i] = this.bodies.readFloat();
+				}
+			}
+			else if (componentType == boolean.class) {
+				final boolean[] values = (boolean[]) array;
+				for (int i = 0; i < values.length; i++) {
+					values[i] = this.bodies.readBoolean();
+				}
+			}
+			else if (componentType == byte.class) {
+				this.bodies.readFully((byte[]) array);
+			}
+			else if (componentType == short.class) {
+				final short[] values = (short[]) array;
+				for (int i = 0; i < values.length; i++) {
+					values[i] = this.bodies.readShort();
+				}
+			}
+			else if (componentType == long.class) {
+				final long[] values = (long[]) array;
+				for (int i = 0; i < values.length; i++) {
+					values[i] = this.bodies.readLong();
+				}
+			}
+			else if (componentType == double.class) {
+				final double[] values = (double[]) array;
+				for (int i = 0; i < values.length; i++) {
+					values[i] = this.bodies.readDouble();
+				}
+			}
+			else if (componentType == char.class) {
+				final char[] values = (char[]) array;
+				for (int i = 0; i < values.length; i++) {
+					values[i] = this.bodies.readChar();
+				}
+			}
+			else {
+				final Object[] values = (Object[]) array;
+				for (int i = 0; i < values.length; i++) {
+					values[i] = this.objects[this.bodies.readInt()];
+				}
+			}
+		}
+	}
+
+	private static Class<?> classForName(final String name) throws IOException {
+		try {
+			return Class.forName(name, false, SavedObjectGraph.class.getClassLoader());
+		}
+		catch (final ClassNotFoundException exc) {
+			throw new IOException("This engine has no class " + name, exc);
+		}
+	}
+
+	private static final class ClassInfo {
+		private final String name;
+		private final String[] fieldKeys;
+		private Class<?> type;
+		private Field[] fields;
+		private Class<?>[] storedTypes;
+
+		private ClassInfo(final String name, final String[] fieldKeys) {
+			this.name = name;
+			this.fieldKeys = fieldKeys;
+		}
+
+		private Class<?> type() throws IOException {
+			if (this.type == null) {
+				this.type = classForName(this.name);
+			}
+			return this.type;
+		}
+
+		private Field[] fields() throws IOException {
+			if (this.fields == null) {
+				final Map<String, Field> current = new HashMap<>();
+				for (final Field field : fieldsOf(type())) {
+					current.put(fieldKey(field), field);
+				}
+				this.fields = new Field[this.fieldKeys.length];
+				this.storedTypes = new Class<?>[this.fieldKeys.length];
+				for (int i = 0; i < this.fieldKeys.length; i++) {
+					final Field field = current.get(this.fieldKeys[i]);
+					if (field == null) {
+						throw new IOException("This engine has no field " + this.fieldKeys[i]);
+					}
+					this.fields[i] = field;
+					this.storedTypes[i] = field.getType();
+					current.remove(this.fieldKeys[i]);
+				}
+				// Objects come back without constructors, so a field newer than the save would be left 0 or null
+				// instead of its initial value. Arrays and enums store no fields.
+				if (!current.isEmpty() && !type().isArray() && !type().isEnum()) {
+					throw new IOException("The save has no field " + current.keySet().iterator().next());
+				}
+			}
+			return this.fields;
+		}
+
+		private Class<?>[] storedTypes() throws IOException {
+			fields();
+			return this.storedTypes;
+		}
+	}
+
+	/**
+	 * Saved objects come back without running constructors, which on both desktop and Android is available through
+	 * the Unsafe class of the platform.
+	 */
+	private static final class ObjectAllocator {
+		private static final Object UNSAFE;
+		private static final java.lang.reflect.Method ALLOCATE;
+		static {
+			try {
+				final Class<?> unsafeClass = Class.forName("sun.misc.Unsafe");
+				final Field theUnsafe = unsafeClass.getDeclaredField("theUnsafe");
+				theUnsafe.setAccessible(true);
+				UNSAFE = theUnsafe.get(null);
+				ALLOCATE = unsafeClass.getMethod("allocateInstance", Class.class);
+			}
+			catch (final ReflectiveOperationException exc) {
+				throw new ExceptionInInitializerError(exc);
+			}
+		}
+
+		private static Object allocate(final Class<?> type) throws ReflectiveOperationException {
+			if (Collection.class.isAssignableFrom(type) || Map.class.isAssignableFrom(type)) {
+				return construct(type);
+			}
+			return ALLOCATE.invoke(UNSAFE, type);
+		}
+
+		/** The JDK collection underneath needs its own constructor; the subclass's fields are read over it after. */
+		private static Object construct(final Class<?> type) throws ReflectiveOperationException {
+			final java.lang.reflect.Constructor<?> constructor = type.getDeclaredConstructors()[0];
+			constructor.setAccessible(true);
+			final Class<?>[] parameters = constructor.getParameterTypes();
+			final Object[] arguments = new Object[parameters.length];
+			for (int i = 0; i < parameters.length; i++) {
+				if (parameters[i].isPrimitive()) {
+					arguments[i] = Array.get(Array.newInstance(parameters[i], 1), 0);
+				}
+			}
+			return constructor.newInstance(arguments);
+		}
+	}
+}

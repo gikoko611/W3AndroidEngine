@@ -31,6 +31,14 @@ public class CliffMesh {
 	private FloatBuffer uploadBuffer;
 	private final GL30 gl;
 
+	public void dispose() {
+		this.gl.glDeleteBuffer(this.vertexBuffer);
+		this.gl.glDeleteBuffer(this.uvBuffer);
+		this.gl.glDeleteBuffer(this.normalBuffer);
+		this.gl.glDeleteBuffer(this.indexBuffer);
+		this.gl.glDeleteBuffer(this.instanceBuffer);
+	}
+
 	public CliffMesh(final String path, final DataSource dataSource, final GL30 gl) throws IOException {
 		this.gl = gl;
 		if (path.endsWith(".mdx") || path.endsWith(".MDX")) {

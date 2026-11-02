@@ -2,6 +2,7 @@ package com.etheller.warsmash.viewer5;
 
 import java.io.InputStream;
 
+import com.badlogic.gdx.utils.Disposable;
 import com.etheller.warsmash.common.LoadGenericCallback;
 
 public final class GenericResource extends Resource {
@@ -14,6 +15,13 @@ public final class GenericResource extends Resource {
 			final String fetchUrl, final LoadGenericCallback callback) {
 		super(viewer, extension, pathSolver, fetchUrl);
 		this.callback = callback;
+	}
+
+	@Override
+	public void dispose() {
+		if (this.data instanceof Disposable) {
+			((Disposable) this.data).dispose();
+		}
 	}
 
 	@Override

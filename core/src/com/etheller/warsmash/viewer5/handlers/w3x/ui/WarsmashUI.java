@@ -60,11 +60,19 @@ public interface WarsmashUI extends CommandErrorListener, WarsmashBaseUI {
 
 	boolean isOverClickableUi(int screenX, int screenY);
 
+	boolean isOverSlider(int screenX, int screenY);
+
 	boolean isOverInventorySlot(int screenX, int screenY);
+
+	boolean isOverAutocastButton(int screenX, int screenY);
 
 	boolean hasActiveCommand();
 
 	boolean isPlacingBuilding();
+
+	void screenToWorld(int screenX, int screenY, float[] out);
+
+	void worldToScreen(float[] world, float[] out);
 
 	void cancelPointerDrag();
 

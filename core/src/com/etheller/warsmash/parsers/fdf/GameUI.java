@@ -485,6 +485,7 @@ public final class GameUI extends AbstractUIFrame implements UIFrame {
 				}
 
 				final String controlBackdropKey = frameDefinition.getString("ControlBackdrop");
+				final String controlDisabledBackdropKey = frameDefinition.getString("ControlDisabledBackdrop");
 				final String incButtonFrameKey = frameDefinition.getString("ScrollBarIncButtonFrame");
 				final String decButtonFrameKey = frameDefinition.getString("ScrollBarDecButtonFrame");
 				final String thumbButtonFrameKey = frameDefinition.getString("SliderThumbButtonFrame");
@@ -494,6 +495,12 @@ public final class GameUI extends AbstractUIFrame implements UIFrame {
 								inDecorateFileNames || childDefinition.has("DecorateFileNames"));
 						inflatedChild.setSetAllPoints(true);
 						scrollBarFrame.setControlBackdrop(inflatedChild);
+					}
+					else if (childDefinition.getName().equals(controlDisabledBackdropKey)) {
+						final UIFrame inflatedChild = inflate(childDefinition, scrollBarFrame, frameDefinition,
+								inDecorateFileNames || childDefinition.has("DecorateFileNames"));
+						inflatedChild.setSetAllPoints(true);
+						scrollBarFrame.setControlDisabledBackdrop(inflatedChild);
 					}
 					else if (childDefinition.getName().equals(incButtonFrameKey)) {
 						final UIFrame inflatedChild = inflate(childDefinition, scrollBarFrame, frameDefinition,

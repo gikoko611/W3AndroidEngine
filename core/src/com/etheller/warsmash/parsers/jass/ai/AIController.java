@@ -29,6 +29,7 @@ import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CUnitClassification
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CUnitType;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CUnitTypeRequirement;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CUpgradeType;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CWidget;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.CAbility;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.build.AbstractCAbilityBuild;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.build.CAbilityRepair;
@@ -69,8 +70,15 @@ public class AIController {
 	private static final float THREAT_RADIUS = 1300f;
 	private static final float CAMP_LINK_DISTANCE = 600f;
 	private static final float BUILDING_GAP = 96f;
-	private static final float MAX_LEG = 2500f;
-	private static final int MAX_QUEUED_PER_PRODUCER = 2;
+	private static final float GOAL_REACHED_RADIUS = 200f;
+	private static final float GUARD_RETURN_DISTANCE = 100f;
+	private static final float STAGE_REACHED_RADIUS = 250f;
+	private static final int STAGE_WAIT_TICKS = 70;
+	private static final float GATHER_RADIUS = 400f;
+	private static final float ZEPPELIN_HOME_DISTANCE = 260f;
+	// Measured on 1.29: the AI only trains on an idle producer; SetProduce is false while all of them are busy, which
+	// holds back the rest of the build priorities.
+	private static final int MAX_QUEUED_PER_PRODUCER = 1;
 	private static final int BUILD_JOB_TIMEOUT_TICKS = (int) (90 / WarsmashConstants.SIMULATION_STEP_TIME);
 	private static final int BUILD_JOB_GRACE_TICKS = (int) (2 / WarsmashConstants.SIMULATION_STEP_TIME);
 	private static final int GIVE_UP_TICKS = (int) (60 / WarsmashConstants.SIMULATION_STEP_TIME);
@@ -97,6 +105,17 @@ public class AIController {
 	private final AICaptain defenseCaptain = new AICaptain();
 	private final Set<CUnit> injured = new HashSet<>();
 	private final Map<CUnit, float[]> lastPositions = new HashMap<>();
+	private final List<AIGuardPost> guardPosts = new ArrayList<>();
+	private final Map<CUnit, float[]> guardPositions = new HashMap<>();
+	private boolean unitsSeen;
+	private boolean gatheringStopped;
+	private final List<AIZepWave> zepWaves = new ArrayList<>();
+	private boolean stagePointSet;
+	private float stageX;
+	private float stageY;
+	private int stagePassedGeneration = -1;
+	private int stageArrivedGeneration = -1;
+	private int stageArrivedTick;
 	private final Set<CUnit> unreachable = new HashSet<>();
 	private final Map<CUnit, CUnit> orderedTargets = new HashMap<>();
 	private final Set<CUnit> gatherOrdered = new HashSet<>();
@@ -126,6 +145,33 @@ public class AIController {
 	private boolean newHeroes = true;
 	private int replacementCount;
 
+	private static final class AIGuardPost {
+		private final War3ID typeId;
+		private final float x;
+		private final float y;
+		private CUnit unit;
+
+		private AIGuardPost(final War3ID typeId, final float x, final float y) {
+			this.typeId = typeId;
+			this.x = x;
+			this.y = y;
+		}
+	}
+
+	private static final class AIZepWave {
+		private final CUnit zeppelin;
+		private final List<CUnit> cargo = new ArrayList<>();
+		private final float x;
+		private final float y;
+		private boolean flying;
+
+		private AIZepWave(final CUnit zeppelin, final float x, final float y) {
+			this.zeppelin = zeppelin;
+			this.x = x;
+			this.y = y;
+		}
+	}
+
 	public AIController(final CSimulation simulation, final GlobalScope globalScope, final int playerIndex) {
 		this.simulation = simulation;
 		this.globalScope = globalScope;
@@ -145,6 +191,8 @@ public class AIController {
 		if ((this.ticks % 10) == 0) {
 			updateBuildJobs();
 			updateHeroSkills();
+			placeNewUnits();
+			updateZepWaves();
 			updateCaptains();
 		}
 		if ((this.ticks % 20) == 5) {
@@ -766,16 +814,16 @@ public class AIController {
 					started++;
 				}
 			}
-			return true;
+			return started > 0;
 		}
 		if (producers.isEmpty() || !requirementsMet(type)) {
 			return false;
 		}
-		train(producers, typeIdValue, qty);
-		return true;
+		return train(producers, typeIdValue, qty) > 0;
 	}
 
-	private void train(final List<CUnit> producers, final int typeIdValue, final int qty) {
+	private int train(final List<CUnit> producers, final int typeIdValue, final int qty) {
+		int started = 0;
 		for (int i = 0; i < qty; i++) {
 			CUnit best = null;
 			int bestQueue = MAX_QUEUED_PER_PRODUCER;
@@ -787,9 +835,14 @@ public class AIController {
 				}
 			}
 			if ((best == null) || !best.order(this.simulation, typeIdValue, null)) {
-				return;
+				break;
 			}
+			started++;
 		}
+		if (started > 0) {
+			this.countCache.clear();
+		}
+		return started;
 	}
 
 	private boolean produceHero(final CUnitType type) {
@@ -830,8 +883,7 @@ public class AIController {
 		if (!this.newHeroes || producers.isEmpty() || !requirementsMet(type)) {
 			return false;
 		}
-		train(producers, type.getTypeId().getValue(), 1);
-		return true;
+		return train(producers, type.getTypeId().getValue(), 1) > 0;
 	}
 
 	public int getUpgradeLevel(final int typeId) {
@@ -933,9 +985,11 @@ public class AIController {
 		if (!requirementsMet(type)) {
 			return false;
 		}
+		int started = 0;
 		for (int i = 0; i < qty; i++) {
 			if ((this.player.getGold() < type.getGoldCost()) || (this.player.getLumber() < type.getLumberCost())) {
-				break;
+				// Measured: short of money it is still true, with nothing started.
+				return true;
 			}
 			AITown town = getTown(townId == -1 ? 0 : townId);
 			if (type.isCanBeBuiltOnThem() && (townId == -1)) {
@@ -959,8 +1013,9 @@ public class AIController {
 			if ((location == null) || !orderBuild(builder, type, location, town.getId())) {
 				break;
 			}
+			started++;
 		}
-		return true;
+		return started > 0;
 	}
 
 	private AITown townNeedingOverlay() {
@@ -980,6 +1035,7 @@ public class AIController {
 		this.harvestJobs.remove(builder);
 		this.buildJobs.add(new AIBuildJob(builder, type, location.x, location.y, town,
 				this.simulation.getGameTurnTick()));
+		this.countCache.clear();
 		return true;
 	}
 
@@ -1157,6 +1213,93 @@ public class AIController {
 
 	public void stopGathering() {
 		this.harvestRequests.clear();
+		this.gatheringStopped = true;
+	}
+
+	public void addGuardPost(final int typeIdValue, final float x, final float y) {
+		this.guardPosts.add(new AIGuardPost(new War3ID(typeIdValue), x, y));
+	}
+
+	private boolean isGuardCandidate(final CUnit unit) {
+		return isOurs(unit) && !unit.isBuilding() && !unit.isHidden() && !isWorkerType(unit)
+				&& (unit.getUnitType().getMovementType() != PathingGrid.MovementType.DISABLED);
+	}
+
+	private AIGuardPost nearestFreePost(final CUnit unit) {
+		AIGuardPost best = null;
+		float bestDistance = Float.MAX_VALUE;
+		for (final AIGuardPost post : this.guardPosts) {
+			if (post.typeId.equals(unit.getTypeId()) && ((post.unit == null) || post.unit.isDead())) {
+				final float d = distance(unit.getX(), unit.getY(), post.x, post.y);
+				if (d < bestDistance) {
+					bestDistance = d;
+					best = post;
+				}
+			}
+		}
+		return best;
+	}
+
+	private void leavePost(final CUnit unit) {
+		for (final AIGuardPost post : this.guardPosts) {
+			if (post.unit == unit) {
+				post.unit = null;
+			}
+		}
+	}
+
+	/**
+	 * Measured: units the player has when the AI starts keep their place as their guard position. Later ones do the
+	 * same until the script has called StopGathering (InitAI does); after that they go at once to a free guard post
+	 * of their type, nearest first, and the rest join the defense captain at its home.
+	 */
+	private void placeNewUnits() {
+		this.guardPositions.keySet().removeIf((unit) -> unit.isDead());
+		for (final CUnit unit : this.simulation.getUnits()) {
+			if (!isGuardCandidate(unit) || this.guardPositions.containsKey(unit)) {
+				continue;
+			}
+			this.guardPositions.put(unit, new float[] { unit.getX(), unit.getY() });
+			if (!this.unitsSeen || !this.gatheringStopped || this.attackCaptain.getMembers().contains(unit)) {
+				continue;
+			}
+			final AIGuardPost post = nearestFreePost(unit);
+			if (post != null) {
+				post.unit = unit;
+				this.guardPositions.put(unit, new float[] { post.x, post.y });
+				unit.order(this.simulation, OrderIds.attack, new AbilityPointTarget(post.x, post.y));
+			}
+			else if (isArmyUnit(unit)) {
+				joinDefense(unit);
+			}
+		}
+		this.unitsSeen = true;
+	}
+
+	/**
+	 * Measured: moves nobody who already has a place, neither units from the start nor spare defenders, also when the
+	 * post was added or vacated later. New units take their post without it.
+	 */
+	public void fillGuardPosts() {
+		placeNewUnits();
+	}
+
+	/**
+	 * Measured: every unit outside the captains that has wandered off walks back to its guard position, attack-moving,
+	 * even if a script had ordered it away; fighting units finish first.
+	 */
+	public void returnGuardPosts() {
+		for (final Map.Entry<CUnit, float[]> entry : this.guardPositions.entrySet()) {
+			final CUnit unit = entry.getKey();
+			final float[] position = entry.getValue();
+			if (unit.isDead() || unit.isHidden() || this.attackCaptain.getMembers().contains(unit)
+					|| this.defenseCaptain.getMembers().contains(unit)
+					|| (unit.getCurrentBehavior() instanceof CBehaviorAttack)
+					|| (distance(unit.getX(), unit.getY(), position[0], position[1]) < GUARD_RETURN_DISTANCE)) {
+				continue;
+			}
+			unit.order(this.simulation, OrderIds.attack, new AbilityPointTarget(position[0], position[1]));
+		}
 	}
 
 	private boolean canDo(final CUnit worker, final int resource, final int town) {
@@ -1191,6 +1334,8 @@ public class AIController {
 				slots.add(new int[] { request[0], request[1] });
 			}
 		}
+		// Slots are filled in the order the script asked for them, so with few workers the first requests (gold)
+		// win over later ones even when the workers already hold a job for a later one.
 		final Set<CUnit> claimed = new HashSet<>();
 		final CUnit[] slotWorkers = new CUnit[slots.size()];
 		for (int s = 0; s < slots.size(); s++) {
@@ -1203,12 +1348,9 @@ public class AIController {
 					break;
 				}
 			}
-		}
-		for (int s = 0; s < slots.size(); s++) {
 			if (slotWorkers[s] != null) {
 				continue;
 			}
-			final int[] slot = slots.get(s);
 			final AITown town = getTown(slot[1]);
 			if (town == null) {
 				continue;
@@ -1273,14 +1415,14 @@ public class AIController {
 		if (resource == GOLD) {
 			if (minesFromOverlay(worker)) {
 				if (ownsOverlay(town)) {
-					worker.order(this.simulation, OrderIds.harvest, town.getOverlay());
+					orderHarvestTarget(worker, town.getOverlay());
 				}
 				else if (town.getOverlay() == null) {
 					entangle(town);
 				}
 			}
 			else if (town.getMine() != null) {
-				worker.order(this.simulation, OrderIds.harvest, town.getMine());
+				orderHarvestTarget(worker, town.getMine());
 			}
 			return;
 		}
@@ -1293,10 +1435,26 @@ public class AIController {
 				continue;
 			}
 			tries++;
-			if (worker.order(this.simulation, OrderIds.harvest, tree)) {
+			if (orderHarvestTarget(worker, tree)) {
 				return;
 			}
 		}
+	}
+
+	/**
+	 * A worker that carries resources only takes the return order, so it returns them first and goes on to the
+	 * target from there.
+	 */
+	private boolean orderHarvestTarget(final CUnit worker, final CWidget target) {
+		if (worker.order(this.simulation, OrderIds.harvest, target)) {
+			return true;
+		}
+		final CAbilityHarvest harvest = worker.getFirstAbilityOfType(CAbilityHarvest.class);
+		if ((harvest == null) || (harvest.getCarriedResourceAmount() <= 0)) {
+			return false;
+		}
+		harvest.setLastHarvestTarget(target);
+		return worker.order(this.simulation, OrderIds.returnresources, null);
 	}
 
 	private void entangle(final AITown town) {
@@ -1423,19 +1581,29 @@ public class AIController {
 
 
 	public void createCaptains() {
+		if (this.towns.isEmpty()) {
+			initTowns();
+		}
 		resetCaptainLocations();
 	}
 
 	public void resetCaptainLocations() {
 		final AITown town = getTown(0);
 		final float[] start = this.player.getStartLocation();
-		float x = town == null ? start[0] : town.getCenterX();
-		float y = town == null ? start[1] : town.getCenterY();
-		final double angle = Math.atan2(mapCenterY() - y, mapCenterX() - x);
-		x += (float) (Math.cos(angle) * 500);
-		y += (float) (Math.sin(angle) * 500);
-		this.attackCaptain.setHome(x, y);
-		this.defenseCaptain.setHome(x, y);
+		final CUnit hall = town == null ? null : town.getHall();
+		final CUnit mine = town == null ? null : town.getMine();
+		final float hallX = hall == null ? start[0] : hall.getX();
+		final float hallY = hall == null ? start[1] : hall.getY();
+		if (mine == null) {
+			this.attackCaptain.setHome(hallX, hallY);
+			this.defenseCaptain.setHome(hallX, hallY);
+			return;
+		}
+		// Measured on a melee map: the defense home halfway to the mine, the attack home as far on the other side.
+		final float offsetX = (mine.getX() - hallX) / 2;
+		final float offsetY = (mine.getY() - hallY) / 2;
+		this.attackCaptain.setHome(hallX - offsetX, hallY - offsetY);
+		this.defenseCaptain.setHome(hallX + offsetX, hallY + offsetY);
 	}
 
 	public void setCaptainHome(final int which, final float x, final float y) {
@@ -1490,6 +1658,8 @@ public class AIController {
 				}
 				if (unit.getTypeId().equals(typeId) && isArmyUnit(unit) && !unit.isConstructing()
 						&& !members.contains(unit) && !isInjured(unit)) {
+					leavePost(unit);
+					this.defenseCaptain.getMembers().remove(unit);
 					members.add(unit);
 					got++;
 				}
@@ -1511,8 +1681,42 @@ public class AIController {
 		return satisfied;
 	}
 
+	/**
+	 * Measured: a defender leaves its guard post or place for the defense home of that moment; a later SetCaptainHome
+	 * does not move it.
+	 */
+	private void joinDefense(final CUnit unit) {
+		leavePost(unit);
+		this.defenseCaptain.getMembers().add(unit);
+		final float x = this.defenseCaptain.getHomeX();
+		final float y = this.defenseCaptain.getHomeY();
+		this.guardPositions.put(unit, new float[] { x, y });
+		unit.order(this.simulation, OrderIds.move, new AbilityPointTarget(x, y));
+	}
+
+	/**
+	 * Measured: AddDefenders claims units at once, also ones the player had from the start, and is false without one.
+	 */
 	public boolean addDefenders(final int qty, final int typeIdValue) {
-		return getUnitCount(typeIdValue, true) >= qty;
+		final War3ID typeId = new War3ID(typeIdValue);
+		final List<CUnit> members = this.defenseCaptain.getMembers();
+		int got = 0;
+		for (final CUnit unit : members) {
+			if (!unit.isDead() && unit.getTypeId().equals(typeId)) {
+				got++;
+			}
+		}
+		for (final CUnit unit : this.simulation.getUnits()) {
+			if (got >= qty) {
+				break;
+			}
+			if (unit.getTypeId().equals(typeId) && isArmyUnit(unit) && !unit.isConstructing() && !members.contains(unit)
+					&& !this.attackCaptain.getMembers().contains(unit)) {
+				joinDefense(unit);
+				got++;
+			}
+		}
+		return got >= qty;
 	}
 
 	public void removeInjuries() {
@@ -1603,7 +1807,7 @@ public class AIController {
 	public boolean isCaptainAtGoal() {
 		pruneMembers();
 		if (!this.attackCaptain.hasGoal()) {
-			return false;
+			return isCaptainHome();
 		}
 		return distance(this.attackCaptain.getCenterX(), this.attackCaptain.getCenterY(),
 				this.attackCaptain.getGoalX(), this.attackCaptain.getGoalY()) < 600;
@@ -1684,6 +1888,117 @@ public class AIController {
 		}
 	}
 
+	/**
+	 * Measured: only a target unit is approached through the stage point (SuicidePlayer, AttackMoveKill); AttackMoveXY
+	 * goes straight, on foot and in the air. The group moves on a few seconds after its first units get there, stragglers do not wait.
+	 */
+	public void setStagePoint(final float x, final float y) {
+		this.stagePointSet = true;
+		this.stageX = x;
+		this.stageY = y;
+	}
+
+	private boolean isOwnZeppelin(final CUnit unit) {
+		return isOurs(unit) && (unit.getCargoData() != null) && !unit.isHidden()
+				&& (unit.getUnitType().getMovementType() == PathingGrid.MovementType.FLY);
+	}
+
+	private boolean isZeppelinBusy(final CUnit zeppelin) {
+		for (final AIZepWave wave : this.zepWaves) {
+			if (wave.zeppelin == zeppelin) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/**
+	 * Measured: the group boards at once where it stands, the zeppelin flies straight to the point, the units land and
+	 * attack-move on and the zeppelin flies home by itself. Without a zeppelin the group walks.
+	 */
+	public void loadZepWave(final int x, final int y) {
+		final List<CUnit> waiting = new ArrayList<>();
+		for (final CUnit unit : this.attackCaptain.getMembers()) {
+			if (!unit.isHidden() && !isAboard(unit)
+					&& (unit.getUnitType().getMovementType() != PathingGrid.MovementType.FLY)) {
+				waiting.add(unit);
+			}
+		}
+		for (final CUnit unit : this.simulation.getUnits()) {
+			if (waiting.isEmpty()) {
+				return;
+			}
+			if (isOwnZeppelin(unit) && !isZeppelinBusy(unit)) {
+				final AIZepWave wave = new AIZepWave(unit, x, y);
+				final int capacity = unit.getCargoData().getCargoCapacity() - unit.getCargoData().getCargoCount();
+				for (int i = 0; (i < capacity) && !waiting.isEmpty(); i++) {
+					wave.cargo.add(waiting.remove(0));
+				}
+				if (!wave.cargo.isEmpty()) {
+					this.zepWaves.add(wave);
+				}
+			}
+		}
+	}
+
+	private boolean isAboard(final CUnit unit) {
+		for (final AIZepWave wave : this.zepWaves) {
+			if (wave.cargo.contains(unit)) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	private void updateZepWaves() {
+		for (final Iterator<AIZepWave> iterator = this.zepWaves.iterator(); iterator.hasNext();) {
+			final AIZepWave wave = iterator.next();
+			final CUnit zeppelin = wave.zeppelin;
+			wave.cargo.removeIf((unit) -> unit.isDead()
+					|| (wave.flying && !zeppelin.isDead() && !zeppelin.getCargoData().contains(unit)));
+			if (zeppelin.isDead()) {
+				iterator.remove();
+				continue;
+			}
+			if (!wave.flying) {
+				CUnit next = null;
+				for (final CUnit unit : wave.cargo) {
+					if (!zeppelin.getCargoData().contains(unit)) {
+						next = unit;
+						break;
+					}
+				}
+				if (next == null) {
+					wave.flying = true;
+					zeppelin.order(this.simulation, OrderIds.unloadall, new AbilityPointTarget(wave.x, wave.y));
+				}
+				else if (isIdle(zeppelin)) {
+					zeppelin.order(this.simulation, OrderIds.load, next);
+				}
+			}
+			else if (wave.cargo.isEmpty()) {
+				sendZeppelinHome(zeppelin);
+				iterator.remove();
+			}
+			else if (isIdle(zeppelin)) {
+				zeppelin.order(this.simulation, OrderIds.unloadall, new AbilityPointTarget(wave.x, wave.y));
+			}
+		}
+	}
+
+	private void sendZeppelinHome(final CUnit zeppelin) {
+		final AITown town = getTown(0);
+		if ((town == null) || (town.getHall() == null)) {
+			return;
+		}
+		final float hallX = town.getHall().getX();
+		final float hallY = town.getHall().getY();
+		final float d = Math.max(1, distance(hallX, hallY, zeppelin.getX(), zeppelin.getY()));
+		zeppelin.order(this.simulation, OrderIds.move,
+				new AbilityPointTarget(hallX + (((zeppelin.getX() - hallX) * ZEPPELIN_HOME_DISTANCE) / d),
+						hallY + (((zeppelin.getY() - hallY) * ZEPPELIN_HOME_DISTANCE) / d)));
+	}
+
 	public void clearCaptainTargets() {
 		this.attackCaptain.clearGoal();
 	}
@@ -1754,7 +2069,7 @@ public class AIController {
 	private void pruneMembers() {
 		for (final Iterator<CUnit> iterator = this.attackCaptain.getMembers().iterator(); iterator.hasNext();) {
 			final CUnit unit = iterator.next();
-			if (!isOurs(unit) || unit.isHidden()) {
+			if (!isOurs(unit) || (unit.isHidden() && !isAboard(unit))) {
 				iterator.remove();
 			}
 		}
@@ -1787,6 +2102,12 @@ public class AIController {
 		if (attack.isRetreating() && isCaptainHome() && ((this.ticks - this.retreatTick) > 100)) {
 			attack.setRetreating(false);
 		}
+		if (attack.hasGoal() && (attack.getGoalUnit() == null) && !attack.getMembers().isEmpty()
+				&& (distance(attack.getCenterX(), attack.getCenterY(), attack.getGoalX(),
+						attack.getGoalY()) < GOAL_REACHED_RADIUS)
+				&& !isCaptainInCombat(true)) {
+			captainGoHome();
+		}
 		if (attack.hasGoal()) {
 			checkStuck();
 		}
@@ -1796,7 +2117,8 @@ public class AIController {
 		else if (!attack.isRetreating()) {
 			this.gatherOrdered.retainAll(attack.getMembers());
 			for (final CUnit unit : attack.getMembers()) {
-				if (isGathered(unit) || (unit.getCurrentBehavior() instanceof CBehaviorAttack)) {
+				if ((distance(unit.getX(), unit.getY(), home.x, home.y) < GATHER_RADIUS)
+						|| (unit.getCurrentBehavior() instanceof CBehaviorAttack)) {
 					continue;
 				}
 				if ((!this.gatherOrdered.contains(unit) || isIdle(unit))
@@ -1813,7 +2135,7 @@ public class AIController {
 				unit.order(this.simulation, OrderIds.move, home);
 			}
 		}
-		updateDefense(home);
+		updateDefense();
 	}
 
 	/**
@@ -1825,6 +2147,10 @@ public class AIController {
 		this.lastPositions.keySet().retainAll(attack.getMembers());
 		final AbilityPointTarget goal = new AbilityPointTarget(attack.getGoalX(), attack.getGoalY());
 		for (final CUnit unit : attack.getMembers()) {
+			if (isAboard(unit)) {
+				this.goalProgressTick = this.ticks;
+				continue;
+			}
 			float[] last = this.lastPositions.get(unit);
 			if (last == null) {
 				last = new float[] { unit.getX(), unit.getY(), 0 };
@@ -1844,7 +2170,7 @@ public class AIController {
 			if ((last[2] > 0) && ((last[2] % 6) == 0) && ((attack.getGoalUnit() == null) || (distance(unit.getX(),
 					unit.getY(), attack.getGoalUnit().getX(), attack.getGoalUnit().getY()) >= 900))) {
 				unit.order(this.simulation, OrderIds.stop, null);
-				unit.order(this.simulation, OrderIds.attack, legTarget(unit, goal));
+				unit.order(this.simulation, OrderIds.attack, goal);
 				attack.markOrdered(unit);
 			}
 		}
@@ -1880,10 +2206,15 @@ public class AIController {
 
 	private void driveAttackCaptain() {
 		final AICaptain attack = this.attackCaptain;
-		final CUnit goalUnit = attack.getGoalUnit();
-		final AbilityPointTarget goal = new AbilityPointTarget(attack.getGoalX(), attack.getGoalY());
+		final boolean viaStage = updateStagePhase();
+		final CUnit goalUnit = viaStage ? null : attack.getGoalUnit();
+		final AbilityPointTarget goal = viaStage ? new AbilityPointTarget(this.stageX, this.stageY)
+				: new AbilityPointTarget(attack.getGoalX(), attack.getGoalY());
 		this.orderedTargets.keySet().retainAll(attack.getMembers());
 		for (final CUnit unit : attack.getMembers()) {
+			if (isAboard(unit)) {
+				continue;
+			}
 			// Sleeping creeps are not picked up by attack-move, so the target itself is attacked once close.
 			if ((goalUnit != null) && (distance(unit.getX(), unit.getY(), goalUnit.getX(), goalUnit.getY()) < 900)) {
 				if ((unit.getCurrentBehavior() instanceof CBehaviorAttack)
@@ -1900,42 +2231,37 @@ public class AIController {
 				continue;
 			}
 			this.orderedTargets.remove(unit);
-			final AbilityPointTarget leg = legTarget(unit, goal);
-			if (unit.order(this.simulation, OrderIds.attack, leg)) {
+			if (unit.order(this.simulation, OrderIds.attack, goal)) {
 				attack.markOrdered(unit);
 			}
-			else if (unit.order(this.simulation, OrderIds.move, leg)) {
+			else if (unit.order(this.simulation, OrderIds.move, goal)) {
 				attack.markOrdered(unit);
 			}
 		}
 	}
 
-	/**
-	 * The engine's path search gives up on goals across the map, so far goals are approached in legs: a pathable
-	 * point a few screens ahead on the way, and the next leg once the unit gets there and stops.
-	 */
-	private AbilityPointTarget legTarget(final CUnit unit, final AbilityPointTarget goal) {
-		final float d = distance(unit.getX(), unit.getY(), goal.x, goal.y);
-		if (d <= MAX_LEG) {
-			return goal;
+	private boolean updateStagePhase() {
+		final AICaptain attack = this.attackCaptain;
+		if (!this.stagePointSet || (attack.getGoalUnit() == null)
+				|| (this.stagePassedGeneration == attack.getGeneration())) {
+			return false;
 		}
-		final float cx = unit.getX() + (((goal.x - unit.getX()) * MAX_LEG) / d);
-		final float cy = unit.getY() + (((goal.y - unit.getY()) * MAX_LEG) / d);
-		final PathingGrid grid = this.simulation.getPathingGrid();
-		final PathingGrid.MovementType movementType = unit.getMovementType();
-		final float collisionSize = unit.getUnitType().getCollisionSize();
-		for (float radius = 0; radius <= 768; radius += 64) {
-			final int steps = radius == 0 ? 1 : 12;
-			for (int step = 0; step < steps; step++) {
-				final double angle = (2 * Math.PI * step) / steps;
-				final float x = cx + (float) (Math.cos(angle) * radius);
-				final float y = cy + (float) (Math.sin(angle) * radius);
-				if (grid.contains(x, y) && ((movementType == null) || grid.isPathable(x, y, movementType, collisionSize))) {
-					return new AbilityPointTarget(x, y);
-				}
+		if (this.stageArrivedGeneration == attack.getGeneration()) {
+			if ((this.ticks - this.stageArrivedTick) < STAGE_WAIT_TICKS) {
+				return true;
+			}
+			this.stagePassedGeneration = attack.getGeneration();
+			attack.clearOrders();
+			return false;
+		}
+		for (final CUnit unit : attack.getMembers()) {
+			if (distance(unit.getX(), unit.getY(), this.stageX, this.stageY) < STAGE_REACHED_RADIUS) {
+				this.stageArrivedGeneration = attack.getGeneration();
+				this.stageArrivedTick = this.ticks;
+				break;
 			}
 		}
-		return goal;
+		return true;
 	}
 
 	private boolean isStuck(final CUnit unit) {
@@ -1977,17 +2303,11 @@ public class AIController {
 		return this.threat != null;
 	}
 
-	private void updateDefense(final AbilityPointTarget home) {
+	private void updateDefense() {
 		this.threat = findThreat();
 		final boolean attackIdle = !this.attackCaptain.hasGoal() && !this.attackCaptain.isRetreating();
 		final List<CUnit> defenders = this.defenseCaptain.getMembers();
-		defenders.clear();
-		for (final CUnit unit : this.simulation.getUnits()) {
-			if (isArmyUnit(unit) && !unit.isConstructing() && !this.injured.contains(unit)
-					&& (attackIdle || !this.attackCaptain.getMembers().contains(unit))) {
-				defenders.add(unit);
-			}
-		}
+		defenders.removeIf((unit) -> !isArmyUnit(unit));
 		if (this.threat != null) {
 			final AbilityPointTarget target = new AbilityPointTarget(this.threat.getX(), this.threat.getY());
 			for (final CUnit unit : defenders) {
@@ -1995,12 +2315,20 @@ public class AIController {
 					unit.order(this.simulation, OrderIds.attack, target);
 				}
 			}
+			if (attackIdle) {
+				for (final CUnit unit : this.attackCaptain.getMembers()) {
+					if (!(unit.getCurrentBehavior() instanceof CBehaviorAttack)) {
+						unit.order(this.simulation, OrderIds.attack, target);
+					}
+				}
+			}
 			return;
 		}
 		for (final CUnit unit : defenders) {
-			if (isIdle(unit) && (distance(unit.getX(), unit.getY(), home.x, home.y) > HOME_RADIUS)
-					&& !this.attackCaptain.getMembers().contains(unit)) {
-				unit.order(this.simulation, OrderIds.attack, home);
+			final float[] place = this.guardPositions.get(unit);
+			if ((place != null) && isIdle(unit)
+					&& (distance(unit.getX(), unit.getY(), place[0], place[1]) > GUARD_RETURN_DISTANCE)) {
+				unit.order(this.simulation, OrderIds.attack, new AbilityPointTarget(place[0], place[1]));
 			}
 		}
 	}

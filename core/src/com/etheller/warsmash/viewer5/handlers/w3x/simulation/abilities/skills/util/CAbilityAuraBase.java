@@ -42,7 +42,7 @@ public abstract class CAbilityAuraBase extends CAbilityPassiveSpellBase {
 
 	@Override
 	public void onTick(final CSimulation game, final CUnit source) {
-		if (isDisabled()) {
+		if (isDisabled() || source.isIllusion()) {
 			// Disabled abilities still tick; an aura waiting for its research must not hand out buffs meanwhile.
 			return;
 		}

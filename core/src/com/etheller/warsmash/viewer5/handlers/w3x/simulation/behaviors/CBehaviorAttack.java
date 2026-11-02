@@ -26,6 +26,7 @@ public class CBehaviorAttack extends CAbstractRangedBehavior {
 	private int damagePointLaunchTime;
 	private int backSwingTime;
 	private int thisOrderCooldownEndTime;
+	private int cooldownEndTimeBeforeSwing;
 	private CBehaviorAttackListener attackListener;
 	private CUnitAttackModifier forcedModifier;
 	private CUnitAttackSettings settings;
@@ -61,7 +62,8 @@ public class CBehaviorAttack extends CAbstractRangedBehavior {
 	@Override
 	public boolean isWithinRange(final CSimulation simulation) {
 		float range = this.unitAttack.getRange();
-		if (simulation.getGameTurnTick() < this.unit.getCooldownEndTime()) {
+		// Measured on 1.29: the motion buffer only keeps a target already reached; a new one is approached during cooldown.
+		if (isWasInRange() && (simulation.getGameTurnTick() < this.unit.getCooldownEndTime())) {
 			range += this.unitAttack.getRangeMotionBuffer();
 		}
 		return this.unit.canReach(this.target, range)
@@ -82,6 +84,14 @@ public class CBehaviorAttack extends CAbstractRangedBehavior {
 
 	@Override
 	protected CBehavior updateOnInvalidTarget(final CSimulation simulation) {
+		if (this.damagePointLaunchTime != 0) {
+			// Measured on 1.29: a swing that loses its target before the damage point is dropped at once and costs no
+			// cooldown; after the damage point the backswing still plays out.
+			this.unit.setCooldownEndTime(this.cooldownEndTimeBeforeSwing);
+			this.damagePointLaunchTime = 0;
+			this.backSwingTime = 0;
+			return this.attackListener.onFinish(simulation, this.unit);
+		}
 		if ((this.backSwingTime != 0) && (simulation.getGameTurnTick() < this.backSwingTime)) {
 			return this;
 		}
@@ -123,6 +133,7 @@ public class CBehaviorAttack extends CAbstractRangedBehavior {
 				final int a1CooldownSteps = (int) (cooldownTime / WarsmashConstants.SIMULATION_STEP_TIME);
 				final int a1BackswingSteps = (int) (animationBackswingPoint / WarsmashConstants.SIMULATION_STEP_TIME);
 				final int a1DamagePointSteps = (int) (animationDamagePoint / WarsmashConstants.SIMULATION_STEP_TIME);
+				this.cooldownEndTimeBeforeSwing = cooldownEndTime;
 				this.unit.setCooldownEndTime(currentTurnTick + a1CooldownSteps);
 				this.thisOrderCooldownEndTime = currentTurnTick + a1CooldownSteps;
 				this.damagePointLaunchTime = currentTurnTick + a1DamagePointSteps;

@@ -116,6 +116,10 @@ public abstract class CAbstractRangedBehavior implements CRangedBehavior {
 		return update(simulation, this.wasWithinPropWindow);
 	}
 
+	protected boolean isWasInRange() {
+		return this.wasInRange;
+	}
+
 	public void setDisableMove(final boolean disableMove) {
 		this.disableMove = disableMove;
 	}

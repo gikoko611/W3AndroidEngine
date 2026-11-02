@@ -41,10 +41,15 @@ public class SetupGeosets {
 						tangentBytes += vertices * 16;
 					}
 
-					if (geoset.skin != null) {
+					if ((geoset.skin != null) && isHdMaterial(model, geoset)) {
 						skinBytes += vertices * 8;
 
 						batchTypes[i] = SkinningType.Skin;
+					}
+					else if (geoset.skin != null) {
+						skinBytes += vertices * extendedBatchStride;
+
+						batchTypes[i] = SkinningType.ExtendedVertexGroups;
 					}
 					else {
 						long biggestGroup = 0;
@@ -118,6 +123,9 @@ public class SetupGeosets {
 						for (int j = 0; j < geoset.skin.length; j++) {
 							skin[j] = geoset.skin[j];
 						}
+					}
+					else if (geoset.skin != null) {
+						skin = skinToVertexGroups(geoset.skin, vertices);
 					}
 					else {
 						final long[] matrixIndices = geoset.getMatrixIndices();
@@ -218,4 +226,41 @@ public class SetupGeosets {
 		}
 	}
 
+
+	private static boolean isHdMaterial(final MdxModel model, final MdlxGeoset geoset) {
+		return "Shader_HD_DefaultUnit".equals(model.materials.get((int) geoset.getMaterialId()).shader);
+	}
+
+	/**
+	 * Reforged SD models can carry weighted skin, but the SD shader averages its bones equally. A bone therefore fills
+	 * as many of the 8 extended slots as its weight is worth.
+	 */
+	private static int[] skinToVertexGroups(final short[] skin, final int vertices) {
+		final int slots = 8;
+		final int[] groups = new int[vertices * (slots + 1)];
+		for (int vertex = 0; vertex < vertices; vertex++) {
+			final int in = vertex * 8;
+			final int out = vertex * (slots + 1);
+			int total = 0;
+			for (int j = 0; j < 4; j++) {
+				total += skin[in + 4 + j] & 0xFF;
+			}
+			if (total == 0) {
+				groups[out] = (skin[in] & 0xFF) + 1;
+				groups[out + slots] = 1;
+				continue;
+			}
+			int used = 0;
+			int weightSoFar = 0;
+			for (int j = 0; j < 4; j++) {
+				weightSoFar += skin[in + 4 + j] & 0xFF;
+				final int end = Math.round(((float) weightSoFar * slots) / total);
+				while (used < end) {
+					groups[out + used++] = (skin[in + j] & 0xFF) + 1;
+				}
+			}
+			groups[out + slots] = used;
+		}
+		return groups;
+	}
 }
