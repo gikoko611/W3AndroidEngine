@@ -72,7 +72,7 @@ public class BuffBarIcon extends AbstractClickableActionFrame implements Clickab
 	}
 
 	public void setToolTip(final String toolTip) {
-		if (toolTip != null && !toolTip.isBlank()) {
+		if (toolTip != null && !toolTip.trim().isEmpty()) {
 			if (this.positive) {
 				this.toolTip = "|c0000FF00" + toolTip + "|r";
 			} else {

@@ -783,6 +783,18 @@ public class CGameplayConstants {
 		return level;
 	}
 
+	public int[] getUpkeepUsage() {
+		return this.upkeepUsage;
+	}
+
+	public float[] getUpkeepGoldTax() {
+		return this.upkeepGoldTax;
+	}
+
+	public float[] getUpkeepLumberTax() {
+		return this.upkeepLumberTax;
+	}
+
 	public int applyUpkeepGoldTax(final int gold, final int foodUsed) {
 		return applyTax(gold, this.upkeepGoldTax, getUpkeepLevel(foodUsed));
 	}

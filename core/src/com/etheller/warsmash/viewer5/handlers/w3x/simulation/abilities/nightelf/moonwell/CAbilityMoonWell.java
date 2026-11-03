@@ -242,17 +242,17 @@ public class CAbilityMoonWell extends CAbilitySpellBase implements CAutocastAbil
 
 	@Override
 	public int getBaseOrderId() {
-		return OrderIds.replenish;
+		return OrderIds.recharge;
 	}
 
 	@Override
 	public int getAutoCastOnOrderId() {
-		return OrderIds.replenishon;
+		return OrderIds.rechargeon;
 	}
 
 	@Override
 	public int getAutoCastOffOrderId() {
-		return OrderIds.replenishoff;
+		return OrderIds.rechargeoff;
 	}
 
 	@Override

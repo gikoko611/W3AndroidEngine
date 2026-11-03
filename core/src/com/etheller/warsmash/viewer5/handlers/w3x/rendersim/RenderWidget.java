@@ -65,6 +65,7 @@ public interface RenderWidget {
 		private EnumSet<SecondaryTag> currentAnimationSecondaryTags = SequenceUtils.EMPTY;
 		private float currentSpeedRatio;
 		private boolean currentlyAllowingRarityVariations;
+		private int currentSequenceIndex = -1;
 		private final Queue<QueuedAnimation> animationQueue = new LinkedList<>();
 		private int lastWalkFrame = -1;
 		private final float animationWalkSpeed;
@@ -132,6 +133,26 @@ public interface RenderWidget {
 		}
 
 		@Override
+		public void replayEndedAnimation() {
+			if (!this.instance.sequenceEnded) {
+				return;
+			}
+			final QueuedAnimation nextAnimation = this.animationQueue.poll();
+			if (nextAnimation != null) {
+				playAnimation(true, nextAnimation.animationName, nextAnimation.secondaryAnimationTags, 1.0f,
+						nextAnimation.allowRarityVariations);
+			}
+			else if (this.currentSequenceIndex != -1) {
+				playAnimation(true, this.currentSequenceIndex, this.currentSpeedRatio,
+						this.currentlyAllowingRarityVariations);
+			}
+			else {
+				playAnimation(true, this.currentAnimation, this.currentAnimationSecondaryTags, this.currentSpeedRatio,
+						this.currentlyAllowingRarityVariations);
+			}
+		}
+
+		@Override
 		public EnumSet<SecondaryTag> getSecondaryTags() {
 			return this.secondaryAnimationTags;
 		}
@@ -157,6 +178,7 @@ public interface RenderWidget {
 					this.currentAnimation = Sequence.any(sequence.getPrimaryTags());
 					this.currentAnimationSecondaryTags = sequence.getSecondaryTags();
 					this.currentlyAllowingRarityVariations = allowRarityVariations;
+					this.currentSequenceIndex = sequenceIndex;
 				}
 			}
 		}
@@ -186,6 +208,7 @@ public interface RenderWidget {
 					this.currentAnimation = animationName;
 					this.currentAnimationSecondaryTags = secondaryAnimationTags;
 					this.currentlyAllowingRarityVariations = allowRarityVariations;
+					this.currentSequenceIndex = -1;
 				}
 			}
 		}
@@ -213,6 +236,7 @@ public interface RenderWidget {
 					this.currentAnimation = animationName;
 					this.currentAnimationSecondaryTags = secondaryAnimationTags;
 					this.currentlyAllowingRarityVariations = allowRarityVariations;
+					this.currentSequenceIndex = -1;
 					this.currentSpeedRatio = ((sequence.getInterval()[1] - sequence.getInterval()[0]) / 1000.0f)
 							/ duration;
 					this.instance.setAnimationSpeed(this.currentSpeedRatio);

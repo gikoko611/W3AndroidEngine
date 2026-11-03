@@ -8,6 +8,8 @@ import com.etheller.warsmash.parsers.fdf.frames.PopupMenuFrame;
 import com.etheller.warsmash.parsers.fdf.frames.SimpleFrame;
 import com.etheller.warsmash.parsers.fdf.frames.StringFrame;
 import com.etheller.warsmash.parsers.fdf.frames.UIFrame;
+import com.etheller.warsmash.parsers.w3x.w3i.War3MapW3i;
+import com.etheller.warsmash.parsers.w3x.w3i.War3MapW3iFlags;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.config.War3MapConfig;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.players.CMapFlag;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.players.CMapPlacement;
@@ -71,6 +73,18 @@ public class AdvancedOptionsPane {
 				listener.selected(menuItemIndex);
 			}
 		});
+	}
+
+	/**
+	 * A map with custom forces has its teams set by the map, so its alliances stay locked (as 1.29 sets the lock flag
+	 * for such a map).
+	 */
+	public void setMapInformation(final War3MapW3i mapInfo) {
+		final boolean customForces = mapInfo.hasFlag(War3MapW3iFlags.USE_CUSTOM_FORCES);
+		if (customForces) {
+			this.lockTeams.setChecked(true);
+		}
+		this.lockTeams.setEnabled(!customForces);
 	}
 
 	public void applyTo(final War3MapConfig config) {

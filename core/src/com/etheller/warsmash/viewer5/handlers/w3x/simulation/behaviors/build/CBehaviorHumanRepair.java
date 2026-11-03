@@ -134,9 +134,11 @@ public class CBehaviorHumanRepair extends CAbstractRangedBehavior {
 			if (validHumanBuildTarget) {
 				if (targetUnit.getWorker() == this.unit) {
 					targetUnit.setConstructionProgress(
-							targetUnit.getConstructionProgress() + WarsmashConstants.SIMULATION_STEP_TIME);
+							targetUnit.getConstructionProgress()
+									+ (WarsmashConstants.SIMULATION_STEP_TIME * simulation.getCheatBuildSpeed()));
 					final int buildTime = targetUnit.getUnitType().getBuildTime();
-					final float healthGain = (WarsmashConstants.SIMULATION_STEP_TIME / buildTime)
+					final float healthGain = ((WarsmashConstants.SIMULATION_STEP_TIME * simulation.getCheatBuildSpeed())
+							/ buildTime)
 							* (targetUnit.getMaximumLife() * (1.0f - WarsmashConstants.BUILDING_CONSTRUCT_START_LIFE));
 					targetUnit.setLife(simulation,
 							Math.min(targetUnit.getLife() + healthGain, targetUnit.getMaximumLife()));
@@ -146,10 +148,12 @@ public class CBehaviorHumanRepair extends CAbstractRangedBehavior {
 				}
 				else {
 					targetUnit.setConstructionProgress(targetUnit.getConstructionProgress()
-							+ (WarsmashConstants.SIMULATION_STEP_TIME * this.ability.getPowerBuildTimeRatio()));
+							+ (WarsmashConstants.SIMULATION_STEP_TIME * this.ability.getPowerBuildTimeRatio()
+									* simulation.getCheatBuildSpeed()));
 					final int buildTime = targetUnit.getUnitType().getBuildTime();
-					targetUnit.setLife(simulation,
-							Math.min(targetUnit.getLife() + this.hpPerUpdate, targetUnit.getMaximumLife()));
+					targetUnit.setLife(simulation, Math.min(
+							targetUnit.getLife() + (this.hpPerUpdate * simulation.getCheatBuildSpeed()),
+							targetUnit.getMaximumLife()));
 					if (targetUnit.getConstructionProgress() >= buildTime) {
 						return this.unit.pollNextOrderBehavior(simulation);
 					}

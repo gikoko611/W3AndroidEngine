@@ -22,6 +22,11 @@ public class CRectFogModifier extends CFogModifier {
 	}
 
 	@Override
+	public void applyNow(final CSimulation game, final CPlayer player) {
+		player.getFogOfWar().setFogStateRect(game.getPathingGrid(), this.area, this.state);
+	}
+
+	@Override
 	public void update(final CSimulation game, final CPlayer player, final PathingGrid pathingGrid,
 			final CPlayerFogOfWar fogOfWar) {
 		if (!this.enabled) {

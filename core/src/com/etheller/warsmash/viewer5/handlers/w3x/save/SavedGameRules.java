@@ -11,6 +11,7 @@ import com.etheller.warsmash.viewer5.handlers.w3x.ui.dialog.CTimerDialog;
 import com.etheller.warsmash.viewer5.handlers.w3x.UnitSound;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.IdentityHashMap;
@@ -19,10 +20,13 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 
+import com.etheller.interpreter.ast.execution.JassThread;
 import com.etheller.interpreter.ast.execution.instruction.JassInstruction;
+import com.etheller.interpreter.ast.execution.instruction.PushLiteralInstruction;
 import com.etheller.interpreter.ast.function.UserJassFunction;
 import com.etheller.interpreter.ast.scope.GlobalScope;
 import com.etheller.interpreter.ast.scope.GlobalScopeAssignable;
+import com.etheller.interpreter.ast.value.CodeJassValue;
 import com.etheller.interpreter.ast.value.JassType;
 import com.etheller.warsmash.parsers.jass.JassAIEnvironment;
 import com.etheller.warsmash.parsers.jass.ai.AIController;
@@ -67,12 +71,16 @@ final class SavedGameRules implements SavedObjectGraph.Rules {
 	private final Map<String, Object> externalObjects = new HashMap<>();
 	private final Map<String, Integer> droppedReport = new TreeMap<>();
 	private final Set<Class<?>> scannedClasses = new HashSet<>();
+	private final List<SavedScriptPositions.Program> programs;
+	private final SavedScriptPositions.Recorder positions;
+	private Map<Object, Integer> literalCodes;
 
 	SavedGameRules(final War3MapViewer viewer, final List<GlobalScope> scopes,
 			final List<JassAIEnvironment> aiEnvironments) {
 		this.viewer = viewer;
 		this.simulation = viewer.simulation;
 		this.scopes = scopes;
+		this.programs = new ArrayList<>();
 		name(viewer, "viewer");
 		name(viewer.getScriptEnvironment(), "scriptEnvironment");
 		name(viewer.mapMpq, "mapMpq");
@@ -110,19 +118,122 @@ final class SavedGameRules implements SavedObjectGraph.Rules {
 			name(JassType.BOOLEAN, "t:boolean");
 			name(JassType.CODE, "t:code");
 			name(JassType.NOTHING, "t:nothing");
-			final List<GlobalScopeAssignable> assignables = scope.getIndexedGlobals();
-			for (int j = 0; j < assignables.size(); j++) {
-				name(assignables.get(j), prefix + "g:" + j);
+			// By name, so a global added to the scripts does not move the others; "g:<index>" of older saves is
+			// resolved on demand.
+			for (final Map.Entry<String, Integer> global : scope.getGlobalIds().entrySet()) {
+				name(scope.getAssignableGlobalById(global.getValue()), prefix + "gn:" + global.getKey());
 			}
-			final List<JassInstruction> instructions = scope.getInstructions();
-			for (int j = 0; j < instructions.size(); j++) {
-				name(instructions.get(j), prefix + "i:" + j);
-			}
+			this.programs.add(new SavedScriptPositions.Program(scope));
 			for (final Map.Entry<String, UserJassFunction> function : scope.getFunctionDefinitions()
 					.entrySet()) {
 				name(function.getValue(), prefix + "f:" + function.getKey());
 			}
 		}
+		this.positions = new SavedScriptPositions.Recorder(this.programs);
+	}
+
+	List<SavedScriptPositions.Program> getPrograms() {
+		return this.programs;
+	}
+
+	/** The functions the written positions and references are in; complete once the graph is written. */
+	SavedScriptPositions.Table getPositions() {
+		return this.positions.table();
+	}
+
+	/**
+	 * Instructions and code literals are named by function and offset, found when first asked for: naming every
+	 * instruction ahead would cost a name per instruction and per program.
+	 */
+	private String scriptName(final Object object) {
+		if (object instanceof JassInstruction) {
+			final JassInstruction instruction = (JassInstruction) object;
+			for (int i = 0; i < this.programs.size(); i++) {
+				final int index = this.programs.get(i).indexOf(instruction);
+				if (index >= 0) {
+					return functionName(i, "fi:", index);
+				}
+			}
+			return null;
+		}
+		if (object.getClass() == CodeJassValue.class) {
+			final Integer scope = literalCodes().get(object);
+			final Integer pointer = ((CodeJassValue) object).getUserFunctionInstructionPtr();
+			if ((scope != null) && (pointer != null) && (pointer >= 0)) {
+				return functionName(scope, "code:", pointer);
+			}
+		}
+		return null;
+	}
+
+	private String functionName(final int scope, final String kind, final int pointer) {
+		final SavedScriptPositions.Program program = this.programs.get(scope);
+		final int segment = program.segmentAt(pointer);
+		if (segment < 0) {
+			return "s" + scope + ":i:" + pointer;
+		}
+		final int offset = pointer - program.start(segment);
+		this.positions.function(scope, segment, offset);
+		return "s" + scope + ":" + kind + program.key(segment) + "@" + offset;
+	}
+
+	/** Code values written in the scripts ("function X") live in their program and come back by name. */
+	private Map<Object, Integer> literalCodes() {
+		if (this.literalCodes == null) {
+			this.literalCodes = new IdentityHashMap<>();
+			try {
+				final Field value = PushLiteralInstruction.class.getDeclaredField("value");
+				value.setAccessible(true);
+				for (int i = 0; i < this.scopes.size(); i++) {
+					for (final JassInstruction instruction : this.scopes.get(i).getInstructions()) {
+						if (instruction instanceof PushLiteralInstruction) {
+							final Object literal = value.get(instruction);
+							if ((literal != null) && (literal.getClass() == CodeJassValue.class)
+									&& !this.literalCodes.containsKey(literal)) {
+								this.literalCodes.put(literal, i);
+							}
+						}
+					}
+				}
+			}
+			catch (final ReflectiveOperationException exc) {
+				throw new IllegalStateException(exc);
+			}
+		}
+		return this.literalCodes;
+	}
+
+	private Object resolveScriptName(final String name) {
+		final int colon = name.indexOf(':');
+		final int scopeIndex = Integer.parseInt(name.substring(1, colon));
+		final GlobalScope scope = this.scopes.get(scopeIndex);
+		final String rest = name.substring(colon + 1);
+		if (rest.startsWith("i:")) {
+			return scope.getInstructions().get(Integer.parseInt(rest.substring(2)));
+		}
+		if (rest.startsWith("g:")) {
+			return scope.getIndexedGlobals().get(Integer.parseInt(rest.substring(2)));
+		}
+		if (rest.startsWith("gn:")) {
+			// A global the scripts no longer have: its saved value is read into a stand-in and dropped.
+			System.err.println("Saved game: the scripts no longer have the global " + rest.substring(3));
+			return new GlobalScopeAssignable(JassType.INTEGER, scope);
+		}
+		final boolean code = rest.startsWith("code:");
+		if (code || rest.startsWith("fi:")) {
+			final String function = rest.substring(rest.indexOf(':') + 1);
+			final int at = function.lastIndexOf('@');
+			final SavedScriptPositions.Program program = this.programs.get(scopeIndex);
+			final Integer segment = program.segmentOf(function.substring(0, at));
+			if (segment == null) {
+				throw new IllegalStateException("The loaded game has no script function " + function);
+			}
+			final int pointer = program.start(segment) + Integer.parseInt(function.substring(at + 1));
+			final Object resolved = code ? new CodeJassValue(pointer) : program.instructionAt(pointer);
+			this.externalObjects.put(name, resolved);
+			return resolved;
+		}
+		return null;
 	}
 
 	/** A destructable exists before the state is read: the map placed it, or loading created it again first. */
@@ -143,6 +254,9 @@ final class SavedGameRules implements SavedObjectGraph.Rules {
 		final String known = this.externalNames.get(object);
 		if (known != null) {
 			return known;
+		}
+		if ((object instanceof JassInstruction) || (object instanceof CodeJassValue)) {
+			return scriptName(object);
 		}
 		if (object instanceof UnitSound) {
 			final String key = this.viewer.getUiSounds().keyOf((UnitSound) object);
@@ -199,6 +313,14 @@ final class SavedGameRules implements SavedObjectGraph.Rules {
 
 	@Override
 	public Object replace(final Object object) {
+		if (object instanceof JassThread) {
+			this.positions.thread((JassThread) object);
+			return object;
+		}
+		if ((object instanceof CodeJassValue) && (externalName(object) == null)) {
+			this.positions.inlineCode((CodeJassValue) object);
+			return object;
+		}
 		if (object instanceof RenderSpellEffect) {
 			final RenderSpellEffect effect = (RenderSpellEffect) object;
 			return effect.getModelName() == null ? object : SavedEffect.of(effect);
@@ -286,6 +408,12 @@ final class SavedGameRules implements SavedObjectGraph.Rules {
 		final Object known = this.externalObjects.get(name);
 		if (known != null) {
 			return known;
+		}
+		if ((name.length() > 1) && (name.charAt(0) == 's') && Character.isDigit(name.charAt(1))) {
+			final Object script = resolveScriptName(name);
+			if (script != null) {
+				return script;
+			}
 		}
 		if (name.startsWith("static:")) {
 			final int hash = name.indexOf('#');

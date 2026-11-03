@@ -154,7 +154,7 @@ public class CommandCardPopulatingAbilityVisitor implements CAbilityVisitor<Void
 				if ((tt == null) || (tt == ability.getAlias())) {
 					addCommandButton(ability,
 							active ? ui.getOffIconUI(ability.getLevel() - 1) : ui.getOnIconUI(ability.getLevel() - 1),
-							ability.getHandleId(), active ? ability.getOffOrderId() : ability.getBaseOrderId(),
+							ability.getHandleId(), active ? ability.getOffOrderId() : ability.getUICastOrderId(),
 							autoCastOn ? ability.getAutoCastOffOrderId() : ability.getAutoCastOnOrderId(), autoCastOn,
 							ability.isMenuAbility(), ability.getUIGoldCost(), ability.getUILumberCost(),
 							ability.getUIFoodCost(), ability.getUIManaCost(), active ? -1 : ability.getUsesRemaining());
@@ -162,7 +162,7 @@ public class CommandCardPopulatingAbilityVisitor implements CAbilityVisitor<Void
 					addCommandButton(ability,
 							active ? ui.getOffIconUI(ability.getLevel() - 1) : ui.getOnIconUI(ability.getLevel() - 1),
 							resolveUnknownIcon(tt, active, ability.getLevel() - 1), ability.getHandleId(),
-							active ? ability.getOffOrderId() : ability.getBaseOrderId(),
+							active ? ability.getOffOrderId() : ability.getUICastOrderId(),
 							autoCastOn ? ability.getAutoCastOffOrderId() : ability.getAutoCastOnOrderId(), autoCastOn,
 							ability.isMenuAbility(), ability.getUIGoldCost(), ability.getUILumberCost(),
 							ability.getUIFoodCost(), ability.getUIManaCost(), active ? -1 : ability.getUsesRemaining());

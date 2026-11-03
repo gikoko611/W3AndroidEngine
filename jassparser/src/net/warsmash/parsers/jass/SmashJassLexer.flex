@@ -2,7 +2,6 @@
  * Lex file for SmashJass
  */
 package net.warsmash.parsers.jass;
-import com.etheller.warsmash.util.RawcodeUtils;
 
 %%
  
@@ -230,10 +229,12 @@ MULTILINE_COMMENT = ("/*"(("*"[^"/"])|[^"*"])*?"*/")
 {RAWCODE} {
 	final String stringLiteralText = yytext();
 	String parsedString = stringLiteralText.substring(1, stringLiteralText.length() - 1).replace("\\\\", "\\");
-	while (parsedString.length() < 4) {
-		parsedString += '\0';
+	// A rawcode is its characters as base 256 digits, so 'C' is 67, not 'C\0\0\0'.
+	int rawcode = 0;
+	for (int i = 0; i < parsedString.length(); i++) {
+		rawcode = (rawcode << 8) | (parsedString.charAt(i) & 0xFF);
 	}
-	yylval = RawcodeUtils.toInt(parsedString);
+	yylval = rawcode;
 	return SmashJassParser.Lexer.RAWCODE; }
 {REAL} {
 	yylval = Double.parseDouble(yytext());

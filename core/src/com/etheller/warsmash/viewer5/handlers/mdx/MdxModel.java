@@ -92,6 +92,8 @@ public class MdxModel extends com.etheller.warsmash.viewer5.Model<MdxHandler> {
 		}
 	}
 
+	private static boolean reportedStreamConversion = false;
+
 	public void load(final Object bufferOrParser) throws IOException {
 		MdlxModel parser;
 
@@ -99,7 +101,10 @@ public class MdxModel extends com.etheller.warsmash.viewer5.Model<MdxHandler> {
 			parser = (MdlxModel) bufferOrParser;
 		}
 		else {
-			System.err.println("Wasting memory with conversion from InputStream to buffer in MdxModel");
+			if (!reportedStreamConversion) {
+				reportedStreamConversion = true;
+				System.err.println("Wasting memory with conversion from InputStream to buffer in MdxModel (reported once)");
+			}
 			parser = new MdlxModel(ByteBuffer.wrap(IOUtils.toByteArray((InputStream) bufferOrParser)));
 		}
 

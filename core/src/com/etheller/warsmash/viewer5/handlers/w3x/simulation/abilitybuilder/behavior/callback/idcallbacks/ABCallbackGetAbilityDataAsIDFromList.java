@@ -25,7 +25,7 @@ public class ABCallbackGetAbilityDataAsIDFromList extends ABIDCallback {
 		final int level = (int) localStore.get(ABLocalStoreKeys.CURRENTLEVEL);
 
 		final String data = levelData.get(level - 1).getData().get(this.dataField.getIndex());
-		if ((data == null) || "-".equals(data) || data.isBlank() || "_".equals(data)) {
+		if ((data == null) || "-".equals(data) || data.trim().isEmpty() || "_".equals(data)) {
 			return War3ID.NONE;
 		}
 		String[] ids = data.split(",");
@@ -34,7 +34,7 @@ public class ABCallbackGetAbilityDataAsIDFromList extends ABIDCallback {
 			i = index.callback(game, caster, localStore, castId);
 		}
 		String tar = ids[Math.min(Math.max(i, 0), ids.length - 1)];
-		if ((tar == null) || "-".equals(tar) || tar.isBlank() || "_".equals(tar)) {
+		if ((tar == null) || "-".equals(tar) || tar.trim().isEmpty() || "_".equals(tar)) {
 			return War3ID.NONE;
 		}
 		return War3ID.fromString(tar);

@@ -1,5 +1,6 @@
 package com.etheller.warsmash.viewer5.handlers.w3x.simulation.combat.attacks.listeners;
 
+import com.etheller.warsmash.util.RandomBounds;
 import java.util.Random;
 
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CSimulation;
@@ -24,7 +25,7 @@ public class CUnitDefaultAccuracyCheckListener implements CUnitAttackPreDamageLi
 			if (simulation.getTerrainHeight(attacker.getX(), attacker.getY()) < simulation
 					.getTerrainHeight(target.getX(), target.getY())) {
 				Random random = simulation.getSeededRandom();
-				if (random.nextFloat(1f) < simulation.getGameplayConstants().getChanceToMiss()) {
+				if (RandomBounds.nextFloat(random, 1f) < simulation.getGameplayConstants().getChanceToMiss()) {
 					miss = true;
 				}
 			}

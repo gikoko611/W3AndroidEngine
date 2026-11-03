@@ -1,5 +1,7 @@
 package com.etheller.warsmash.viewer5.handlers.w3x.ui;
 
+import com.badlogic.gdx.files.FileHandle;
+import com.etheller.warsmash.viewer5.handlers.w3x.save.SavedGame;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
@@ -69,6 +71,11 @@ final class MeleeGameMenu {
 			@Override
 			public void loadGame(final String name) {
 				host.loadGame(name);
+			}
+
+			@Override
+			public SavedGame.Loadability loadability(final FileHandle file) {
+				return host.loadability(file);
 			}
 
 			@Override

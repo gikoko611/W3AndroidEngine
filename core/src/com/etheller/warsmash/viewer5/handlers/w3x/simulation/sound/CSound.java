@@ -23,6 +23,10 @@ public interface CSound {
 	default void setPitch(final float pitch) {
 	}
 
+	/** Each start picks a pitch up to this far either side of the set one (RANDOMPITCH labels). */
+	default void setPitchVariance(final float variance) {
+	}
+
 	default void setChannel(final int channel) {
 	}
 

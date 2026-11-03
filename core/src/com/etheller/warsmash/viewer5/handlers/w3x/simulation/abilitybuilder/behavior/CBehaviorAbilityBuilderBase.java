@@ -38,6 +38,7 @@ public class CBehaviorAbilityBuilderBase extends CAbstractRangedBehavior impleme
 	private boolean preventReInterrupt = false;
 
 	private int castId = 0;
+	private int previousCastId = 0;
 	private int issuingPlayerIndex;
 	private int orderId;
 	private boolean autoOrder;
@@ -65,6 +66,10 @@ public class CBehaviorAbilityBuilderBase extends CAbstractRangedBehavior impleme
 	}
 
 	public CBehavior reset(final CSimulation game, final CWidget target, final boolean autoOrder) {
+		if (isSameCastUnderway(target, this.ability.getBaseOrderId())) {
+			this.autoOrder = autoOrder;
+			return this;
+		}
 		this.doneCastTime = false;
 		this.doneEffect = false;
 		this.castStartTick = 0;
@@ -87,6 +92,10 @@ public class CBehaviorAbilityBuilderBase extends CAbstractRangedBehavior impleme
 	}
 
 	public CBehavior reset(final CSimulation game, final CWidget target, int issuingPlayerIndex, int orderId, final boolean autoOrder) {
+		if (isSameCastUnderway(target, orderId)) {
+			this.autoOrder = autoOrder;
+			return this;
+		}
 		this.doneCastTime = false;
 		this.doneEffect = false;
 		this.castStartTick = 0;
@@ -153,6 +162,22 @@ public class CBehaviorAbilityBuilderBase extends CAbstractRangedBehavior impleme
 		this.channelTags = this.ability.getCastingSecondaryTags().clone();
 		this.channelTags.add(SecondaryTag.CHANNEL);
 		return innerReset(game, target, false);
+	}
+
+	// The same spell ordered again on the same target goes on with the cast under way instead of restarting it (1.29
+	// Heal ordered again during its repeat keeps its cycle).
+	private boolean isSameCastUnderway(final CWidget target, final int orderId) {
+		if ((this.unit.getCurrentBehavior() != this) || (this.target != target) || (this.orderId != orderId)
+				|| (this.castStartTick == 0) || this.channeling) {
+			return false;
+		}
+		if (this.previousCastId != this.castId) {
+			this.localStore.remove(ABLocalStoreKeys.ABILITYTARGETEDUNIT + this.previousCastId);
+			this.localStore.remove(ABLocalStoreKeys.ABILITYTARGETEDITEM + this.previousCastId);
+			this.localStore.remove(ABLocalStoreKeys.ABILITYTARGETEDDESTRUCTABLE + this.previousCastId);
+			this.localStore.remove(ABLocalStoreKeys.combineKey(ABLocalStoreKeys.ISAUTOCAST, this.previousCastId));
+		}
+		return true;
 	}
 
 	public ABBehavior reset(final boolean autoOrder) {
@@ -238,12 +263,10 @@ public class CBehaviorAbilityBuilderBase extends CAbstractRangedBehavior impleme
 				}
 
 				this.ability.checkCanUse(game, unit, issuingPlayerIndex, orderId, autoOrder, BooleanAbilityActivationReceiver.INSTANCE.reset());
-				if (!BooleanAbilityActivationReceiver.INSTANCE.isOk()
-						|| !this.unit.chargeMana(this.ability.getChargedManaCost())) {
+				if (!BooleanAbilityActivationReceiver.INSTANCE.isOk()) {
 					cleanupInputs();
 					return this.unit.pollNextOrderBehavior(game);
 				}
-				this.ability.startCooldown(game, this.unit);
 				CBehavior prevBeh = this.unit.getCurrentBehavior();
 
 				this.ability.runBeginCastingActions(game, unit, orderId);
@@ -293,11 +316,40 @@ public class CBehaviorAbilityBuilderBase extends CAbstractRangedBehavior impleme
 				}
 			}
 			if ((ticksSinceCast >= backswingTicks) && !this.channeling) {
+				if (this.doneEffect && this.ability.isRepeatCast()) {
+					// The cast holds until the cooldown is over, also on the last repeat (1.29 Heal: E+1.0 s, not
+					// the backswing).
+					if (this.ability.getCooldownRemainingTicks(game, this.unit) > 0) {
+						return this;
+					}
+					if (canRepeat(game)) {
+						fireEndEvents(game, false);
+						restartCast();
+						return isWithinRange(game) ? update(game, withinFacingWindow) : this;
+					}
+				}
 				cleanupInputs();
 				return this.unit.pollNextOrderBehavior(game);
 			}
 		}
 		return this;
+	}
+
+	private boolean canRepeat(final CSimulation game) {
+		if (!this.target.visit(this.preCastTargetableVisitor.reset(game, this.unit, this.ability, this.autoOrder, false,
+				this.issuingPlayerIndex, this.orderId))) {
+			return false;
+		}
+		this.ability.checkCanUse(game, this.unit, this.issuingPlayerIndex, this.orderId, this.autoOrder,
+				BooleanAbilityActivationReceiver.INSTANCE.reset());
+		return BooleanAbilityActivationReceiver.INSTANCE.isOk();
+	}
+
+	private void restartCast() {
+		this.doneCastTime = false;
+		this.doneEffect = false;
+		this.castStartTick = 0;
+		this.localStore.put(ABLocalStoreKeys.CHANNELING, false);
 	}
 
 	private void cleanupInputs() {
@@ -307,6 +359,15 @@ public class CBehaviorAbilityBuilderBase extends CAbstractRangedBehavior impleme
 	private CBehavior tryDoEffect(CSimulation game, boolean wasChanneling) {
 		boolean wasEffectDone = this.doneEffect;
 		if (!wasEffectDone) {
+			// Instant casts paid already; others pay mana and start the cooldown at the effect, so a cast stopped
+			// before it costs nothing (1.29).
+			if (!this.instant) {
+				if (!this.unit.chargeMana(this.ability.getChargedManaCost())) {
+					this.doneEffect = true;
+					return this.unit.pollNextOrderBehavior(game);
+				}
+				this.ability.startCooldown(game, this.unit);
+			}
 			CBehavior prevBeh = this.unit.getCurrentBehavior();
 			if (this.channeling) {
 				game.unitLoopSoundEffectEvent(this.unit, this.ability.getAlias());
@@ -382,6 +443,10 @@ public class CBehaviorAbilityBuilderBase extends CAbstractRangedBehavior impleme
 	@Override
 	public void end(final CSimulation game, final boolean interrupted) {
 		checkEndChannel(game, interrupted);
+		fireEndEvents(game, interrupted);
+	}
+
+	private void fireEndEvents(final CSimulation game, final boolean interrupted) {
 		Boolean preventEndEvents = (Boolean) this.localStore.get(ABLocalStoreKeys.PREVENTENDEVENTS + this.castId);
 		if (preventEndEvents == null || !preventEndEvents) {
 			if (!interrupted) {
@@ -446,6 +511,7 @@ public class CBehaviorAbilityBuilderBase extends CAbstractRangedBehavior impleme
 	}
 
 	public void setCastId(int castId) {
+		this.previousCastId = this.castId;
 		this.castId = castId;
 	}
 

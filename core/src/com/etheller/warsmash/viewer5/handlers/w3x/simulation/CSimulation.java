@@ -12,6 +12,7 @@ import java.util.ListIterator;
 import java.util.Map;
 import java.util.Random;
 import java.util.Set;
+import java.util.function.Predicate;
 
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.math.Rectangle;
@@ -20,6 +21,7 @@ import com.etheller.interpreter.ast.scope.GlobalScope;
 import com.etheller.interpreter.ast.scope.TriggerExecutionScope;
 import com.etheller.interpreter.ast.scope.trigger.RemovableTriggerEvent;
 import com.etheller.interpreter.ast.scope.trigger.Trigger;
+import com.etheller.warsmash.viewer5.handlers.w3x.save.SavedFormerly;
 import com.etheller.interpreter.ast.scope.trigger.TriggerBooleanExpression;
 import com.etheller.interpreter.ast.scope.variableevent.CLimitOp;
 import com.etheller.interpreter.ast.scope.variableevent.VariableEvent;
@@ -84,6 +86,7 @@ import com.etheller.warsmash.viewer5.handlers.w3x.simulation.quest.CQuestLog;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.region.CRegionManager;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.state.FalseTimeOfDay;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.timers.CTimer;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.timers.CTimerSleepAction;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.trigger.JassGameEventsWar3;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.trigger.enumtypes.CEffectType;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.trigger.enumtypes.CFogState;
@@ -99,6 +102,7 @@ import com.etheller.warsmash.viewer5.handlers.w3x.ui.command.CommandErrorListene
 
 public class CSimulation implements CPlayerAPI, CFogMaskSettings {
 	private boolean scriptOrder;
+	private boolean scriptTargetOrder;
 	private final War3MapConfig mapConfig;
 	private final CAbilityData abilityData;
 	private final CUnitData unitData;
@@ -133,7 +137,7 @@ public class CSimulation implements CPlayerAPI, CFogMaskSettings {
 	private final Map<Integer, CAbility> handleIdToAbility = new HashMap<>();
 	private final LinkedList<CTimer> activeTimers = new LinkedList<>();
 	private final List<CTimer> addedTimers = new ArrayList<>();
-	private final List<CTimer> removedTimers = new ArrayList<>();
+	private boolean firingTimers;
 	private final List<Trigger> addedOnTickTriggers = new ArrayList<>();
 	private final List<Trigger> removedOnTickTriggers = new ArrayList<>();
 	private final LinkedList<Trigger> onTickTriggers = new LinkedList<>();
@@ -157,6 +161,8 @@ public class CSimulation implements CPlayerAPI, CFogMaskSettings {
 	private static final int BUILDING_PLACE_SEARCH_RINGS = 32;
 	private boolean fogMaskEnabled = true;
 	private boolean fogEnabled = true;
+	private boolean cheatRevealMap = false;
+	private float cheatBuildSpeed = 1.0f;
 	private final List<Runnable> postUpdateCallbacks = new ArrayList<>();
 	private final Set<Integer> queuedRequirementUpdates = new HashSet<>();
 	private final List<Runnable> runningPostUpdateCallbacks = new ArrayList<>();
@@ -310,12 +316,7 @@ public class CSimulation implements CPlayerAPI, CFogMaskSettings {
 
 		this.commandErrorListener = commandErrorListener;
 
-		final CTimer fogUpdateTimer = new CTimer() {
-			@Override
-			public void onFire(final CSimulation simulation) {
-				updateFogOfWar();
-			}
-		};
+		final CTimer fogUpdateTimer = new FogUpdateTimer();
 		fogUpdateTimer.setRepeats(true);
 		fogUpdateTimer.setTimeoutTime(1.0f);
 		fogUpdateTimer.start(this);
@@ -375,11 +376,27 @@ public class CSimulation implements CPlayerAPI, CFogMaskSettings {
 	}
 
 	public void registerTimer(final CTimer timer) {
+		this.addedTimers.remove(timer);
+		if (this.firingTimers && (timer.getEngineFireTick() <= this.gameTurnTick) && timer.canFireInCurrentTick()) {
+			internalRegisterTimer(timer);
+			return;
+		}
+		this.activeTimers.remove(timer);
 		this.addedTimers.add(timer);
 	}
 
 	public void unregisterTimer(final CTimer timer) {
-		this.removedTimers.add(timer);
+		// Removed at once: a timer paused by another timer's callback must not fire later in the same tick (1.29).
+		this.addedTimers.remove(timer);
+		this.activeTimers.remove(timer);
+	}
+
+	/** Drops the wake-ups of threads that sleep in a script program no longer run. */
+	public void unregisterSleepTimersOf(final GlobalScope scope) {
+		final Predicate<CTimer> ofScope = timer -> (timer instanceof CTimerSleepAction)
+				&& (((CTimerSleepAction) timer).getSleepingThread().globalScope == scope);
+		this.addedTimers.removeIf(ofScope);
+		this.activeTimers.removeIf(ofScope);
 	}
 
 	private void internalRegisterTimer(final CTimer timer) {
@@ -718,10 +735,45 @@ public class CSimulation implements CPlayerAPI, CFogMaskSettings {
 		for (final CUnit unit : this.units) {
 			unit.updateFogOfWar(this);
 		}
+		// Units a timer created earlier in this step join the unit list only at the next step; leaving them out
+		// would fog what they see for a whole second.
+		for (final CUnit unit : this.newUnits) {
+			unit.updateFogOfWar(this);
+		}
+		shareVision();
 		for (final CPlayer player : this.players) {
 			player.updateFogModifiersAfterUnits(this);
 		}
+		for (final CUnit unit : this.units) {
+			unit.updateSeenBy(this, this.players.size());
+		}
 		PerfStats.addStep(PerfStats.Step.FOG, System.nanoTime() - fogStart);
+	}
+
+	/**
+	 * A player sharing vision (ALLIANCE_SHARED_VISION from giver to receiver) adds what it sees to the receiver's fog
+	 * at the fog update, not at once (measured on 1.29), and only one way.
+	 */
+	private void shareVision() {
+		boolean anyShared = false;
+		for (final CPlayer giver : this.players) {
+			for (final CPlayer receiver : this.players) {
+				if ((giver != receiver) && sharesVision(giver, receiver)) {
+					if (!anyShared) {
+						anyShared = true;
+						for (final CPlayer player : this.players) {
+							player.getFogOfWar().keepOwnVision();
+						}
+					}
+					receiver.getFogOfWar().addOwnVisionOf(giver.getFogOfWar());
+				}
+			}
+		}
+	}
+
+	private static boolean sharesVision(final CPlayer giver, final CPlayer receiver) {
+		return giver.hasAlliance(receiver.getId(), CAllianceType.SHARED_VISION)
+				|| giver.hasAlliance(receiver.getId(), CAllianceType.SHARED_VISION_FORCED);
 	}
 
 	public void addUnitInRangeEvent(final com.etheller.warsmash.viewer5.handlers.w3x.simulation.unit.CUnitInRangeEvent event) {
@@ -779,6 +831,9 @@ public class CSimulation implements CPlayerAPI, CFogMaskSettings {
 			}
 		}
 		finishAddingNewUnits();
+		for (int i = 0; i < this.units.size(); i++) {
+			this.units.get(i).checkRescue(this);
+		}
 		PerfStats.stepEnd(PerfStats.Step.UNITS);
 		for (final CDestructable destructable : this.removedDestructables) {
 			this.simulationRenderController.removeDestructable(destructable);
@@ -819,18 +874,21 @@ public class CSimulation implements CPlayerAPI, CFogMaskSettings {
 			internalRegisterTimer(timer);
 		}
 		this.addedTimers.clear();
-		for (final CTimer timer : this.removedTimers) {
-			internalUnregisterTimer(timer);
-		}
-		this.removedTimers.clear();
 		final Set<CTimer> timers = new HashSet<>();
 		for (final CTimer timer : this.activeTimers) {
 			if (!timers.add(timer)) {
 				throw new IllegalStateException("Duplicate timer add: " + timer);
 			}
 		}
-		while (!this.activeTimers.isEmpty() && (this.activeTimers.peek().getEngineFireTick() <= this.gameTurnTick)) {
-			this.activeTimers.pop().fire(this);
+		this.firingTimers = true;
+		try {
+			while (!this.activeTimers.isEmpty()
+					&& (this.activeTimers.peek().getEngineFireTick() <= this.gameTurnTick)) {
+				this.activeTimers.pop().fire(this);
+			}
+		}
+		finally {
+			this.firingTimers = false;
 		}
 		checkTimeOfDayEvents(timeOfDayBefore, timeOfDayAfter);
 		PerfStats.stepEnd(PerfStats.Step.TIMERS);
@@ -999,6 +1057,14 @@ public class CSimulation implements CPlayerAPI, CFogMaskSettings {
 
 	public boolean isScriptOrder() {
 		return this.scriptOrder;
+	}
+
+	public void setScriptTargetOrder(final boolean scriptTargetOrder) {
+		this.scriptTargetOrder = scriptTargetOrder;
+	}
+
+	public boolean isScriptTargetOrder() {
+		return this.scriptTargetOrder;
 	}
 
 	public CQuestLog getQuestLog() {
@@ -1219,18 +1285,41 @@ public class CSimulation implements CPlayerAPI, CFogMaskSettings {
 		final TimeOfDayVariableEvent timeOfDayVariableEvent = new TimeOfDayVariableEvent(trigger, opcode, doubleValue,
 				globalScope);
 		this.timeOfDayVariableEvents.add(timeOfDayVariableEvent);
-		return new RemovableTriggerEvent(trigger) {
-			@Override
-			public void remove() {
-				CSimulation.this.timeOfDayVariableEvents.remove(timeOfDayVariableEvent);
-			}
-		};
+		return new TimeOfDayEventRegistration(this, trigger, timeOfDayVariableEvent);
+	}
+
+	private static final class FogUpdateTimer extends CTimer {
+		@Override
+		public void onFire(final CSimulation simulation) {
+			simulation.updateFogOfWar();
+		}
+	}
+
+	private static final class TimeOfDayEventRegistration extends RemovableTriggerEvent {
+		@SavedFormerly("this$0")
+		private final CSimulation simulation;
+		@SavedFormerly("val$timeOfDayVariableEvent")
+		private final TimeOfDayVariableEvent event;
+
+		private TimeOfDayEventRegistration(final CSimulation simulation, final Trigger trigger,
+				final TimeOfDayVariableEvent event) {
+			super(trigger);
+			this.simulation = simulation;
+			this.event = event;
+		}
+
+		@Override
+		public void remove() {
+			this.simulation.timeOfDayVariableEvents.remove(this.event);
+		}
 	}
 
 	public RemovableTriggerEvent registerGameEvent(final GlobalScope globalScope, final Trigger trigger,
 			final JassGameEventsWar3 gameEvent) {
 		final List<Trigger> triggers = this.gameEventTriggers.computeIfAbsent(gameEvent, key -> new ArrayList<>());
-		if ((gameEvent != JassGameEventsWar3.EVENT_GAME_LOADED) && (gameEvent != JassGameEventsWar3.EVENT_GAME_SAVE)) {
+		if ((gameEvent != JassGameEventsWar3.EVENT_GAME_LOADED) && (gameEvent != JassGameEventsWar3.EVENT_GAME_SAVE)
+				&& (gameEvent != JassGameEventsWar3.EVENT_GAME_SHOW_SKILL)
+				&& (gameEvent != JassGameEventsWar3.EVENT_GAME_BUILD_SUBMENU)) {
 			System.err.println("Game event not yet implemented: " + gameEvent);
 		}
 		triggers.add(trigger);
@@ -1671,8 +1760,25 @@ public class CSimulation implements CPlayerAPI, CFogMaskSettings {
 		return this.fogEnabled;
 	}
 
+	/** iseedeadpeople: measured on 1.29 (cheat-native-d296), every place is visible to every player. */
+	public void toggleCheatRevealMap() {
+		this.cheatRevealMap = !this.cheatRevealMap;
+	}
+
+	/** warpten: measured on 1.29 (cheat-warpten-d296), train, research and build run 16 times faster. */
+	public void toggleCheatBuildSpeed() {
+		this.cheatBuildSpeed = this.cheatBuildSpeed == 1.0f ? 16.0f : 1.0f;
+	}
+
+	public float getCheatBuildSpeed() {
+		return this.cheatBuildSpeed;
+	}
+
 	@Override
 	public byte getFogStateFromSettings(final byte mask) {
+		if (this.cheatRevealMap) {
+			return CFogState.VISIBLE.getMask();
+		}
 		final CFogState state = CFogState.getByMask(mask);
 		switch (state) {
 		case MASKED:

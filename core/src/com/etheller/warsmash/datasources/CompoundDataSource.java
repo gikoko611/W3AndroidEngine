@@ -1,5 +1,6 @@
 package com.etheller.warsmash.datasources;
 
+import java.io.BufferedInputStream;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
@@ -9,6 +10,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -22,6 +24,7 @@ public class CompoundDataSource implements DataSource {
 				this.mpqList.add(dataSource);
 			}
 		}
+		loadFileAliases();
 	}
 
 	Map<String, File> cache = new HashMap<>();
@@ -29,6 +32,34 @@ public class CompoundDataSource implements DataSource {
 	// and the same paths are asked for many times (prefixes, extensions, aliases).
 	private static final int MISSING = -1;
 	private final Map<String, Integer> sourceIndexCache = new ConcurrentHashMap<>();
+
+	// Data prepared as a folder has many files only under their alias target, and only CASC resolves aliases itself.
+	// The path as asked wins, so CASC sources behave as before.
+	private final Map<String, String> fileAliases = new HashMap<>();
+
+	private void loadFileAliases() {
+		this.fileAliases.clear();
+		final int index = findSourceIndex("filealiases.json");
+		if (index == MISSING) {
+			return;
+		}
+		try (InputStream stream = this.mpqList.get(index).getResourceAsStream("filealiases.json")) {
+			if (stream != null) {
+				CascDataSource.readFileAliases(stream.markSupported() ? stream : new BufferedInputStream(stream),
+						this.fileAliases);
+			}
+		}
+		catch (final IOException | RuntimeException e) {
+			e.printStackTrace();
+		}
+	}
+
+	private String resolveAlias(final String filepath) {
+		if (this.fileAliases.isEmpty()) {
+			return null;
+		}
+		return this.fileAliases.get(filepath.toLowerCase(Locale.US).replace('/', '\\').replace(':', '\\'));
+	}
 
 	private int findSourceIndex(final String filepath) {
 		final Integer cached = this.sourceIndexCache.get(filepath);
@@ -48,6 +79,20 @@ public class CompoundDataSource implements DataSource {
 
 	@Override
 	public File getFile(final String filepath) {
+		File file = getFileFromSources(filepath);
+		if (file == null) {
+			final String alias = resolveAlias(filepath);
+			if (alias != null) {
+				file = getFileFromSources(alias);
+				if (file != null) {
+					this.cache.put(filepath, file);
+				}
+			}
+		}
+		return file;
+	}
+
+	private File getFileFromSources(final String filepath) {
 		if (this.cache.containsKey(filepath)) {
 			return this.cache.get(filepath);
 		}
@@ -88,6 +133,17 @@ public class CompoundDataSource implements DataSource {
 
 	@Override
 	public ByteBuffer read(final String path) throws IOException {
+		final ByteBuffer buffer = readFromSources(path);
+		if (buffer == null) {
+			final String alias = resolveAlias(path);
+			if (alias != null) {
+				return readFromSources(alias);
+			}
+		}
+		return buffer;
+	}
+
+	private ByteBuffer readFromSources(final String path) {
 		try {
 			for (int i = this.mpqList.size() - 1; i >= 0; i--) {
 				final DataSource mpq = this.mpqList.get(i);
@@ -106,6 +162,17 @@ public class CompoundDataSource implements DataSource {
 
 	@Override
 	public InputStream getResourceAsStream(final String filepath) {
+		final InputStream stream = getResourceAsStreamFromSources(filepath);
+		if (stream == null) {
+			final String alias = resolveAlias(filepath);
+			if (alias != null) {
+				return getResourceAsStreamFromSources(alias);
+			}
+		}
+		return stream;
+	}
+
+	private InputStream getResourceAsStreamFromSources(final String filepath) {
 		try {
 			final Integer cached = this.sourceIndexCache.get(filepath);
 			if ((cached != null) && (cached != MISSING)) {
@@ -134,7 +201,11 @@ public class CompoundDataSource implements DataSource {
 		if (this.cache.containsKey(filepath)) {
 			return true;
 		}
-		return findSourceIndex(filepath) != MISSING;
+		if (findSourceIndex(filepath) != MISSING) {
+			return true;
+		}
+		final String alias = resolveAlias(filepath);
+		return (alias != null) && (findSourceIndex(alias) != MISSING);
 	}
 
 	@Override
@@ -148,6 +219,12 @@ public class CompoundDataSource implements DataSource {
 			final String found = this.mpqList.get(i).findFirst(filepaths);
 			if (found != null) {
 				return found;
+			}
+		}
+		for (final String filepath : filepaths) {
+			final String alias = resolveAlias(filepath);
+			if ((alias != null) && (findSourceIndex(alias) != MISSING)) {
+				return filepath;
 			}
 		}
 		return null;
@@ -173,6 +250,7 @@ public class CompoundDataSource implements DataSource {
 				this.mpqList.add(descriptor.createDataSource());
 			}
 		}
+		loadFileAliases();
 	}
 
 	public interface LoadedMPQ {

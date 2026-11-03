@@ -238,6 +238,9 @@ public final class War3ObjectDataChangeset {
 		case 'b':
 		case 't':
 			return false;
+		case 'd':
+			// Version 1 doodad files (the 1.29 Frozen Throne campaign maps) have no variation and data pointer.
+			return this.version >= 2;
 		}
 		return true;
 	}

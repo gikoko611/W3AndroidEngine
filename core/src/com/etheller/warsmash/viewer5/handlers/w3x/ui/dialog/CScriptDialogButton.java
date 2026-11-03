@@ -15,15 +15,17 @@ public class CScriptDialogButton {
 	private GlueTextButtonFrame buttonFrame;
 	private StringFrame buttonText;
 	private String text;
+	private int hotkey;
 	private boolean quitButton;
 	private final List<Trigger> eventTriggers = new ArrayList<>();
 	private Runnable afterClick;
 
 	public CScriptDialogButton(final GlueTextButtonFrame buttonFrame, final StringFrame buttonText,
-			final String text) {
+			final String text, final int hotkey) {
 		this.buttonFrame = buttonFrame;
 		this.buttonText = buttonText;
 		this.text = text;
+		this.hotkey = hotkey;
 	}
 
 	/** A saved game keeps what the button says and does; the loaded game gives it new frames. */
@@ -34,6 +36,10 @@ public class CScriptDialogButton {
 
 	public String getText() {
 		return this.text;
+	}
+
+	public int getHotkey() {
+		return this.hotkey;
 	}
 
 	public boolean isQuitButton() {

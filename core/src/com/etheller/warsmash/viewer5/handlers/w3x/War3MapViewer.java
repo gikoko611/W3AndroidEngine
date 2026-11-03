@@ -16,6 +16,7 @@ import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CGlobalWidgetEvent;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.unit.CWidgetEvent;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.build.AbstractCAbilityBuild;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.sound.CSoundMixer;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.sound.CStackedSounds;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.util.CWidgetAbilityTargetCheckReceiver;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.unit.BuildOnBuildingIntersector;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilitybuilder.ability.GetInstantTransformationBuffVisitor;
@@ -155,6 +156,7 @@ import com.etheller.warsmash.viewer5.handlers.w3x.rendersim.ability.AbilityUI;
 import com.etheller.warsmash.viewer5.handlers.w3x.rendersim.ability.BuffUI;
 import com.etheller.warsmash.viewer5.handlers.w3x.rendersim.ability.EffectAttachmentUI;
 import com.etheller.warsmash.viewer5.handlers.w3x.rendersim.ability.EffectAttachmentUIMissile;
+import com.etheller.warsmash.viewer5.handlers.w3x.save.SavedFormerly;
 import com.etheller.warsmash.viewer5.handlers.w3x.save.SavedGame;
 import com.etheller.warsmash.viewer5.handlers.w3x.save.SavedInterfaceState;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CDestructable;
@@ -185,6 +187,7 @@ import com.etheller.warsmash.viewer5.handlers.w3x.simulation.players.CPlayer;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.players.vision.CPlayerFogOfWar;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.timers.CTimer;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.trigger.enumtypes.CEffectType;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.trigger.enumtypes.CSoundVolumeGroup;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.util.SimulationRenderComponent;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.util.SimulationRenderComponentLightning;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.util.SimulationRenderComponentLightningMovable;
@@ -256,6 +259,8 @@ public class War3MapViewer extends AbstractMdxModelViewer implements MdxAssetLoa
 	public List<RenderEffect> projectiles = new ArrayList<>();
 	private final List<RenderLightningEffect> lightnings = new ArrayList<>();
 	private final List<RenderWeatherEffect> weatherEffects = new ArrayList<>();
+	private final CStackedSounds stackedSounds = new CStackedSounds();
+	private final Vector3 stackedSoundsForward = new Vector3();
 	private final List<com.etheller.warsmash.viewer5.handlers.w3x.rendersim.RenderUbersplat> scriptUbersplats = new ArrayList<>();
 	private Map<War3ID, WeatherType> weatherTypes;
 	public boolean unitsReady;
@@ -273,6 +278,8 @@ public class War3MapViewer extends AbstractMdxModelViewer implements MdxAssetLoa
 	private final List<RenderWidget> mouseHighlightWidgets = new ArrayList<>();
 	private DataTable unitAckSoundsTable;
 	private DataTable unitCombatSoundsTable;
+	private DataTable animSoundsTable;
+	private DataTable scriptSoundsTable;
 	public DataTable miscData;
 	private com.etheller.warsmash.viewer5.handlers.w3x.ui.AllyColorFilter allyColorFilter;
 	private boolean restartMissionDisabled;
@@ -426,6 +433,12 @@ public class War3MapViewer extends AbstractMdxModelViewer implements MdxAssetLoa
 		try (InputStream terrainSlkStream = this.dataSource
 				.getResourceAsStream("UI\\SoundInfo\\UnitCombatSounds.slk")) {
 			this.unitCombatSoundsTable.readSLK(terrainSlkStream);
+		}
+		this.animSoundsTable = new DataTable(worldEditStrings);
+		try (InputStream stream = this.dataSource.getResourceAsStream("UI\\SoundInfo\\AnimSounds.slk")) {
+			if (stream != null) {
+				this.animSoundsTable.readSLK(stream);
+			}
 		}
 		this.miscData = new DataTable(worldEditStrings);
 		try (InputStream miscDataTxtStream = this.dataSource.getResourceAsStream("UI\\MiscData.txt")) {
@@ -646,6 +659,23 @@ public class War3MapViewer extends AbstractMdxModelViewer implements MdxAssetLoa
 		return weather;
 	}
 
+	public CStackedSounds getStackedSounds() {
+		return this.stackedSounds;
+	}
+
+	private void updateStackedSounds() {
+		final Camera camera = this.worldScene.camera;
+		float targetX = camera.location.x;
+		float targetY = camera.location.y;
+		final Vector3 forward = this.stackedSoundsForward.set(camera.directionZ).scl(-1);
+		if (forward.z < -0.01f) {
+			final float distance = (this.terrain.getGroundHeight(targetX, targetY) - camera.location.z) / forward.z;
+			targetX += forward.x * distance;
+			targetY += forward.y * distance;
+		}
+		this.stackedSounds.update(targetX, targetY, camera.directionX.x, camera.directionX.y);
+	}
+
 	public List<RenderWeatherEffect> getWeatherEffects() {
 		return this.weatherEffects;
 	}
@@ -743,6 +773,7 @@ public class War3MapViewer extends AbstractMdxModelViewer implements MdxAssetLoa
 		TreeBlightingCallback.INSTANCE.reset(null);
 		CWidgetAbilityTargetCheckReceiver.INSTANCE.reset();
 		CSoundMixer.forgetPlayingLoops();
+		this.stackedSounds.stopAll();
 	}
 
 	public MapLoader createMapLoader(final War3Map war3Map, final War3MapW3i w3iFile, final int localPlayerIndex)
@@ -887,30 +918,41 @@ public class War3MapViewer extends AbstractMdxModelViewer implements MdxAssetLoa
 		// information for all unit shadows
 		this.terrain.initShadows();
 		this.terrain.setFogOfWarData(this.simulation, this.simulation.getPlayer(this.localPlayerIndex).getFogOfWar());
-		final CTimer fogUpdateTimer = new CTimer() {
-			@Override
-			public void onFire(final CSimulation simulation) {
-			}
-		};
+		final CTimer fogUpdateTimer = new IdleFogTimer();
 		fogUpdateTimer.setTimeoutTime(1.0f);
 		fogUpdateTimer.setRepeats(true);
 		fogUpdateTimer.start(this.simulation);
-		final CTimer fogGpuUpdateTimer = new CTimer() {
-			@Override
-			public void onFire(final CSimulation simulation) {
-				final boolean fogChanged = War3MapViewer.this.terrain.reloadFogOfWarDataToGPU(simulation);
-				// Doodads fade with the ground fog, so they only need the step while it changes; once a second they
-				// are checked anyway.
-				if (fogChanged || ((++War3MapViewer.this.fogDoodadTicks % 30) == 0)) {
-					for (final RenderDoodad doodad : War3MapViewer.this.decals) {
-						doodad.updateFog(War3MapViewer.this);
-					}
-				}
-			}
-		};
+		final CTimer fogGpuUpdateTimer = new FogGpuUpdateTimer(this);
 		fogGpuUpdateTimer.setTimeoutTime(0.03f);
 		fogGpuUpdateTimer.setRepeats(true);
 		fogGpuUpdateTimer.start(this.simulation);
+	}
+
+	private static final class IdleFogTimer extends CTimer {
+		@Override
+		public void onFire(final CSimulation simulation) {
+		}
+	}
+
+	private static final class FogGpuUpdateTimer extends CTimer {
+		@SavedFormerly("this$0")
+		private final War3MapViewer viewer;
+
+		private FogGpuUpdateTimer(final War3MapViewer viewer) {
+			this.viewer = viewer;
+		}
+
+		@Override
+		public void onFire(final CSimulation simulation) {
+			final boolean fogChanged = this.viewer.terrain.reloadFogOfWarDataToGPU(simulation);
+			// Doodads fade with the ground fog, so they only need the step while it changes; once a second they are
+			// checked anyway.
+			if (fogChanged || ((++this.viewer.fogDoodadTicks % 30) == 0)) {
+				for (final RenderDoodad doodad : this.viewer.decals) {
+					doodad.updateFog(this.viewer);
+				}
+			}
+		}
 	}
 
 	private void loadDoodadsAndDestructibles(final Warcraft3MapRuntimeObjectData modifications,
@@ -1440,6 +1482,10 @@ public class War3MapViewer extends AbstractMdxModelViewer implements MdxAssetLoa
 		state.allyColorFilterState = getAllyColorFilter().getState();
 		state.restartMissionDisabled = this.restartMissionDisabled;
 		state.altMinimapIcon = this.altMinimapIcon;
+		state.volumeGroupScales = new float[CSoundVolumeGroup.VALUES.length];
+		for (final CSoundVolumeGroup group : CSoundVolumeGroup.VALUES) {
+			state.volumeGroupScales[group.ordinal()] = CSoundMixer.getGroupScale(group);
+		}
 		return state;
 	}
 
@@ -1464,6 +1510,11 @@ public class War3MapViewer extends AbstractMdxModelViewer implements MdxAssetLoa
 		getAllyColorFilter().setState(state.allyColorFilterState);
 		this.restartMissionDisabled = state.restartMissionDisabled;
 		this.altMinimapIcon = state.altMinimapIcon;
+		final float[] scales = state.volumeGroupScales;
+		for (final CSoundVolumeGroup group : CSoundVolumeGroup.VALUES) {
+			CSoundMixer.setGroupScale(group,
+					(scales != null) && (group.ordinal() < scales.length) ? scales[group.ordinal()] : 1f);
+		}
 		if (this.interfaceStateKeeper != null) {
 			this.interfaceStateKeeper.restoreInterfaceState(state);
 		}
@@ -1691,6 +1742,7 @@ public class War3MapViewer extends AbstractMdxModelViewer implements MdxAssetLoa
 			for (int i = 0, n = this.weatherEffects.size(); i < n; i++) {
 				this.weatherEffects.get(i).update(this);
 			}
+			updateStackedSounds();
 			this.scriptUbersplats.removeIf(splat -> !splat.update());
 			final Iterator<RenderEffect> projectileIterator = this.projectiles.iterator();
 			while (projectileIterator.hasNext()) {
@@ -2568,6 +2620,35 @@ public class War3MapViewer extends AbstractMdxModelViewer implements MdxAssetLoa
 		return this.uiSounds;
 	}
 
+	/** Scripts name labels of unit response, combat and animation sounds as well as UI and ambience ones. */
+	public Element getSoundLabel(final String label) {
+		if ((label == null) || label.isEmpty()) {
+			return null;
+		}
+		for (final DataTable table : new DataTable[] { this.uiSoundsTable, this.unitAckSoundsTable,
+				this.unitCombatSoundsTable, this.animSoundsTable }) {
+			final Element row = table == null ? null : table.get(label);
+			if (row != null) {
+				return row;
+			}
+		}
+		if (this.scriptSoundsTable == null) {
+			// Campaign dialogue alone is thousands of rows that only scripts look up.
+			this.scriptSoundsTable = new DataTable(this.worldEditStrings);
+			for (final String name : new String[] { "DialogSounds", "MIDISounds" }) {
+				try (InputStream stream = this.dataSource.getResourceAsStream("UI\\SoundInfo\\" + name + ".slk")) {
+					if (stream != null) {
+						this.scriptSoundsTable.readSLK(stream);
+					}
+				}
+				catch (final IOException e) {
+					e.printStackTrace();
+				}
+			}
+		}
+		return this.scriptSoundsTable.get(label);
+	}
+
 	public Warcraft3MapRuntimeObjectData getAllObjectData() {
 		return this.allObjectData;
 	}
@@ -3060,7 +3141,9 @@ public class War3MapViewer extends AbstractMdxModelViewer implements MdxAssetLoa
 
 	public static MdxModel loadModelMdx(final DataSource dataSource, final ModelViewer modelViewer, final String path,
 			final PathSolver pathSolver, final Object solverParams) {
-		if ("".equals(path)) {
+		// "_" is the data's "no model" entry (e.g. empty art fields in the 1.29 SLKs).
+		if ("".equals(path) || "_".equals(path) || "_.mdl".equalsIgnoreCase(path)
+				|| "_.mdx".equalsIgnoreCase(path)) {
 			return null;
 		}
 		final String mdxPath = mdx(path);

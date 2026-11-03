@@ -16,11 +16,15 @@ import java.util.Map;
 import java.util.WeakHashMap;
 
 import android.content.Intent;
+import android.graphics.Rect;
 import android.media.MediaMetadataRetriever;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.SystemClock;
 import android.util.Log;
 import android.view.MotionEvent;
+import android.view.View;
+import android.view.WindowInsets;
 
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.audio.Music;
@@ -33,6 +37,7 @@ import com.badlogic.gdx.utils.BufferUtils;
 import com.badlogic.gdx.utils.GdxRuntimeException;
 import com.etheller.warsmash.WarsmashGdxMenuScreen;
 import com.etheller.warsmash.WarsmashGdxMultiScreenGame;
+import com.etheller.warsmash.input.touch.OnscreenKeyboard;
 import com.etheller.warsmash.input.touch.TouchInputRouter;
 import com.etheller.warsmash.input.touch.TouchSettings;
 import com.etheller.warsmash.units.Element;
@@ -104,11 +109,21 @@ public class AndroidLauncher extends AndroidApplication {
 		}
 		final DataTable warsmashIni;
 		try {
+			EngineResources.ensureCurrent(this);
 			migrateIni(iniFile);
 			warsmashIni = loadWarsmashIni(iniFile);
 		}
 		catch (final IOException e) {
 			Log.e(TAG, "Unable to read " + iniFile, e);
+			finish();
+			return;
+		}
+		// A data folder that was removed or lost its access would fail deep inside the engine start.
+		if (!DataFolderCheck.hasGameData(warsmashIni.get("DataSources"))) {
+			Log.e(TAG, "No game data in the configured data folder");
+			final Intent intent = new Intent(this, DataFolderActivity.class);
+			intent.putExtra(DataFolderActivity.EXTRA_OPEN, true);
+			startActivity(intent);
 			finish();
 			return;
 		}
@@ -130,6 +145,7 @@ public class AndroidLauncher extends AndroidApplication {
 		final String fileToLoad = getIntent().getStringExtra(EXTRA_LOAD_FILE);
 		final WarsmashGdxMultiScreenGame game = new WarsmashGdxMultiScreenGame();
 		initialize(game, config);
+		trackOnscreenKeyboard();
 		Gdx.app.postRunnable(() -> {
 			final WarsmashGdxMenuScreen menuScreen = new WarsmashGdxMenuScreen(warsmashIni, game);
 			game.setScreen(menuScreen);
@@ -137,6 +153,37 @@ public class AndroidLauncher extends AndroidApplication {
 				menuScreen.startMap(fileToLoad);
 			}
 		});
+	}
+
+	/**
+	 * The keyboard covers the full screen game surface rather than resizing or panning it, so the engine is told how
+	 * much of the screen's bottom it hides.
+	 */
+	private void trackOnscreenKeyboard() {
+		final View decor = getWindow().getDecorView();
+		decor.setOnApplyWindowInsetsListener((view, insets) -> {
+			updateOnscreenKeyboard(view, insets);
+			return view.onApplyWindowInsets(insets);
+		});
+		decor.getViewTreeObserver().addOnGlobalLayoutListener(() -> updateOnscreenKeyboard(decor, null));
+	}
+
+	private static void updateOnscreenKeyboard(final View decor, final WindowInsets applied) {
+		final int covered;
+		if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+			final WindowInsets insets = applied != null ? applied : decor.getRootWindowInsets();
+			if (insets == null) {
+				return;
+			}
+			covered = insets.isVisible(WindowInsets.Type.ime()) ? insets.getInsets(WindowInsets.Type.ime()).bottom
+					: 0;
+		}
+		else {
+			final Rect visible = new Rect();
+			decor.getWindowVisibleDisplayFrame(visible);
+			covered = decor.getRootView().getHeight() - visible.bottom;
+		}
+		OnscreenKeyboard.setCoveredHeightPixels(covered);
 	}
 
 	@Override

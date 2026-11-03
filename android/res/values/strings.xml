@@ -2,7 +2,7 @@
 <resources>
     <string name="app_name">Warsmash</string>
     <string name="data_folder_title">Game data folder</string>
-    <string name="data_folder_hint">Choose the folder that holds your Warcraft III game files, version 1.31 or newer. The game reads them where they are. Nothing is copied off the device or uploaded.</string>
+    <string name="data_folder_hint">Choose the folder that holds your Warcraft III game files (version 1.31 or newer, including Reforged): the installed game or files extracted with the prep tool. The game reads them where they are. Nothing is copied off the device or uploaded.</string>
     <string name="data_folder_label">Folder</string>
     <string name="data_folder_none">No folder selected</string>
     <string name="data_folder_choose">Choose folder</string>
@@ -10,9 +10,11 @@
     <string name="data_folder_waiting">Waiting for a folder. Android will ask you to allow access to it.</string>
     <string name="data_folder_casc">Installed game data found</string>
     <string name="data_folder_extracted">Extracted game data found</string>
-    <string name="data_folder_missing">No game data found in this folder.</string>
-    <string name="data_folder_needs_access">The game needs access to all files to read this folder.</string>
+    <string name="data_folder_missing">No game data found here or in the folders inside it. Choose the folder that holds Data and .build.info (installed game) or ui and units (extracted files).</string>
+    <string name="data_folder_zip">This folder holds a zip file, which the game cannot read. Extract the zip on the phone, then choose the extracted folder.</string>
+    <string name="data_folder_needs_access">The game needs access to all files to read this folder. Tap Allow access and turn it on for Warsmash.</string>
     <string name="data_folder_allow">Allow access</string>
+    <string name="data_folder_use_app">Use app folder</string>
     <string name="data_folder_continue">Continue</string>
     <string name="data_folder_engine">Engine v%1$s</string>
     <string name="data_folder_foot_waiting">Opens only until a valid folder is saved</string>

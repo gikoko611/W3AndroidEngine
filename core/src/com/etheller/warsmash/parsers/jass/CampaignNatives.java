@@ -24,6 +24,7 @@ import com.etheller.interpreter.ast.value.visitor.ObjectJassValueVisitor;
 import com.etheller.interpreter.ast.value.visitor.RealJassValueVisitor;
 import com.etheller.interpreter.ast.value.visitor.StringJassValueVisitor;
 import com.etheller.warsmash.parsers.jass.scope.CommonTriggerExecutionScope;
+import com.etheller.warsmash.units.Element;
 import com.etheller.warsmash.util.War3ID;
 import com.etheller.warsmash.util.WarsmashConstants;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.unit.CUnitTypeJass;
@@ -58,6 +59,8 @@ import com.etheller.warsmash.viewer5.handlers.w3x.simulation.sound.CSound;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.sound.CSoundMixer;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.trigger.enumtypes.CSoundVolumeGroup;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.unit.CUnitInRangeEvent;
+import com.etheller.warsmash.viewer5.handlers.w3x.ui.MeleeUI;
+import com.etheller.warsmash.viewer5.handlers.w3x.ui.toggle.MeleeToggleUI;
 import com.etheller.warsmash.viewer5.handlers.w3x.ui.WarsmashUI;
 import com.etheller.interpreter.ast.util.JassProgram;
 
@@ -305,7 +308,14 @@ final class CampaignNatives {
 			CCampaignProgress.setMenuCampaignIndex(integer(arguments, 0));
 			return null;
 		});
-		add("SetCampaignMenuRace", (arguments, globalScope, triggerScope) -> null);
+		add("SetCampaignMenuRace", (arguments, globalScope, triggerScope) -> {
+			final CRace race = object(arguments, 0);
+			final int campaign = race == null ? -1 : classicCampaignOfRace(race.getId());
+			if (campaign != -1) {
+				CCampaignProgress.setClassicMenuCampaignIndex(campaign);
+			}
+			return null;
+		});
 		add("ForceCampaignSelectScreen", (arguments, globalScope, triggerScope) -> {
 			CCampaignProgress.forceCampaignSelectScreen();
 			return null;
@@ -346,7 +356,48 @@ final class CampaignNatives {
 		ignored("DoNotSaveReplay");
 	}
 
+	/** The order of the classic campaign screen: Tutorial (RACE_OTHER), Human, Undead, Orc, Night Elf. */
+	private static int classicCampaignOfRace(final int raceId) {
+		switch (raceId) {
+		case 7:
+			return 0;
+		case 1:
+			return 1;
+		case 3:
+			return 2;
+		case 2:
+			return 3;
+		case 4:
+			return 4;
+		default:
+			return -1;
+		}
+	}
+
 	private void registerSounds() {
+		// The World Editor writes this instead of the separate setters when a sound keeps its label's defaults; the
+		// files and the looping come from CreateSound.
+		add("SetSoundParamsFromLabel", soundSetter((sound, arguments) -> {
+			final Element row = this.viewer.getSoundLabel(string(arguments, 1));
+			if (row == null) {
+				return;
+			}
+			// Dialogue and MIDI labels only carry a volume.
+			if (!row.getField("Volume").isEmpty()) {
+				sound.setVolume(row.getFieldValue("Volume"));
+			}
+			if (!row.getField("Pitch").isEmpty()) {
+				sound.setPitch(row.getFieldFloatValue("Pitch"));
+				sound.setPitchVariance(hasFlag(row, "RANDOMPITCH") ? row.getFieldFloatValue("PitchVariance") : 0f);
+			}
+			if (!row.getField("Channel").isEmpty()) {
+				sound.setChannel(row.getFieldValue("Channel"));
+			}
+			if (!row.getField("MinDistance").isEmpty()) {
+				sound.setDistances(row.getFieldFloatValue("MinDistance"), row.getFieldFloatValue("MaxDistance"));
+				sound.setDistanceCutoff(row.getFieldFloatValue("DistanceCutoff"));
+			}
+		}));
 		add("SetSoundVolume", soundSetter((sound, arguments) -> sound.setVolume(integer(arguments, 1))));
 		add("SetSoundPitch", soundSetter((sound, arguments) -> sound.setPitch(real(arguments, 1))));
 		add("SetSoundChannel", soundSetter((sound, arguments) -> sound.setChannel(integer(arguments, 1))));
@@ -419,8 +470,21 @@ final class CampaignNatives {
 				"SetSoundFacialAnimationSetFilepath" }) {
 			add(facial, (arguments, globalScope, triggerScope) -> BooleanJassValue.of(object(arguments, 0) != null));
 		}
-		ignored("RegisterStackedSound", "UnregisterStackedSound", "SetCinematicAudio");
+		add("RegisterStackedSound", soundSetter((sound, arguments) -> this.viewer.getStackedSounds().register(sound,
+				bool(arguments, 1), real(arguments, 2), real(arguments, 3))));
+		add("UnregisterStackedSound", soundSetter((sound, arguments) -> this.viewer.getStackedSounds()
+				.unregister(sound, bool(arguments, 1), real(arguments, 2), real(arguments, 3))));
+		ignored("SetCinematicAudio");
 		add("KillSoundWhenDone", soundSetter((sound, arguments) -> sound.killWhenDone()));
+	}
+
+	private static boolean hasFlag(final Element row, final String flag) {
+		for (final String value : row.getField("Flags").split("[,|]")) {
+			if (flag.equals(value.trim())) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	private interface SoundSetter {
@@ -479,6 +543,13 @@ final class CampaignNatives {
 		});
 	}
 
+	private MeleeUI meleeUI() {
+		if (this.ui instanceof MeleeToggleUI) {
+			return ((MeleeToggleUI) this.ui).getMeleeUI();
+		}
+		return this.ui instanceof MeleeUI ? (MeleeUI) this.ui : null;
+	}
+
 	private GameCameraManager camera() {
 		return this.ui.getCameraManager();
 	}
@@ -509,14 +580,28 @@ final class CampaignNatives {
 			}
 			return null;
 		});
+		add("SetReservedLocalHeroButtons", (arguments, globalScope, triggerScope) -> {
+			final MeleeUI meleeUI = meleeUI();
+			if (meleeUI != null) {
+				meleeUI.setReservedLocalHeroButtons(integer(arguments, 0));
+			}
+			return null;
+		});
+		add("ForceUIKey", (arguments, globalScope, triggerScope) -> {
+			final MeleeUI meleeUI = meleeUI();
+			if (meleeUI != null) {
+				meleeUI.forceUIKey(string(arguments, 0));
+			}
+			return null;
+		});
 		registerUbersplats();
 		registerTerrainDeformations();
-		// Occlusion and the fog at the map edge have no drawing here yet, HD water and terrain fog extras do not exist
-		// in the classic graphics.
+		// Occlusion and the fog at the map edge have no drawing here yet and there are no multiboards to suppress; HD
+		// water and terrain fog extras do not exist in the classic graphics.
 		ignored("EnableOcclusion", "EnableWorldFogBoundary", "SetHDWaterParamsEx", "BlzSetTerrainFogDrawOverSky",
 				"BlzSetTerrainFogMaxLinearDensity", "SetTerrainFogExV", "SetPlayerRaceSkin", "PreloadRefresh",
 				"PreloadEndEx", "SyncSelections", "SetEnemyStartLocPrio", "SetEnemyStartLocPrioCount",
-				"MultiboardSuppressDisplay", "SetReservedLocalHeroButtons", "PlayCinematic", "PlayModelCinematic",
+				"MultiboardSuppressDisplay", "PlayCinematic", "PlayModelCinematic",
 				"CreateCommandButtonEffect", "CreateUpgradeCommandButtonEffect", "CreateLearnCommandButtonEffect",
 				"DestroyCommandButtonEffect", "TriggerRegisterCommandEvent", "TriggerRegisterUpgradeCommandEvent",
 				"SetItemColor");
@@ -725,6 +810,21 @@ final class CampaignNatives {
 
 	private void registerUnits() {
 		final HandleJassType raceType = type("race");
+		add("SetUnitRescuable", (arguments, globalScope, triggerScope) -> {
+			final CUnit unit = object(arguments, 0);
+			final CPlayer player = object(arguments, 1);
+			if ((unit != null) && (player != null)) {
+				unit.setRescuable(player.getId(), bool(arguments, 2));
+			}
+			return null;
+		});
+		add("SetUnitRescueRange", (arguments, globalScope, triggerScope) -> {
+			final CUnit unit = object(arguments, 0);
+			if (unit != null) {
+				unit.setRescueRange(real(arguments, 1));
+			}
+			return null;
+		});
 		add("SetUnitPathing", (arguments, globalScope, triggerScope) -> {
 			final CUnit unit = object(arguments, 0);
 			if (unit != null) {

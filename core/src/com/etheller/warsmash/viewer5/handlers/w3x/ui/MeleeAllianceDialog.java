@@ -2,6 +2,7 @@ package com.etheller.warsmash.viewer5.handlers.w3x.ui;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.utils.viewport.Viewport;
@@ -47,9 +48,11 @@ public class MeleeAllianceDialog {
 	private final UIFrame dialog;
 	private final List<Row> rows = new ArrayList<>();
 	private final CheckBoxFrame alliedVictory;
+	private final boolean campaign;
 
 	public MeleeAllianceDialog(final GameUI rootFrame, final Viewport uiViewport, final CSimulation simulation,
-			final CPlayer localPlayer) {
+			final CPlayer localPlayer, final String mapFileName) {
+		this.campaign = isCampaignMap(mapFileName);
 		this.rootFrame = rootFrame;
 		this.uiViewport = uiViewport;
 		this.simulation = simulation;
@@ -103,7 +106,8 @@ public class MeleeAllianceDialog {
 	 * map.
 	 */
 	public boolean isAvailable() {
-		if ((this.localPlayer.getSlotState() != CPlayerSlotState.PLAYING) || this.localPlayer.isObserver()) {
+		if (this.campaign || (this.localPlayer.getSlotState() != CPlayerSlotState.PLAYING)
+				|| this.localPlayer.isObserver()) {
 			return false;
 		}
 		for (final Row row : this.rows) {
@@ -112,6 +116,18 @@ public class MeleeAllianceDialog {
 			}
 		}
 		return false;
+	}
+
+	/**
+	 * Campaign missions are scripted, so their alliances are not the player's to change: the button stays grey and
+	 * F11 does nothing. 1.29 does this in every single player game; Custom Game keeps the dialog (owner's choice).
+	 */
+	static boolean isCampaignMap(final String mapFileName) {
+		if (mapFileName == null) {
+			return false;
+		}
+		final String name = mapFileName.toLowerCase(Locale.ROOT).replace('\\', '/');
+		return name.startsWith("maps/campaign/") || name.contains("/campaign/");
 	}
 
 	public void setVisible(final boolean visible) {

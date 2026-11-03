@@ -168,12 +168,10 @@ public class CBehaviorAbilityBuilderNoTarget implements ABBehavior {
 			final int ticksSinceCast = game.getGameTurnTick() - this.castStartTick;
 			if (!this.doneCastTime && ticksSinceCast >= this.castTimeEndTick) {
 				this.ability.checkCanUse(game, unit, issuingPlayerIndex, orderId, autoOrder, BooleanAbilityActivationReceiver.INSTANCE.reset());
-				if (!BooleanAbilityActivationReceiver.INSTANCE.isOk()
-						|| !this.unit.chargeMana(this.ability.getChargedManaCost())) {
+				if (!BooleanAbilityActivationReceiver.INSTANCE.isOk()) {
 					cleanupInputs();
 					return this.unit.pollNextOrderBehavior(game);
 				}
-				this.ability.startCooldown(game, this.unit);
 
 				this.ability.runBeginCastingActions(game, unit, orderId);
 				CBehavior newBehavior = (CBehavior) localStore.get(ABLocalStoreKeys.NEWBEHAVIOR);
@@ -220,6 +218,15 @@ public class CBehaviorAbilityBuilderNoTarget implements ABBehavior {
 	private CBehavior tryDoEffect(CSimulation game, boolean wasChanneling) {
 		boolean wasEffectDone = this.doneEffect;
 		if (!wasEffectDone) {
+			// Instant casts paid already; others pay mana and start the cooldown at the effect, so a cast stopped
+			// before it costs nothing (1.29).
+			if (!this.instant) {
+				if (!this.unit.chargeMana(this.ability.getChargedManaCost())) {
+					this.doneEffect = true;
+					return this.unit.pollNextOrderBehavior(game);
+				}
+				this.ability.startCooldown(game, this.unit);
+			}
 			if (this.channeling) {
 				game.unitLoopSoundEffectEvent(this.unit, this.ability.getAlias());
 			} else {

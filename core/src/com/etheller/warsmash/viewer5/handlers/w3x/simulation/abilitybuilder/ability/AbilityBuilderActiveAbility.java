@@ -36,9 +36,19 @@ public interface AbilityBuilderActiveAbility
 
 	public boolean ignoreCastTime();
 
+	/** The cast repeats on its target, after the cooldown, while the target can still be targeted (1.29 Heal). */
+	public default boolean isRepeatCast() {
+		return false;
+	}
+
 	public EnumSet<CTargetType> getTargetsAllowed();
 
 	public int getOffOrderId();
+
+	/** The order the command button issues; abilities with an instant order cast through it. */
+	public default int getUICastOrderId() {
+		return getBaseOrderId();
+	}
 
 	public PrimaryTag getCastingPrimaryTag();
 

@@ -78,7 +78,38 @@ public class ListBoxFrame extends ControlFrame
 				new SetPoint(FramePoint.TOPRIGHT, this, FramePoint.TOPRIGHT, -this.listBoxBorder, -this.listBoxBorder));
 		scrollBarFrame.addSetPoint(new SetPoint(FramePoint.BOTTOMRIGHT, this, FramePoint.BOTTOMRIGHT,
 				-this.listBoxBorder, this.listBoxBorder));
+		// The list keeps its scroll bar in items: the value counts the items hidden below the shown ones, so the
+		// highest value is the top of the list, where the original opens it, and an arrow moves one item.
+		scrollBarFrame.setRange(1, 1);
+		scrollBarFrame.setStepSize(1);
 		scrollBarFrame.setChangeListener(this);
+	}
+
+	/** Moves the list a number of items; positive shows later items. */
+	public void scrollItems(final GameUI gameUI, final Viewport viewport, final int items) {
+		if ((this.scrollBarFrame != null) && (items != 0)) {
+			this.scrollBarFrame.setValue(gameUI, viewport, this.scrollBarFrame.getValue() - items);
+		}
+	}
+
+	/** The shown list box under the point, searched from the frontmost frame down, or null. */
+	public static ListBoxFrame findUnder(final UIFrame frame, final float screenX, final float screenY) {
+		if (!frame.isVisible()) {
+			return null;
+		}
+		if (frame instanceof ListBoxFrame) {
+			return ((ListBoxFrame) frame).renderBounds.contains(screenX, screenY) ? (ListBoxFrame) frame : null;
+		}
+		if (frame instanceof AbstractUIFrame) {
+			final List<UIFrame> children = ((AbstractUIFrame) frame).getChildFrames();
+			for (int i = children.size() - 1; i >= 0; i--) {
+				final ListBoxFrame found = findUnder(children.get(i), screenX, screenY);
+				if (found != null) {
+					return found;
+				}
+			}
+		}
+		return null;
 	}
 
 	public ScrollBarFrame getScrollBarFrame() {
@@ -190,6 +221,48 @@ public class ListBoxFrame extends ControlFrame
 		this.selectedIndex = selectedIndex;
 	}
 
+	/** Selects an item as a click would: scrolls it into view and tells the selection listener. */
+	public void selectIndex(final int index) {
+		if ((index < 0) || (index >= this.listItems.size())) {
+			return;
+		}
+		this.selectedIndex = index;
+		if ((this.gameUI == null) || (this.viewport == null)) {
+			this.selectionListener.onSelectionChanged(this.selectedIndex, getSelectedItem());
+			return;
+		}
+		final int shown = this.listFrames.size();
+		if ((this.scrollBarFrame != null) && (shown > 0) && (this.listItems.size() > shown)) {
+			final int offset = computeScrollOffset(shown);
+			int newOffset = offset;
+			if (index < offset) {
+				newOffset = index;
+			}
+			else if (index >= (offset + shown)) {
+				newOffset = (index - shown) + 1;
+			}
+			if (newOffset != offset) {
+				this.scrollBarFrame.setValue(this.gameUI, this.viewport,
+						this.scrollBarFrame.getMaxValue() - newOffset);
+			}
+		}
+		updateUI(this.gameUI, this.viewport);
+		this.selectionListener.onSelectionChanged(this.selectedIndex, getSelectedItem());
+	}
+
+	public int indexOf(final String rawValue) {
+		for (int i = 0; i < this.listItems.size(); i++) {
+			if (this.listItems.get(i).getRawValue().equals(rawValue)) {
+				return i;
+			}
+		}
+		return -1;
+	}
+
+	public int getItemCount() {
+		return this.listItems.size();
+	}
+
 	public int getSelectedIndex() {
 		return this.selectedIndex;
 	}
@@ -213,6 +286,7 @@ public class ListBoxFrame extends ControlFrame
 		final int numStringFrames = (int) Math.min(this.listItems.size(),
 				(Math.floor((this.renderBounds.height - (this.listBoxBorder * 2)) / itemSize)));
 
+		syncScrollRange(numStringFrames);
 		final int scrollOffset = computeScrollOffset(numStringFrames);
 		if (numStringFrames != this.listFrames.size()) {
 			for (int i = 0; i < this.listFrames.size(); i++) {
@@ -315,16 +389,26 @@ public class ListBoxFrame extends ControlFrame
 		positionChildren(gameUI, viewport);
 	}
 
+	/** Keeps the scroll bar's range at the hidden item count and the first shown item where it was. */
+	private void syncScrollRange(final int numStringFrames) {
+		if (this.scrollBarFrame == null) {
+			return;
+		}
+		final int hidden = Math.max(0, this.listItems.size() - numStringFrames);
+		final int max = Math.max(1, hidden);
+		final int oldMax = this.scrollBarFrame.getMaxValue();
+		if (max != oldMax) {
+			final int firstShown = Math.min(hidden, Math.max(0, oldMax - this.scrollBarFrame.getValue()));
+			this.scrollBarFrame.setRange(max, max - firstShown);
+		}
+	}
+
 	private int computeScrollOffset(final int numStringFrames) {
-		int scrollOffset;
 		if ((this.scrollBarFrame != null) && (this.listItems.size() > numStringFrames)) {
-			scrollOffset = (int) Math
-					.ceil(((100 - this.scrollBarFrame.getValue()) / 100f) * (this.listItems.size() - numStringFrames));
+			return Math.min(this.listItems.size() - numStringFrames,
+					Math.max(0, this.scrollBarFrame.getMaxValue() - this.scrollBarFrame.getValue()));
 		}
-		else {
-			scrollOffset = 0;
-		}
-		return scrollOffset;
+		return 0;
 	}
 
 	@Override
@@ -421,7 +505,7 @@ public class ListBoxFrame extends ControlFrame
 		}
 		// Content follows the finger: moving up reveals later items, which is a lower scroll bar value.
 		final float draggedItems = (y - this.pressY) / itemHeight;
-		final int newValue = Math.round(this.pressScrollValue - ((draggedItems * 100f) / hiddenItems));
+		final int newValue = Math.round(this.pressScrollValue - draggedItems);
 		if (newValue != this.scrollBarFrame.getValue()) {
 			this.scrollBarFrame.setValue(rootFrame, uiViewport, newValue);
 		}

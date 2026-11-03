@@ -46,6 +46,10 @@ public class CTimerDialog {
 		setVisible(this.visible);
 	}
 
+	public UIFrame getFrame() {
+		return this.timerDialogFrame;
+	}
+
 	public CTimer getTimer() {
 		return this.timer;
 	}

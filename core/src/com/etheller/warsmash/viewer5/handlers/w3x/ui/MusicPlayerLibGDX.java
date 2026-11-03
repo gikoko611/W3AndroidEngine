@@ -85,7 +85,7 @@ public class MusicPlayerLibGDX implements MusicPlayer {
 		if (this.currentMusics != null) {
 			for (final Music music : this.currentMusics) {
 				if (music != null) {
-					music.setVolume(this.volume * CSoundMixer.getMusicOptionScale());
+					music.setVolume(this.volume * CSoundMixer.musicScale());
 				}
 			}
 		}
@@ -142,7 +142,7 @@ public class MusicPlayerLibGDX implements MusicPlayer {
 			if (path != null) {
 				final Music newMusic = SessionResources
 						.track(Extensions.audio.newMusic(new DataSourceFileHandle(this.dataSource, path)));
-				newMusic.setVolume(this.volume * CSoundMixer.getMusicOptionScale());
+				newMusic.setVolume(this.volume * CSoundMixer.musicScale());
 				this.currentMusics[i] = newMusic;
 				validMusicCount++;
 			}

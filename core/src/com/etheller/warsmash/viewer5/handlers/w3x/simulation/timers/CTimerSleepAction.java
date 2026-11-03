@@ -10,6 +10,10 @@ public class CTimerSleepAction extends CTimer {
 		this.sleepingThread = sleepingThread;
 	}
 
+	public JassThread getSleepingThread() {
+		return this.sleepingThread;
+	}
+
 	@Override
 	public void onFire(final CSimulation simulation) {
 		this.sleepingThread.setSleeping(false);

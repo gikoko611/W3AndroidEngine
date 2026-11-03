@@ -30,7 +30,7 @@ public class CUnitVisionFogModifier extends CFogModifier {
 					: this.unit.getCurrentSightRadius(game);
 			if (sightRadius > 0) {
 				final boolean flying = this.unit.getMovementType() == MovementType.FLY;
-				final float radSq = sightRadius * sightRadius / (CPlayerFogOfWar.GRID_STEP * CPlayerFogOfWar.GRID_STEP);
+				final int sightCells = CPlayerFogOfWar.getSightCells(sightRadius);
 				final float myX = this.unit.getX();
 				final float myY = this.unit.getY();
 				final int myZ = flying ? Integer.MAX_VALUE : game.getTerrainHeight(myX, myY);
@@ -39,43 +39,41 @@ public class CUnitVisionFogModifier extends CFogModifier {
 
 				int myXi = game.getPathingGrid().getFogOfWarIndexX(myX);
 				int myYi = game.getPathingGrid().getFogOfWarIndexY(myY);
-				int maxXi = game.getPathingGrid().getFogOfWarIndexX(myX + sightRadius);
-				int maxYi = game.getPathingGrid().getFogOfWarIndexY(myY + sightRadius);
-				for (int a = 1; a <= Math.max(maxYi - myYi, maxXi - myXi); a++) {
-					if (a * a <= radSq) {
-						fogOfWar.checkCardinalVision(game, pathingGrid, flying, myXi, myYi - a, myXi, myYi - a + 1, myX,
-								myY - a * CPlayerFogOfWar.GRID_STEP, myX, myY - (a - 1) * CPlayerFogOfWar.GRID_STEP,
-								myZ);
-						fogOfWar.checkCardinalVision(game, pathingGrid, flying, myXi, myYi + a, myXi, myYi + a - 1, myX,
-								myY + a * CPlayerFogOfWar.GRID_STEP, myX, myY + (a - 1) * CPlayerFogOfWar.GRID_STEP,
-								myZ);
-						fogOfWar.checkCardinalVision(game, pathingGrid, flying, myXi - a, myYi, myXi - a + 1, myYi,
-								myX - a * CPlayerFogOfWar.GRID_STEP, myY, myX - (a - 1) * CPlayerFogOfWar.GRID_STEP,
-								myY, myZ);
-						fogOfWar.checkCardinalVision(game, pathingGrid, flying, myXi + a, myYi, myXi + a - 1, myYi,
-								myX + a * CPlayerFogOfWar.GRID_STEP, myY, myX + (a - 1) * CPlayerFogOfWar.GRID_STEP,
-								myY, myZ);
-					}
+				final float cellX = game.getPathingGrid().getFogOfWarSampleX(myXi);
+				final float cellY = game.getPathingGrid().getFogOfWarSampleY(myYi);
+				for (int a = 1; a <= sightCells; a++) {
+					fogOfWar.checkCardinalVision(game, pathingGrid, flying, myXi, myYi - a, myXi, myYi - a + 1, cellX,
+							cellY - a * CPlayerFogOfWar.GRID_STEP, cellX, cellY - (a - 1) * CPlayerFogOfWar.GRID_STEP,
+							myZ);
+					fogOfWar.checkCardinalVision(game, pathingGrid, flying, myXi, myYi + a, myXi, myYi + a - 1, cellX,
+							cellY + a * CPlayerFogOfWar.GRID_STEP, cellX, cellY + (a - 1) * CPlayerFogOfWar.GRID_STEP,
+							myZ);
+					fogOfWar.checkCardinalVision(game, pathingGrid, flying, myXi - a, myYi, myXi - a + 1, myYi,
+							cellX - a * CPlayerFogOfWar.GRID_STEP, cellY, cellX - (a - 1) * CPlayerFogOfWar.GRID_STEP,
+							cellY, myZ);
+					fogOfWar.checkCardinalVision(game, pathingGrid, flying, myXi + a, myYi, myXi + a - 1, myYi,
+							cellX + a * CPlayerFogOfWar.GRID_STEP, cellY, cellX + (a - 1) * CPlayerFogOfWar.GRID_STEP,
+							cellY, myZ);
 				}
 
-				for (int y = 1; y <= maxYi - myYi; y++) {
-					for (int x = 1; x <= maxXi - myXi; x++) {
-						if (x * x + y * y <= radSq) {
+				for (int y = 1; y <= sightCells; y++) {
+					for (int x = 1; x <= sightCells; x++) {
+						if (CPlayerFogOfWar.isInSight(x, y, sightCells)) {
 							int xf = x * CPlayerFogOfWar.GRID_STEP;
 							int yf = y * CPlayerFogOfWar.GRID_STEP;
 
 							fogOfWar.checkDiagonalVision(game, pathingGrid, flying, x, y, myXi - x, myYi - y,
-									myXi - x + 1, myYi - y + 1, myX - xf, myY - yf,
-									myX - xf + CPlayerFogOfWar.GRID_STEP, myY - yf + CPlayerFogOfWar.GRID_STEP, myZ);
+									myXi - x + 1, myYi - y + 1, cellX - xf, cellY - yf,
+									cellX - xf + CPlayerFogOfWar.GRID_STEP, cellY - yf + CPlayerFogOfWar.GRID_STEP, myZ);
 							fogOfWar.checkDiagonalVision(game, pathingGrid, flying, x, y, myXi - x, myYi + y,
-									myXi - x + 1, myYi + y - 1, myX - xf, myY + yf,
-									myX - xf + CPlayerFogOfWar.GRID_STEP, myY + yf - CPlayerFogOfWar.GRID_STEP, myZ);
+									myXi - x + 1, myYi + y - 1, cellX - xf, cellY + yf,
+									cellX - xf + CPlayerFogOfWar.GRID_STEP, cellY + yf - CPlayerFogOfWar.GRID_STEP, myZ);
 							fogOfWar.checkDiagonalVision(game, pathingGrid, flying, x, y, myXi + x, myYi - y,
-									myXi + x - 1, myYi - y + 1, myX + xf, myY - yf,
-									myX + xf - CPlayerFogOfWar.GRID_STEP, myY - yf + CPlayerFogOfWar.GRID_STEP, myZ);
+									myXi + x - 1, myYi - y + 1, cellX + xf, cellY - yf,
+									cellX + xf - CPlayerFogOfWar.GRID_STEP, cellY - yf + CPlayerFogOfWar.GRID_STEP, myZ);
 							fogOfWar.checkDiagonalVision(game, pathingGrid, flying, x, y, myXi + x, myYi + y,
-									myXi + x - 1, myYi + y - 1, myX + xf, myY + yf,
-									myX + xf - CPlayerFogOfWar.GRID_STEP, myY + yf - CPlayerFogOfWar.GRID_STEP, myZ);
+									myXi + x - 1, myYi + y - 1, cellX + xf, cellY + yf,
+									cellX + xf - CPlayerFogOfWar.GRID_STEP, cellY + yf - CPlayerFogOfWar.GRID_STEP, myZ);
 						}
 					}
 				}

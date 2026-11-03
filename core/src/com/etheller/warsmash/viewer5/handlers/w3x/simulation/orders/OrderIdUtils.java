@@ -37,6 +37,11 @@ public class OrderIdUtils {
 	}
 
 	public static String getStringFromOrderId(final Integer orderId) {
-		return orderIdToString.get(orderId);
+		final String name = orderIdToString.get(orderId);
+		// "_" names are placeholders for ids the game has no string for (1.29 OrderId2String gives null)
+		if ((name != null) && name.startsWith("_")) {
+			return null;
+		}
+		return name;
 	}
 }

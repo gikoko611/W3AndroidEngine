@@ -44,6 +44,13 @@ public class CAbilityAncestralSpirit extends CAbilityTargetSpellBase {
 	@Override
 	protected void innerCheckCanTarget(final CSimulation game, final CUnit unit, final int orderId,
 			final CWidget target, final AbilityTargetCheckReceiver<CWidget> receiver) {
+		// Measured (1.29): no script order reaches Ancestral Spirit - every target, point and immediate order id, any
+		// Tauren corpse (fresh, killed, 45 s old, any owner), either form, with Master training - while Disenchant and
+		// Meat Wagon loadcorpse accept the same caster and corpse.
+		if (game.isScriptTargetOrder()) {
+			receiver.targetCheckFailed(CommandStringErrorKeys.MUST_TARGET_A_CORPSE);
+			return;
+		}
 		final CUnit targetUnit = target.visit(AbilityTargetVisitor.UNIT);
 		if ((targetUnit == null) || !targetUnit.isDead() || targetUnit.isHidden() || targetUnit.isHero()
 				|| !TAUREN.equals(targetUnit.getTypeId())) {

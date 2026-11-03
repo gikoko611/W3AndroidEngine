@@ -18,7 +18,7 @@ import com.etheller.warsmash.viewer5.handlers.w3x.simulation.util.CommandStringE
 
 /**
  * Control Magic (Spell Breaker): takes an enemy summoned unit for the caster's player. With "Charge for Current
- * Life" the mana paid is the given share of the summon's current life instead of the listed cost.
+ * Life" the mana paid is the listed cost plus the given share of the summon's current life.
  */
 public class CAbilityControlMagic extends CAbilityTargetSpellBase {
 	private float manaPerSummonedHitPoint;
@@ -45,7 +45,7 @@ public class CAbilityControlMagic extends CAbilityTargetSpellBase {
 		if (!this.chargeForCurrentLife) {
 			return getManaCost();
 		}
-		return (int) Math.ceil(target.getLife() * this.manaPerSummonedHitPoint);
+		return getManaCost() + (int) Math.ceil(target.getLife() * this.manaPerSummonedHitPoint);
 	}
 
 	@Override
@@ -80,7 +80,7 @@ public class CAbilityControlMagic extends CAbilityTargetSpellBase {
 		}
 		simulation.createTemporarySpellEffectOnUnit(caster, getAlias(), CEffectType.CASTER);
 		simulation.createTemporarySpellEffectOnUnit(targetUnit, getAlias(), CEffectType.TARGET);
-		targetUnit.setPlayerIndex(simulation, caster.getPlayerIndex(), true);
+		targetUnit.changeOwner(simulation, caster.getPlayerIndex(), true);
 		targetUnit.performDefaultBehavior(simulation);
 		if (this.buffId != null) {
 			targetUnit.add(simulation, new CBuffControlled(simulation.getHandleIdAllocator().createId(), this.buffId,

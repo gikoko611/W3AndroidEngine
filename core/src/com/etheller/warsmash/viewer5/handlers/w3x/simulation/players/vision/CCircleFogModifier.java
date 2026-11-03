@@ -25,6 +25,14 @@ public class CCircleFogModifier extends CFogModifier {
 	}
 
 	@Override
+	public void applyNow(final CSimulation game, final CPlayer player) {
+		if (this.radius > 0) {
+			player.getFogOfWar().setFogStateRadius(game.getPathingGrid(), this.myX, this.myY, this.radius,
+					this.state);
+		}
+	}
+
+	@Override
 	public void update(final CSimulation game, final CPlayer player, final PathingGrid pathingGrid,
 			final CPlayerFogOfWar fogOfWar) {
 		if (!this.enabled || (this.radius <= 0)) {

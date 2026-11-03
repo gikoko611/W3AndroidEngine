@@ -4,7 +4,7 @@ public enum CRegenType {
 	NONE, ALWAYS, BLIGHT, DAY, NIGHT;
 
 	public static CRegenType parseRegenType(final String typeString) {
-		if (typeString.isBlank()) {
+		if (typeString.trim().isEmpty()) {
 			return NONE;
 		}
 		try {

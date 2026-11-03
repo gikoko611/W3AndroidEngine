@@ -31,4 +31,6 @@ public final class SavedInterfaceState {
 	public int allyColorFilterState;
 	public boolean restartMissionDisabled;
 	public String altMinimapIcon;
+	/** By {@code CSoundVolumeGroup} ordinal; null in saves from before it was kept, meaning every group at 1. */
+	public float[] volumeGroupScales;
 }

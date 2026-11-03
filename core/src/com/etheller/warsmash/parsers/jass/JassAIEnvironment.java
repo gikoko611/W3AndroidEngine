@@ -464,6 +464,15 @@ public class JassAIEnvironment {
 		this.controller.command(command, data);
 	}
 
+	/**
+	 * The player got another AI script. Nothing runs this program again, but its sleeping threads would still be
+	 * woken by timers, which keeps the whole program in the game state and in saved games.
+	 */
+	public void stop() {
+		this.paused = true;
+		this.simulation.unregisterSleepTimersOf(this.jassProgram.getGlobalScope());
+	}
+
 	public void update() {
 		if (this.paused) {
 			return;

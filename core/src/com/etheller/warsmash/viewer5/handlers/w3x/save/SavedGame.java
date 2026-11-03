@@ -19,6 +19,7 @@ import com.badlogic.gdx.files.FileHandle;
 import com.etheller.interpreter.ast.execution.JassThread;
 import com.etheller.interpreter.ast.scope.GlobalScope;
 import com.etheller.interpreter.ast.scope.GlobalScopeAssignable;
+import com.etheller.interpreter.ast.value.CodeJassValue;
 import com.etheller.warsmash.parsers.jass.JassAIEnvironment;
 import com.etheller.warsmash.util.WarsmashConstants;
 import com.etheller.warsmash.viewer5.handlers.w3x.War3MapViewer;
@@ -40,8 +41,13 @@ import com.etheller.warsmash.viewer5.handlers.w3x.simulation.trigger.JassGameEve
  */
 public final class SavedGame {
 	private static final int MAGIC = 0x57534D53;
-	/** Raised whenever the file layout changes; changed fields are found by the class table without it. */
-	private static final int FORMAT_VERSION = 2;
+	/**
+	 * Raised only when the file layout itself changes. Classes gaining or losing fields need no new version: the class
+	 * table lets older saves load (see SavedObjectGraph). 3 added the table of script functions to the header, 4 the
+	 * types of the saved globals; 2 is still read, its script positions then need the very same scripts.
+	 */
+	private static final int FORMAT_VERSION = 4;
+	private static final int OLDEST_FORMAT_VERSION = 2;
 
 	private SavedGame() {
 	}
@@ -56,6 +62,8 @@ public final class SavedGame {
 		/** Scripts the game loaded while running, in that order: instructions are found by index, and AI programs start from what the map's program had by then. */
 		public List<AiEntry> loadedScripts = new ArrayList<>();
 		public List<War3MapViewer.CreatedDestructable> createdDestructables = new ArrayList<>();
+		/** The functions saved script positions are in; null in format 2. */
+		SavedScriptPositions.Table positions;
 
 		private void write(final DataOutputStream out) throws IOException {
 			out.writeInt(MAGIC);
@@ -83,6 +91,7 @@ public final class SavedGame {
 			for (final War3MapViewer.CreatedDestructable created : this.createdDestructables) {
 				created.write(out);
 			}
+			this.positions.write(out);
 		}
 
 		private static Header read(final DataInputStream in) throws IOException {
@@ -90,7 +99,7 @@ public final class SavedGame {
 				throw new IOException("Not a saved game of this engine");
 			}
 			final int version = in.readInt();
-			if (version != FORMAT_VERSION) {
+			if ((version < OLDEST_FORMAT_VERSION) || (version > FORMAT_VERSION)) {
 				throw new IOException("Saved game format " + version + ", this engine reads " + FORMAT_VERSION);
 			}
 			final Header header = new Header();
@@ -116,6 +125,9 @@ public final class SavedGame {
 			final int createdCount = in.readInt();
 			for (int i = 0; i < createdCount; i++) {
 				header.createdDestructables.add(War3MapViewer.CreatedDestructable.read(in));
+			}
+			if (version >= 3) {
+				header.positions = SavedScriptPositions.Table.read(in, version >= 4);
 			}
 			return header;
 		}
@@ -166,8 +178,45 @@ public final class SavedGame {
 		LOADABLE,
 		/** Not a save of this engine, or cut short. */
 		DAMAGED,
-		/** A save of another engine build: its format or its classes differ from this one's. */
-		OTHER_VERSION
+		/** A save this engine cannot read: another file format, a class it no longer has, or a field of another type. */
+		OTHER_VERSION,
+		/** Saved inside a script function that is no longer there or no longer the same. */
+		OTHER_SCRIPTS
+	}
+
+	/** A load turned down before anything of the running game was changed. */
+	public static final class LoadRefused extends IOException {
+		private static final long serialVersionUID = 1L;
+		public final Loadability reason;
+
+		LoadRefused(final Loadability reason, final String message) {
+			super(message);
+			this.reason = reason;
+		}
+	}
+
+	private static final Map<String, Loadability> FAILED_LOADS = new HashMap<>();
+	private static Loadability unreportedFailure;
+
+	/**
+	 * A save another map's scripts turned down can only be known as such once loading started; the list then shows
+	 * it as it is, and the menu tells why.
+	 */
+	public static void loadFailed(final FileHandle file, final IOException failure) {
+		final Loadability reason = failure instanceof LoadRefused ? ((LoadRefused) failure).reason
+				: Loadability.DAMAGED;
+		FAILED_LOADS.put(failureKey(file), reason);
+		unreportedFailure = reason;
+	}
+
+	public static Loadability consumeLoadFailure() {
+		final Loadability reason = unreportedFailure;
+		unreportedFailure = null;
+		return reason;
+	}
+
+	private static String failureKey(final FileHandle file) {
+		return file.path() + "|" + file.lastModified();
 	}
 
 	/** Reads only the header and class table, so a list can ask without reading the whole save. */
@@ -176,20 +225,30 @@ public final class SavedGame {
 	}
 
 	public static Loadability loadability(final FileHandle file) {
+		return loadability(file, null);
+	}
+
+	/**
+	 * With a running game, a save of its map is also held against its scripts, as loading would. A save of another
+	 * map can only be checked that far once loading started.
+	 */
+	public static Loadability loadability(final FileHandle file, final War3MapViewer running) {
 		try (DataInputStream in = new DataInputStream(new BufferedInputStream(file.read()))) {
 			if (in.readInt() != MAGIC) {
 				return Loadability.DAMAGED;
 			}
-			if (in.readInt() != FORMAT_VERSION) {
+			final int version = in.readInt();
+			if ((version < OLDEST_FORMAT_VERSION) || (version > FORMAT_VERSION)) {
 				return Loadability.OTHER_VERSION;
 			}
 		}
 		catch (final IOException | RuntimeException e) {
 			return Loadability.DAMAGED;
 		}
+		final Header header;
 		final byte[] table;
 		try (DataInputStream in = new DataInputStream(new BufferedInputStream(file.read()))) {
-			Header.read(in);
+			header = Header.read(in);
 			final byte[] tableBytes = new byte[in.readInt()];
 			in.readFully(tableBytes);
 			table = readFully(gunzip(tableBytes));
@@ -199,11 +258,82 @@ public final class SavedGame {
 		}
 		try {
 			SavedObjectGraph.checkClassesMatch(table);
-			return Loadability.LOADABLE;
 		}
 		catch (final IOException | RuntimeException e) {
 			return Loadability.OTHER_VERSION;
 		}
+		final Loadability failed = FAILED_LOADS.get(failureKey(file));
+		if (failed != null) {
+			return failed;
+		}
+		if ((running != null) && (running.simulation != null) && sameMap(header.mapFile, running.getMapFileName())) {
+			try {
+				final String mismatch = scriptsMismatch(header, running);
+				if (mismatch != null) {
+					System.err.println("Saved game " + file.name() + " cannot be loaded: " + mismatch);
+					return Loadability.OTHER_SCRIPTS;
+				}
+			}
+			catch (final RuntimeException e) {
+				e.printStackTrace();
+				return Loadability.DAMAGED;
+			}
+		}
+		return Loadability.LOADABLE;
+	}
+
+	private static boolean sameMap(final String saved, final String running) {
+		return (saved != null) && (running != null)
+				&& saved.replace('/', '\\').equalsIgnoreCase(running.replace('/', '\\'));
+	}
+
+	private static boolean sameScripts(final List<AiEntry> a, final List<AiEntry> b) {
+		if (a.size() != b.size()) {
+			return false;
+		}
+		for (int i = 0; i < a.size(); i++) {
+			if ((a.get(i).playerIndex != b.get(i).playerIndex) || !a.get(i).scriptFile.equals(b.get(i).scriptFile)) {
+				return false;
+			}
+		}
+		return true;
+	}
+
+	/**
+	 * The running game's programs stand in for the ones loading would build; what they cannot tell (scripts loaded
+	 * during the game, AI the running game does not have) is passed over.
+	 */
+	private static String scriptsMismatch(final Header header, final War3MapViewer running) {
+		final CSimulation simulation = running.simulation;
+		final GlobalScope mapScope = simulation.getGlobalScope();
+		final boolean sameLoadedScripts = sameScripts(header.loadedScripts, running.getLoadedScripts());
+		if (header.positions == null) {
+			if (sameLoadedScripts && !header.scopeSizes.isEmpty()
+					&& (header.scopeSizes.get(0) != mapScope.getInstructions().size())) {
+				return "Saved with other scripts or game data (" + header.scopeSizes.get(0) + " instructions, now "
+						+ mapScope.getInstructions().size() + ")";
+			}
+			return null;
+		}
+		final List<SavedScriptPositions.Program> programs = new ArrayList<>();
+		programs.add(new SavedScriptPositions.Program(mapScope));
+		for (final AiEntry entry : header.aiScripts) {
+			programs.add(runningAiProgram(simulation, entry));
+		}
+		return SavedScriptPositions.mismatch(header.positions, programs, !sameLoadedScripts);
+	}
+
+	private static SavedScriptPositions.Program runningAiProgram(final CSimulation simulation, final AiEntry entry) {
+		JassAIEnvironment match = null;
+		for (int i = 0; i < WarsmashConstants.MAX_PLAYERS; i++) {
+			final JassAIEnvironment ai = simulation.getPlayer(i).getAiScript();
+			if ((ai != null) && entry.scriptFile.equals(ai.getScriptFile())) {
+				if ((match == null) || (i == entry.playerIndex)) {
+					match = ai;
+				}
+			}
+		}
+		return match == null ? null : new SavedScriptPositions.Program(match.getGlobalScope());
 	}
 
 	private static List<GlobalScope> scopesOf(final CSimulation simulation, final List<JassAIEnvironment> aiEnvironments) {
@@ -289,6 +419,8 @@ public final class SavedGame {
 				writer = new SavedObjectGraph.Writer(rules, bodies);
 				writer.writeRoot(root);
 			}
+			header.positions = rules.getPositions();
+			header.positions.recordGlobals(scopes);
 			final ByteArrayOutputStream tableBytes = new ByteArrayOutputStream(1 << 16);
 			try (GZIPOutputStream table = new GZIPOutputStream(tableBytes)) {
 				table.write(writer.finishTable());
@@ -350,7 +482,12 @@ public final class SavedGame {
 			checkIntact(bodyBytes);
 			table = readFully(gunzip(tableBytes));
 			// A save from another engine build must be refused here, while the map can still start normally.
-			SavedObjectGraph.checkClassesMatch(table);
+			try {
+				SavedObjectGraph.checkClassesMatch(table);
+			}
+			catch (final IOException e) {
+				throw new LoadRefused(Loadability.OTHER_VERSION, e.getMessage());
+			}
 		}
 		catch (final RuntimeException e) {
 			throw new IOException("Damaged save", e);
@@ -370,10 +507,25 @@ public final class SavedGame {
 			placedDestructables.put(created.savedHandleId, viewer.createDestructableForSavedGame(created));
 		}
 		final List<GlobalScope> loadedScopes = scopesOf(simulation, aiEnvironments);
-		for (int i = 0; i < loadedScopes.size(); i++) {
-			if ((i >= header.scopeSizes.size())
-					|| (loadedScopes.get(i).getInstructions().size() != header.scopeSizes.get(i))) {
-				throw new IOException("Saved with other scripts or game data");
+		final List<SavedScriptPositions.Program> programs = new ArrayList<>();
+		for (final GlobalScope scope : loadedScopes) {
+			programs.add(new SavedScriptPositions.Program(scope));
+		}
+		final SavedScriptPositions.Mapping mapping;
+		if (header.positions != null) {
+			final String mismatch = SavedScriptPositions.mismatch(header.positions, programs, false);
+			if (mismatch != null) {
+				throw new LoadRefused(Loadability.OTHER_SCRIPTS, mismatch);
+			}
+			mapping = new SavedScriptPositions.Mapping(header.positions, programs);
+		}
+		else {
+			mapping = null;
+			for (int i = 0; i < loadedScopes.size(); i++) {
+				if ((i >= header.scopeSizes.size())
+						|| (loadedScopes.get(i).getInstructions().size() != header.scopeSizes.get(i))) {
+					throw new LoadRefused(Loadability.OTHER_SCRIPTS, "Saved with other scripts or game data");
+				}
 			}
 		}
 		// From here on the map's own state is gone, so everything that can refuse the save comes before this.
@@ -384,7 +536,12 @@ public final class SavedGame {
 		}
 		final Root root;
 		try (DataInputStream bodies = gunzip(bodyBytes)) {
-			root = (Root) new SavedObjectGraph.Reader(rules, table, bodies).readRoot();
+			final SavedObjectGraph.Reader reader = new SavedObjectGraph.Reader(rules, table, bodies);
+			root = (Root) reader.readRoot();
+			if (mapping != null) {
+				mapping.apply(reader.objectsOf(JassThread.class), reader.objectsOf(CodeJassValue.class), programs,
+						header.scopeSizes);
+			}
 		}
 		catch (final IOException e) {
 			// The simulation is read in place, so past this point starting the map normally is no longer possible.

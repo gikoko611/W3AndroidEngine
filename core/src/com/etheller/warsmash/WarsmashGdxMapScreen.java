@@ -39,6 +39,7 @@ import com.etheller.warsmash.datasources.FolderDataSourceDescriptor;
 import com.etheller.warsmash.datasources.MpqDataSourceDescriptor;
 import com.etheller.warsmash.datasources.SubdirDataSource;
 import com.etheller.warsmash.parsers.fdf.GameUI;
+import com.etheller.warsmash.parsers.fdf.frames.FadingSpriteBatch;
 import com.etheller.warsmash.parsers.jass.Jass2;
 import com.etheller.warsmash.parsers.jass.Jass2.CommonEnvironment;
 import com.etheller.warsmash.parsers.jass.Jass2.RootFrameListener;
@@ -185,7 +186,7 @@ public class WarsmashGdxMapScreen implements InputProcessor, Screen, TouchTarget
 		this.uiCamera.position.set(this.uiViewport.getMinWorldWidth() / 2, this.uiViewport.getMinWorldHeight() / 2, 0);
 		this.uiCamera.update();
 
-		this.batch = new SpriteBatch();
+		this.batch = new FadingSpriteBatch();
 
 //		this.consoleUITexture = new Texture(new DataSourceFileHandle(this.viewer.dataSource, "AlphaUi.png"));
 
@@ -258,10 +259,11 @@ public class WarsmashGdxMapScreen implements InputProcessor, Screen, TouchTarget
 				this.commonEnv.loadSavedGame(this.viewer, savedGame);
 			}
 			catch (final IOException e) {
-				// Nothing of the save has been applied yet at this point, so the map can still start normally.
+				// Nothing of the save has been applied yet. Starting the map instead would pass for a load, so the
+				// game goes back to the menu, which tells why.
 				System.err.println("Could not load the saved game " + savedGame.name() + ": " + e.getMessage());
-				this.commonEnv.main();
-				this.meleeUI.displayTimedText(0, 0, 10, "Could not load the saved game.");
+				SavedGame.loadFailed(savedGame, e);
+				Gdx.app.postRunnable(this.baseMeleeUI::quitMission);
 			}
 		}
 		else {

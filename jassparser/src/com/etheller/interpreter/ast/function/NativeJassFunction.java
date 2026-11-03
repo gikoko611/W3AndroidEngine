@@ -1,12 +1,16 @@
 package com.etheller.interpreter.ast.function;
 
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import com.etheller.interpreter.ast.debug.JassException;
 import com.etheller.interpreter.ast.scope.GlobalScope;
 import com.etheller.interpreter.ast.scope.TriggerExecutionScope;
+import com.etheller.interpreter.ast.util.JassSettings;
+import com.etheller.interpreter.ast.value.HandleJassValue;
 import com.etheller.interpreter.ast.value.JassType;
 import com.etheller.interpreter.ast.value.JassValue;
+import com.etheller.interpreter.ast.value.UnknownEnumHandle;
 import com.etheller.interpreter.ast.value.visitor.JassTypeGettingValueVisitor;
 
 public class NativeJassFunction {
@@ -14,6 +18,7 @@ public class NativeJassFunction {
 	private final JassType returnType;
 	private final String name;
 	private final JassFunction implementation;
+	private final AtomicBoolean reportedNullFailure = new AtomicBoolean();
 
 	public NativeJassFunction(final List<JassParameter> parameters, final JassType returnType, final String name,
 			final JassFunction impl) {
@@ -66,7 +71,39 @@ public class NativeJassFunction {
 		if (!checkNativeExists()) {
 			return this.returnType.getNullValue();
 		}
-		return this.implementation.call(arguments, globalScope, triggerScope);
+		try {
+			return this.implementation.call(arguments, globalScope, triggerScope);
+		}
+		catch (final NullPointerException e) {
+			if (!JassSettings.CONTINUE_EXECUTING_ON_ERROR) {
+				throw e;
+			}
+			// The original's natives ignore a null handle; one that this engine does not check must not end the
+			// whole script thread (a cinematic would stop halfway).
+			if (this.reportedNullFailure.compareAndSet(false, true)) {
+				System.err.println("Native " + this.name + " failed on a null value; ignored like the original:");
+				e.printStackTrace();
+			}
+			return this.returnType.getNullValue();
+		}
+		catch (final ClassCastException e) {
+			// Measured (1.29, convert-enum-d348): a native given an enum value the game has no constant for reads
+			// it as 0 or false and changes nothing.
+			if (!hasUnknownEnum(arguments)) {
+				throw e;
+			}
+			return this.returnType.getNullValue();
+		}
+	}
+
+	private static boolean hasUnknownEnum(final List<JassValue> arguments) {
+		for (final JassValue argument : arguments) {
+			if ((argument instanceof HandleJassValue)
+					&& (((HandleJassValue) argument).getJavaValue() instanceof UnknownEnumHandle)) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	private boolean checkNativeExists() {

@@ -55,6 +55,11 @@ public class CTimerJassStruct extends CTimerJassBase implements CExtensibleHandl
 		final List<Trigger> eventTriggers = this.eventTriggers.isEmpty() ? Collections.emptyList()
 				: new ArrayList<>(this.eventTriggers);
 		final GlobalScope globalScope = simulation.getGlobalScope();
+		// 1.29: the expire-event triggers run before the timer's own callback.
+		for (final Trigger trigger : eventTriggers) {
+			final CommonTriggerExecutionScope executionScope = CommonTriggerExecutionScope.expiringTimer(trigger, this);
+			globalScope.queueTrigger(null, null, trigger, executionScope, executionScope);
+		}
 		try {
 			if (handlerFunc != null) {
 				globalScope.createThread(handlerFunc, handlerScope);
@@ -62,10 +67,6 @@ public class CTimerJassStruct extends CTimerJassBase implements CExtensibleHandl
 		}
 		catch (final Exception e) {
 			throw new JassException(globalScope, "Exception during jass timer fire", e);
-		}
-		for (final Trigger trigger : eventTriggers) {
-			final CommonTriggerExecutionScope executionScope = CommonTriggerExecutionScope.expiringTimer(trigger, this);
-			globalScope.queueTrigger(null, null, trigger, executionScope, executionScope);
 		}
 	}
 

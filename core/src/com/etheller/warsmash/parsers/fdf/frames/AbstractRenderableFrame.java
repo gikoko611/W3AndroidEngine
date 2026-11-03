@@ -28,6 +28,7 @@ public abstract class AbstractRenderableFrame implements UIFrame {
 	protected UIFrame parent;
 	protected boolean visible = true;
 	protected int level;
+	private float renderAlpha = 1f;
 	protected final Rectangle renderBounds = new Rectangle(0, 0, 0, 0); // in libgdx rendering space
 	private final EnumMap<FramePoint, FramePointAssignment> framePointToAssignment = new EnumMap<>(FramePoint.class);
 	protected float assignedHeight;
@@ -349,8 +350,31 @@ public abstract class AbstractRenderableFrame implements UIFrame {
 	@Override
 	public final void render(final SpriteBatch batch, final BitmapFont font20, final GlyphLayout glyphLayout) {
 		if (this.visible) {
-			internalRender(batch, font20, glyphLayout);
+			if ((this.renderAlpha < 1f) && (batch instanceof FadingSpriteBatch)) {
+				if (this.renderAlpha <= 0f) {
+					return;
+				}
+				final FadingSpriteBatch fadingBatch = (FadingSpriteBatch) batch;
+				final float outerAlpha = fadingBatch.getAlphaScale();
+				fadingBatch.setAlphaScale(outerAlpha * this.renderAlpha);
+				internalRender(batch, font20, glyphLayout);
+				fadingBatch.setAlphaScale(outerAlpha);
+			}
+			else {
+				internalRender(batch, font20, glyphLayout);
+			}
 		}
+	}
+
+	/**
+	 * Opacity of this frame and everything drawn inside it, when drawn through a {@link FadingSpriteBatch}.
+	 */
+	public void setRenderAlpha(final float renderAlpha) {
+		this.renderAlpha = renderAlpha;
+	}
+
+	public float getRenderAlpha() {
+		return this.renderAlpha;
 	}
 
 	@Override

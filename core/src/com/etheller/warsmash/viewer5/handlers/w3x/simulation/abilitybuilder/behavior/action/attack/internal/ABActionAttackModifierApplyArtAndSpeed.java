@@ -20,7 +20,7 @@ public class ABActionAttackModifierApplyArtAndSpeed implements ABAction {
 		CUnitAttackSettings settings = (CUnitAttackSettings) localStore.get(ABLocalStoreKeys.ATTACKSETTINGS + castId);
 		AbilityBuilderAbility abil = (AbilityBuilderAbility) localStore.get(ABLocalStoreKeys.ABILITY);
 		String art = abil.getAbilityStringField("Missileart");
-		if ((art != null && !art.isBlank()) || (applyArtIfMissing != null && applyArtIfMissing.callback(game, caster, localStore, castId))) {
+		if ((art != null && !art.trim().isEmpty()) || (applyArtIfMissing != null && applyArtIfMissing.callback(game, caster, localStore, castId))) {
 			settings.setProjectileArt(art);
 		}
 		settings.setProjectileSpeed(abil.getAbilityIntField("Missilespeed"));

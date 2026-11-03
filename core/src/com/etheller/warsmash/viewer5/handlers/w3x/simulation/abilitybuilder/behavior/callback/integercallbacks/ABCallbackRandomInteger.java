@@ -1,5 +1,6 @@
 package com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilitybuilder.behavior.callback.integercallbacks;
 
+import com.etheller.warsmash.util.RandomBounds;
 import java.util.Map;
 
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CSimulation;
@@ -26,7 +27,7 @@ public class ABCallbackRandomInteger extends ABIntegerCallback {
 		if (lowerBound != null) {
 			low = lowerBound.callback(game, caster, localStore, castId);
 		}
-		return game.getSeededRandom().nextInt(low,high);
+		return RandomBounds.nextInt(game.getSeededRandom(), low, high);
 	}
 
 }

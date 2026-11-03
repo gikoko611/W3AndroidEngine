@@ -1,5 +1,6 @@
 package com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.skills.human.archmage;
 
+import com.etheller.warsmash.util.RandomBounds;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
@@ -114,7 +115,7 @@ public class CAbilityBlizzard extends CAbilityPointTargetSpellBase {
 			else {
 				final Random seededRandom = simulation.getSeededRandom();
 				for (int i = 0; i < this.shardCount; i++) {
-					final float randomAngle = seededRandom.nextFloat((float) (StrictMath.PI * 2));
+					final float randomAngle = RandomBounds.nextFloat(seededRandom, (float) (StrictMath.PI * 2));
 					/* (1 - StrictMath.pow(seededRandom.nextFloat(), 2)) */
 					final float randomDistance = seededRandom.nextFloat() * this.areaOfEffect;
 					simulation.spawnSpellEffectOnPoint(

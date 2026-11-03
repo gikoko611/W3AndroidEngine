@@ -18,6 +18,7 @@ public class AbilityBuilderOverrideFields {
 	private ABIntegerCallback manaCostOverride;
 
 	private ABBooleanCallback ignoreCastTime;
+	private ABBooleanCallback repeatCast;
 	
 	private ABAutocastTypeCallback autocastTypeOverride;
 	
@@ -46,6 +47,8 @@ public class AbilityBuilderOverrideFields {
 
 		if (this.ignoreCastTime == null)
 			this.ignoreCastTime = parent.ignoreCastTime;
+		if (this.repeatCast == null)
+			this.repeatCast = parent.repeatCast;
 
 		if (this.autocastTypeOverride == null)
 			this.autocastTypeOverride = parent.autocastTypeOverride;
@@ -98,6 +101,12 @@ public class AbilityBuilderOverrideFields {
 	}
 	public void setIgnoreCastTime(ABBooleanCallback ignoreCastTime) {
 		this.ignoreCastTime = ignoreCastTime;
+	}
+	public ABBooleanCallback getRepeatCast() {
+		return repeatCast;
+	}
+	public void setRepeatCast(ABBooleanCallback repeatCast) {
+		this.repeatCast = repeatCast;
 	}
 	public ABAutocastTypeCallback getAutocastTypeOverride() {
 		return autocastTypeOverride;

@@ -25,6 +25,7 @@ public class CDestructable extends CWidget {
 	private final RemovablePathingMapInstance pathingInstance;
 	private final RemovablePathingMapInstance pathingInstanceDeath;
 	private UnitAnimationListenerImpl unitAnimationListener;
+	private boolean removedFromGame;
 	private boolean invulnerable;
 	private boolean blighted;
 	private Rectangle registeredEnumRectangle;
@@ -273,5 +274,11 @@ public class CDestructable extends CWidget {
 		if (this.pathingInstanceDeath != null) {
 			this.pathingInstanceDeath.remove();
 		}
+		this.removedFromGame = true;
+	}
+
+	/** Measured (1.29, null-handles-d311): a removed destructable's handle reads position 0 and type 0. */
+	public boolean isRemovedFromGame() {
+		return this.removedFromGame;
 	}
 }

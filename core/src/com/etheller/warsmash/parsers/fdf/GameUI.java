@@ -8,6 +8,7 @@ import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import com.badlogic.gdx.graphics.Color;
@@ -84,6 +85,7 @@ public final class GameUI extends AbstractUIFrame implements UIFrame {
 	private static final boolean PIN_FAIL_IS_FATAL = false;
 	private final DataSource dataSource;
 	private final Element skin;
+	private DataTable localizedHotkeys;
 	private final Viewport viewport;
 	private final Scene uiScene;
 	private final AbstractMdxModelViewer modelViewer;
@@ -304,6 +306,34 @@ public final class GameUI extends AbstractUIFrame implements UIFrame {
 
 	public DataTable getSkinData() {
 		return this.skinData;
+	}
+
+	/**
+	 * The key of a scripted dialog button string: UI\MiscUI.txt [Hotkeys] holds it under the string's name, as 'C',
+	 * since the string itself only paints the letter white.
+	 */
+	public int getLocalizedHotkey(final String key) {
+		if (this.localizedHotkeys == null) {
+			final DataTable miscUI = new DataTable(StringBundle.EMPTY);
+			try (InputStream stream = this.dataSource.getResourceAsStream("UI\\MiscUI.txt")) {
+				miscUI.readTXT(stream, true);
+			}
+			catch (final IOException e) {
+				throw new IllegalStateException(e);
+			}
+			this.localizedHotkeys = miscUI;
+		}
+		final Element hotkeys = this.localizedHotkeys.get("Hotkeys");
+		final String value = hotkeys == null ? "" : hotkeys.getField(key);
+		if ((value.length() == 3) && (value.charAt(0) == '\'') && (value.charAt(2) == '\'')) {
+			return value.charAt(1);
+		}
+		final String text = this.templates.getDecoratedString(key);
+		final int white = text.toLowerCase(Locale.US).indexOf("|cffffffff");
+		if ((white >= 0) && ((white + 10) < text.length())) {
+			return Character.toUpperCase(text.charAt(white + 10));
+		}
+		return text.isEmpty() ? 0 : text.charAt(0);
 	}
 
 	public UIFrame createFrame(final String name, final UIFrame owner, final int priority, final int createContext) {
@@ -1083,6 +1113,7 @@ public final class GameUI extends AbstractUIFrame implements UIFrame {
 				final String controlPushedBackdropKey = frameDefinition.getString("ControlPushedBackdrop");
 				final String controlDisabledBackdropKey = frameDefinition.getString("ControlDisabledBackdrop");
 				final String controlMouseOverHighlightKey = frameDefinition.getString("ControlMouseOverHighlight");
+				final String buttonTextKey = frameDefinition.getString("ButtonText");
 				final Vector2Definition pushedTextOffset = frameDefinition.getVector2("ButtonPushedTextOffset");
 				if (pushedTextOffset != null) {
 					glueButtonFrame.setButtonPushedTextOffsetX(pushedTextOffset.getX());
@@ -1112,6 +1143,12 @@ public final class GameUI extends AbstractUIFrame implements UIFrame {
 								inDecorateFileNames || childDefinition.has("DecorateFileNames"));
 						inflatedChild.setSetAllPoints(true);
 						glueButtonFrame.setControlMouseOverHighlight(inflatedChild);
+					}
+					else if (childDefinition.getName().equals(buttonTextKey)) {
+						final UIFrame inflatedChild = inflate(childDefinition, glueButtonFrame, frameDefinition,
+								inDecorateFileNames || childDefinition.has("DecorateFileNames"));
+						inflatedChild.setSetAllPoints(true);
+						glueButtonFrame.setButtonText(inflatedChild);
 					}
 				}
 				final String controlStyleString = frameDefinition.getString("ControlStyle");

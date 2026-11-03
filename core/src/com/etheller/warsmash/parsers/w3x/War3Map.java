@@ -210,8 +210,7 @@ public class War3Map implements DataSource {
 			byteBuffer.clear();
 			checksum.reset();
 			while ((result = inputChannel.read(byteBuffer)) != -1) {
-				byteBuffer.flip();
-				checksum.update(byteBuffer);
+				checksum.update(byteBuffer.array(), 0, byteBuffer.position());
 				byteBuffer.clear();
 			}
 			return checksum.getValue();

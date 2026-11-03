@@ -48,7 +48,8 @@ public class CPlayer extends CBasePlayer {
 	private int heroTokens;
 	private int foodCap;
 	private int foodUsed;
-	private int foodCapCeiling = 101; // TODO should not have a default, I put 101 to make it stand out
+	// 1.29 starts every player at 100; the game data has no field for it.
+	private int foodCapCeiling = 100;
 	private final Map<War3ID, Integer> rawcodeToTechtreeUnlocked = new HashMap<>();
 	private final Map<War3ID, Integer> rawcodeToTechtreeInProgress = new HashMap<>();
 	private final Map<War3ID, Integer> rawcodeToTechtreeMaxAllowed = new HashMap<>();
@@ -60,7 +61,8 @@ public class CPlayer extends CBasePlayer {
 
 	// Player state data
 	private boolean givesBounty = false;
-	private boolean alliedVictory = false;
+	// Measured: 1.29 keeps any integer here and Blizzard.j's allied victory checks compare it to 1.
+	private int alliedVictory;
 	private int gameResult;
 	private CPlayerGameResult removedResult;
 	private int placed;
@@ -96,6 +98,9 @@ public class CPlayer extends CBasePlayer {
 		this.startLocation = startLocation;
 		// Below: 32x32 cells to find the number of 128x128 cells
 		this.fogOfWar = fogOfWar;
+		for (final Map.Entry<CPlayerState, Integer> configState : configPlayer.getConfigPlayerStates().entrySet()) {
+			applyPlayerState(configState.getKey(), configState.getValue());
+		}
 	}
 
 	public CPlayerFogOfWar getFogOfWar() {
@@ -291,7 +296,9 @@ public class CPlayer extends CBasePlayer {
 	public int getScore(final CPlayerScore score) {
 		switch (score) {
 		case RESOURCE_TOTAL:
-			return this.scores[CPlayerScore.GOLD_MINED_TOTAL.ordinal()] + this.scores[CPlayerScore.LUMBER_TOTAL.ordinal()];
+			// Measured at Low Upkeep: only what reached the player counts, the gold lost to upkeep does not.
+			return this.scores[CPlayerScore.GOLD_MINED_UPKEEP.ordinal()] + this.scores[CPlayerScore.LUMBER_TOTAL.ordinal()]
+					- this.scores[CPlayerScore.LUMBER_LOST_UPKEEP.ordinal()];
 		case HERO_TOTAL:
 			// Measured: ten points for each experience point the player's heroes gained.
 			return this.experienceGained * 10;
@@ -558,6 +565,27 @@ public class CPlayer extends CBasePlayer {
 		}
 	}
 
+	public void fireUnitRescuedEvents(final CUnit unit, final CUnit rescuer) {
+		final List<CPlayerEvent> eventList = getEventList(JassGameEventsWar3.EVENT_PLAYER_UNIT_RESCUED);
+		if (eventList != null) {
+			for (final CPlayerEvent event : new ArrayList<>(eventList)) {
+				event.fire(unit, CommonTriggerExecutionScope.unitRescuedScope(JassGameEventsWar3.EVENT_PLAYER_UNIT_RESCUED,
+						event.getTrigger(), unit, rescuer, this));
+			}
+		}
+	}
+
+	public void fireUnitChangeOwnerEvents(final CUnit unit, final CPlayer previousOwner) {
+		final List<CPlayerEvent> eventList = getEventList(JassGameEventsWar3.EVENT_PLAYER_UNIT_CHANGE_OWNER);
+		if (eventList != null) {
+			for (final CPlayerEvent event : new ArrayList<>(eventList)) {
+				event.fire(unit, CommonTriggerExecutionScope.unitChangeOwnerScope(
+						JassGameEventsWar3.EVENT_PLAYER_UNIT_CHANGE_OWNER, event.getTrigger(), unit, this,
+						previousOwner));
+			}
+		}
+	}
+
 	public void fireHeroLevelEvents(final CUnit hero) {
 		firePlayerUnitEvents(hero, CommonTriggerExecutionScope::playerHeroRevivableScope,
 				JassGameEventsWar3.EVENT_PLAYER_HERO_LEVEL);
@@ -771,7 +799,7 @@ public class CPlayer extends CBasePlayer {
 			setFoodCapCeiling(value);
 			break;
 		case ALLIED_VICTORY:
-			this.alliedVictory = (value != 0);
+			this.alliedVictory = value;
 			break;
 		case GIVES_BOUNTY:
 			this.givesBounty = (value != 0);
@@ -825,7 +853,7 @@ public class CPlayer extends CBasePlayer {
 		case FOOD_CAP_CEILING:
 			return getFoodCapCeiling();
 		case ALLIED_VICTORY:
-			return this.alliedVictory ? 1 : 0;
+			return this.alliedVictory;
 		case GIVES_BOUNTY:
 			return this.givesBounty ? 1 : 0;
 		case PLACED:
@@ -1078,6 +1106,9 @@ public class CPlayer extends CBasePlayer {
 	}
 
 	public void setAiScript(final JassAIEnvironment aiScript) {
+		if ((this.aiScript != null) && (this.aiScript != aiScript)) {
+			this.aiScript.stop();
+		}
 		this.aiScript = aiScript;
 	}
 }

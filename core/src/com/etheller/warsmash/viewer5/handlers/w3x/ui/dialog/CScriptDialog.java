@@ -17,6 +17,8 @@ import com.etheller.warsmash.parsers.jass.scope.CommonTriggerExecutionScope;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.trigger.JassGameEventsWar3;
 
 public class CScriptDialog {
+	private static int lastShown;
+
 	private final GlobalScope globalScope;
 	private SimpleFrame scriptDialogFrame;
 	private StringFrame scriptDialogTextFrame;
@@ -25,6 +27,7 @@ public class CScriptDialog {
 	private final List<CScriptDialogButton> buttons = new ArrayList<>();
 	private String title;
 	private boolean visible;
+	private int shownOrder;
 
 	public CScriptDialog(final GlobalScope globalScope, final SimpleFrame scriptDialogFrame,
 			final StringFrame scriptDialogTextFrame) {
@@ -74,7 +77,14 @@ public class CScriptDialog {
 		this.visible = false;
 	}
 
+	public int getShownOrder() {
+		return this.shownOrder;
+	}
+
 	public void setVisible(final boolean flag) {
+		if (flag && !this.visible) {
+			this.shownOrder = ++lastShown;
+		}
 		this.visible = flag;
 		if (this.scriptDialogFrame != null) {
 			this.scriptDialogFrame.setVisible(flag);

@@ -1,5 +1,6 @@
 package com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.skills.neutral.tinker;
 
+import com.etheller.warsmash.util.RandomBounds;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
@@ -105,7 +106,7 @@ public class CAbilityClusterRockets extends CAbilityPointTargetSpellBase {
 					+ ((float) StrictMath.cos(targetingAngle) * this.areaOfEffect * 0.5f);
 			final float targetingY = target.getY()
 					+ ((float) StrictMath.sin(targetingAngle) * this.areaOfEffect * 0.5f);
-			final float randomAngle = seededRandom.nextFloat((float) (StrictMath.PI * 2));
+			final float randomAngle = RandomBounds.nextFloat(seededRandom, (float) (StrictMath.PI * 2));
 			final float randomDistance = seededRandom.nextFloat() * this.areaOfEffect * 0.25f;
 			final float missileLandX = targetingX + ((float) StrictMath.cos(randomAngle) * randomDistance);
 			final float missileLandY = targetingY + ((float) StrictMath.sin(randomAngle) * randomDistance);

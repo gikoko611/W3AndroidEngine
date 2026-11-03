@@ -84,7 +84,13 @@ public abstract class AbstractGenericSingleIconActiveAbility extends AbstractGen
 	public void checkCanTargetNoTarget(final CSimulation game, final CUnit unit, final int playerIndex,
 			final int orderId, final boolean autoOrder, final AbilityTargetCheckReceiver<Void> receiver) {
 		if ((orderId != 0) && ((orderId == getAutoCastOffOrderId()) || (orderId == getAutoCastOnOrderId()))) {
-			receiver.targetOk(null);
+			// Measured (1.29): an autocast on/off order that would not change the state is refused.
+			if ((orderId == getAutoCastOnOrderId()) != isAutoCastOn()) {
+				receiver.targetOk(null);
+			}
+			else {
+				receiver.orderIdNotAccepted();
+			}
 		}
 		else if (orderId == getBaseOrderId()) {
 			innerCheckCanTargetNoTarget(game, unit, orderId, receiver);

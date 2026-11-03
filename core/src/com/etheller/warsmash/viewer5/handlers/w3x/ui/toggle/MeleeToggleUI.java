@@ -38,6 +38,10 @@ public class MeleeToggleUI implements WarsmashUI {
 		this.currentUI = allUIs.get(0);
 	}
 
+	public MeleeUI getMeleeUI() {
+		return this.meleeUI;
+	}
+
 	public void setCurrentUI(final int index) {
 		if (this.currentUI != null) {
 			this.currentUI.onHide();

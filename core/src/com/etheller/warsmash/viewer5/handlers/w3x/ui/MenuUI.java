@@ -13,12 +13,14 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Locale;
-import java.util.zip.CRC32C;
+import net.warsmash.map.Crc32c;
 
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.campaign.CSaveStorage;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.campaign.CCampaignProgress;
 import com.etheller.warsmash.viewer5.handlers.w3x.save.SavedGame;
 import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.Preferences;
 import com.badlogic.gdx.Input;
 import com.badlogic.gdx.audio.Music;
 import com.badlogic.gdx.graphics.Color;
@@ -46,6 +48,7 @@ import com.etheller.warsmash.parsers.fdf.GameSkin;
 import com.etheller.warsmash.parsers.fdf.GameUI;
 import com.etheller.warsmash.parsers.fdf.datamodel.AnchorDefinition;
 import com.etheller.warsmash.parsers.fdf.datamodel.FramePoint;
+import com.etheller.warsmash.parsers.fdf.datamodel.MenuItem;
 import com.etheller.warsmash.parsers.fdf.datamodel.TextJustify;
 import com.badlogic.gdx.graphics.Texture;
 import com.etheller.warsmash.parsers.fdf.frames.AbstractRenderableFrame;
@@ -61,6 +64,7 @@ import com.etheller.warsmash.viewer5.handlers.w3x.simulation.sound.CSoundMixer;
 import com.etheller.warsmash.parsers.fdf.frames.ListBoxFrame;
 import com.etheller.warsmash.parsers.fdf.frames.ListBoxFrame.ListBoxSelelectionListener;
 import com.etheller.warsmash.parsers.fdf.frames.MenuFrame;
+import com.etheller.warsmash.parsers.fdf.frames.PopupMenuFrame;
 import com.etheller.warsmash.parsers.fdf.frames.SetPoint;
 import com.etheller.warsmash.parsers.fdf.frames.SimpleFrame;
 import com.etheller.warsmash.parsers.fdf.frames.SpriteFrame;
@@ -100,6 +104,7 @@ import com.etheller.warsmash.viewer5.handlers.w3x.simulation.players.CRace;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.players.CRaceManagerEntry;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.players.CRacePreference;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.trigger.enumtypes.CPlayerSlotState;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.trigger.enumtypes.CMapDifficulty;
 import com.etheller.warsmash.viewer5.handlers.w3x.ui.command.ClickableFrame;
 import com.etheller.warsmash.viewer5.handlers.w3x.ui.command.FocusableFrame;
 import com.etheller.warsmash.viewer5.handlers.w3x.ui.dialog.DialogWar3;
@@ -113,6 +118,7 @@ import com.etheller.warsmash.viewer5.handlers.w3x.ui.mapsetup.PlayerSlotPaneList
 import com.etheller.warsmash.viewer5.handlers.w3x.ui.mapsetup.TeamSetupPane;
 import com.etheller.warsmash.viewer5.handlers.w3x.ui.menu.BattleNetUI;
 import com.etheller.warsmash.viewer5.handlers.w3x.ui.menu.BattleNetUIActionListener;
+import com.etheller.warsmash.viewer5.handlers.w3x.ui.menu.CampaignButtonUI;
 import com.etheller.warsmash.viewer5.handlers.w3x.ui.menu.CampaignMenuData;
 import com.etheller.warsmash.viewer5.handlers.w3x.ui.menu.CampaignMenuUI;
 import com.etheller.warsmash.viewer5.handlers.w3x.ui.menu.CampaignMission;
@@ -226,6 +232,13 @@ public class MenuUI {
 	private CampaignMenuData currentCampaign;
 	private String[] campaignList;
 	private CampaignMenuData[] campaignDatas;
+	private final List<CampaignEntry> campaignEntries = new ArrayList<>();
+	// Measured: the 1.29 campaign screen offers Normal and Hard; Easy is reached only by reducing the difficulty after
+	// a defeat.
+	private static final CMapDifficulty[] CAMPAIGN_DIFFICULTIES = { CMapDifficulty.NORMAL, CMapDifficulty.HARD };
+	private static final String[] CAMPAIGN_DIFFICULTY_KEYS = { "NORMAL", "HARD" };
+	private PopupMenuFrame difficultySelect;
+	private CMapDifficulty campaignDifficulty = CMapDifficulty.NORMAL;
 
 	// BattleNet
 	private BattleNetUI battleNetUI;
@@ -255,7 +268,10 @@ public class MenuUI {
 	private LoadingMap loadingMap;
 	private SpriteFrame loadingBackground;
 	private boolean unifiedCampaignInfo = false;
+	private boolean classicCampaignList = false;
 	private MapInfoPane skirmishMapInfoPane;
+	private MapListContainer skirmishMapList;
+	private static final String SKIRMISH_MAP_PREFERENCE = "SkirmishMap";
 	private War3MapConfig currentMapConfig;
 	private final DataTable musicSLK;
 	private Music[] currentMusics;
@@ -521,7 +537,7 @@ public class MenuUI {
 								final String mapFileLookupName = mapDownloadDir + File.separator + mapNameOnly;
 								File mapLookupFile = new File(mapFileLookupName);
 								boolean hasMap = false;
-								final CRC32C checksumCalculator = new CRC32C();
+								final Crc32c checksumCalculator = new Crc32c();
 								War3Map map = null;
 								int tildeIndex = 1;
 								while (mapLookupFile.exists()) {
@@ -850,6 +866,9 @@ public class MenuUI {
 		if (this.dataSource.has(campaignStringPath)) {
 			try (InputStream campaignStringStream = this.dataSource.getResourceAsStream(campaignStringPath)) {
 				this.campaignStrings.readTXT(campaignStringStream, true);
+				this.classicCampaignList = !campaignStringPath.toLowerCase().contains("_exp");
+				CCampaignProgress.setCampaignList(this.classicCampaignList ? CCampaignProgress.CampaignList.REIGN_OF_CHAOS
+						: CCampaignProgress.CampaignList.FROZEN_THRONE);
 			}
 			catch (final IOException e) {
 				throw new RuntimeException(e);
@@ -860,6 +879,7 @@ public class MenuUI {
 					.getResourceAsStream("UI\\CampaignInfoClassic.txt")) {
 				this.campaignStrings.readTXT(campaignStringStream, true);
 				this.unifiedCampaignInfo = true;
+				CCampaignProgress.setCampaignList(CCampaignProgress.CampaignList.COMBINED);
 			}
 			catch (final IOException e) {
 				throw new RuntimeException(e);
@@ -1146,6 +1166,7 @@ public class MenuUI {
 				MenuUI.this.glueSpriteLayerTopRight.setSequence("SinglePlayer Death");
 				MenuUI.this.singlePlayerMenu.setVisible(false);
 				MenuUI.this.profilePanel.setVisible(false);
+				refreshCampaignAvailability();
 				MenuUI.this.menuState = MenuState.GOING_TO_CAMPAIGN;
 			}
 		});
@@ -1210,6 +1231,7 @@ public class MenuUI {
 		final MapListContainer mapListContainer = new MapListContainer(this.rootFrame, this.uiViewport,
 				"MapListContainer", this.dataSource,
 				((StringFrame) this.rootFrame.getFrameByName("ProfileListText", 0)).getFrameFont());
+		this.skirmishMapList = mapListContainer;
 		mapListContainer.addSelectionListener(new ListBoxSelelectionListener() {
 			War3Map lastMapListMap;
 			String prevSelectedItem = "";
@@ -1243,6 +1265,8 @@ public class MenuUI {
 						}
 						war3MapConfig.setMapName("NOTEXTERN: default name string");
 						war3MapConfig.setMapDescription("NOTEXTERN: default description string");
+						war3MapConfig.applyMapInformation(mapInfo);
+						MenuUI.this.skirmishAdvancedOptionsPane.setMapInformation(mapInfo);
 						Jass2.loadConfig(map, MenuUI.this.uiViewport, MenuUI.this.uiScene, MenuUI.this.rootFrame,
 								war3MapConfig, WarsmashConstants.JASS_FILE_LIST).config();
 						boolean foundFirstHuman = false;
@@ -1284,6 +1308,9 @@ public class MenuUI {
 			public void run() {
 				final String selectedItem = mapListContainer.getSelectedItem();
 				if (selectedItem != null) {
+					final Preferences preferences = Gdx.app.getPreferences("WarsmashWC3Engine");
+					preferences.putString(SKIRMISH_MAP_PREFERENCE, selectedItem);
+					preferences.flush();
 					MenuUI.this.campaignMenu.setVisible(false);
 					MenuUI.this.campaignBackButton.setVisible(false);
 					MenuUI.this.missionSelectFrame.setVisible(false);
@@ -1302,6 +1329,13 @@ public class MenuUI {
 						if ((configPlayer.getSlotState() == CPlayerSlotState.PLAYING)
 								&& (configPlayer.getController() == CMapControl.NONE)) {
 							configPlayer.setSlotState(CPlayerSlotState.EMPTY);
+						}
+						else if ((configPlayer.getSlotState() == CPlayerSlotState.PLAYING)
+								&& (configPlayer.getController() == CMapControl.COMPUTER)) {
+							// Measured: a lobby computer plays under its slot label, e.g. "Computer (Easy)", which
+							// GetPlayerName, the score screen and the unit tooltips show.
+							configPlayer.setName(MenuUI.this.rootFrame.getTemplates()
+									.getDecoratedString(getComputerSlotKey(configPlayer.getAIDifficulty())));
 						}
 					}
 					shuffleStartLocations(MenuUI.this.currentMapConfig, MenuUI.this.randomStartLocationCount);
@@ -1352,6 +1386,21 @@ public class MenuUI {
 
 		this.campaignSelectFrame = this.rootFrame.getFrameByName("CampaignSelectFrame", 0);
 		this.campaignSelectFrame.setVisible(false);
+		this.difficultySelect = (PopupMenuFrame) this.rootFrame.getFrameByName("DifficultySelect", 0);
+		final List<MenuItem> difficultyItems = new ArrayList<>();
+		for (final String difficultyKey : CAMPAIGN_DIFFICULTY_KEYS) {
+			difficultyItems.add(new MenuItem(this.rootFrame.getTemplates().getDecoratedString(difficultyKey), -2));
+		}
+		((MenuFrame) this.difficultySelect.getPopupMenuFrame()).setItems(this.uiViewport, difficultyItems);
+		final StringFrame difficultyTitle = (StringFrame) ((GlueTextButtonFrame) this.difficultySelect
+				.getPopupTitleFrame()).getButtonText();
+		this.rootFrame.setDecoratedText(difficultyTitle, CAMPAIGN_DIFFICULTY_KEYS[0]);
+		this.difficultySelect.setMenuClickListener((button, menuItemIndex) -> {
+			if ((menuItemIndex >= 0) && (menuItemIndex < CAMPAIGN_DIFFICULTY_KEYS.length)) {
+				this.campaignDifficulty = CAMPAIGN_DIFFICULTIES[menuItemIndex];
+				this.rootFrame.setDecoratedText(difficultyTitle, CAMPAIGN_DIFFICULTY_KEYS[menuItemIndex]);
+			}
+		});
 
 		this.campaignWarcraftIIILogo = (SpriteFrame) this.rootFrame.getFrameByName("WarCraftIIILogo", 0);
 		this.rootFrame.setSpriteFrameModel(this.campaignWarcraftIIILogo, this.rootFrame.getSkinField("MainMenuLogo"));
@@ -1382,6 +1431,7 @@ public class MenuUI {
 					MenuUI.this.campaignSelectFrame.setVisible(false);
 					MenuUI.this.campaignWarcraftIIILogo.setVisible(false);
 					MenuUI.this.campaignRootMenuUI.setVisible(false);
+					MenuUI.this.difficultySelect.getPopupMenuFrame().setVisible(false);
 					MenuUI.this.campaignFade.setSequence("Birth");
 					MenuUI.this.menuState = MenuState.LEAVING_CAMPAIGN;
 				}
@@ -1389,7 +1439,8 @@ public class MenuUI {
 		});
 		final Element campaignIndex = this.campaignStrings.get("Index");
 		if (campaignIndex != null) {
-			this.campaignList = campaignIndex.getField("CampaignList").split(",");
+			// Read entry by entry: the joined field string drops the blank entries at the start of the list.
+			this.campaignList = campaignIndex.getFieldAsList("CampaignList").toArray(new String[0]);
 			this.campaignDatas = new CampaignMenuData[this.campaignList.length];
 			for (int i = 0; i < this.campaignList.length; i++) {
 				final String campaign = this.campaignList[i];
@@ -1403,8 +1454,15 @@ public class MenuUI {
 
 				}
 			}
+			// Scripts number the campaigns by their place among the list's named entries (SetMissionAvailable,
+			// SetCampaignAvailable); a blank entry is a gap between groups of campaigns on the screen.
+			int campaignNumber = 0;
 			for (final CampaignMenuData campaign : this.campaignDatas) {
-				if (campaign != null) {
+				if (campaign == null) {
+					this.campaignRootMenuUI.addGap();
+				}
+				else {
+					final List<CampaignButtonUI> missionButtons = new ArrayList<>();
 					final CampaignMenuUI missionSelectMenuUI = new CampaignMenuUI(null, this.campaignMenu,
 							this.rootFrame, this.uiViewport);
 					missionSelectMenuUI.setVisible(false);
@@ -1416,7 +1474,7 @@ public class MenuUI {
 					this.rootFrame.add(missionSelectMenuUI);
 
 					for (final CampaignMission mission : campaign.getMissions()) {
-						missionSelectMenuUI.addButton(mission.getHeader(), mission.getMissionName(), new Runnable() {
+						missionButtons.add(missionSelectMenuUI.addButton(mission.getHeader(), mission.getMissionName(), new Runnable() {
 							@Override
 							public void run() {
 								MenuUI.this.campaignMenu.setVisible(false);
@@ -1427,12 +1485,14 @@ public class MenuUI {
 								MenuUI.this.campaignRootMenuUI.setVisible(false);
 								MenuUI.this.currentMissionSelectMenuUI.setVisible(false);
 								MenuUI.this.campaignFade.setSequence("Birth");
+								MenuUI.this.difficultySelect.getPopupMenuFrame().setVisible(false);
 								try {
 									loadAndCacheMapConfigs(mission.getMapFilename());
 								}
 								catch (final IOException e) {
 									e.printStackTrace();
 								}
+								MenuUI.this.currentMapConfig.setGameDifficulty(MenuUI.this.campaignDifficulty);
 								int localPlayerIndex = -1;
 								for (int i = 0; i < WarsmashConstants.MAX_PLAYERS; i++) {
 									final CBasePlayer player = MenuUI.this.currentMapConfig.getPlayer(i);
@@ -1449,12 +1509,14 @@ public class MenuUI {
 										mission.getMapFilename());
 								MenuUI.this.beginGameInformation.localPlayerIndex = localPlayerIndex;
 							}
-						});
+						}));
 					}
 
-					this.campaignRootMenuUI.addButton(campaign.getHeader(), campaign.getName(), new Runnable() {
+					final CampaignButtonUI campaignButtonUI = this.campaignRootMenuUI.addButton(campaign.getHeader(),
+							campaign.getName(), new Runnable() {
 						@Override
 						public void run() {
+							MenuUI.this.difficultySelect.getPopupMenuFrame().setVisible(false);
 							if (campaign != MenuUI.this.currentCampaign) {
 								MenuUI.this.campaignMenu.setVisible(false);
 								MenuUI.this.campaignBackButton.setVisible(false);
@@ -1478,6 +1540,8 @@ public class MenuUI {
 							MenuUI.this.rootFrame.setDecoratedText(missionNameHeader, campaign.getHeader());
 						}
 					});
+					this.campaignEntries.add(new CampaignEntry(campaign, campaignNumber++, campaignButtonUI,
+							missionSelectMenuUI, missionButtons));
 					if (campaign == MenuUI.this.currentCampaign) {
 						MenuUI.this.currentMissionSelectMenuUI = missionSelectMenuUI;
 					}
@@ -1488,6 +1552,59 @@ public class MenuUI {
 			this.campaignButton.setEnabled(false);
 		}
 
+	}
+
+	/**
+	 * The campaign screens list only what the profile has opened: a campaign that is open by default or made available
+	 * by a script, and in it the first mission and those a script made available.
+	 */
+	private void refreshCampaignAvailability() {
+		final int menuCampaignIndex = this.classicCampaignList ? CCampaignProgress.getClassicMenuCampaignIndex()
+				: CCampaignProgress.getMenuCampaignIndex();
+		CampaignEntry firstOpen = null;
+		CampaignEntry menuCampaign = null;
+		boolean currentOpen = false;
+		for (final CampaignEntry entry : this.campaignEntries) {
+			final boolean open = entry.data.isDefaultOpen() || CCampaignProgress.isCampaignAvailable(entry.number);
+			entry.button.setVisible(open);
+			for (int i = 0; i < entry.missionButtons.size(); i++) {
+				entry.missionButtons.get(i)
+						.setVisible(open && ((i == 0) || CCampaignProgress.isMissionAvailable(entry.number, i)));
+			}
+			entry.missionMenu.positionBounds(this.rootFrame, this.uiViewport);
+			if (open) {
+				if (firstOpen == null) {
+					firstOpen = entry;
+				}
+				if (entry.number == menuCampaignIndex) {
+					menuCampaign = entry;
+				}
+				currentOpen |= entry.data == this.currentCampaign;
+			}
+		}
+		this.campaignRootMenuUI.positionBounds(this.rootFrame, this.uiViewport);
+		final CampaignEntry shown = menuCampaign != null ? menuCampaign : (currentOpen ? null : firstOpen);
+		if (shown != null) {
+			this.currentCampaign = shown.data;
+			this.currentMissionSelectMenuUI = shown.missionMenu;
+		}
+	}
+
+	private static final class CampaignEntry {
+		private final CampaignMenuData data;
+		private final int number;
+		private final CampaignButtonUI button;
+		private final CampaignMenuUI missionMenu;
+		private final List<CampaignButtonUI> missionButtons;
+
+		private CampaignEntry(final CampaignMenuData data, final int number, final CampaignButtonUI button,
+				final CampaignMenuUI missionMenu, final List<CampaignButtonUI> missionButtons) {
+			this.data = data;
+			this.number = number;
+			this.button = button;
+			this.missionMenu = missionMenu;
+			this.missionButtons = missionButtons;
+		}
 	}
 
 	private void mainDialogs() {
@@ -1852,6 +1969,9 @@ public class MenuUI {
 	 */
 	public void startMap(final String mapFilename, final String computerSlots) {
 		this.mainMenuFrame.setVisible(false);
+		// A level a script changes to (or restarts) is played at the difficulty of the game before it.
+		final CMapDifficulty difficulty = this.currentMapConfig == null ? CMapDifficulty.NORMAL
+				: this.currentMapConfig.getGameDifficulty();
 
 		try {
 			loadAndCacheMapConfigs(mapFilename);
@@ -1859,6 +1979,7 @@ public class MenuUI {
 		catch (final IOException e) {
 			e.printStackTrace();
 		}
+		this.currentMapConfig.setGameDifficulty(difficulty);
 
 		MenuUI.this.campaignMenu.setVisible(false);
 		MenuUI.this.campaignBackButton.setVisible(false);
@@ -1936,6 +2057,7 @@ public class MenuUI {
 			final CBasePlayer player = war3MapConfig.getPlayer(i);
 			player.setName(MenuUI.this.rootFrame.getTrigStr(mapInfo.getPlayers().get(i).getName()));
 		}
+		war3MapConfig.applyMapInformation(mapInfo);
 		Jass2.loadConfig(map, MenuUI.this.uiViewport, MenuUI.this.uiScene, MenuUI.this.rootFrame, war3MapConfig,
 				WarsmashConstants.JASS_FILE_LIST).config();
 		shuffleStartLocations(war3MapConfig, prepareMeleeLobby(war3MapConfig, mapInfo));
@@ -2117,7 +2239,7 @@ public class MenuUI {
 			final StringFrame race = (StringFrame) this.rootFrame.getFrameByName("LoadingPlayerSlotRace", i);
 			this.rootFrame.setText((StringFrame) this.rootFrame.getFrameByName("LoadingPlayerSlotLevel", i), "");
 			if (player.getController() == CMapControl.COMPUTER) {
-				this.rootFrame.setDecoratedText(name, "COMPUTER_NORMAL");
+				this.rootFrame.setDecoratedText(name, getComputerSlotKey(player.getAIDifficulty()));
 			}
 			else {
 				this.rootFrame.setText(name, player.getName());
@@ -2128,6 +2250,16 @@ public class MenuUI {
 		}
 		container.setHeight(GameUI.convertY(this.uiViewport, 0.0217f) * this.loadingPlayerSlots.size());
 		this.loadingMeleePanel.positionBounds(this.rootFrame, this.uiViewport);
+	}
+
+	private static String getComputerSlotKey(final AIDifficulty difficulty) {
+		if (difficulty == AIDifficulty.NEWBIE) {
+			return "COMPUTER_NEWBIE";
+		}
+		if (difficulty == AIDifficulty.INSANE) {
+			return "COMPUTER_INSANE";
+		}
+		return "COMPUTER_NORMAL";
 	}
 
 	private static String getRaceStringKey(final CBasePlayer player) {
@@ -2499,6 +2631,8 @@ public class MenuUI {
 				this.glueSpriteLayerTopLeft.setSequence("SinglePlayerSkirmish Birth");
 				this.glueSpriteLayerTopRight.setSequence("SinglePlayerSkirmish Birth");
 				showSkirmishAdvancedOptions(false);
+				this.skirmishMapList.selectInitial(
+						Gdx.app.getPreferences("WarsmashWC3Engine").getString(SKIRMISH_MAP_PREFERENCE, null));
 				this.menuState = MenuState.SINGLE_PLAYER_SKIRMISH;
 				break;
 			case SINGLE_PLAYER_SKIRMISH:
@@ -2595,6 +2729,17 @@ public class MenuUI {
 		this.uiViewport.unproject(screenCoordsVector);
 		return ScrollBarFrame.isSliderPart(this.rootFrame.getFrameChildUnderMouse(screenCoordsVector.x,
 				screenCoordsVector.y));
+	}
+
+	public boolean scrolled(final int screenX, final int screenY, final float amountY) {
+		screenCoordsVector.set(screenX, screenY);
+		this.uiViewport.unproject(screenCoordsVector);
+		final ListBoxFrame listBox = ListBoxFrame.findUnder(this.rootFrame, screenCoordsVector.x, screenCoordsVector.y);
+		if (listBox == null) {
+			return false;
+		}
+		listBox.scrollItems(this.rootFrame, this.uiViewport, Math.round(amountY));
+		return true;
 	}
 
 	private FocusableFrame getNextFocusFrame() {
@@ -2698,6 +2843,11 @@ public class MenuUI {
 
 						@Override
 						public void saveGame(final String name) {
+						}
+
+						@Override
+						public SavedGame.Loadability loadability(final FileHandle file) {
+							return SavedGame.loadability(file);
 						}
 
 						@Override
@@ -3012,6 +3162,11 @@ public class MenuUI {
 //		MenuUI.this.campaignWarcraftIIILogo.setVisible(true);
 //		MenuUI.this.campaignRootMenuUI.setVisible(false);
 //		MenuUI.this.currentMissionSelectMenuUI.setVisible(true);
+		final SavedGame.Loadability loadFailure = SavedGame.consumeLoadFailure();
+		if (loadFailure != null) {
+			this.dialog.showError(SavedGameDialog.reasonKey(loadFailure), null);
+		}
+		final boolean forceCampaignSelect = CCampaignProgress.consumeCampaignSelectScreenForced();
 		switch (this.menuState) {
 		default:
 		case GOING_TO_MAIN_MENU:
@@ -3024,6 +3179,17 @@ public class MenuUI {
 			break;
 		case CAMPAIGN:
 		case MISSION_SELECT:
+			// The mission may have opened missions or campaigns and picked the campaign the menu shows.
+			this.currentMissionSelectMenuUI.setVisible(false);
+			refreshCampaignAvailability();
+			if (forceCampaignSelect) {
+				this.missionSelectFrame.setVisible(false);
+				this.menuState = MenuState.CAMPAIGN;
+			}
+			this.rootFrame.setDecoratedText((StringFrame) this.rootFrame.getFrameByName("MissionName", 0),
+					this.currentCampaign.getName());
+			this.rootFrame.setDecoratedText((StringFrame) this.rootFrame.getFrameByName("MissionNameHeader", 0),
+					this.currentCampaign.getHeader());
 			final String currentCampaignBackgroundModel = getCurrentBackgroundModel();
 			final String currentCampaignAmbientSound = this.rootFrame
 					.trySkinField(this.currentCampaign.getAmbientSound());

@@ -150,7 +150,7 @@ public class CAbilityPossession extends CAbilityTargetSpellBase {
 							possessed.remove(game, targetBuff);
 						}
 						if (!possessed.isDead()) {
-							CUndeadUnitAbilities.transferOwnership(game, possessed, newOwner);
+							possessed.changeOwner(game, newOwner, true);
 						}
 					}
 				});

@@ -662,7 +662,7 @@ public class AbilityDataUI {
 		final List<War3ID> lightningEffects = new ArrayList<>();
 		for (final String entry : data.getFieldAsList(LIGHTNING_EFFECTS)) {
 			for (final String lightning : entry.split(",")) {
-				if (!lightning.isBlank()) {
+				if (!lightning.trim().isEmpty()) {
 					lightningEffects.add(War3ID.fromString(lightning.trim()));
 				}
 			}

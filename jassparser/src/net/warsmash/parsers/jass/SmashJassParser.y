@@ -6,9 +6,42 @@
 		jflexLexer = new SmashJassLexer(r);
 	}
 	
+	int previousToken = YYEOF;
+
+	// The grammar has no unary plus, but the game's AI scripts use it
+	// (u08x02.ai: attack_move(+OFFSET_X,+OFFSET_Y)). A PLUS that cannot be
+	// binary is a no-op, so it is dropped here instead of regenerating the
+	// parser tables.
 	@Override
 	public int yylex() throws IOException {
-		return jflexLexer.yylex();
+		int token = jflexLexer.yylex();
+		while (token == PLUS && !endsOperand(previousToken)) {
+			token = jflexLexer.yylex();
+		}
+		previousToken = token;
+		return token;
+	}
+
+	private boolean endsOperand(int token) {
+		switch (token) {
+		case ID:
+		case STRING_LITERAL:
+		case INTEGER:
+		case HEX_CONSTANT:
+		case DOLLAR_HEX_CONSTANT:
+		case RAWCODE:
+		case REAL:
+		case TRUE:
+		case FALSE:
+		case NULL:
+		case CLOSE_PAREN:
+		case CLOSE_BRACKET:
+		case PLUSPLUS:
+		case MINUSMINUS:
+			return true;
+		default:
+			return false;
+		}
 	}
 	
 	@Override
@@ -606,7 +639,8 @@ statement:
 	|
 	DEBUG statement // DebugStatement
 	{
-		$$ = $2;
+		// Release builds of the game skip debug statements.
+		$$ = new JassDoNothingStatement();
 	}
 	;
 	

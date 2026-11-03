@@ -19,6 +19,20 @@ public class CFogModifierJassMulti implements CFogModifierJass {
 	}
 
 	@Override
+	public void applyNow(final CSimulation game) {
+		for (final CFogModifierJass modifier : this.modifiers) {
+			modifier.applyNow(game);
+		}
+	}
+
+	@Override
+	public void fogVisibleCells(final CSimulation game) {
+		for (final CFogModifierJass modifier : this.modifiers) {
+			modifier.fogVisibleCells(game);
+		}
+	}
+
+	@Override
 	public void destroy(CSimulation game) {
 		for (final CFogModifierJass modifier : this.modifiers) {
 			modifier.destroy(game);

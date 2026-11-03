@@ -23,6 +23,9 @@ public class WorldEditStrings implements StringBundle {
 				throw new RuntimeException(e);
 			}
 		}
+		if (!dataSource.has("UI\\WorldEditGameStrings.txt")) {
+			throw new IllegalStateException("Game data not found: UI\\WorldEditGameStrings.txt is missing");
+		}
 		try (InputStream fis = dataSource.getResourceAsStream("UI\\WorldEditGameStrings.txt");
 				InputStreamReader reader = new InputStreamReader(fis, "utf-8")) {
 			this.bundlegs = new PropertyResourceBundle(reader);

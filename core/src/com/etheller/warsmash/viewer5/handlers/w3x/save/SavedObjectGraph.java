@@ -34,8 +34,10 @@ import java.util.TreeSet;
 
 /**
  * Writes and reads a whole graph of game objects by their fields, so that the hundreds of ability, buff and behavior
- * classes need no code of their own. Fields are stored by name and type, and a save whose classes no longer match this
- * engine, with a field missing, added or changed, is refused when it is read.
+ * classes need no code of their own. Fields are stored by declaring class, name and type. A save from an engine whose
+ * classes differ still loads: fields it has that the class lost are skipped, fields the class gained get defaults
+ * (see {@link SavedDefault}). It is refused when a class is gone, when a field's type no longer takes the saved value,
+ * or when an anonymous class differs at all.
  *
  * Objects get numbers in the order they are first met. The table of what each number is comes after the bodies in the
  * stream because bodies are what discover objects; reading takes the table first, allocates everything, then fills.
@@ -142,6 +144,10 @@ public final class SavedObjectGraph {
 				classes[entry.getValue()] = entry.getKey();
 			}
 			for (final Class<?> type : classes) {
+				if (isAnonymous(type)) {
+					// Its name is its place in the source file, which the next edit there can give another class.
+					System.err.println("Saved game holds the anonymous class " + type.getName());
+				}
 				out.writeUTF(type.getName());
 				final List<Field> fields = type.isArray() || type.isEnum() ? new ArrayList<>() : fieldsOf(type);
 				out.writeInt(fields.size());
@@ -551,7 +557,7 @@ public final class SavedObjectGraph {
 	}
 
 	/**
-	 * Fails when the table names a class or field this engine build no longer has. Changes nothing.
+	 * Fails when the saved classes cannot be read into this engine's, by the rules above. Changes nothing.
 	 */
 	public static void checkClassesMatch(final byte[] tableBytes) throws IOException {
 		final DataInputStream in = new DataInputStream(new ByteArrayInputStream(tableBytes));
@@ -575,6 +581,7 @@ public final class SavedObjectGraph {
 		private ClassInfo[] classes;
 		private int[] classOfObject;
 		private final List<Runnable> deferred = new ArrayList<>();
+		private final List<Runnable> addedFieldHooks = new ArrayList<>();
 
 		public Reader(final Rules rules, final byte[] tableBytes, final DataInputStream bodies) throws IOException {
 			this.rules = rules;
@@ -719,7 +726,21 @@ public final class SavedObjectGraph {
 			for (final Runnable fill : this.deferred) {
 				fill.run();
 			}
+			for (final Runnable hook : this.addedFieldHooks) {
+				hook.run();
+			}
 			return this.objects[rootId];
+		}
+
+		/** The objects of a type the save itself held (not the loading game's own, found by name). */
+		public <T> List<T> objectsOf(final Class<T> type) {
+			final List<T> found = new ArrayList<>();
+			for (int id = 1; id < this.objects.length; id++) {
+				if ((this.kinds[id] == KIND_OBJECT) && type.isInstance(this.objects[id])) {
+					found.add(type.cast(this.objects[id]));
+				}
+			}
+			return found;
 		}
 
 		@SuppressWarnings({ "unchecked", "rawtypes" })
@@ -750,8 +771,17 @@ public final class SavedObjectGraph {
 			case KIND_ENUM_MAP:
 				readMapContents((Map) object);
 				break;
-			case KIND_OBJECT:
-				readFields(object, this.classes[this.classOfObject[id]]);
+			case KIND_OBJECT: {
+				final ClassInfo info = this.classes[this.classOfObject[id]];
+				readFields(object, info);
+				// Collections and maps were built by their constructor, so their own fields have its values already.
+				if (!(object instanceof Collection) && !(object instanceof Map)) {
+					info.applyAddedFieldDefaults(object);
+					if ((object instanceof SavedAddedFields) && !info.addedFieldNames().isEmpty()) {
+						this.addedFieldHooks.add(() -> ((SavedAddedFields) object).initAddedFields(
+								java.util.Collections.unmodifiableSet(info.addedFieldNames)));
+					}
+				}
 				if (object instanceof Collection) {
 					readCollectionContents((Collection) object);
 				}
@@ -759,6 +789,7 @@ public final class SavedObjectGraph {
 					readMapContents((Map) object);
 				}
 				break;
+			}
 			default:
 				break;
 			}
@@ -791,7 +822,7 @@ public final class SavedObjectGraph {
 		private ClassInfo classInfoOf(final Object object) throws IOException {
 			final String name = object.getClass().getName();
 			for (final ClassInfo info : this.classes) {
-				if (info.name.equals(name)) {
+				if (currentClassName(info.name).equals(name)) {
 					return info;
 				}
 			}
@@ -923,7 +954,7 @@ public final class SavedObjectGraph {
 
 	private static Class<?> classForName(final String name) throws IOException {
 		try {
-			return Class.forName(name, false, SavedObjectGraph.class.getClassLoader());
+			return Class.forName(currentClassName(name), false, SavedObjectGraph.class.getClassLoader());
 		}
 		catch (final ClassNotFoundException exc) {
 			throw new IOException("This engine has no class " + name, exc);
@@ -936,6 +967,10 @@ public final class SavedObjectGraph {
 		private Class<?> type;
 		private Field[] fields;
 		private Class<?>[] storedTypes;
+		/** Fields of this engine's class that the save does not have. */
+		private Field[] addedFields;
+		private Set<String> addedFieldNames;
+		private boolean addedFieldsReported;
 
 		private ClassInfo(final String name, final String[] fieldKeys) {
 			this.name = name;
@@ -949,28 +984,69 @@ public final class SavedObjectGraph {
 			return this.type;
 		}
 
+		/**
+		 * Matches the saved fields to this engine's by declaring class and name (earlier names count too). A saved field
+		 * the class no longer has is read and dropped; a field the save lacks gets a default after reading. A field
+		 * whose type changed so that the saved value cannot go in is refused, and so is any difference in an anonymous
+		 * class, whose name says nothing about which class it is.
+		 */
 		private Field[] fields() throws IOException {
 			if (this.fields == null) {
-				final Map<String, Field> current = new HashMap<>();
-				for (final Field field : fieldsOf(type())) {
-					current.put(fieldKey(field), field);
-				}
-				this.fields = new Field[this.fieldKeys.length];
-				this.storedTypes = new Class<?>[this.fieldKeys.length];
-				for (int i = 0; i < this.fieldKeys.length; i++) {
-					final Field field = current.get(this.fieldKeys[i]);
-					if (field == null) {
-						throw new IOException("This engine has no field " + this.fieldKeys[i]);
+				final Class<?> type = type();
+				final Map<String, Field> current = new LinkedHashMap<>();
+				final Map<String, Field> byFormerName = new HashMap<>();
+				for (final Field field : fieldsOf(type)) {
+					final String declaringClass = field.getDeclaringClass().getName();
+					current.put(declaringClass + "#" + field.getName(), field);
+					final SavedFormerly formerly = field.getAnnotation(SavedFormerly.class);
+					if (formerly != null) {
+						for (final String formerName : formerly.value()) {
+							byFormerName.put(declaringClass + "#" + formerName, field);
+						}
 					}
-					this.fields[i] = field;
-					this.storedTypes[i] = field.getType();
-					current.remove(this.fieldKeys[i]);
 				}
-				// Objects come back without constructors, so a field newer than the save would be left 0 or null
-				// instead of its initial value. Arrays and enums store no fields.
-				if (!current.isEmpty() && !type().isArray() && !type().isEnum()) {
-					throw new IOException("The save has no field " + current.keySet().iterator().next());
+				final Field[] fields = new Field[this.fieldKeys.length];
+				final Class<?>[] storedTypes = new Class<?>[this.fieldKeys.length];
+				boolean removed = false;
+				for (int i = 0; i < this.fieldKeys.length; i++) {
+					final String[] parts = this.fieldKeys[i].split("#", 3);
+					if (parts.length != 3) {
+						throw new IOException("Bad field key " + this.fieldKeys[i]);
+					}
+					final String nameKey = currentClassName(parts[0]) + "#" + parts[1];
+					Field field = current.remove(nameKey);
+					if (field == null) {
+						field = byFormerName.get(nameKey);
+						if ((field != null)
+								&& (current.remove(field.getDeclaringClass().getName() + "#" + field.getName()) == null)) {
+							throw new IOException("Two saved fields fill " + field);
+						}
+					}
+					final Class<?> primitive = PRIMITIVES.get(parts[2]);
+					if (field == null) {
+						removed = true;
+						storedTypes[i] = primitive != null ? primitive : Object.class;
+						continue;
+					}
+					checkTypeFits(field, parts[2], primitive);
+					fields[i] = field;
+					storedTypes[i] = field.getType();
 				}
+				if (type.isArray() || type.isEnum()) {
+					current.clear();
+				}
+				if ((removed || !current.isEmpty()) && isAnonymous(type)) {
+					throw new IOException("The anonymous class " + this.name + " changed since the save");
+				}
+				this.addedFields = current.values().toArray(new Field[0]);
+				this.addedFieldNames = new HashSet<>();
+				for (final Field added : this.addedFields) {
+					this.addedFieldNames.add(added.getName());
+					// Checked here so that a default that cannot be made refuses the save before anything is read.
+					defaultValue(added);
+				}
+				this.storedTypes = storedTypes;
+				this.fields = fields;
 			}
 			return this.fields;
 		}
@@ -979,6 +1055,185 @@ public final class SavedObjectGraph {
 			fields();
 			return this.storedTypes;
 		}
+
+		private Set<String> addedFieldNames() throws IOException {
+			fields();
+			return this.addedFieldNames;
+		}
+
+		/**
+		 * Gives the fields the save lacked what a constructor most likely gave them: the declared default, a new empty
+		 * collection or map for a final one, or else the type's zero.
+		 */
+		private void applyAddedFieldDefaults(final Object object) throws IOException {
+			if (addedFieldNames().isEmpty()) {
+				return;
+			}
+			if (!this.addedFieldsReported) {
+				this.addedFieldsReported = true;
+				System.err.println("Saved game: " + this.name + " gets defaults for " + this.addedFieldNames);
+			}
+			try {
+				for (final Field field : this.addedFields) {
+					final Object value = defaultValue(field);
+					if (value != null) {
+						field.set(object, value);
+					}
+				}
+			}
+			catch (final IllegalAccessException | IllegalArgumentException exc) {
+				throw new IOException("Defaults for " + this.name, exc);
+			}
+		}
+	}
+
+	private static final Map<String, Class<?>> PRIMITIVES = new HashMap<>();
+	static {
+		for (final Class<?> primitive : new Class<?>[] { int.class, float.class, boolean.class, long.class, double.class,
+				short.class, byte.class, char.class }) {
+			PRIMITIVES.put(primitive.getName(), primitive);
+		}
+	}
+
+	/**
+	 * Classes that were saved under another name. Anonymous classes are numbered by their place in the file, so the ones
+	 * that games save were given names; saves from before keep loading through this.
+	 */
+	private static final Map<String, String> FORMER_CLASS_NAMES = new HashMap<>();
+	static {
+		FORMER_CLASS_NAMES.put("com.etheller.warsmash.parsers.jass.Jass2$CommonEnvironment$8",
+				"com.etheller.warsmash.viewer5.handlers.w3x.simulation.timers.CTimerExpireTriggerEvent");
+		FORMER_CLASS_NAMES.put("com.etheller.warsmash.util.SubscriberSetNotifier$1",
+				"com.etheller.warsmash.util.SubscriberSetNotifier$SubscriberSet");
+		FORMER_CLASS_NAMES.put("com.etheller.warsmash.viewer5.handlers.w3x.War3MapViewer$1",
+				"com.etheller.warsmash.viewer5.handlers.w3x.War3MapViewer$IdleFogTimer");
+		FORMER_CLASS_NAMES.put("com.etheller.warsmash.viewer5.handlers.w3x.War3MapViewer$2",
+				"com.etheller.warsmash.viewer5.handlers.w3x.War3MapViewer$FogGpuUpdateTimer");
+		FORMER_CLASS_NAMES.put("com.etheller.warsmash.viewer5.handlers.w3x.simulation.CSimulation$1",
+				"com.etheller.warsmash.viewer5.handlers.w3x.simulation.CSimulation$FogUpdateTimer");
+		FORMER_CLASS_NAMES.put("com.etheller.warsmash.viewer5.handlers.w3x.simulation.CSimulation$2",
+				"com.etheller.warsmash.viewer5.handlers.w3x.simulation.CSimulation$TimeOfDayEventRegistration");
+	}
+
+	private static String currentClassName(final String savedName) {
+		final String current = FORMER_CLASS_NAMES.get(savedName);
+		return current != null ? current : savedName;
+	}
+
+	private static boolean isAnonymous(final Class<?> type) {
+		return ANONYMOUS_NAME.matcher(type.getName()).matches();
+	}
+
+	private static final java.util.regex.Pattern ANONYMOUS_NAME = java.util.regex.Pattern.compile(".*\\$\\d+(\\$.*)?");
+
+	/** A primitive must stay the same primitive; a reference must still take what the old type held. */
+	private static void checkTypeFits(final Field field, final String savedTypeName, final Class<?> savedPrimitive)
+			throws IOException {
+		final Class<?> type = field.getType();
+		if (type.getName().equals(savedTypeName)) {
+			return;
+		}
+		if ((savedPrimitive == null) && !type.isPrimitive()) {
+			final Class<?> savedType;
+			try {
+				savedType = Class.forName(currentClassName(savedTypeName), false,
+						SavedObjectGraph.class.getClassLoader());
+			}
+			catch (final ClassNotFoundException exc) {
+				throw new IOException("The saved type " + savedTypeName + " of " + field + " is gone", exc);
+			}
+			if (type.isAssignableFrom(savedType)) {
+				return;
+			}
+		}
+		throw new IOException(field + " was saved as " + savedTypeName);
+	}
+
+	/** What {@link ClassInfo#applyAddedFieldDefaults} puts in; null leaves the type's zero. */
+	private static Object defaultValue(final Field field) throws IOException {
+		final Class<?> type = field.getType();
+		final SavedDefault declared = field.getAnnotation(SavedDefault.class);
+		if (declared != null) {
+			return parseDefault(field, type, declared.value());
+		}
+		if (Modifier.isFinal(field.getModifiers())
+				&& (Collection.class.isAssignableFrom(type) || Map.class.isAssignableFrom(type))) {
+			return emptyContainer(field, type);
+		}
+		return null;
+	}
+
+	private static Object emptyContainer(final Field field, final Class<?> type) throws IOException {
+		if (!type.isInterface() && !Modifier.isAbstract(type.getModifiers())) {
+			try {
+				final java.lang.reflect.Constructor<?> constructor = type.getDeclaredConstructor();
+				constructor.setAccessible(true);
+				return constructor.newInstance();
+			}
+			catch (final ReflectiveOperationException exc) {
+				throw new IOException("No empty " + type.getName() + " for " + field + "; implement SavedAddedFields",
+						exc);
+			}
+		}
+		if (type.isAssignableFrom(ArrayList.class)) {
+			return new ArrayList<>();
+		}
+		if (type.isAssignableFrom(HashSet.class)) {
+			return new HashSet<>();
+		}
+		if (type.isAssignableFrom(ArrayDeque.class)) {
+			return new ArrayDeque<>();
+		}
+		if (type.isAssignableFrom(HashMap.class)) {
+			return new HashMap<>();
+		}
+		if (type.isAssignableFrom(TreeSet.class)) {
+			return new TreeSet<>();
+		}
+		if (type.isAssignableFrom(TreeMap.class)) {
+			return new TreeMap<>();
+		}
+		throw new IOException("No empty " + type.getName() + " for " + field + "; implement SavedAddedFields");
+	}
+
+	@SuppressWarnings({ "unchecked", "rawtypes" })
+	private static Object parseDefault(final Field field, final Class<?> type, final String text) throws IOException {
+		try {
+			if ((type == int.class) || (type == Integer.class)) {
+				return Integer.valueOf(text);
+			}
+			if ((type == float.class) || (type == Float.class)) {
+				return Float.valueOf(text);
+			}
+			if ((type == boolean.class) || (type == Boolean.class)) {
+				return Boolean.valueOf(text);
+			}
+			if ((type == long.class) || (type == Long.class)) {
+				return Long.valueOf(text);
+			}
+			if ((type == double.class) || (type == Double.class)) {
+				return Double.valueOf(text);
+			}
+			if ((type == short.class) || (type == Short.class)) {
+				return Short.valueOf(text);
+			}
+			if ((type == byte.class) || (type == Byte.class)) {
+				return Byte.valueOf(text);
+			}
+			if (((type == char.class) || (type == Character.class)) && (text.length() == 1)) {
+				return text.charAt(0);
+			}
+			if (type == String.class) {
+				return text;
+			}
+			if (type.isEnum()) {
+				return Enum.valueOf((Class) type, text);
+			}
+		}
+		catch (final IllegalArgumentException exc) {
+			throw new IOException("Bad SavedDefault \"" + text + "\" on " + field, exc);
+		}
+		throw new IOException("SavedDefault does not fit " + field);
 	}
 
 	/**

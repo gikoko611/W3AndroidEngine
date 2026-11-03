@@ -17,6 +17,7 @@ import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.targeting
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilitybuilder.core.ABLocalStoreKeys;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.players.CPlayerJass;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.region.CRegion;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.state.CUnitState;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.timers.CTimer;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.trigger.JassGameEventsWar3;
 import com.etheller.warsmash.viewer5.handlers.w3x.ui.dialog.CScriptDialog;
@@ -98,6 +99,7 @@ public class CommonTriggerExecutionScope extends TriggerExecutionScope {
 	private String chatStringMatched;
 
 	private JassGameEventsWar3 triggerEventId;
+	private CUnitState eventUnitState;
 
 	public CommonTriggerExecutionScope(final Trigger triggeringTrigger) {
 		super(triggeringTrigger);
@@ -176,6 +178,7 @@ public class CommonTriggerExecutionScope extends TriggerExecutionScope {
 		this.enumFilePath = parentScope.enumFilePath;
 		this.triggerLocalStore = parentScope.triggerLocalStore;
 		this.triggerEventId = parentScope.triggerEventId;
+		this.eventUnitState = parentScope.eventUnitState;
 		this.damageTaken = parentScope.damageTaken;
 		this.damageSource = parentScope.damageSource;
 		this.chatString = parentScope.chatString;
@@ -410,6 +413,10 @@ public class CommonTriggerExecutionScope extends TriggerExecutionScope {
 		return this.triggerEventId;
 	}
 
+	public CUnitState getEventUnitState() {
+		return this.eventUnitState;
+	}
+
 	public CUnit getSpellAbilityUnit() {
 		return this.spellAbilityUnit;
 	}
@@ -594,6 +601,29 @@ public class CommonTriggerExecutionScope extends TriggerExecutionScope {
 		return scope;
 	}
 
+	public static CommonTriggerExecutionScope unitRescuedScope(final JassGameEventsWar3 triggerEventId,
+			final Trigger trigger, final CUnit unit, final CUnit rescuer, final CPlayerJass owner) {
+		final CommonTriggerExecutionScope scope = new CommonTriggerExecutionScope(trigger, TriggerExecutionScope.EMPTY);
+		scope.triggeringUnit = unit;
+		scope.rescuer = rescuer;
+		scope.triggeringPlayer = owner;
+		scope.triggerWidget = unit;
+		scope.triggerEventId = triggerEventId;
+		return scope;
+	}
+
+	public static CommonTriggerExecutionScope unitChangeOwnerScope(final JassGameEventsWar3 triggerEventId,
+			final Trigger trigger, final CUnit unit, final CPlayerJass newOwner, final CPlayerJass previousOwner) {
+		final CommonTriggerExecutionScope scope = new CommonTriggerExecutionScope(trigger, TriggerExecutionScope.EMPTY);
+		scope.triggeringUnit = unit;
+		scope.changingUnit = unit;
+		scope.changingUnitPrevOwner = previousOwner;
+		scope.triggeringPlayer = newOwner;
+		scope.triggerWidget = unit;
+		scope.triggerEventId = triggerEventId;
+		return scope;
+	}
+
 	/** On 1.29 the unit event gives no summoned unit: GetSummonedUnit is null there, unlike the player event. */
 	public static CommonTriggerExecutionScope unitSummonerScope(final JassGameEventsWar3 triggerEventId,
 			final Trigger trigger, final CUnit summoner, final CPlayerJass player) {
@@ -682,6 +712,14 @@ public class CommonTriggerExecutionScope extends TriggerExecutionScope {
 		scope.triggerWidget = triggerUnit;
 		scope.triggeringUnit = triggerUnit;
 		scope.triggerEventId = triggerEventId;
+		return scope;
+	}
+
+	public static CommonTriggerExecutionScope unitStateLimitScope(final Trigger trigger, final CUnit triggerUnit,
+			final CUnitState state) {
+		final CommonTriggerExecutionScope scope = unitTriggerScope(JassGameEventsWar3.EVENT_UNIT_STATE_LIMIT, trigger,
+				triggerUnit);
+		scope.eventUnitState = state;
 		return scope;
 	}
 

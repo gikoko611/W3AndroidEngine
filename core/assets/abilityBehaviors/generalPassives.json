@@ -826,21 +826,13 @@
 						}
 				}]
 			},{
-				"type": "addBuff",
-				"target": {
-					"type": "getCastingUnit"
-				},
-				"buff": {
-					"type": "getLastCreatedBuff"
-				}
-			},{
 				"type": "createTimer",
 				"timeout": {
 					"type": "getAbilityDuration"
 				},
 				"startTimer": {
 					"type": "rawBoolean",
-					"value": "false"
+					"value": "true"
 				},
 				"actions": [{
 					"type": "addBuff",
@@ -851,6 +843,14 @@
 						"type": "getLastCreatedBuff"
 					}
 				}]
+			},{
+				"type": "setUnitFadeTimer",
+				"targetUnit": {
+					"type": "getCastingUnit"
+				},
+				"timer": {
+					"type": "getLastCreatedTimer"
+				}
 			},{
 				"type": "createBehaviorChangeListener",
 				"actions": [{

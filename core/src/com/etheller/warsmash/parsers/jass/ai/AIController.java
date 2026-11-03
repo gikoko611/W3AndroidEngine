@@ -779,7 +779,7 @@ public class AIController {
 		if (type.isHero()) {
 			return produceHero(type);
 		}
-		if (findBuilder(type, 0, 0, -1) != null) {
+		if (canBeBuiltByUs(type)) {
 			return buildStructures(qty, type, town);
 		}
 		final List<CUnit> bases = new ArrayList<>();
@@ -819,7 +819,20 @@ public class AIController {
 		if (producers.isEmpty() || !requirementsMet(type)) {
 			return false;
 		}
+		if (!canAfford(type)) {
+			// Measured: short of money it is true while a producer is idle, and nothing is queued.
+			for (final CUnit producer : producers) {
+				if (queueLength(producer) < MAX_QUEUED_PER_PRODUCER) {
+					return true;
+				}
+			}
+			return false;
+		}
 		return train(producers, typeIdValue, qty) > 0;
+	}
+
+	private boolean canAfford(final CUnitType type) {
+		return (this.player.getGold() >= type.getGoldCost()) && (this.player.getLumber() >= type.getLumberCost());
 	}
 
 	private int train(final List<CUnit> producers, final int typeIdValue, final int qty) {
@@ -985,9 +998,13 @@ public class AIController {
 		if (!requirementsMet(type)) {
 			return false;
 		}
+		// Measured: one builder at a time; until it has laid its structure down, another structure is refused.
+		if (canAfford(type) && hasBuilderOnTheWay()) {
+			return false;
+		}
 		int started = 0;
 		for (int i = 0; i < qty; i++) {
-			if ((this.player.getGold() < type.getGoldCost()) || (this.player.getLumber() < type.getLumberCost())) {
+			if (!canAfford(type)) {
 				// Measured: short of money it is still true, with nothing started.
 				return true;
 			}
@@ -1044,6 +1061,23 @@ public class AIController {
 			if (isOurs(unit) && unit.getTypeId().equals(job.getTypeId())
 					&& (distance(unit.getX(), unit.getY(), job.getX(), job.getY()) < 64)) {
 				return true;
+			}
+		}
+		return false;
+	}
+
+	private boolean hasBuilderOnTheWay() {
+		updateBuildJobs();
+		return !this.buildJobs.isEmpty();
+	}
+
+	private boolean canBeBuiltByUs(final CUnitType type) {
+		for (final CUnit unit : this.simulation.getUnits()) {
+			if (isOurs(unit)) {
+				final AbstractCAbilityBuild build = getBuildAbility(unit);
+				if ((build != null) && build.getStructuresBuilt().contains(type.getTypeId())) {
+					return true;
+				}
 			}
 		}
 		return false;
@@ -1394,8 +1428,15 @@ public class AIController {
 			if (!isWorkerType(worker)) {
 				this.harvestJobs.remove(worker);
 			}
-			else if (!worker.isHidden() && isIdle(worker) && !this.harvestRequests.isEmpty()) {
-				final int[] job = canDo(worker, WOOD, 0) ? new int[] { WOOD, 0 } : new int[] { GOLD, 0 };
+			else if (!worker.isHidden() && isIdle(worker)) {
+				// Measured: with no harvest request at all (StopGathering included) idle workers still mine gold.
+				final int[] job;
+				if (this.harvestRequests.isEmpty()) {
+					job = new int[] { GOLD, canDo(worker, GOLD, 0) ? 0 : Math.max(townWithMine(), 0) };
+				}
+				else {
+					job = canDo(worker, WOOD, 0) ? new int[] { WOOD, 0 } : new int[] { GOLD, 0 };
+				}
 				if (canDo(worker, job[0], job[1])) {
 					this.harvestJobs.put(worker, job);
 					orderHarvest(worker, job[0], job[1]);

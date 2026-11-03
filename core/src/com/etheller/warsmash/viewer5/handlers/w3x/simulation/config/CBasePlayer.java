@@ -23,6 +23,7 @@ public abstract class CBasePlayer implements CPlayerJass {
 	private final CRacePreferences racePrefs;
 	private final EnumSet<CAllianceType>[] alliances;
 	private final EnumMap<CPlayerState, Integer>[] taxRates;
+	private final EnumMap<CPlayerState, Integer> configPlayerStates;
 	private boolean onScoreScreen;
 	private boolean raceSelectable;
 	private CMapControl mapControl = CMapControl.NONE;
@@ -40,6 +41,7 @@ public abstract class CBasePlayer implements CPlayerJass {
 		this.racePrefs = other.racePrefs;
 		this.alliances = other.alliances;
 		this.taxRates = other.taxRates;
+		this.configPlayerStates = other.configPlayerStates;
 		this.onScoreScreen = other.onScoreScreen;
 		this.raceSelectable = other.raceSelectable;
 		this.mapControl = other.mapControl;
@@ -54,6 +56,7 @@ public abstract class CBasePlayer implements CPlayerJass {
 		this.alliances = new EnumSet[WarsmashConstants.MAX_PLAYERS];
 		this.taxRates = new EnumMap[WarsmashConstants.MAX_PLAYERS];
 		this.racePrefs = new CRacePreferences();
+		this.configPlayerStates = new EnumMap<>(CPlayerState.class);
 		for (int i = 0; i < this.alliances.length; i++) {
 			if (i == id) {
 				// player is fully allied with self
@@ -208,6 +211,17 @@ public abstract class CBasePlayer implements CPlayerJass {
 			return 0;
 		}
 		return taxRate;
+	}
+
+	/**
+	 * Player states a map's config function sets; 1.29 carries all of them into the game.
+	 */
+	public void setConfigPlayerState(final CPlayerState whichPlayerState, final int value) {
+		this.configPlayerStates.put(whichPlayerState, value);
+	}
+
+	public EnumMap<CPlayerState, Integer> getConfigPlayerStates() {
+		return this.configPlayerStates;
 	}
 
 	public void setHandicap(final float handicap) {

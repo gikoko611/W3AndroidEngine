@@ -31,6 +31,7 @@ import android.widget.Button;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
+import android.widget.ScrollView;
 import android.widget.TextView;
 
 /**
@@ -65,6 +66,7 @@ public class DataFolderActivity extends Activity {
 	private TextView statusText;
 	private TextView statusDetail;
 	private Button accessButton;
+	private Button appFolderButton;
 	private Button continueButton;
 	private TextView footRight;
 	private DataFolderCheck.Kind kind = DataFolderCheck.Kind.NONE;
@@ -72,17 +74,16 @@ public class DataFolderActivity extends Activity {
 	@Override
 	protected void onCreate(final Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
-		final File appData = new File(getExternalFilesDir(null), "data");
+		final File appData = appDataFolder();
 		final String saved = getSharedPreferences(PREFERENCES, MODE_PRIVATE).getString(KEY_DATA_FOLDER, null);
 		this.dataFolder = saved != null ? new File(saved) : appData;
 		if ((saved == null) && (DataFolderCheck.detect(appData) == DataFolderCheck.Kind.NONE)) {
 			this.dataFolder = null;
 		}
 		final boolean open = getIntent().getBooleanExtra(EXTRA_OPEN, false);
-		if (!open && (this.dataFolder != null) && (saved != null)
-				&& (DataFolderCheck.detect(this.dataFolder) != DataFolderCheck.Kind.NONE)) {
+		if (!open && (this.dataFolder != null) && (saved != null)) {
 			this.kind = DataFolderCheck.detect(this.dataFolder);
-			if (start()) {
+			if ((this.kind != DataFolderCheck.Kind.NONE) && start()) {
 				return;
 			}
 		}
@@ -148,8 +149,17 @@ public class DataFolderActivity extends Activity {
 		panel.setBackground(box(Color.rgb(0x16, 0x1B, 0x24), GOLD_DARK, dp(2)));
 		panel.setPadding(dp(48), dp(36), dp(48), dp(32));
 		outline.addView(panel, new FrameLayout.LayoutParams(dp(680), ViewGroup.LayoutParams.WRAP_CONTENT));
-		root.addView(outline, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT,
+		// Short landscape screens (720 px high) cannot show the whole panel, so it scrolls.
+		final FrameLayout holder = new FrameLayout(this);
+		holder.setPadding(0, dp(8), 0, dp(40));
+		holder.addView(outline, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT,
 				ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.CENTER));
+		final ScrollView scroll = new ScrollView(this);
+		scroll.setFillViewport(true);
+		scroll.addView(holder, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
+				ViewGroup.LayoutParams.WRAP_CONTENT));
+		root.addView(scroll, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
+				ViewGroup.LayoutParams.MATCH_PARENT));
 
 		final ImageView icon = new ImageView(this);
 		icon.setImageResource(R.mipmap.ic_launcher);
@@ -201,6 +211,20 @@ public class DataFolderActivity extends Activity {
 		chooseParams.leftMargin = dp(12);
 		row.addView(this.chooseButton, chooseParams);
 		panel.addView(row, spaced(8));
+		// Android 11+ folder pickers do not show Android/data, so the app folder cannot be picked again.
+		this.appFolderButton = styledButton(getString(R.string.data_folder_use_app), 14);
+		this.appFolderButton.setTextColor(GOLD);
+		this.appFolderButton.setBackground(box(Color.rgb(0x2A, 0x24, 0x18), Color.rgb(0xC9, 0xA2, 0x4A), dp(1)));
+		this.appFolderButton.setPadding(dp(14), 0, dp(14), 0);
+		this.appFolderButton.setOnClickListener(view -> {
+			this.dataFolder = appDataFolder();
+			refresh();
+		});
+		final LinearLayout.LayoutParams appFolderParams = new LinearLayout.LayoutParams(
+				ViewGroup.LayoutParams.WRAP_CONTENT, dp(40));
+		appFolderParams.gravity = Gravity.END;
+		appFolderParams.topMargin = dp(8);
+		panel.addView(this.appFolderButton, appFolderParams);
 
 		this.statusBox = new LinearLayout(this);
 		this.statusBox.setOrientation(LinearLayout.HORIZONTAL);
@@ -263,6 +287,13 @@ public class DataFolderActivity extends Activity {
 	}
 
 	private void refresh() {
+		// Without access the files are hidden, and searching thousands of their folders only stalls the window.
+		if ((this.dataFolder != null) && (!needsAllFilesAccess() || isInAppFolder(this.dataFolder))) {
+			final File located = DataFolderCheck.locate(this.dataFolder);
+			if (located != null) {
+				this.dataFolder = located;
+			}
+		}
 		this.kind = this.dataFolder == null ? DataFolderCheck.Kind.NONE : DataFolderCheck.detect(this.dataFolder);
 		final Status status;
 		if (this.dataFolder == null) {
@@ -271,7 +302,7 @@ public class DataFolderActivity extends Activity {
 		else if (this.kind != DataFolderCheck.Kind.NONE) {
 			status = Status.FOUND;
 		}
-		else if (!this.dataFolder.canRead() && needsAllFilesAccess()) {
+		else if (needsAllFilesAccess() && !isInAppFolder(this.dataFolder)) {
 			status = Status.NEEDS_ACCESS;
 		}
 		else {
@@ -282,6 +313,9 @@ public class DataFolderActivity extends Activity {
 		this.folderField.setTextColor(this.dataFolder == null ? TEXT_DIM : TEXT);
 		this.chooseButton.setText(this.dataFolder == null ? R.string.data_folder_choose : R.string.data_folder_change);
 		this.accessButton.setVisibility(status == Status.NEEDS_ACCESS ? View.VISIBLE : View.GONE);
+		final File appData = appDataFolder();
+		this.appFolderButton.setVisibility(!appData.equals(this.dataFolder)
+				&& (DataFolderCheck.detect(appData) != DataFolderCheck.Kind.NONE) ? View.VISIBLE : View.GONE);
 		this.statusDetail.setText("");
 		switch (status) {
 		case FOUND:
@@ -299,7 +333,8 @@ public class DataFolderActivity extends Activity {
 		case MISSING:
 			this.statusBox.setBackground(box(Color.rgb(0x2A, 0x16, 0x16), Color.rgb(0x6A, 0x2E, 0x2E), dp(1)));
 			this.statusText.setTextColor(Color.rgb(0xE2, 0x9A, 0x9A));
-			this.statusText.setText(R.string.data_folder_missing);
+			this.statusText.setText(DataFolderCheck.hasZip(this.dataFolder) ? R.string.data_folder_zip
+					: R.string.data_folder_missing);
 			break;
 		default:
 			this.statusBox.setBackground(box(FIELD, FIELD_BORDER, dp(1)));
@@ -327,7 +362,22 @@ public class DataFolderActivity extends Activity {
 			final String rest = path.substring(primary.length()).replace("/", " / ");
 			return "Internal storage" + rest;
 		}
+		final String[] volume = path.split("/", 4);
+		if ((volume.length == 4) && volume[1].equals("storage")) {
+			return "SD card" + ("/" + volume[3]).replace("/", " / ");
+		}
 		return path;
+	}
+
+	private File appDataFolder() {
+		return new File(getExternalFilesDir(null), "data");
+	}
+
+	/** The app's own folder is readable without "All files access". */
+	private boolean isInAppFolder(final File folder) {
+		final String appFolder = getExternalFilesDir(null).getAbsolutePath();
+		final String path = folder.getAbsolutePath();
+		return path.equals(appFolder) || path.startsWith(appFolder + File.separator);
 	}
 
 	private static boolean needsAllFilesAccess() {
@@ -377,31 +427,12 @@ public class DataFolderActivity extends Activity {
 		return relative.isEmpty() ? base : new File(base, relative);
 	}
 
-	private void copyAssetTree(final String assetPath, final File target) throws IOException {
-		final String[] children = getAssets().list(assetPath);
-		if ((children == null) || (children.length == 0)) {
-			target.getParentFile().mkdirs();
-			try (InputStream in = getAssets().open(assetPath); OutputStream out = new FileOutputStream(target)) {
-				final byte[] buffer = new byte[8192];
-				int read;
-				while ((read = in.read(buffer)) != -1) {
-					out.write(buffer, 0, read);
-				}
-			}
-			return;
-		}
-		target.mkdirs();
-		for (final String child : children) {
-			copyAssetTree(assetPath + "/" + child, new File(target, child));
-		}
-	}
-
 	private boolean start() {
 		final File appFolder = getExternalFilesDir(null);
 		try {
-			copyAssetTree("engineResources", new File(appFolder, "resources"));
+			EngineResources.ensureCurrent(this);
 			writeIni(new File(appFolder, AndroidLauncher.INI_FILE_NAME), DataFolderCheck.dataSourcesSection(this.kind,
-					this.dataFolder, new File(appFolder, "resources"), new File(appFolder, "engine")));
+					this.dataFolder, EngineResources.folder(this), new File(appFolder, "engine")));
 		}
 		catch (final IOException e) {
 			Log.e(TAG, "Unable to write the engine configuration", e);

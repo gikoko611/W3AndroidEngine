@@ -137,6 +137,16 @@ public class ScrollBarFrame extends AbstractRenderableFrame implements Clickable
 		this.stepSize = stepSize;
 	}
 
+	public int getMaxValue() {
+		return this.maxValue;
+	}
+
+	/** Changes the range and value without telling the listener, for an owner that keeps them in its own units. */
+	public void setRange(final int maxValue, final int value) {
+		this.maxValue = maxValue;
+		this.scrollValuePercent = Math.min(maxValue, Math.max(this.minValue, value));
+	}
+
 	private float getMaxThumbButtonTravelDistance() {
 		if (this.vertical) {
 			final float incButtonFrameHeight = this.incButtonFrame == null ? 0

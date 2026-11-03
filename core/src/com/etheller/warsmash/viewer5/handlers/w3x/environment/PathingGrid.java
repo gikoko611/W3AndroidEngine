@@ -339,6 +339,39 @@ public class PathingGrid {
 		return true;
 	}
 
+	/**
+	 * A step from a point where the unit already overlaps unwalkable cells (1.29 places a unit at the centre of a
+	 * cell whose corner fits, so a wide unit can stand partly in trees) is allowed when it overlaps no cell it did not
+	 * already overlap; otherwise such a unit could never walk out.
+	 */
+	public boolean isPathableFrom(final float fromX, final float fromY, final float unitX, final float unitY,
+			final MovementType pathingType, final float collisionSize) {
+		if (isPathable(unitX, unitY, pathingType, collisionSize)) {
+			return true;
+		}
+		if ((collisionSize == 0f) || isPathable(fromX, fromY, pathingType, collisionSize)) {
+			return false;
+		}
+		for (int i = -1; i <= 1; i++) {
+			for (int j = -1; j <= 1; j++) {
+				final float unitPathingX = unitX + (i * collisionSize);
+				final float unitPathingY = unitY + (j * collisionSize);
+				if (!contains(unitPathingX, unitPathingY)) {
+					return false;
+				}
+				if (!pathingType.isPathable(getPathing(unitPathingX, unitPathingY))) {
+					final float fromPathingX = fromX + (i * collisionSize);
+					final float fromPathingY = fromY + (j * collisionSize);
+					if (contains(fromPathingX, fromPathingY)
+							&& pathingType.isPathable(getPathing(fromPathingX, fromPathingY))) {
+						return false;
+					}
+				}
+			}
+		}
+		return true;
+	}
+
 	public boolean isUnitCell(final float queryX, final float queryY, final float unitX, final float unitY,
 			final MovementType movementType, final float collisionSize) {
 		final float maxX = unitX + collisionSize;
@@ -375,17 +408,24 @@ public class PathingGrid {
 	}
 
 	public int getFogOfWarIndexX(final float x) {
-		final float userCellSpaceX = ((x + (16f * CPlayerFogOfWar.PATHING_RATIO)) - this.centerOffset[0])
-				/ (32f * CPlayerFogOfWar.PATHING_RATIO);
+		// A fog cell spans the tile between two terrain corners (measured on 1.29), like the terrain height lookups.
+		final float userCellSpaceX = (x - this.centerOffset[0]) / (32f * CPlayerFogOfWar.PATHING_RATIO);
 		final int cellX = (int) userCellSpaceX;
 		return cellX;
 	}
 
 	public int getFogOfWarIndexY(final float y) {
-		final float userCellSpaceY = ((y + (16f * CPlayerFogOfWar.PATHING_RATIO)) - this.centerOffset[1])
-				/ (32f * CPlayerFogOfWar.PATHING_RATIO);
+		final float userCellSpaceY = (y - this.centerOffset[1]) / (32f * CPlayerFogOfWar.PATHING_RATIO);
 		final int cellY = (int) userCellSpaceY;
 		return cellY;
+	}
+
+	public float getFogOfWarSampleX(final int indexX) {
+		return this.centerOffset[0] + (indexX * 32f * CPlayerFogOfWar.PATHING_RATIO) + 16f;
+	}
+
+	public float getFogOfWarSampleY(final int indexY) {
+		return this.centerOffset[1] + (indexY * 32f * CPlayerFogOfWar.PATHING_RATIO) + 16f;
 	}
 
 	public static int getFogOfWarDistance(final float d) {

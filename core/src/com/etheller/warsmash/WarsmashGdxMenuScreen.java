@@ -875,7 +875,7 @@ public class WarsmashGdxMenuScreen implements InputProcessor, Screen, SingleMode
 
 	@Override
 	public boolean scrolled(final float amountX, final float amountY) {
-		return false;
+		return (this.menuUI != null) && this.menuUI.scrolled(Gdx.input.getX(), Gdx.input.getY(), amountY);
 	}
 
 	@Override

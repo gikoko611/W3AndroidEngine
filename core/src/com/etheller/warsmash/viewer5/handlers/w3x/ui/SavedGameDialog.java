@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Map;
 
 import com.badlogic.gdx.Input;
+import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.utils.viewport.Viewport;
 import com.etheller.warsmash.parsers.fdf.GameUI;
@@ -34,6 +35,9 @@ public final class SavedGameDialog {
 		void saveGame(String name);
 
 		void loadGame(String name);
+
+		/** Whether the save can be loaded from here: in a game, a save of its map is also held against its scripts. */
+		SavedGame.Loadability loadability(FileHandle file);
 
 		void closed();
 	}
@@ -195,7 +199,7 @@ public final class SavedGameDialog {
 		for (final String name : CSaveStorage.savedGameNames()) {
 			Color color = null;
 			if (forLoading) {
-				final SavedGame.Loadability state = SavedGame.loadability(CSaveStorage.savedGame(name));
+				final SavedGame.Loadability state = this.host.loadability(CSaveStorage.savedGame(name));
 				this.loadability.put(name, state);
 				if (state != SavedGame.Loadability.LOADABLE) {
 					color = Color.GRAY;
@@ -232,13 +236,21 @@ public final class SavedGameDialog {
 	}
 
 	private String reasonOf(final SavedGame.Loadability state) {
+		final String key = reasonKey(state);
+		return key == null ? "" : this.rootFrame.getTemplates().getDecoratedString(key);
+	}
+
+	/** The string list key that says why a save cannot be loaded, or null for one that can. */
+	public static String reasonKey(final SavedGame.Loadability state) {
 		switch (state) {
 		case DAMAGED:
-			return this.rootFrame.getTemplates().getDecoratedString("SAVE_ERROR_BAD_SAVE");
+			return "SAVE_ERROR_BAD_SAVE";
 		case OTHER_VERSION:
-			return "|CFFFF0000This game was saved by another version of the game and cannot be loaded.";
+			return "SAVE_ERROR_OTHER_VERSION";
+		case OTHER_SCRIPTS:
+			return "SAVE_ERROR_OTHER_SCRIPTS";
 		default:
-			return "";
+			return null;
 		}
 	}
 

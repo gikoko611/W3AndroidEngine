@@ -3,9 +3,12 @@ package com.etheller.warsmash.viewer5.handlers.w3x.ui;
 import java.util.ArrayList;
 import java.util.List;
 
+import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input;
 import com.badlogic.gdx.graphics.Color;
+import com.badlogic.gdx.math.Rectangle;
 import com.badlogic.gdx.utils.viewport.Viewport;
+import com.etheller.warsmash.input.touch.OnscreenKeyboard;
 import com.etheller.warsmash.parsers.fdf.GameUI;
 import com.etheller.warsmash.parsers.fdf.datamodel.AnchorDefinition;
 import com.etheller.warsmash.parsers.fdf.datamodel.FramePoint;
@@ -61,6 +64,8 @@ final class MeleeChat {
 		void dialogClosed();
 	}
 
+	private static final float ENTRY_BOTTOM = 0.155f;
+
 	private final GameUI rootFrame;
 	private final Viewport uiViewport;
 	private final CSimulation simulation;
@@ -72,6 +77,7 @@ final class MeleeChat {
 	private final EditBoxFrame entryBox;
 	private Recipient entryRecipient;
 	private boolean openingLineBreak;
+	private float entryBottom;
 
 	private final SimpleFrame dialogHolder;
 	private final UIFrame dialog;
@@ -99,8 +105,9 @@ final class MeleeChat {
 		this.host = host;
 
 		this.entryHolder = (SimpleFrame) rootFrame.createSimpleFrame("SmashChatEntry", rootFrame, 0);
+		this.entryBottom = GameUI.convertY(uiViewport, ENTRY_BOTTOM);
 		this.entryHolder.addAnchor(new AnchorDefinition(FramePoint.BOTTOMLEFT, GameUI.convertX(uiViewport, 0.0f),
-				GameUI.convertY(uiViewport, 0.155f)));
+				this.entryBottom));
 		this.entryHolder.setWidth(GameUI.convertX(uiViewport, 0.6f));
 		this.entryHolder.setHeight(GameUI.convertY(uiViewport, messageFontHeight * 1.5f));
 		this.entryLabel = rootFrame.createStringFrame("SmashChatEntryLabel", this.entryHolder, Color.WHITE,
@@ -199,6 +206,35 @@ final class MeleeChat {
 		this.entryHolder.setVisible(true);
 		this.entryHolder.positionBounds(this.rootFrame, this.uiViewport);
 		this.host.focusOn(this.entryBox);
+	}
+
+	/** Keeps the open line above the on-screen keyboard, which covers the game surface instead of shrinking it. */
+	void followKeyboard() {
+		if (!isEntryOpen()) {
+			return;
+		}
+		float bottom = GameUI.convertY(this.uiViewport, ENTRY_BOTTOM);
+		final int covered = OnscreenKeyboard.getCoveredHeightPixels();
+		final int screenHeight = Gdx.graphics.getHeight();
+		if ((covered > 0) && (screenHeight > 0)) {
+			bottom = Math.max(bottom, ((this.uiViewport.getWorldHeight() * covered) / screenHeight)
+					+ GameUI.convertY(this.uiViewport, 0.01f));
+		}
+		if (bottom != this.entryBottom) {
+			this.entryBottom = bottom;
+			this.entryHolder.addAnchor(
+					new AnchorDefinition(FramePoint.BOTTOMLEFT, GameUI.convertX(this.uiViewport, 0.0f), bottom));
+			this.entryHolder.positionBounds(this.rootFrame, this.uiViewport);
+		}
+	}
+
+	/** The top of the open line in UI units, or negative infinity when it is closed. */
+	float entryTop() {
+		if (!isEntryOpen()) {
+			return Float.NEGATIVE_INFINITY;
+		}
+		final Rectangle bounds = this.entryHolder.getRenderBounds();
+		return bounds.y + bounds.height;
 	}
 
 	void closeEntry() {

@@ -10,4 +10,9 @@ public abstract class CTimerJassBase extends CTimer {
 
 	public abstract void setHandlerFunc(final CodeJassValue handlerFunc);
 
+	@Override
+	protected boolean isExactTiming() {
+		return true;
+	}
+
 }

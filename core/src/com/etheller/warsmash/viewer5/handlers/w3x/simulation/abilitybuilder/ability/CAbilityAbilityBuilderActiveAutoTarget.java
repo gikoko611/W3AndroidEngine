@@ -78,6 +78,23 @@ public class CAbilityAbilityBuilderActiveAutoTarget extends CAbilityAbilityBuild
 		return null;
 	}
 
+	// Measured (1.29): with an instant order the plain cast order only takes a corpse target; the no-target cast
+	// is the instant order (or the autocast).
+	@Override
+	public void checkCanTargetNoTarget(final CSimulation game, final CUnit unit, final int playerIndex,
+			final int orderId, final boolean autoOrder, final AbilityTargetCheckReceiver<Void> receiver) {
+		if ((this.instantOrderId != 0) && (orderId == getBaseOrderId()) && !autoOrder) {
+			receiver.orderIdNotAccepted();
+			return;
+		}
+		super.checkCanTargetNoTarget(game, unit, playerIndex, orderId, autoOrder, receiver);
+	}
+
+	@Override
+	public int getUICastOrderId() {
+		return this.instantOrderId != 0 ? this.instantOrderId : getBaseOrderId();
+	}
+
 	@Override
 	protected void innerCheckCanTargetNoTarget(CSimulation game, CUnit unit, int orderId,
 			AbilityTargetCheckReceiver<Void> receiver) {

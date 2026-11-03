@@ -17,6 +17,16 @@ public class CFogModifierJassSingle implements CFogModifierJass {
 	}
 
 	@Override
+	public void applyNow(final CSimulation game) {
+		this.modifier.applyNow(game, game.getPlayer(this.playerIndex));
+	}
+
+	@Override
+	public void fogVisibleCells(final CSimulation game) {
+		game.getPlayer(this.playerIndex).getFogOfWar().convertVisibleToFogged();
+	}
+
+	@Override
 	public void destroy(CSimulation game) {
 		game.getPlayer(this.playerIndex).removeFogModifer(game, this.modifier);
 	}

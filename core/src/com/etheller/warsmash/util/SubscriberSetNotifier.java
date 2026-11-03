@@ -13,12 +13,14 @@ public abstract class SubscriberSetNotifier<LISTENER_TYPE> {
 	public SubscriberSetNotifier() {
 		// Most notifiers have nobody subscribed but are told of every change; iterating an empty set then hands
 		// out the shared empty iterator instead of a new one.
-		this.set = new HashSet<LISTENER_TYPE>() {
-			@Override
-			public Iterator<LISTENER_TYPE> iterator() {
-				return isEmpty() ? Collections.<LISTENER_TYPE>emptyIterator() : super.iterator();
-			}
-		};
+		this.set = new SubscriberSet<>();
+	}
+
+	private static final class SubscriberSet<LISTENER_TYPE> extends HashSet<LISTENER_TYPE> {
+		@Override
+		public Iterator<LISTENER_TYPE> iterator() {
+			return isEmpty() ? Collections.<LISTENER_TYPE>emptyIterator() : super.iterator();
+		}
 	}
 
 	public final void subscribe(final LISTENER_TYPE listener) {

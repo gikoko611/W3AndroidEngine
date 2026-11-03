@@ -101,6 +101,11 @@ public class CAbilityWeb extends CAbilityTargetSpellBase implements CAutocastAbi
 							final CUnit unitTarget = target.visit(AbilityTargetUnitVisitor.INSTANCE);
 							if ((unitTarget != null) && !unitTarget.isDead() && !isWebbed(unitTarget)) {
 								final boolean flying = unitTarget.isUnitType(CUnitTypeJass.FLYING);
+								if (flying) {
+									// Measured (1.29): a flyer over ground no land unit could stand on is put
+									// next to the caster, not at the nearest open ground.
+									unitTarget.placeOnGround(game, caster.getX(), caster.getY());
+								}
 								unitTarget.add(game,
 										new CBuffEnsnare(game.getHandleIdAllocator().createId(),
 												flying ? CAbilityWeb.this.airBuffId : CAbilityWeb.this.groundBuffId,
@@ -137,7 +142,7 @@ public class CAbilityWeb extends CAbilityTargetSpellBase implements CAutocastAbi
 	public void checkCanAutoTarget(final CSimulation game, final CUnit unit, final int playerIndex, final int orderId,
 			final CWidget target, final AbilityTargetCheckReceiver<CWidget> receiver) {
 		if ((getCooldownRemaining(game, unit) > 0) || (unit.getMana() < getManaCost())
-				|| !isRequirementsMet(game, unit) || !unit.canReach(target, getCastRange())) {
+				|| !isRequirementsMet(game, unit)) {
 			receiver.orderIdNotAccepted();
 			return;
 		}

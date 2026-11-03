@@ -6,6 +6,7 @@ import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.g2d.BitmapFont;
 import com.badlogic.gdx.graphics.g2d.GlyphLayout;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
+import com.badlogic.gdx.math.collision.BoundingBox;
 import com.badlogic.gdx.utils.viewport.Viewport;
 import com.etheller.warsmash.parsers.fdf.GameUI;
 import com.etheller.warsmash.parsers.fdf.datamodel.FramePoint;
@@ -66,6 +67,16 @@ public class SpriteFrame extends AbstractUIFrame {
 			return;
 		}
 		final MdxModel model = (MdxModel) this.instance.model;
+		// The model's own extent, not a sequence's: the score screen bars carry the top bar's sequence extents
+		// (0 to 0.0328 up) although the bottom bar hangs 0.0375 below its origin.
+		final BoundingBox box = model.bounds.getBoundingBox();
+		if ((box != null) && (box.getWidth() > 0) && (box.getHeight() > 0)) {
+			this.modelMinX = box.min.x;
+			this.modelMinY = box.min.y;
+			setWidth(GameUI.convertX(this.uiViewport, box.getWidth()));
+			setHeight(GameUI.convertY(this.uiViewport, box.getHeight()));
+			return;
+		}
 		final MdlxExtent extent = model.getSequences().isEmpty() ? null : model.getSequences().get(0).getExtent();
 		if ((extent == null) || (extent.getMax()[0] < extent.getMin()[0])) {
 			return;
@@ -179,6 +190,12 @@ public class SpriteFrame extends AbstractUIFrame {
 	public void setVertexColor(final Color color) {
 		if (this.instance != null) {
 			this.instance.setVertexColor(color);
+		}
+	}
+
+	public void setModelAlpha(final float alpha) {
+		if (this.instance != null) {
+			this.instance.setVertexAlpha(alpha);
 		}
 	}
 

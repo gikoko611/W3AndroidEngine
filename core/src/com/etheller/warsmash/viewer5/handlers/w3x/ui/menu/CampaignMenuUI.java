@@ -15,7 +15,10 @@ import com.etheller.warsmash.parsers.fdf.frames.UIFrame;
 public class CampaignMenuUI extends SimpleFrame {
 	private final GameUI rootFrame;
 	private final Viewport uiViewport;
+	private static final float BUTTON_SPACING = 0.0645f;
 	private final List<CampaignButtonUI> buttonUIs = new ArrayList<>();
+	private final List<Integer> gapsBefore = new ArrayList<>();
+	private int pendingGaps;
 
 	public CampaignMenuUI(final String name, final UIFrame parent, final GameUI rootFrame, final Viewport uiViewport) {
 		super(name, parent);
@@ -23,7 +26,11 @@ public class CampaignMenuUI extends SimpleFrame {
 		this.uiViewport = uiViewport;
 	}
 
-	public void addButton(final String header, final String name, final Runnable onClick) {
+	public void addGap() {
+		this.pendingGaps++;
+	}
+
+	public CampaignButtonUI addButton(final String header, final String name, final Runnable onClick) {
 		final CampaignButtonUI campaignButtonUI = new CampaignButtonUI(null, this);
 		final TextButtonFrame campaignArrowButton = (TextButtonFrame) this.rootFrame
 				.createFrame("CampaignArrowButtonTemplate", campaignButtonUI, 0, 0);
@@ -48,32 +55,42 @@ public class CampaignMenuUI extends SimpleFrame {
 
 		add(campaignButtonUI);
 		this.buttonUIs.add(campaignButtonUI);
-
+		this.gapsBefore.add(this.pendingGaps);
+		this.pendingGaps = 0;
+		return campaignButtonUI;
 	}
 
 	@Override
 	protected void innerPositionBounds(final GameUI gameUI, final Viewport viewport) {
 		super.innerPositionBounds(gameUI, viewport);
+		// Measured in 1.29: the list starts at the top, a blank list entry takes half a row and a campaign the
+		// profile has not opened takes none.
+		float rows = 0;
+		int gaps = 0;
+		for (int i = 0; i < this.buttonUIs.size(); i++) {
+			gaps += this.gapsBefore.get(i);
+			if (this.buttonUIs.get(i).isVisible()) {
+				rows += 1 + (gaps * 0.5f);
+				gaps = 0;
+			}
+		}
 		final float myHeight = this.renderBounds.height;
-		final int buttonCount = this.buttonUIs.size();
-		final float buttonSpacing = Math.min(myHeight / buttonCount, GameUI.convertY(this.uiViewport, 0.056f));
-		final float buttonsHeight = buttonSpacing * buttonCount;
-		final float expectedHeight = Math.min(buttonsHeight, myHeight);
-		final float yOffset = (myHeight - expectedHeight) / 2;
+		final float buttonSpacing = rows == 0 ? 0
+				: Math.min(myHeight / rows, GameUI.convertY(this.uiViewport, BUTTON_SPACING));
 
-		UIFrame lastButton = null;
-		for (final CampaignButtonUI campaignButtonUI : this.buttonUIs) {
-			if (lastButton == null) {
-				campaignButtonUI.addSetPoint(new SetPoint(FramePoint.TOPLEFT, this, FramePoint.TOPLEFT, 0, -yOffset));
-				campaignButtonUI.addSetPoint(new SetPoint(FramePoint.TOPRIGHT, this, FramePoint.TOPRIGHT, 0, -yOffset));
+		float yOffset = 0;
+		gaps = 0;
+		for (int i = 0; i < this.buttonUIs.size(); i++) {
+			final CampaignButtonUI campaignButtonUI = this.buttonUIs.get(i);
+			gaps += this.gapsBefore.get(i);
+			if (!campaignButtonUI.isVisible()) {
+				continue;
 			}
-			else {
-				campaignButtonUI.addSetPoint(
-						new SetPoint(FramePoint.TOPLEFT, lastButton, FramePoint.TOPLEFT, 0, -buttonSpacing));
-				campaignButtonUI.addSetPoint(
-						new SetPoint(FramePoint.TOPRIGHT, lastButton, FramePoint.TOPRIGHT, 0, -buttonSpacing));
-			}
-			lastButton = campaignButtonUI;
+			yOffset += gaps * 0.5f * buttonSpacing;
+			gaps = 0;
+			campaignButtonUI.addSetPoint(new SetPoint(FramePoint.TOPLEFT, this, FramePoint.TOPLEFT, 0, -yOffset));
+			campaignButtonUI.addSetPoint(new SetPoint(FramePoint.TOPRIGHT, this, FramePoint.TOPRIGHT, 0, -yOffset));
+			yOffset += buttonSpacing;
 		}
 		super.innerPositionBounds(gameUI, viewport);
 	}

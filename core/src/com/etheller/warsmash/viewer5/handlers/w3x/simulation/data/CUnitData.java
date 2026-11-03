@@ -811,7 +811,7 @@ public class CUnitData {
 			final List<War3ID> itemsMade = inMapVersion(unitType.getFieldAsList(ITEMS_MADE));
 
 			final War3ID defaultAutocastAbilityId;
-			if ((defaultAutocastAbility != null) && !defaultAutocastAbility.isBlank()
+			if ((defaultAutocastAbility != null) && !defaultAutocastAbility.trim().isEmpty()
 					&& !defaultAutocastAbility.equals("_")) {
 				defaultAutocastAbilityId = War3ID.fromString(defaultAutocastAbility.trim());
 			}
@@ -1451,7 +1451,7 @@ public class CUnitData {
 			final List<War3ID> itemsMade = inMapVersion(unitType.getFieldAsList(ITEMS_MADE));
 
 			final War3ID defaultAutocastAbilityId;
-			if ((defaultAutocastAbility != null) && !defaultAutocastAbility.isBlank()
+			if ((defaultAutocastAbility != null) && !defaultAutocastAbility.trim().isEmpty()
 					&& !defaultAutocastAbility.equals("_")) {
 				defaultAutocastAbilityId = War3ID.fromString(defaultAutocastAbility.trim());
 			}

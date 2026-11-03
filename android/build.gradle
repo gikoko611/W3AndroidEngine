@@ -19,7 +19,7 @@ android {
         minSdk 26
         targetSdk 34
         versionCode 1
-        versionName "0.1.082"
+        versionName "0.1.085"
     }
 
     buildTypes {
@@ -81,7 +81,7 @@ tasks.matching { it.name.contains("merge") && it.name.contains("JniLibFolders") 
 
 // Ability builder definitions are read as internal files, so they ship inside the APK. The engine's own UI
 // resources ship too and are unpacked by the launcher, because the engine reads them from a folder.
-tasks.register("copyAbilityBehaviors", Copy) {
+tasks.register("copyAbilityBehaviors", Sync) {
     from("../core/assets/abilityBehaviors") { into "abilityBehaviors" }
     from("../core/assets/abilityBehaviors_compatibility") { into "abilityBehaviors_compatibility" }
     from("../resources") { into "engineResources" }

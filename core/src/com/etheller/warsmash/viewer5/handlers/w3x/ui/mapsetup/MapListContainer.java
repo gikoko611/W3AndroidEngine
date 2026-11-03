@@ -52,4 +52,16 @@ public class MapListContainer {
 	public String getSelectedItem() {
 		return this.mapListBox.getSelectedItem();
 	}
+
+	/**
+	 * The original opens the list on the map last played from it (registry Map\skirmish_V0) and otherwise on the first
+	 * entry.
+	 */
+	public void selectInitial(final String lastPlayedMap) {
+		if (this.mapListBox.getSelectedItem() != null) {
+			return;
+		}
+		final int lastPlayedIndex = lastPlayedMap == null ? -1 : this.mapListBox.indexOf(lastPlayedMap);
+		this.mapListBox.selectIndex(Math.max(0, lastPlayedIndex));
+	}
 }

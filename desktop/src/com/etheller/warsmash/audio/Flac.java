@@ -178,6 +178,7 @@ public class Flac {
 					}
 				}
 			}
+			out.flush();
 			return baos.toByteArray();
 		}
 	}

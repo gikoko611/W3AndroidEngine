@@ -20,4 +20,9 @@ public class CTimerNativeEvent extends CTimer {
 		this.jassGlobalScope.queueTrigger(null, null, this.trigger, triggerScope, triggerScope);
 	}
 
+	@Override
+	protected boolean isExactTiming() {
+		return true;
+	}
+
 }

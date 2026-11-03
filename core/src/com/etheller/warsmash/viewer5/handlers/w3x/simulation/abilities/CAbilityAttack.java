@@ -20,8 +20,12 @@ import com.etheller.warsmash.viewer5.handlers.w3x.simulation.unit.CUnitTypeJass;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.util.AbilityActivationReceiver;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.util.AbilityTargetCheckReceiver;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.util.CommandStringErrorKeys;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.util.ExternStringMsgTargetCheckReceiver;
 
 public class CAbilityAttack extends AbstractCAbility {
+	private static final ExternStringMsgTargetCheckReceiver<CWidget> SCRIPT_TARGET_CHECK =
+			new ExternStringMsgTargetCheckReceiver<>();
+
 
 	public CAbilityAttack(final int handleId) {
 		super(handleId, War3ID.fromString("Aatk"));
@@ -95,7 +99,13 @@ public class CAbilityAttack extends AbstractCAbility {
 				receiver.targetOk(target);
 			}
 			else {
-				if (lastUnavailableAttack != null) {
+				if ((lastUnavailableAttack != null) && game.isScriptOrder()
+						&& onlyAirMismatch(game, unit, target, lastUnavailableAttack)) {
+					// Measured (1.29): a script attack order on a unit no weapon can hit (a Footman on a flyer) is
+					// accepted; the unit follows it.
+					receiver.targetOk(target);
+				}
+				else if (lastUnavailableAttack != null) {
 					// a check known to fail, so it will populate our receiver
 					target.canBeTargetedBy(game, unit, lastUnavailableAttack.getTargetsAllowed(), receiver);
 				}
@@ -107,6 +117,12 @@ public class CAbilityAttack extends AbstractCAbility {
 		else {
 			receiver.orderIdNotAccepted();
 		}
+	}
+
+	private static boolean onlyAirMismatch(final CSimulation game, final CUnit unit, final CWidget target,
+			final CUnitAttack attack) {
+		target.canBeTargetedBy(game, unit, attack.getTargetsAllowed(), SCRIPT_TARGET_CHECK.reset());
+		return CommandStringErrorKeys.UNABLE_TO_TARGET_AIR_UNITS.equals(SCRIPT_TARGET_CHECK.getExternStringKey());
 	}
 
 	@Override

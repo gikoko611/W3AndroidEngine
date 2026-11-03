@@ -17,6 +17,8 @@ import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.targeting
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.targeting.AbilityTarget;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.targeting.AbilityTargetVisitor;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.behaviors.harvest.CBehaviorWispHarvest;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.orders.COrder;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.orders.COrderTargetWidget;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.pathing.CPathPoint;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.pathing.CPathfindingProcessor;
 
@@ -146,7 +148,12 @@ public class CBehaviorMove implements CBehavior {
 
 	@Override
 	public CBehavior update(final CSimulation simulation) {
-		if ((this.rangedBehavior != null) && this.rangedBehavior.isWithinRange(simulation)) {
+		if ((this.rangedBehavior != null) && (this.rangedBehavior.isWithinRange(simulation)
+				|| isUnorderedChaseOfLostTarget(simulation))) {
+			if (this.pathfindingActive) {
+				simulation.removeFromPathfindingQueue(this);
+				this.pathfindingActive = false;
+			}
 			return this.unit.finishMoveBehavior(simulation, this.rangedBehavior);
 		}
 		if (this.firstUpdate) {
@@ -311,10 +318,8 @@ public class CBehaviorMove implements CBehavior {
 					tempRect.set(nextX, nextY, 0, 0);
 				}
 				tempRect.setCenter(nextX, nextY);
-				if ((movementType == null) || (pathingGrid.isPathable(nextX, nextY, movementType, collisionSize)// ((int)
-						// collisionSize
-						// / 16)
-						// * 16
+				if ((movementType == null) || (pathingGrid.isPathableFrom(walkX, walkY, nextX, nextY, movementType,
+						collisionSize)
 						&& !worldCollision.intersectsAnythingOtherThan(tempRect, this.unit, movementType, false))) {
 					this.unit.setPoint(nextX, nextY, worldCollision, simulation.getRegionManager());
 					this.unit.markWalked(simulation.getGameTurnTick());
@@ -391,8 +396,7 @@ public class CBehaviorMove implements CBehavior {
 							absDelta = Math.abs(delta);
 							if (absDelta >= propulsionWindow) {
 								if (this.wasWithinPropWindow) {
-									this.unit.getUnitAnimationListener().playAnimation(false, PrimaryTag.STAND,
-											SequenceUtils.EMPTY, 1.0f, true);
+									playStandAnimation();
 								}
 								this.wasWithinPropWindow = false;
 								return this;
@@ -434,11 +438,14 @@ public class CBehaviorMove implements CBehavior {
 						return this;
 					}
 				}
-				if (speed > 0) {
+				if (this.unit.isScriptAnimationHeld()) {
+					this.unit.getUnitAnimationListener().replayEndedAnimation();
+				}
+				else if (speed > 0) {
 					this.unit.getUnitAnimationListener().playWalkAnimation(speedChange, speed, true);
-				} else {
-					this.unit.getUnitAnimationListener().playAnimation(false, PrimaryTag.STAND,
-							SequenceUtils.EMPTY, 1.0f, true);
+				}
+				else {
+					playStandAnimation();
 				}
 				this.wasWithinPropWindow = true;
 			}
@@ -448,13 +455,38 @@ public class CBehaviorMove implements CBehavior {
 			// If this happens, the unit is facing the wrong way, and has to turn before
 			// moving.
 			if (this.wasWithinPropWindow) {
-				this.unit.getUnitAnimationListener().playAnimation(false, PrimaryTag.STAND, SequenceUtils.EMPTY, 1.0f,
-						true);
+				playStandAnimation();
 			}
 			this.wasWithinPropWindow = false;
 		}
 
 		return this;
+	}
+
+	private void playStandAnimation() {
+		if (this.unit.isScriptAnimationHeld()) {
+			this.unit.getUnitAnimationListener().replayEndedAnimation();
+		}
+		else {
+			this.unit.getUnitAnimationListener().playAnimation(false, PrimaryTag.STAND, SequenceUtils.EMPTY, 1.0f,
+					true);
+		}
+	}
+
+	/**
+	 * Measured on 1.29 (probe chase-target-lost): a unit chasing a target it picked itself (acquired, attacked back)
+	 * drops the chase as soon as the target dies or is removed, while one ordered onto the target walks on to where it
+	 * was and stops there.
+	 */
+	private boolean isUnorderedChaseOfLostTarget(final CSimulation simulation) {
+		if (!(this.rangedBehavior instanceof CBehaviorAttack)) {
+			return false;
+		}
+		final COrder order = this.unit.getCurrentOrder();
+		if (order instanceof COrderTargetWidget) {
+			return false;
+		}
+		return !((CBehaviorAttack) this.rangedBehavior).checkTargetStillValid(simulation);
 	}
 
 	private void onMoveGiveUp(final CSimulation simulation) {

@@ -278,11 +278,22 @@ public class Terrain {
 						dataSource, Gdx.gl30));
 
 		// Cliff Textures
+		Element fallbackCliffInfo = null;
 		for (final War3ID cliffTile : w3eFile.getCliffTiles()) {
-			final Element cliffInfo = this.cliffTable.get(cliffTile.asStringValue());
+			if (fallbackCliffInfo == null) {
+				fallbackCliffInfo = this.cliffTable.get(cliffTile.asStringValue());
+			}
+		}
+		for (final War3ID cliffTile : w3eFile.getCliffTiles()) {
+			Element cliffInfo = this.cliffTable.get(cliffTile.asStringValue());
 			if (cliffInfo == null) {
+				// Corners index the map's cliff list, so an unknown type (HumanX03Interlude's COdt, absent from
+				// 1.29 CliffTypes.slk) must keep its slot or every later type shifts down by one.
 				System.err.println("Missing cliff type: " + cliffTile.asStringValue());
-				continue;
+				cliffInfo = fallbackCliffInfo;
+				if (cliffInfo == null) {
+					continue;
+				}
 			}
 			final String texDir = cliffInfo.getField("texDir");
 			final String texFile = cliffInfo.getField("texFile");

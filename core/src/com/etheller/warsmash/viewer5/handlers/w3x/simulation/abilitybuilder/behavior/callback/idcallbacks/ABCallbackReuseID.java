@@ -7,6 +7,7 @@ import com.etheller.warsmash.util.War3ID;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CSimulation;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CUnit;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilitybuilder.ability.AbilityBuilderAbility;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilitybuilder.behavior.callback.ABCallbackNull;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilitybuilder.behavior.callback.stringcallbacks.ABStringCallback;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilitybuilder.core.ABCallback;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilitybuilder.core.ABLocalStoreKeys;
@@ -26,6 +27,8 @@ public class ABCallbackReuseID extends ABIDCallback {
 			ABCallback callback = config.getReuseCallbacks().get(keyS);
 			if (callback != null && callback instanceof ABIDCallback) {
 				return ((ABIDCallback) callback).callback(game, caster, localStore, castId);
+			} else if (callback instanceof ABCallbackNull) {
+				return null;
 			} else {
 				System.err.println("Trying to run ReuseIDCallback, but key is missing or callback was the wrong type: " + keyS);
 			}

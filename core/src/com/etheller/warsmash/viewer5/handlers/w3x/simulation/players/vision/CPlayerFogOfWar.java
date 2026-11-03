@@ -12,6 +12,21 @@ import com.etheller.warsmash.viewer5.handlers.w3x.simulation.trigger.enumtypes.C
 public class CPlayerFogOfWar {
 	public static final int PATHING_RATIO = 4;
 	public static final int GRID_STEP = PATHING_RATIO * 32;
+
+	// Unit sight on 1.29 (measured for 800..1800): the radius is rounded to whole cells, and along each row or column
+	// the reach sqrt(r^2 - near^2) is rounded too, so the shape is wider than a plain circle of that radius.
+	public static int getSightCells(final float sightRadius) {
+		return (int) Math.floor((sightRadius / GRID_STEP) + 0.5f);
+	}
+
+	public static boolean isInSight(final int dx, final int dy, final int sightCells) {
+		final int far = Math.max(Math.abs(dx), Math.abs(dy));
+		final int near = Math.min(Math.abs(dx), Math.abs(dy));
+		if (far > sightCells) {
+			return false;
+		}
+		return Math.floor(Math.sqrt((sightCells * sightCells) - (near * near)) + 0.5) >= far;
+	}
 	private final int width;
 	private final int height;
 	// Plain arrays: a get or put per cell on a direct buffer is slow on Android, and vision checks touch every cell
@@ -225,6 +240,32 @@ public class CPlayerFogOfWar {
 			}
 		}
 		Arrays.fill(this.detection, (byte) 0);
+	}
+
+	// Shared vision passes on only what the giver's own units and modifiers see; copying the cells first keeps vision
+	// another ally passed to the giver from reaching the receiver in the same update.
+	private byte[] ownFogOfWar;
+	private byte[] ownDetection;
+
+	public void keepOwnVision() {
+		if (this.ownFogOfWar == null) {
+			this.ownFogOfWar = new byte[this.fogOfWar.length];
+			this.ownDetection = new byte[this.detection.length];
+		}
+		System.arraycopy(this.fogOfWar, 0, this.ownFogOfWar, 0, this.fogOfWar.length);
+		System.arraycopy(this.detection, 0, this.ownDetection, 0, this.detection.length);
+	}
+
+	public void addOwnVisionOf(final CPlayerFogOfWar giver) {
+		final byte[] giverCells = giver.ownFogOfWar;
+		final byte[] giverDetection = giver.ownDetection;
+		final byte[] cells = this.fogOfWar;
+		for (int i = 0; i < cells.length; i++) {
+			if (giverCells[i] == 0) {
+				cells[i] = 0;
+				this.detection[i] |= giverDetection[i];
+			}
+		}
 	}
 
 	public void setFogStateRadius(PathingGrid pathingGrid, float myX, float myY, float radius, CFogState state) {

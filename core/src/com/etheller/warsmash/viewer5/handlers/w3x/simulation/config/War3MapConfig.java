@@ -2,6 +2,9 @@ package com.etheller.warsmash.viewer5.handlers.w3x.simulation.config;
 
 import java.util.EnumMap;
 
+import com.etheller.warsmash.parsers.w3x.w3i.War3MapW3i;
+import com.etheller.warsmash.parsers.w3x.w3i.War3MapW3iFlags;
+
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.players.CMapControl;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.players.CMapFlag;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.players.CMapPlacement;
@@ -79,6 +82,28 @@ public class War3MapConfig implements CPlayerAPI {
 
 	public void setGameTypeSupported(final CGameType gameType, final boolean supported) {
 		this.gameTypeToSupported.put(gameType, supported);
+	}
+
+	/**
+	 * Before the map's config function, which may still change the supported types. Measured on 1.29: a game started
+	 * with -loadfile is a melee game, on a melee and on a campaign map alike, and only that type is supported.
+	 */
+	public void selectGameType(final CGameType gameType) {
+		this.gameTypeSelected = gameType;
+		this.gameTypeToSupported.clear();
+		this.gameTypeToSupported.put(gameType, true);
+	}
+
+	/**
+	 * Before the map's config function. Measured on 1.29 (-loadfile, melee and campaign maps): custom forces lock
+	 * alliance changes, and a single player game always locks the random seed; the other flags start cleared. The
+	 * speed reads Normal.
+	 */
+	public void applyMapInformation(final War3MapW3i mapInfo) {
+		this.mapFlagToEnabled.clear();
+		setMapFlag(CMapFlag.MAP_LOCK_ALLIANCE_CHANGES, mapInfo.hasFlag(War3MapW3iFlags.USE_CUSTOM_FORCES));
+		setMapFlag(CMapFlag.MAP_LOCK_RANDOM_SEED, true);
+		this.gameSpeed = CGameSpeed.NORMAL;
 	}
 
 	public void setMapFlag(final CMapFlag mapFlag, final boolean set) {

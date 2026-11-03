@@ -3,7 +3,9 @@ package com.etheller.warsmash.viewer5.handlers.w3x.simulation.campaign;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
+import java.util.EnumMap;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -11,19 +13,70 @@ import java.util.Set;
  * the player's profile and written as it changes.
  */
 public final class CCampaignProgress {
-	private static final Set<Long> MISSIONS = new HashSet<>();
-	private static final Set<Integer> CAMPAIGNS = new HashSet<>();
-	private static final Set<Integer> OPENING_CINEMATICS = new HashSet<>();
-	private static final Set<Integer> ENDING_CINEMATICS = new HashSet<>();
-	private static boolean tutorialCleared;
-	private static int menuCampaignIndex = -1;
+	/**
+	 * Scripts number campaigns by their place in the campaign list of the game data, and the lists differ: Reign of
+	 * Chaos and The Frozen Throne each start at 0 (1.29 keeps their progress apart), the combined list of later
+	 * versions numbers them all at once. Each list therefore keeps its own progress.
+	 */
+	public enum CampaignList {
+		COMBINED, REIGN_OF_CHAOS, FROZEN_THRONE
+	}
+
+	private static final class Progress {
+		private final Set<Long> missions = new HashSet<>();
+		private final Set<Integer> campaigns = new HashSet<>();
+		private final Set<Integer> openingCinematics = new HashSet<>();
+		private final Set<Integer> endingCinematics = new HashSet<>();
+		private boolean tutorialCleared;
+		private int menuCampaignIndex = -1;
+		private int classicMenuCampaignIndex = -1;
+
+		private void write(final DataOutputStream out) throws IOException {
+			out.writeInt(this.missions.size());
+			for (final long mission : this.missions) {
+				out.writeLong(mission);
+			}
+			writeFlags(out, this.campaigns);
+			writeFlags(out, this.openingCinematics);
+			writeFlags(out, this.endingCinematics);
+			out.writeBoolean(this.tutorialCleared);
+			out.writeInt(this.menuCampaignIndex);
+			out.writeInt(this.classicMenuCampaignIndex);
+		}
+
+		private void read(final DataInputStream in, final boolean hasClassicMenuIndex) throws IOException {
+			final int missionCount = in.readInt();
+			for (int i = 0; i < missionCount; i++) {
+				this.missions.add(in.readLong());
+			}
+			readFlags(in, this.campaigns);
+			readFlags(in, this.openingCinematics);
+			readFlags(in, this.endingCinematics);
+			this.tutorialCleared = in.readBoolean();
+			this.menuCampaignIndex = in.readInt();
+			this.classicMenuCampaignIndex = hasClassicMenuIndex ? in.readInt() : -1;
+		}
+	}
+
+	private static final Map<CampaignList, Progress> PROGRESS = new EnumMap<>(CampaignList.class);
+	private static CampaignList campaignList = CampaignList.COMBINED;
 	private static boolean campaignSelectScreenForced;
 	private static String pendingLevel;
 	private static final String STORE_FILE = "Campaigns.w3v";
-	private static final int STORE_VERSION = 1;
+	private static final int STORE_VERSION = 3;
 	private static boolean loaded;
 
 	private CCampaignProgress() {
+	}
+
+	/** Set by the menu from the campaign list the game data has, before any progress is read or written. */
+	public static void setCampaignList(final CampaignList list) {
+		campaignList = list;
+	}
+
+	private static Progress current() {
+		loadOnce();
+		return PROGRESS.computeIfAbsent(campaignList, list -> new Progress());
 	}
 
 	private static void loadOnce() {
@@ -39,42 +92,45 @@ public final class CCampaignProgress {
 
 	/** Another player profile has its own progress. */
 	static void forgetLoaded() {
-		MISSIONS.clear();
-		CAMPAIGNS.clear();
-		OPENING_CINEMATICS.clear();
-		ENDING_CINEMATICS.clear();
-		tutorialCleared = false;
-		menuCampaignIndex = -1;
+		PROGRESS.clear();
 		loaded = false;
 	}
 
 	public static void writeAll(final DataOutputStream out) throws IOException {
 		out.writeInt(STORE_VERSION);
-		out.writeInt(MISSIONS.size());
-		for (final long mission : MISSIONS) {
-			out.writeLong(mission);
+		out.writeInt(PROGRESS.size());
+		for (final Map.Entry<CampaignList, Progress> entry : PROGRESS.entrySet()) {
+			out.writeUTF(entry.getKey().name());
+			entry.getValue().write(out);
 		}
-		writeFlags(out, CAMPAIGNS);
-		writeFlags(out, OPENING_CINEMATICS);
-		writeFlags(out, ENDING_CINEMATICS);
-		out.writeBoolean(tutorialCleared);
-		out.writeInt(menuCampaignIndex);
 	}
 
 	public static void readAll(final DataInputStream in) throws IOException {
-		if (in.readInt() != STORE_VERSION) {
+		final int version = in.readInt();
+		if ((version < 1) || (version > STORE_VERSION)) {
 			throw new IOException("Unknown campaign progress version");
 		}
-		MISSIONS.clear();
-		final int missions = in.readInt();
-		for (int i = 0; i < missions; i++) {
-			MISSIONS.add(in.readLong());
+		PROGRESS.clear();
+		if (version < 3) {
+			// Older files kept one progress, written with the campaign list this game data still has.
+			final Progress progress = new Progress();
+			progress.read(in, version >= 2);
+			PROGRESS.put(campaignList, progress);
 		}
-		readFlags(in, CAMPAIGNS);
-		readFlags(in, OPENING_CINEMATICS);
-		readFlags(in, ENDING_CINEMATICS);
-		tutorialCleared = in.readBoolean();
-		menuCampaignIndex = in.readInt();
+		else {
+			final int lists = in.readInt();
+			for (int i = 0; i < lists; i++) {
+				final String listName = in.readUTF();
+				final Progress progress = new Progress();
+				progress.read(in, true);
+				try {
+					PROGRESS.put(CampaignList.valueOf(listName), progress);
+				}
+				catch (final IllegalArgumentException e) {
+					// A list a later version knows about; this one cannot show it.
+				}
+			}
+		}
 		loaded = true;
 	}
 
@@ -93,43 +149,41 @@ public final class CCampaignProgress {
 		}
 	}
 
+	private static long missionKey(final int campaign, final int mission) {
+		return (((long) campaign) << 32) | (mission & 0xFFFFFFFFL);
+	}
+
 	public static void setMissionAvailable(final int campaign, final int mission, final boolean available) {
-		loadOnce();
-		final long key = (((long) campaign) << 32) | (mission & 0xFFFFFFFFL);
+		final Set<Long> missions = current().missions;
 		if (available) {
-			MISSIONS.add(key);
+			missions.add(missionKey(campaign, mission));
 		}
 		else {
-			MISSIONS.remove(key);
+			missions.remove(missionKey(campaign, mission));
 		}
 		save();
 	}
 
 	public static boolean isMissionAvailable(final int campaign, final int mission) {
-		loadOnce();
-		return MISSIONS.contains((((long) campaign) << 32) | (mission & 0xFFFFFFFFL));
+		return current().missions.contains(missionKey(campaign, mission));
 	}
 
 	public static void setCampaignAvailable(final int campaign, final boolean available) {
-		loadOnce();
-		setFlag(CAMPAIGNS, campaign, available);
+		setFlag(current().campaigns, campaign, available);
 		save();
 	}
 
 	public static boolean isCampaignAvailable(final int campaign) {
-		loadOnce();
-		return CAMPAIGNS.contains(campaign);
+		return current().campaigns.contains(campaign);
 	}
 
 	public static void setOpeningCinematicAvailable(final int campaign, final boolean available) {
-		loadOnce();
-		setFlag(OPENING_CINEMATICS, campaign, available);
+		setFlag(current().openingCinematics, campaign, available);
 		save();
 	}
 
 	public static void setEndingCinematicAvailable(final int campaign, final boolean available) {
-		loadOnce();
-		setFlag(ENDING_CINEMATICS, campaign, available);
+		setFlag(current().endingCinematics, campaign, available);
 		save();
 	}
 
@@ -143,25 +197,34 @@ public final class CCampaignProgress {
 	}
 
 	public static void setTutorialCleared(final boolean cleared) {
-		loadOnce();
-		tutorialCleared = cleared;
+		current().tutorialCleared = cleared;
 		save();
 	}
 
 	public static boolean isTutorialCleared() {
-		loadOnce();
-		return tutorialCleared;
+		return current().tutorialCleared;
 	}
 
 	public static void setMenuCampaignIndex(final int campaignIndex) {
-		loadOnce();
-		menuCampaignIndex = campaignIndex;
+		current().menuCampaignIndex = campaignIndex;
 		save();
 	}
 
 	public static int getMenuCampaignIndex() {
-		loadOnce();
-		return menuCampaignIndex;
+		return current().menuCampaignIndex;
+	}
+
+	/**
+	 * SetCampaignMenuRace: Reign of Chaos missions pick their campaign on the classic campaign screen by race; the
+	 * expansion screen keeps its own choice (SetCampaignMenuRaceEx).
+	 */
+	public static void setClassicMenuCampaignIndex(final int campaignIndex) {
+		current().classicMenuCampaignIndex = campaignIndex;
+		save();
+	}
+
+	public static int getClassicMenuCampaignIndex() {
+		return current().classicMenuCampaignIndex;
 	}
 
 	public static void forceCampaignSelectScreen() {

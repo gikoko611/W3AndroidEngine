@@ -243,6 +243,12 @@ public class SpriteFrame2 extends AbstractUIFrame {
 		}
 	}
 
+	public void setModelAlpha(final float alpha) {
+		if (this.instance != null) {
+			this.instance.setVertexAlpha(alpha);
+		}
+	}
+
 	public void setModelScale(float scale) {
 		if (this.instance != null) {
 			this.instance.setUniformScale(scale);

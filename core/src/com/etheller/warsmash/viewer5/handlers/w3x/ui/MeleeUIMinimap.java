@@ -42,6 +42,7 @@ public class MeleeUIMinimap {
 	private int iconCount;
 	private byte polarity = -1;
 	private boolean visible = true;
+	private boolean terrainVisible = true;
 	private final float[] cameraFootprint = new float[8];
 	private Texture lineTexture;
 	// The fog was drawn as one sprite per fog cell every frame, thousands of them, which phones could not keep up
@@ -90,7 +91,13 @@ public class MeleeUIMinimap {
 		}
 		if (!path.equals(this.loadedAltIconPath)) {
 			this.loadedAltIconPath = path;
-			this.loadedAltIcon = this.altIconLoader.apply(path);
+			try {
+				this.loadedAltIcon = this.altIconLoader.apply(path);
+			}
+			catch (final IllegalStateException e) {
+				// HumanX05 names UI\Minimap\Minimap-Special, which the 1.29 data does not have: no icon then.
+				this.loadedAltIcon = null;
+			}
 		}
 		return this.loadedAltIcon;
 	}
@@ -100,7 +107,14 @@ public class MeleeUIMinimap {
 		if (!this.visible) {
 			return;
 		}
-		batch.draw(this.minimapTexture, this.minimap.x, this.minimap.y, this.minimap.width, this.minimap.height);
+		if (this.terrainVisible) {
+			batch.draw(this.minimapTexture, this.minimap.x, this.minimap.y, this.minimap.width, this.minimap.height);
+		}
+		else {
+			batch.setColor(0, 0, 0, 1);
+			batch.draw(whiteTexture(), this.minimap.x, this.minimap.y, this.minimap.width, this.minimap.height);
+			batch.setColor(1, 1, 1, 1);
+		}
 		final Color og = batch.getColor();
 
 		final int minX = pathingGrid.getFogOfWarIndexX(this.playableMapArea.getX());
@@ -297,7 +311,7 @@ public class MeleeUIMinimap {
 		}
 	}
 
-	private void drawCameraFootprint(final SpriteBatch batch) {
+	private Texture whiteTexture() {
 		if (this.lineTexture == null) {
 			final Pixmap pixmap = new Pixmap(1, 1, Pixmap.Format.RGBA8888);
 			pixmap.setColor(Color.WHITE);
@@ -305,6 +319,11 @@ public class MeleeUIMinimap {
 			this.lineTexture = new Texture(pixmap);
 			pixmap.dispose();
 		}
+		return this.lineTexture;
+	}
+
+	private void drawCameraFootprint(final SpriteBatch batch) {
+		whiteTexture();
 		batch.setColor(1, 1, 1, 1);
 		for (int i = 0; i < 4; i++) {
 			final int next = (i + 1) % 4;
@@ -350,5 +369,13 @@ public class MeleeUIMinimap {
 
 	public void setVisible(final boolean visible) {
 		this.visible = visible;
+	}
+
+	public boolean isVisible() {
+		return this.visible;
+	}
+
+	public void setTerrainVisible(final boolean terrainVisible) {
+		this.terrainVisible = terrainVisible;
 	}
 }

@@ -29,6 +29,8 @@ public interface CUnitAnimationListener {
 
 	void forceResetCurrentAnimation();
 
+	void replayEndedAnimation();
+
 	EnumSet<SecondaryTag> getSecondaryTags();
 
 	void lockTurretFacing(AbilityTarget target);

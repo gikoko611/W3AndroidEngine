@@ -14,7 +14,8 @@ public class CRacePreference implements CHandle {
 	}
 
 	public int getBitMaskValue() {
-		return 1 << ordinal();
+		// ConvertRacePref(0) has no race bit; a negative shift would set the sign bit.
+		return ordinal() < 0 ? 0 : 1 << ordinal();
 	}
 
 	@Override

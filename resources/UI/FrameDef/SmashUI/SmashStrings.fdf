@@ -1,0 +1,7 @@
+/*
+ * Strings of the engine's own interface that the game's string lists do not have.
+ */
+StringList {
+    SAVE_ERROR_OTHER_VERSION        "|CFFFF0000This game was saved by another version of the game and cannot be loaded.",
+    SAVE_ERROR_OTHER_SCRIPTS        "|CFFFF0000This game was saved in game scripts that have changed since, and cannot be loaded.",
+}

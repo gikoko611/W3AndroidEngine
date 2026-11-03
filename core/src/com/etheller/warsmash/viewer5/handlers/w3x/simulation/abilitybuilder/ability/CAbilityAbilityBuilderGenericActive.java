@@ -78,6 +78,7 @@ public abstract class CAbilityAbilityBuilderGenericActive extends AbstractGeneri
 	protected float range = 0;
 	protected float castTime = 0;
 	private boolean ignoreCastTime = false;
+	private boolean repeatCast = false;
 
 	protected boolean hideAreaCursor = false;
 	private Float areaCursorOverride;
@@ -299,6 +300,10 @@ public abstract class CAbilityAbilityBuilderGenericActive extends AbstractGeneri
 			if (this.config.getOverrideFields().getIgnoreCastTime() != null) {
 				this.ignoreCastTime = this.config.getOverrideFields().getIgnoreCastTime().callback(game, unit,
 						localStore, castId);
+			}
+			if (this.config.getOverrideFields().getRepeatCast() != null) {
+				this.repeatCast = this.config.getOverrideFields().getRepeatCast().callback(game, unit, localStore,
+						castId);
 			}
 			if (this.config.getOverrideFields().getCooldownOverride() != null) {
 				this.cooldown = this.config.getOverrideFields().getCooldownOverride().callback(game, unit, localStore,
@@ -560,6 +565,11 @@ public abstract class CAbilityAbilityBuilderGenericActive extends AbstractGeneri
 
 	public boolean ignoreCastTime() {
 		return this.ignoreCastTime;
+	}
+
+	@Override
+	public boolean isRepeatCast() {
+		return this.repeatCast;
 	}
 
 	public EnumSet<CTargetType> getTargetsAllowed() {
@@ -840,7 +850,12 @@ public abstract class CAbilityAbilityBuilderGenericActive extends AbstractGeneri
 			final AbilityTargetCheckReceiver<Void> receiver) {
 		this.localStore.put(ABLocalStoreKeys.combineKey(ABLocalStoreKeys.ISAUTOCAST, castId), autoOrder);
 		if ((orderId != 0) && ((orderId == getAutoCastOffOrderId()) || (orderId == getAutoCastOnOrderId()))) {
-			receiver.targetOk(null);
+			// Measured (1.29): an autocast on/off order that would not change the state is refused.
+			if ((orderId == getAutoCastOnOrderId()) != isAutoCastOn()) {
+				receiver.targetOk(null);
+			} else {
+				receiver.orderIdNotAccepted();
+			}
 		} else if (innerCheckCastOrderId(game, unit, orderId)) {
 			innerCheckCanTargetNoTarget(game, unit, orderId, receiver);
 		} else {

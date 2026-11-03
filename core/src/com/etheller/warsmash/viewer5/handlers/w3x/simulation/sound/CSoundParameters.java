@@ -10,6 +10,7 @@ final class CSoundParameters {
 	private static final float MAX_VOLUME = 127f;
 	int volume = -1;
 	float pitch = 1.0f;
+	float pitchVariance = 0f;
 	int channel = 0;
 	boolean positioned;
 	float x;
@@ -35,6 +36,13 @@ final class CSoundParameters {
 			this.y = this.attachedUnit.location[1];
 			this.z = this.attachedUnit.location[2];
 		}
+	}
+
+	float startPitch() {
+		if (this.pitchVariance <= 0) {
+			return this.pitch;
+		}
+		return (this.pitch - this.pitchVariance) + ((float) Math.random() * this.pitchVariance * 2);
 	}
 
 	float scaledVolume(final float fallback, final AudioContext audioContext) {

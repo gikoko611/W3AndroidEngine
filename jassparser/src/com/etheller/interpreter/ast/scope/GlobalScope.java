@@ -103,6 +103,14 @@ public final class GlobalScope {
 		return this.indexedGlobals;
 	}
 
+	public Map<String, Integer> getGlobalIds() {
+		return Collections.unmodifiableMap(this.globals);
+	}
+
+	public Map<String, Integer> getNativeIds() {
+		return Collections.unmodifiableMap(this.functionNameToNativeId);
+	}
+
 	public List<JassThread> getThreads() {
 		return this.threads;
 	}
@@ -726,7 +734,13 @@ public final class GlobalScope {
 			catch (final Exception exc) {
 				final JassException jassException = new JassException(this, "runThreads() encountered exception", exc);
 				JassLog.report(jassException);
-				throw jassException;
+				if (!JassSettings.CONTINUE_EXECUTING_ON_ERROR) {
+					throw jassException;
+				}
+				// As in the original game a failing script thread ends alone; the game and other threads go on.
+				this.threads.remove(threadIndex);
+				this.yieldedCurrentThread = false;
+				continue;
 			}
 			if (this.yieldedCurrentThread) {
 				this.currentThread.setSleeping(false);

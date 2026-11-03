@@ -51,38 +51,44 @@ public class CascDataSource implements DataSource {
 			this.fileAliases = new HashMap<>();
 			if (this.has("filealiases.json")) {
 				try (InputStream stream = this.getResourceAsStream("filealiases.json")) {
-					stream.mark(4);
-					if ('\ufeff' != stream.read()) {
-						stream.reset(); // not the BOM marker
-					}
-					final JSONArray jsonObject = new JSONArray(new JSONTokener(stream));
-					for (int i = 0; i < jsonObject.length(); i++) {
-						final JSONObject alias = jsonObject.getJSONObject(i);
-						final String src = alias.getString("src");
-						final String dest = alias.getString("dest");
-						this.fileAliases.put(src.toLowerCase(Locale.US).replace('/', '\\'),
-								dest.toLowerCase(Locale.US).replace('/', '\\'));
-						if ((src.toLowerCase(Locale.US).contains(".blp")
-								|| dest.toLowerCase(Locale.US).contains(".blp"))
-								&& (!alias.has("assetType") || "Texture".equals(alias.getString("assetType")))) {
-							// This case: I saw a texture that resolves in game but was failing in our code
-							// here, because of this entry:
-							// {"src":"Units/Human/WarWagon/SiegeEngine.blp",
-							// "dest":"Textures/Steamtank.blp", "assetType": "Texture"},
-							// Our repo here checks BLP then DDS at a high-up application level thing, and
-							// the problem is that this entry is written using .BLP but we must be able to
-							// resolve .DDS when we go to look it up. The actual model is .BLP so maybe
-							// that's how the game does it, but my alias mapping is happening after the
-							// .BLP->.DDS dynamic fix, and not before.
-							this.fileAliases.put(src.toLowerCase(Locale.US).replace('/', '\\').replace(".blp", ".dds"),
-									dest.toLowerCase(Locale.US).replace('/', '\\').replace(".blp", ".dds"));
-						}
-					}
+					readFileAliases(stream, this.fileAliases);
 				}
 			}
 		}
 		catch (final IOException e) {
 			throw new RuntimeException(e);
+		}
+	}
+
+	/**
+	 * Fills the map with lower case, backslash separated alias source to target
+	 * paths.
+	 */
+	static void readFileAliases(final InputStream stream, final Map<String, String> fileAliases) throws IOException {
+		stream.mark(4);
+		if ('\ufeff' != stream.read()) {
+			stream.reset(); // not the BOM marker
+		}
+		final JSONArray jsonObject = new JSONArray(new JSONTokener(stream));
+		for (int i = 0; i < jsonObject.length(); i++) {
+			final JSONObject alias = jsonObject.getJSONObject(i);
+			final String src = alias.getString("src");
+			final String dest = alias.getString("dest");
+			fileAliases.put(src.toLowerCase(Locale.US).replace('/', '\\'), dest.toLowerCase(Locale.US).replace('/', '\\'));
+			if ((src.toLowerCase(Locale.US).contains(".blp") || dest.toLowerCase(Locale.US).contains(".blp"))
+					&& (!alias.has("assetType") || "Texture".equals(alias.getString("assetType")))) {
+				// This case: I saw a texture that resolves in game but was failing in our code
+				// here, because of this entry:
+				// {"src":"Units/Human/WarWagon/SiegeEngine.blp",
+				// "dest":"Textures/Steamtank.blp", "assetType": "Texture"},
+				// Our repo here checks BLP then DDS at a high-up application level thing, and
+				// the problem is that this entry is written using .BLP but we must be able to
+				// resolve .DDS when we go to look it up. The actual model is .BLP so maybe
+				// that's how the game does it, but my alias mapping is happening after the
+				// .BLP->.DDS dynamic fix, and not before.
+				fileAliases.put(src.toLowerCase(Locale.US).replace('/', '\\').replace(".blp", ".dds"),
+						dest.toLowerCase(Locale.US).replace('/', '\\').replace(".blp", ".dds"));
+			}
 		}
 	}
 

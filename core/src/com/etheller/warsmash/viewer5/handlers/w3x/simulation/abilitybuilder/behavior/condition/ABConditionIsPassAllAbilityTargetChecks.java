@@ -34,7 +34,7 @@ public class ABConditionIsPassAllAbilityTargetChecks extends ABCondition {
 		// functions, we may with to disambiguate between the owner of the unit and the
 		// player responsible for the command
 		abil.checkCanTarget(game, theCaster, theCaster.getPlayerIndex(), abil.getBaseOrderId(),
-				((Boolean) localStore.get(ABLocalStoreKeys.combineKey(ABLocalStoreKeys.ISAUTOCAST, castId))),
+				Boolean.TRUE.equals(localStore.get(ABLocalStoreKeys.combineKey(ABLocalStoreKeys.ISAUTOCAST, castId))),
 				target.callback(game, casterUnit, localStore, castId), booleanTargetReceiver);
 
 		if (booleanTargetReceiver.isTargetable()) {

@@ -5,12 +5,14 @@ import com.etheller.warsmash.viewer5.handlers.w3x.AnimationTokens.PrimaryTag;
 import com.etheller.warsmash.viewer5.handlers.w3x.SequenceUtils;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CSimulation;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CUnit;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CWidget;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.targeting.AbilityTarget;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.targeting.AbilityTargetStillAliveAndTargetableVisitor;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.targeting.AbilityTargetVisitor;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.combat.attacks.CUnitAttack;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.combat.attacks.replacement.CUnitAttackModifier;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.combat.attacks.replacement.CUnitAttackSettings;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.util.BooleanAbilityTargetCheckReceiver;
 
 public class CBehaviorAttack extends CAbstractRangedBehavior {
 
@@ -30,6 +32,7 @@ public class CBehaviorAttack extends CAbstractRangedBehavior {
 	private CBehaviorAttackListener attackListener;
 	private CUnitAttackModifier forcedModifier;
 	private CUnitAttackSettings settings;
+	private boolean throughFog;
 
 	public CUnitAttack getUnitAttack() {
 		return this.unitAttack;
@@ -39,6 +42,7 @@ public class CBehaviorAttack extends CAbstractRangedBehavior {
 			final AbilityTarget target, final boolean disableMove, final CBehaviorAttackListener attackListener) {
 		this.highlightOrderId = highlightOrderId;
 		this.attackListener = attackListener;
+		this.throughFog = false;
 
 		this.unitAttack = unitAttack;
 		this.damagePointLaunchTime = 0;
@@ -70,9 +74,23 @@ public class CBehaviorAttack extends CAbstractRangedBehavior {
 				&& (this.unit.distance(this.target) >= this.unit.getUnitType().getMinimumAttackRange());
 	}
 
+	/** A chase that keeps its target while the fog hides it (attacking back an unseen attacker). */
+	public void setThroughFog(final boolean throughFog) {
+		this.throughFog = throughFog;
+	}
+
 	@Override
 	protected boolean checkTargetStillValid(final CSimulation simulation) {
-		return !this.unit.isDisableAttacks() && this.target.visit(
+		if (this.unit.isDisableAttacks()) {
+			return false;
+		}
+		final CUnit targetUnit = this.throughFog ? this.target.visit(AbilityTargetVisitor.UNIT) : null;
+		if (targetUnit != null) {
+			return !targetUnit.isDead() && !targetUnit.isHidden() && targetUnit.canBeTargetedBy(simulation, this.unit,
+					true, this.unitAttack.getTargetsAllowed(),
+					BooleanAbilityTargetCheckReceiver.<CWidget>getInstance().reset(), true);
+		}
+		return this.target.visit(
 				this.abilityTargetStillAliveVisitor.reset(simulation, this.unit, this.unitAttack.getTargetsAllowed()));
 	}
 

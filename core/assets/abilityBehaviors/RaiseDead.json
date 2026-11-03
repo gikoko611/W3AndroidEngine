@@ -1,6 +1,6 @@
 {
 	"abilityList": [{
-		"ids": [{"id":"Arai", "castId": "raisedead", "autoCastOnId": "raisedeadon", "autoCastOffId": "raisedeadoff", "autoCastType": "NOTARGET"},
+		"ids": [{"id":"Arai", "castId": "raisedead", "instantCastId": "instant", "autoCastOnId": "raisedeadon", "autoCastOffId": "raisedeadoff", "autoCastType": "NOTARGET"},
 				{"id":"AIrd", "castId": "itemraisedead"}],
 		"type": "NORMAL_AUTOTARGET",
 		"extraCastConditions": [{

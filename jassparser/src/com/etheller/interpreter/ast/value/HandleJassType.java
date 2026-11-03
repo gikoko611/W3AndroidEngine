@@ -1,5 +1,9 @@
 package com.etheller.interpreter.ast.value;
 
+import java.util.HashMap;
+import java.util.Map;
+import java.util.function.ToIntFunction;
+
 import com.etheller.interpreter.ast.value.visitor.SuperTypeVisitor;
 
 public class HandleJassType implements JassType {
@@ -7,6 +11,8 @@ public class HandleJassType implements JassType {
 	private final String name;
 	private HandleJassTypeConstructor constructorNative;
 	private HandleJassTypeConstructor destructorNative;
+	private ToIntFunction<Object> enumValue;
+	private Map<Integer, UnknownEnumHandle> unknownEnumHandles;
 
 	public HandleJassType(final HandleJassType superType, final String name) {
 		this.superType = superType;
@@ -66,6 +72,21 @@ public class HandleJassType implements JassType {
 
 	public HandleJassTypeConstructor getDestructorNative() {
 		return this.destructorNative;
+	}
+
+	public void setEnumValue(final ToIntFunction<Object> enumValue) {
+		this.enumValue = enumValue;
+	}
+
+	public boolean isEnumZero(final Object javaValue) {
+		return (this.enumValue != null) && (javaValue != null) && (this.enumValue.applyAsInt(javaValue) == 0);
+	}
+
+	public HandleJassValue getUnknownEnumValue(final int value) {
+		if (this.unknownEnumHandles == null) {
+			this.unknownEnumHandles = new HashMap<>();
+		}
+		return new HandleJassValue(this, this.unknownEnumHandles.computeIfAbsent(value, UnknownEnumHandle::new));
 	}
 
 }

@@ -23,13 +23,13 @@ public class ABCallbackGetAbilityDataAsRandomIDFromList extends ABIDCallback {
 		final int level = (int) localStore.get(ABLocalStoreKeys.CURRENTLEVEL);
 
 		final String data = levelData.get(level - 1).getData().get(this.dataField.getIndex());
-		if ((data == null) || "-".equals(data) || data.isBlank() || "_".equals(data)) {
+		if ((data == null) || "-".equals(data) || data.trim().isEmpty() || "_".equals(data)) {
 			return War3ID.NONE;
 		}
 		String[] ids = data.split(",");
 		int i = game.getSeededRandom().nextInt(ids.length);
 		String tar = ids[i];
-		if ((tar == null) || "-".equals(tar) || tar.isBlank() || "_".equals(tar)) {
+		if ((tar == null) || "-".equals(tar) || tar.trim().isEmpty() || "_".equals(tar)) {
 			return War3ID.NONE;
 		}
 		return War3ID.fromString(tar);

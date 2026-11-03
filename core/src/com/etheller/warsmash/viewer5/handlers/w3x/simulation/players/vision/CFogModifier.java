@@ -27,6 +27,12 @@ public abstract class CFogModifier {
 	public void setEnabled(final boolean enabled) {
 	}
 
+	/**
+	 * Measured on 1.29: a modifier sets its state once when it is created, started or not.
+	 */
+	public void applyNow(final CSimulation game, final CPlayer player) {
+	}
+
 	public void onAdd(final CSimulation game, final CPlayer player) {
 	}
 

@@ -840,7 +840,19 @@ public enum ArithmeticSigns implements ArithmeticSign {
 	private static boolean isEqual(final HandleJassValue left, final HandleJassValue right) {
 		// NOTE: removed the type check on handle equality so that a unit and widget
 		// variable who are the same will return as being equal
-		return (left.getJavaValue() == right.getJavaValue());// && (left.getType() == right.getType());
+		final Object leftValue = left.getJavaValue();
+		final Object rightValue = right.getJavaValue();
+		if (leftValue == rightValue) {
+			return true;
+		}
+		// The game keeps enum handles as plain integers and null as 0, so an enum of value 0 equals null.
+		if (leftValue == null) {
+			return (right.getType() != null) && right.getType().isEnumZero(rightValue);
+		}
+		if (rightValue == null) {
+			return (left.getType() != null) && left.getType().isEnumZero(leftValue);
+		}
+		return false;
 	}
 
 	private static boolean isEqual(final CodeJassValue left, final CodeJassValue right) {

@@ -53,6 +53,11 @@ public class CSoundFilename implements CSound {
 	}
 
 	@Override
+	public void setPitchVariance(final float variance) {
+		this.parameters.pitchVariance = variance;
+	}
+
+	@Override
 	public void setChannel(final int channel) {
 		this.parameters.channel = channel;
 	}
@@ -144,8 +149,8 @@ public class CSoundFilename implements CSound {
 		source.connect(panner);
 
 		// Make a sound.
-		this.lastSoundId = source.start(0, this.parameters.scaledVolume(1.0f, this.audioContext), this.parameters.pitch,
-				this.looping);
+		this.lastSoundId = source.start(0, this.parameters.scaledVolume(1.0f, this.audioContext),
+				this.parameters.startPitch(), this.looping);
 		this.started = this.lastSoundId != -1;
 		if (this.started && this.looping) {
 			CSoundMixer.loopStarted(this.sound, this.lastSoundId, this.parameters.unmixedVolume(1.0f, this.audioContext),
@@ -167,6 +172,30 @@ public class CSoundFilename implements CSound {
 				this.sound.stop();
 			}
 		}
+	}
+
+	/**
+	 * A stacked sound plays as one loop for all its areas; CStackedSounds sets its loudness and side from the nearest
+	 * area every frame, so it is started unplaced.
+	 */
+	long startStacked() {
+		if ((this.sound == null) || (this.audioContext == null)) {
+			return -1;
+		}
+		return Extensions.audio.play(this.sound, 0f, this.parameters.startPitch(), 0, 0, 0, false, 1, 1, true);
+	}
+
+	void setStackedLevel(final long id, final float gain, final float pan) {
+		final float volume = this.parameters.scaledVolume(1.0f, null) * gain;
+		this.sound.setPan(id, pan, volume);
+	}
+
+	void stopStacked(final long id) {
+		this.sound.stop(id);
+	}
+
+	CSoundParameters getParameters() {
+		return this.parameters;
 	}
 
 	@Override

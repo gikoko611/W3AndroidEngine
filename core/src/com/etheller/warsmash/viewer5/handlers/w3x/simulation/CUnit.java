@@ -17,11 +17,15 @@ import com.badlogic.gdx.math.Rectangle;
 import com.badlogic.gdx.utils.IntIntMap;
 import com.etheller.interpreter.ast.scope.GlobalScope;
 import com.etheller.interpreter.ast.scope.TriggerExecutionScope;
+import com.etheller.interpreter.ast.scope.trigger.RemovableTriggerEvent;
 import com.etheller.interpreter.ast.scope.trigger.Trigger;
+import com.etheller.interpreter.ast.scope.variableevent.CLimitOp;
 import com.etheller.warsmash.parsers.jass.scope.CommonTriggerExecutionScope;
 import com.etheller.warsmash.util.ArgbImage;
 import com.etheller.warsmash.util.War3ID;
 import com.etheller.warsmash.util.WarsmashConstants;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.skills.CAbilitySpellBase;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilitybuilder.ability.AbilityBuilderAbility;
 import com.etheller.warsmash.viewer5.handlers.w3x.AnimationTokens.PrimaryTag;
 import com.etheller.warsmash.viewer5.handlers.w3x.SequenceUtils;
 import com.etheller.warsmash.viewer5.handlers.w3x.environment.PathingGrid.MovementType;
@@ -131,6 +135,7 @@ import com.etheller.warsmash.viewer5.handlers.w3x.simulation.trigger.enumtypes.C
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.trigger.enumtypes.CFogState;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.unit.CUnitAppliedUpgrade;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.unit.CUnitBehaviorChangeListener;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.unit.CUnitStateEvent;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.unit.CUnitTypeJass;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.unit.CWidgetEvent;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.unit.NonStackingFx;
@@ -275,6 +280,12 @@ public class CUnit extends CWidget {
 	private boolean autoAttack = true;
 	private boolean autoCast = true;
 	private static final int AUTOCAST_COMBAT_SCAN_TICKS = (int) (0.5f / WarsmashConstants.SIMULATION_STEP_TIME);
+	// Measured (1.29): autocast looks this far for targets whatever the acquisition range (Web, Heal).
+	private static final float AUTOCAST_SEARCH_RANGE = 600f;
+	// Measured (1.29): an idle caster looks for an autocast target when it is made, then every 3 s, and again as
+	// soon as the spell's cooldown ends (Spell Steal, Web, Heal).
+	private static final int AUTOCAST_IDLE_RESCAN_TICKS = (int) (3.0f / WarsmashConstants.SIMULATION_STEP_TIME);
+	private int nextIdleAutocastScanTick;
 	private boolean autoTargetable = true;
 	private boolean assistAlly = true;
 	private boolean moveDisabled = false;
@@ -285,7 +296,10 @@ public class CUnit extends CWidget {
 	private static final Rectangle callForHelpRect = new Rectangle();
 	private int nextCallForHelpTick;
 	private CUnit pendingAttackBackSource;
+	private CUnit pendingSpellAnswerSource;
+	private CUnit spellMissileSource;
 	private boolean pendingAttackBackWasHit;
+	private boolean pendingAttackBackHelp;
 	private static final float CREEP_ALERT_RADIUS = 800f;
 	private boolean guarding;
 	private float guardX;
@@ -310,6 +324,13 @@ public class CUnit extends CWidget {
 	private CBehavior interruptedDefaultBehavior;
 	private CBehavior interruptedBehavior;
 	private COrder lastStartedOrder = null;
+	private static final float DEFAULT_RESCUE_RANGE = 414.5f;
+	private static final int RESCUE_REPEAT_TICKS = (int) (1 / WarsmashConstants.SIMULATION_STEP_TIME);
+	private float rescueRange = DEFAULT_RESCUE_RANGE;
+	private int rescuableByPlayers;
+	private int unrescuableByPlayers;
+	private int lastRescueTick = Integer.MIN_VALUE / 2;
+	private COrder scriptAnimationOrder = null;
 	private CUnit worker;
 	private boolean workerInside;
 	private int powerWorkers;
@@ -356,6 +377,9 @@ public class CUnit extends CWidget {
 	private CTimer fadeTimer;
 	private final List<Integer> detectorLevels = new ArrayList<>(1);
 	private long detections = 0;
+	// Players whose fog has shown this unit at least once: 1.29 reports such a unit fogged, not masked, even under
+	// black mask set later.
+	private long seenByPlayers = 0;
 	private int ultravisionSources = 0;
 
 	private boolean hideMinimapIcon;
@@ -2328,6 +2352,7 @@ public class CUnit extends CWidget {
 	public void setMana(final float mana) {
 		this.mana = mana;
 		this.stateNotifier.manaChanged();
+		checkStateEvents(false);
 	}
 
 	public void setMaximumLife(final int maximumLife) {
@@ -2390,6 +2415,16 @@ public class CUnit extends CWidget {
 				}
 			}
 			this.stateListenersUpdates.clear();
+		}
+		// Mana regeneration and stat changes write the fields directly; they reach the state events here. Measured: the
+		// original writes a dying unit's life once more a moment after its death.
+		checkStateEvents(false);
+		if (isDead() && !this.corpse && (game.getGameTurnTick() == (this.deathTurnTick + 1))) {
+			checkStateEvents(true);
+		}
+		this.spellMissileSource = null;
+		if ((this.pendingSpellAnswerSource != null) && !isDead()) {
+			resolveSpellAnswer(game);
 		}
 		if ((this.pendingAttackBackSource != null) && !isDead()) {
 			resolveAttackBack(game);
@@ -2465,14 +2500,14 @@ public class CUnit extends CWidget {
 				}
 				if (this.constructing) {
 					if (!(this.constructingPaused || this.constructionBlocked)) {
-						this.constructionProgress += WarsmashConstants.SIMULATION_STEP_TIME;
+						this.constructionProgress += WarsmashConstants.SIMULATION_STEP_TIME * game.getCheatBuildSpeed();
 					}
 					final int buildTime;
 					final boolean upgrading = isUpgrading();
 					if (!upgrading) {
 						buildTime = this.unitType.getBuildTime();
 						if (!(this.constructingPaused || this.constructionBlocked)) {
-							final float healthGain = (WarsmashConstants.SIMULATION_STEP_TIME / buildTime)
+							final float healthGain = ((WarsmashConstants.SIMULATION_STEP_TIME * game.getCheatBuildSpeed()) / buildTime)
 									* (this.maximumLife * (1.0f - WarsmashConstants.BUILDING_CONSTRUCT_START_LIFE));
 							setLife(game, Math.min(this.life + healthGain, this.maximumLife));
 						}
@@ -2551,7 +2586,7 @@ public class CUnit extends CWidget {
 						// queue step forward
 						if (this.queuedUnitFoodPaid) {
 							if (!this.trainingBlocked) {
-								this.constructionProgress += WarsmashConstants.SIMULATION_STEP_TIME;
+								this.constructionProgress += WarsmashConstants.SIMULATION_STEP_TIME * game.getCheatBuildSpeed();
 							}
 						} else {
 							if (this.buildQueueTypes[0] == QueueItemType.UNIT) {
@@ -2857,13 +2892,32 @@ public class CUnit extends CWidget {
 	}
 
 	public boolean autoAcquireTargets(final CSimulation game, final boolean disableMove) {
-		final boolean autocast = this.autoCast ? autoAcquireAutocastTargets(game, disableMove) : false;
+		boolean autocast = false;
+		final int tick = game.getGameTurnTick();
+		if (this.autoCast && (this.autocastAbility != null) && (tick >= this.nextIdleAutocastScanTick)) {
+			autocast = autoAcquireAutocastTargets(game, disableMove);
+			if (!autocast) {
+				final int cooldownTicks = autocastCooldownTicks(game);
+				this.nextIdleAutocastScanTick = tick
+						+ ((cooldownTicks > 0) ? Math.min(cooldownTicks, AUTOCAST_IDLE_RESCAN_TICKS) : AUTOCAST_IDLE_RESCAN_TICKS);
+			}
+		}
 		if (!autocast) {
 			if (this.autoAttack) {
 				return autoAcquireAttackTargets(game, disableMove);
 			}
 		}
 		return autocast;
+	}
+
+	private int autocastCooldownTicks(final CSimulation game) {
+		if (this.autocastAbility instanceof AbilityBuilderAbility) {
+			return (int) ((AbilityBuilderAbility) this.autocastAbility).getCooldownRemainingTicks(game, this);
+		}
+		if (this.autocastAbility instanceof CAbilitySpellBase) {
+			return getCooldownRemainingTicks(game, ((CAbilitySpellBase) this.autocastAbility).getCode());
+		}
+		return 0;
 	}
 
 	public boolean autoAcquireAutocastTargets(final CSimulation game, final boolean disableMove) {
@@ -2883,7 +2937,7 @@ public class CUnit extends CWidget {
 				} else {
 					tempRect.set(getX(), getY(), 0, 0);
 				}
-				final float halfSize = this.acquisitionRange;
+				final float halfSize = AUTOCAST_SEARCH_RANGE;
 				tempRect.x -= halfSize;
 				tempRect.y -= halfSize;
 				tempRect.width += halfSize * 2;
@@ -3065,7 +3119,14 @@ public class CUnit extends CWidget {
 			order(simulation, new COrderNoTarget(this.playerIndex, 0, orderId, false), false, autoOrder);
 			return true;
 		}
+		if (this.removedFromGame) {
+			return false;
+		}
 		for (final CAbility ability : this.abilities) {
+			// An order built on an ability the simulation no longer knows comes straight back here (COrder*.begin).
+			if (simulation.getAbility(ability.getHandleId()) != ability) {
+				continue;
+			}
 			final BooleanAbilityActivationReceiver activationReceiver = BooleanAbilityActivationReceiver.INSTANCE.reset();
 			ability.checkCanUse(simulation, this, this.playerIndex, orderId, false, activationReceiver);
 			if (activationReceiver.isOk()) {
@@ -3229,6 +3290,169 @@ public class CUnit extends CWidget {
 		this.computeUnitState(simulation, StateModBuffType.FALSE_OWNERSHIP);
 	}
 
+	/**
+	 * Gives the unit to another player as SetUnitOwner, Charm, Possession and Control Magic do. Measured on 1.29
+	 * (unit-change-owner): food used and food made move with the unit, the order is dropped, and the change fires
+	 * EVENT_UNIT_CHANGE_OWNER and the new owner's EVENT_PLAYER_UNIT_CHANGE_OWNER at once; giving a unit to its own
+	 * player fires nothing.
+	 */
+	public void changeOwner(final CSimulation simulation, final int newPlayerIndex, final boolean changeColor) {
+		final int previousPlayerIndex = this.playerIndex;
+		if (newPlayerIndex == previousPlayerIndex) {
+			if (changeColor) {
+				simulation.changeUnitColor(this, newPlayerIndex);
+			}
+			return;
+		}
+		final CPlayer previousPlayer = simulation.getPlayer(previousPlayerIndex);
+		final CPlayer newPlayer = simulation.getPlayer(newPlayerIndex);
+		final boolean alive = !isDead();
+		if (alive) {
+			for (final War3ID upgradeUsed : this.unitType.getUpgradesUsed()) {
+				final CUpgradeType upgradeType = simulation.getUpgradeData().getType(upgradeUsed);
+				if ((upgradeType != null) && upgradeType.isTransferWithUnitOwnership()) {
+					final int previousLevel = previousPlayer.getTechtreeUnlocked(upgradeUsed);
+					if (previousLevel > newPlayer.getTechtreeUnlocked(upgradeUsed)) {
+						newPlayer.setTechResearched(simulation, upgradeUsed, previousLevel);
+					}
+				}
+			}
+		}
+		simulation.getUnitData().unapplyPlayerUpgradesToUnit(simulation, previousPlayerIndex, this.unitType, this);
+		final int foodUsed = this.foodUsed;
+		final int foodMade = this.foodMade;
+		previousPlayer.setUnitFoodUsed(this, 0);
+		previousPlayer.setUnitFoodMade(this, 0);
+		final boolean hero = simulation.getPlayerHeroes(previousPlayerIndex).remove(this);
+		if (alive && (getHeroData() == null)) {
+			if (this.constructing) {
+				previousPlayer.removeTechtreeInProgress(simulation, this.unitType.getTypeId());
+			}
+			else {
+				previousPlayer.removeTechtreeUnlocked(simulation, this.unitType.getTypeId());
+				for (final War3ID upgradedFromTypeId : this.upgradedFromTypeIds) {
+					previousPlayer.removeTechtreeUnlocked(simulation, upgradedFromTypeId);
+				}
+			}
+		}
+		setPlayerIndex(simulation, newPlayerIndex, changeColor);
+		if (alive && (getHeroData() == null)) {
+			if (this.constructing) {
+				newPlayer.addTechtreeInProgress(simulation, this.unitType.getTypeId());
+			}
+			else {
+				newPlayer.addTechtreeUnlocked(simulation, this.unitType.getTypeId());
+				for (final War3ID upgradedFromTypeId : this.upgradedFromTypeIds) {
+					newPlayer.addTechtreeUnlocked(simulation, upgradedFromTypeId);
+				}
+			}
+		}
+		if (hero) {
+			simulation.getPlayerHeroes(newPlayerIndex).add(this);
+		}
+		simulation.getUnitData().applyPlayerUpgradesToUnit(simulation, newPlayerIndex, this.unitType, this);
+		newPlayer.setUnitFoodUsed(this, foodUsed);
+		newPlayer.setUnitFoodMade(this, foodMade);
+		if (alive) {
+			// 1.29 (unit-change-owner): the unit is idle at once, GetUnitCurrentOrder reads 0 and not stop.
+			order(simulation, (COrder) null, false);
+		}
+		fireChangeOwnerEvents(simulation, previousPlayer, newPlayer);
+	}
+
+	private void fireChangeOwnerEvents(final CSimulation simulation, final CPlayer previousPlayer,
+			final CPlayer newPlayer) {
+		final List<CWidgetEvent> eventList = getEventList(JassGameEventsWar3.EVENT_UNIT_CHANGE_OWNER);
+		if (eventList != null) {
+			for (int i = eventList.size() - 1; i >= 0; i--) {
+				final CWidgetEvent event = eventList.get(i);
+				event.fire(this, CommonTriggerExecutionScope.unitChangeOwnerScope(
+						JassGameEventsWar3.EVENT_UNIT_CHANGE_OWNER, event.getTrigger(), this, newPlayer,
+						previousPlayer));
+			}
+		}
+		newPlayer.fireUnitChangeOwnerEvents(this, previousPlayer);
+	}
+
+	public void setRescuable(final int byPlayerIndex, final boolean rescuable) {
+		final int bit = 1 << byPlayerIndex;
+		if (rescuable) {
+			this.rescuableByPlayers |= bit;
+			this.unrescuableByPlayers &= ~bit;
+		}
+		else {
+			this.unrescuableByPlayers |= bit;
+			this.rescuableByPlayers &= ~bit;
+		}
+	}
+
+	public void setRescueRange(final float rescueRange) {
+		this.rescueRange = rescueRange;
+	}
+
+	/**
+	 * A unit of a rescuable-controlled player is rescuable by the players it has ALLIANCE_RESCUABLE towards;
+	 * SetUnitRescuable turns that on or off for one unit and one player, also for units of other players.
+	 */
+	public boolean isRescuableBy(final CSimulation simulation, final int byPlayerIndex) {
+		final int bit = 1 << byPlayerIndex;
+		if ((this.unrescuableByPlayers & bit) != 0) {
+			return false;
+		}
+		if ((this.rescuableByPlayers & bit) != 0) {
+			return true;
+		}
+		final CPlayer owner = simulation.getPlayer(this.playerIndex);
+		return (owner.getController() == CMapControl.RESCUABLE)
+				&& owner.hasAlliance(byPlayerIndex, CAllianceType.RESCUABLE);
+	}
+
+	/**
+	 * Measured on 1.29 (unit-rescue): the first tick a ground unit of a rescuing player stands within the rescue range
+	 * (between 414 and 415 apart by default, also for larger units; flying units rescue nothing) the unit fires
+	 * EVENT_UNIT_RESCUED and its owner's EVENT_PLAYER_UNIT_RESCUED. The ownership change itself is Blizzard.j's
+	 * (RescueUnitBJ), and a rescued unit rescues the ones near it in turn.
+	 */
+	void checkRescue(final CSimulation simulation) {
+		if ((this.rescuableByPlayers == 0)
+				&& (simulation.getPlayer(this.playerIndex).getController() != CMapControl.RESCUABLE)) {
+			return;
+		}
+		if (isDead() || this.hidden || isRemovedFromGame()
+				|| ((simulation.getGameTurnTick() - this.lastRescueTick) < RESCUE_REPEAT_TICKS)) {
+			return;
+		}
+		final float range = this.rescueRange;
+		final float x = getX();
+		final float y = getY();
+		final CUnit[] rescuer = { null };
+		simulation.getWorldCollision().enumUnitsInRect(new Rectangle(x - range, y - range, range * 2, range * 2),
+				(enumUnit) -> {
+					if ((enumUnit.playerIndex != this.playerIndex) && !enumUnit.isDead() && !enumUnit.hidden
+							&& !enumUnit.isRemovedFromGame()
+							&& !enumUnit.isBuilding() && !enumUnit.isUnitType(CUnitTypeJass.FLYING)
+							&& (Math.hypot(enumUnit.getX() - x, enumUnit.getY() - y) <= range) && isRescuableBy(simulation, enumUnit.playerIndex)) {
+						rescuer[0] = enumUnit;
+						return true;
+					}
+					return false;
+				});
+		if (rescuer[0] == null) {
+			return;
+		}
+		this.lastRescueTick = simulation.getGameTurnTick();
+		final CPlayer owner = simulation.getPlayer(this.playerIndex);
+		final List<CWidgetEvent> eventList = getEventList(JassGameEventsWar3.EVENT_UNIT_RESCUED);
+		if (eventList != null) {
+			for (int i = eventList.size() - 1; i >= 0; i--) {
+				final CWidgetEvent event = eventList.get(i);
+				event.fire(this, CommonTriggerExecutionScope.unitRescuedScope(JassGameEventsWar3.EVENT_UNIT_RESCUED,
+						event.getTrigger(), this, rescuer[0], owner));
+			}
+		}
+		owner.fireUnitRescuedEvents(this, rescuer[0]);
+	}
+
 	public int getFakePlayerIndex() {
 		return this.fakePlayerIndex;
 	}
@@ -3260,6 +3484,10 @@ public class CUnit extends CWidget {
 	}
 
 	public void setPointAndCheckUnstuck(final float newX, final float newY, final CSimulation game) {
+		if (this.removedFromGame) {
+			// Measured (1.29, group-removed-d308): moving a removed unit does nothing.
+			return;
+		}
 		final CWorldCollision collision = game.getWorldCollision();
 		final PathingGrid pathingGrid = game.getPathingGrid();
 		;
@@ -3284,7 +3512,7 @@ public class CUnit extends CWidget {
 			collisionSize = this.unitType.getCollisionSize();
 		}
 		if (!isBuilding()) {
-			final float[] free = findNearestFreeCell(newX, newY, collision, pathingGrid, collisionSize);
+			final float[] free = findNearestFreeCell(newX, newY, collision, pathingGrid, collisionSize, getMovementType());
 			setPoint(free[0], free[1], collision, game.getRegionManager());
 			game.unitRepositioned(this);
 			return;
@@ -3307,11 +3535,32 @@ public class CUnit extends CWidget {
 		game.unitRepositioned(this);
 	}
 
+	/**
+	 * Puts a flyer forced to the ground (Web) where a land unit of its size could stand: it stays when its own place
+	 * fits one, otherwise it goes to the first free cell of the spiral from fromX, fromY.
+	 */
+	public void placeOnGround(final CSimulation game, final float fromX, final float fromY) {
+		final CWorldCollision collision = game.getWorldCollision();
+		final PathingGrid pathingGrid = game.getPathingGrid();
+		final float collisionSize = this.unitType.getCollisionSize();
+		// Measured with a Gryphon Rider (collision 8) next to a Crypt Fiend (32): a cell 48 from the Fiend on an axis
+		// is refused, 68 and 73 are taken, so the flyer counts as 32 here, not 8.
+		final float size = Math.max(64f, collisionSize * 2);
+		tempRect.setSize(size, size);
+		if (fitsAt(getX(), getY(), collision, pathingGrid, collisionSize, MovementType.FOOT)) {
+			return;
+		}
+		final float[] free = findNearestFreeCell(fromX, fromY, collision, pathingGrid, collisionSize,
+				MovementType.FOOT);
+		setPoint(free[0], free[1], collision, game.getRegionManager());
+		game.unitRepositioned(this);
+	}
+
 	private boolean fitsAt(final float x, final float y, final CWorldCollision collision,
-			final PathingGrid pathingGrid, final float collisionSize) {
+			final PathingGrid pathingGrid, final float collisionSize, final MovementType movementType) {
 		tempRect.setCenter(x, y);
-		return !collision.intersectsAnythingOtherThan(tempRect, this, getMovementType(), false)
-				&& pathingGrid.isPathable(x, y, getMovementType(), collisionSize);
+		return !collision.intersectsAnythingOtherThan(tempRect, this, movementType, false)
+				&& pathingGrid.isPathable(x, y, movementType, collisionSize);
 	}
 
 	/**
@@ -3321,8 +3570,8 @@ public class CUnit extends CWidget {
 	 * pathing map at the cell's lower left corner but other units at the cell centre.
 	 */
 	private float[] findNearestFreeCell(final float x, final float y, final CWorldCollision collision,
-			final PathingGrid pathingGrid, final float collisionSize) {
-		if (fitsAt(x, y, collision, pathingGrid, collisionSize)) {
+			final PathingGrid pathingGrid, final float collisionSize, final MovementType movementType) {
+		if (fitsAt(x, y, collision, pathingGrid, collisionSize, movementType)) {
 			return new float[] { x, y };
 		}
 		final float baseX = (float) Math.floor(x / 32f) * 32f;
@@ -3338,8 +3587,8 @@ public class CUnit extends CWidget {
 					final float cx = baseX + (cellX * 32f);
 					final float cy = baseY + (cellY * 32f);
 					tempRect.setCenter(cx + 16f, cy + 16f);
-					if (!collision.intersectsAnythingOtherThan(tempRect, this, getMovementType(), false)
-							&& pathingGrid.isPathable(cx, cy, getMovementType(), collisionSize)) {
+					if (!collision.intersectsAnythingOtherThan(tempRect, this, movementType, false)
+							&& pathingGrid.isPathable(cx, cy, movementType, collisionSize)) {
 						return new float[] { cx + 16f, cy + 16f };
 					}
 					cellX += stepX[direction];
@@ -3670,6 +3919,7 @@ public class CUnit extends CWidget {
 				this.life = 0;
 			}
 			this.stateNotifier.lifeChanged();
+			checkStateEvents(false);
 		}
 		for (final CUnitAttackDamageTakenListener listener : new ArrayList<>(this.damageTakenListeners)) {
 			listener.onDamage(simulation, source, this, flags, damageType, damage, bonusDamage, trueDamage);
@@ -3684,7 +3934,7 @@ public class CUnit extends CWidget {
 			}
 		} else {
 			if (isIdleForAttack() || isReturningFromLostTarget()) {
-				queueAttackBack(source, true);
+				queueAttackBack(source, true, false);
 			}
 			this.lastCombatTick = simulation.getGameTurnTick();
 			this.lastHurtTick = this.lastCombatTick;
@@ -3882,20 +4132,24 @@ public class CUnit extends CWidget {
 	 * never answers it; a sleeping creep woken by the hit is asleep again at once and does not move. So the answer
 	 * (attack back, alert, flee) waits for the unit's own update and is dropped if the source is gone by then.
 	 */
-	private void queueAttackBack(final CUnit source, final boolean wasHit) {
+	private void queueAttackBack(final CUnit source, final boolean wasHit, final boolean help) {
 		if ((source != null) && (this.pendingAttackBackSource == null)) {
 			this.pendingAttackBackSource = source;
 			this.pendingAttackBackWasHit = wasHit;
+			this.pendingAttackBackHelp = help;
 		}
 	}
 
 	private void resolveAttackBack(final CSimulation simulation) {
-		final CUnit source = this.pendingAttackBackSource;
+		CUnit source = this.pendingAttackBackSource;
 		final boolean wasHit = this.pendingAttackBackWasHit;
 		this.pendingAttackBackSource = null;
 		if (source.isDead() || source.isHidden() || source.isRemovedFromGame()
 				|| !(isIdleForAttack() || isReturningFromLostTarget())) {
 			return;
+		}
+		if (this.pendingAttackBackHelp) {
+			source = nearestHelpTarget(simulation, source);
 		}
 		final boolean foundMatchingReturnFireAttack = attackBack(simulation, source);
 		if (wasHit && foundMatchingReturnFireAttack) {
@@ -3913,23 +4167,107 @@ public class CUnit extends CWidget {
 		}
 	}
 
+	/**
+	 * Measured on 1.29 (probe cast-acquire-d283): an idle unit that an enemy's unit-target spell takes effect on (Slow,
+	 * Curse, Faerie Fire) answers the caster as if hit, and calls its allies for help; the caster itself does not
+	 * attack after its cast. Point and no-target spells draw no answer.
+	 */
+	public void onTargetedBySpell(final CSimulation simulation, final CUnit caster) {
+		if ((caster == null) || (caster == this) || isDead() || simulation.getPlayer(this.playerIndex)
+				.hasAlliance(caster.getPlayerIndex(), CAllianceType.PASSIVE)) {
+			return;
+		}
+		this.pendingSpellAnswerSource = caster;
+	}
+
+	/**
+	 * A spell that flies to its target is answered when it lands (1.29: an Ensnared Footman never turns to the
+	 * Raider). Hardcoded spells launch their missile after the effect event and builder spells before it, so the
+	 * launch both withdraws an answer already asked for and blocks the effect event that follows it before the
+	 * target's next update.
+	 */
+	public void onSpellMissileLaunched(final CUnit caster) {
+		if (this.pendingSpellAnswerSource == caster) {
+			this.pendingSpellAnswerSource = null;
+		}
+		this.spellMissileSource = caster;
+	}
+
+	private void onSpellEffect(final CSimulation simulation, final CUnit caster) {
+		if (this.spellMissileSource == caster) {
+			return;
+		}
+		onTargetedBySpell(simulation, caster);
+	}
+
+	private void resolveSpellAnswer(final CSimulation simulation) {
+		final CUnit caster = this.pendingSpellAnswerSource;
+		this.pendingSpellAnswerSource = null;
+		if (caster.isDead() || caster.isHidden() || caster.isRemovedFromGame()) {
+			return;
+		}
+		if (isIdleForAttack() || isReturningFromLostTarget()) {
+			queueAttackBack(caster, false, false);
+		}
+		callForHelp(simulation, caster);
+	}
+
 	private boolean attackBack(final CSimulation simulation, final CUnit source) {
 		if ((source == null)
 				|| simulation.getPlayer(getPlayerIndex()).hasAlliance(source.getPlayerIndex(), CAllianceType.PASSIVE)
 				|| this.classifications.contains(CUnitClassification.PEON)) {
 			return false;
 		}
+		// 1.29: a unit on hold position answers only an attacker it reaches from where it stands.
+		final boolean disableMove = this.moveDisabled || (this.defaultBehavior == this.holdPositionBehavior);
 		for (final CUnitAttack attack : getCurrentAttacks()) {
-			if (source.canBeTargetedBy(simulation, this, attack.getTargetsAllowed())) {
+			// 1.29 (creep-wake-sleep r1): an attacker out of sight in the fog is still chased.
+			if (source.canBeTargetedBy(simulation, this, true, attack.getTargetsAllowed(),
+					BooleanAbilityTargetCheckReceiver.<CWidget>getInstance().reset(), true)) {
 				final CBehaviorAttack attackBehaviorForAtk = getAttackBehavior();
-				if (attackBehaviorForAtk != null) {
-					beginBehavior(simulation, attackBehaviorForAtk.reset(simulation, OrderIds.attack, attack, source,
-							false, CBehaviorAttackListener.DO_NOTHING), true);
+				final CAbilityAttack attackAbility = getFirstAbilityOfType(CAbilityAttack.class);
+				if ((attackBehaviorForAtk != null) && ((attackAbility == null) || !attackAbility.isDisabled())) {
+					final CBehavior chase = attackBehaviorForAtk.reset(simulation, OrderIds.attack, attack, source,
+							disableMove, CBehaviorAttackListener.DO_NOTHING);
+					attackBehaviorForAtk.setThroughFog(true);
+					beginBehavior(simulation, chase, true);
 					return true;
 				}
 			}
 		}
 		return false;
+	}
+
+	/**
+	 * Measured on 1.29 (probe answer-pick-d289): a unit called for help does not go for the attacker that called it but
+	 * for the enemy nearest to itself, even one that has not attacked; the attacker when nothing is nearer.
+	 */
+	private CUnit nearestHelpTarget(final CSimulation simulation, final CUnit attacker) {
+		final float reach = (float) distance(attacker);
+		final CPlayer owner = simulation.getPlayer(this.playerIndex);
+		final CUnit[] nearest = { attacker };
+		final double[] nearestDistance = { reach };
+		callForHelpRect.set(getX() - reach, getY() - reach, reach * 2, reach * 2);
+		simulation.getWorldCollision().enumUnitsInRect(callForHelpRect, (unit) -> {
+			if ((unit == this) || (unit == attacker) || unit.isDead() || unit.isHidden() || !unit.isAutoTargetable()
+					|| unit.isInvulnerable() || unit.isUnitType(CUnitTypeJass.SLEEPING)
+					|| owner.hasAlliance(unit.getPlayerIndex(), CAllianceType.PASSIVE)) {
+				return false;
+			}
+			final double unitDistance = distance(unit);
+			if (unitDistance >= nearestDistance[0]) {
+				return false;
+			}
+			for (final CUnitAttack attack : getCurrentAttacks()) {
+				if (unit.canBeTargetedBy(simulation, this, attack.getTargetsAllowed())) {
+					nearest[0] = unit;
+					nearestDistance[0] = unitDistance;
+					break;
+				}
+			}
+			return false;
+		});
+		return nearest[0];
 	}
 
 	/**
@@ -3959,7 +4297,7 @@ public class CUnit extends CWidget {
 			// 1.29 data has no AICallForHelp entry; its computer players are helped like users.
 			radius = constants.getCallForHelp();
 		}
-		summonHelpers(simulation, attacker, radius);
+		summonHelpers(simulation, attacker, radius, true);
 	}
 
 	/**
@@ -3968,7 +4306,7 @@ public class CUnit extends CWidget {
 	 */
 	private void alertCreeps(final CSimulation simulation, final CUnit target) {
 		if ((target != null) && simulation.isNeutralAggressive(this.playerIndex)) {
-			summonHelpers(simulation, target, CREEP_ALERT_RADIUS);
+			summonHelpers(simulation, target, CREEP_ALERT_RADIUS, false);
 		}
 	}
 
@@ -3976,7 +4314,8 @@ public class CUnit extends CWidget {
 	 * Idle units of this owner, and of players this owner asks for help who answer it, join against the attacker. The
 	 * reach counts to the helper's edge, as the original's thresholds sit one Footman radius past the constant.
 	 */
-	private void summonHelpers(final CSimulation simulation, final CUnit attacker, final float radius) {
+	private void summonHelpers(final CSimulation simulation, final CUnit attacker, final float radius,
+			final boolean help) {
 		final CPlayer owner = simulation.getPlayer(this.playerIndex);
 		callForHelpRect.set(getX() - radius, getY() - radius, radius * 2, radius * 2);
 		simulation.getWorldCollision().enumUnitsInRect(callForHelpRect, (helper) -> {
@@ -3988,7 +4327,7 @@ public class CUnit extends CWidget {
 					&& ((helper.distance(getX(), getY()) - helper.unitType.getCollisionSize()) <= radius)) {
 				helper.wakeUp(simulation);
 				if (helper.isIdleForAttack()) {
-					helper.queueAttackBack(attacker, false);
+					helper.queueAttackBack(attacker, false, help);
 				}
 			}
 			return false;
@@ -4374,6 +4713,12 @@ public class CUnit extends CWidget {
 
 	public boolean canBeTargetedBy(final CSimulation simulation, final CUnit source, final boolean targeted,
 			final EnumSet<CTargetType> targetsAllowed, final AbilityTargetCheckReceiver<CWidget> receiver) {
+		return canBeTargetedBy(simulation, source, targeted, targetsAllowed, receiver, simulation.isScriptOrder());
+	}
+
+	public boolean canBeTargetedBy(final CSimulation simulation, final CUnit source, final boolean targeted,
+			final EnumSet<CTargetType> targetsAllowed, final AbilityTargetCheckReceiver<CWidget> receiver,
+			final boolean throughFog) {
 		if ((this == source) && targetsAllowed.contains(CTargetType.NOTSELF)
 				&& !targetsAllowed.contains(CTargetType.SELF)) {
 			receiver.targetCheckFailed(CommandStringErrorKeys.UNABLE_TO_TARGET_SELF);
@@ -4393,7 +4738,7 @@ public class CUnit extends CWidget {
 			return false;
 		}
 		// Measured: script attack orders may target a unit hidden only by the fog of war.
-		final boolean fogOnly = simulation.isScriptOrder() && (this.invisLevels == 0);
+		final boolean fogOnly = throughFog && (this.invisLevels == 0);
 		if (targeted && ((!fogOnly && !isVisible(simulation, source.getPlayerIndex()))
 				|| (this.untargetablePlayers & (1 << source.getPlayerIndex())) != 0)) {
 			receiver.targetCheckFailed(CommandStringErrorKeys.MUST_TARGET_A_UNIT_WITH_THIS_ACTION);
@@ -4700,7 +5045,8 @@ public class CUnit extends CWidget {
 
 		@Override
 		public boolean call(final CUnit unit) {
-			if (unit.isAutoTargetable() && this.type != AutocastType.NONE) {
+			if (unit.isAutoTargetable() && this.type != AutocastType.NONE
+					&& this.source.canReach(unit, AUTOCAST_SEARCH_RANGE)) {
 				switch (this.type) {
 				case ATTACKINGALLY:
 				case ATTACKINGENEMY:
@@ -5200,6 +5546,11 @@ public class CUnit extends CWidget {
 
 	@Override
 	public void setLife(final CSimulation simulation, final float life) {
+		applyLife(simulation, life);
+		checkStateEvents(false);
+	}
+
+	private void applyLife(final CSimulation simulation, final float life) {
 		final boolean wasDead = isDead();
 		super.setLife(simulation, life);
 		if (isDead() && !wasDead) {
@@ -5673,6 +6024,26 @@ public class CUnit extends CWidget {
 		return this.lastStartedOrder;
 	}
 
+	/**
+	 * Measured on 1.29 (probe unit-anim-script): an animation a script sets on a unit walking under an order is not
+	 * replaced by the walk; it repeats while the unit keeps walking, until the unit gets another order or the order
+	 * ends. An idle unit plays it once.
+	 */
+	public void holdScriptAnimation() {
+		this.scriptAnimationOrder = this.lastStartedOrder;
+	}
+
+	public void releaseScriptAnimation() {
+		this.scriptAnimationOrder = null;
+	}
+
+	public boolean isScriptAnimationHeld() {
+		if ((this.scriptAnimationOrder != null) && (this.scriptAnimationOrder != this.lastStartedOrder)) {
+			this.scriptAnimationOrder = null;
+		}
+		return this.scriptAnimationOrder != null;
+	}
+
 	public CAbilityHero getHeroData() {
 		for (int i = 0, n = this.abilities.size(); i < n; i++) {
 			final CAbility ability = this.abilities.get(i);
@@ -5964,19 +6335,36 @@ public class CUnit extends CWidget {
 
 	public void setUnitState(final CSimulation game, final CUnitState whichUnitState, final float value) {
 		switch (whichUnitState) {
-		// Measured: the original keeps a script's life and mana within the unit's maximum.
+		// Measured: the original keeps a script's life and mana within the unit's maximum, and leaves the maximum
+		// itself as it is.
 		case LIFE:
-			setLife(game, Math.min(value, getMaximumLife()));
+			applyLife(game, Math.min(value, getMaximumLife()));
 			break;
 		case MANA:
-			setMana(Math.max(0, Math.min(value, getMaximumMana())));
+			this.mana = Math.max(0, Math.min(value, getMaximumMana()));
+			this.stateNotifier.manaChanged();
 			break;
-		case MAX_LIFE:
-			setMaximumLife((int) value);
-			break;
-		case MAX_MANA:
-			setMaximumMana((int) value);
-			break;
+		default:
+			return;
+		}
+		checkStateEvents(true);
+	}
+
+	public RemovableTriggerEvent addStateEvent(final GlobalScope globalScope, final Trigger whichTrigger,
+			final CUnitState state, final CLimitOp limitOp, final double limitValue) {
+		final CUnitStateEvent event = new CUnitStateEvent(globalScope, this, whichTrigger, state, limitOp, limitValue);
+		addEvent(event);
+		return event;
+	}
+
+	private void checkStateEvents(final boolean written) {
+		final List<CWidgetEvent> eventList = getEventList(JassGameEventsWar3.EVENT_UNIT_STATE_LIMIT);
+		if (eventList != null) {
+			for (int i = eventList.size() - 1; i >= 0; i--) {
+				if (i < eventList.size()) {
+					((CUnitStateEvent) eventList.get(i)).check(this, written);
+				}
+			}
 		}
 	}
 
@@ -6402,6 +6790,10 @@ public class CUnit extends CWidget {
 			final AbilityTarget target) {
 		if (eventId == JassGameEventsWar3.EVENT_UNIT_SPELL_EFFECT) {
 			game.spellEffectEvent(this, ability);
+			final CUnit targetUnit = (target == null) ? null : target.visit(AbilityTargetVisitor.UNIT);
+			if (targetUnit != null) {
+				targetUnit.onSpellEffect(game, this);
+			}
 		}
 		if (target == null) {
 			fireSpellEventsNoTarget(game, eventId, ability);
@@ -6839,8 +7231,7 @@ public class CUnit extends CWidget {
 		if (!isDead() && !this.hidden) {
 			final float sightRadius = getCurrentSightRadius(game);
 			if (sightRadius > 0) {
-				final float radSq = (sightRadius * sightRadius)
-						/ (CPlayerFogOfWar.GRID_STEP * CPlayerFogOfWar.GRID_STEP);
+				final int sightCells = CPlayerFogOfWar.getSightCells(sightRadius);
 				final CPlayerFogOfWar fogOfWar = game.getPlayer(this.playerIndex).getFogOfWar();
 				final boolean flying = getMovementType() == MovementType.FLY;
 				final float myX = getX();
@@ -6859,9 +7250,11 @@ public class CUnit extends CWidget {
 
 				final int myXi = pathingGrid.getFogOfWarIndexX(myX);
 				final int myYi = pathingGrid.getFogOfWarIndexY(myY);
-				final int maxXi = pathingGrid.getFogOfWarIndexX(myX + sightRadius);
-				final int maxYi = pathingGrid.getFogOfWarIndexY(myY + sightRadius);
-				for (int a = 1; a <= Math.max(maxYi - myYi, maxXi - myXi); a++) {
+				// Terrain and sight blockers are read at the first pathing cell of each fog cell, not at the unit's offset
+				// within its cell: the cell centre hides far more than 1.29 does, and the offset made it depend on the step.
+				final float cellX = pathingGrid.getFogOfWarSampleX(myXi);
+				final float cellY = pathingGrid.getFogOfWarSampleY(myYi);
+				for (int a = 1; a <= sightCells; a++) {
 					detections = 0;
 					for (int d = 0, dn = this.detectorLevels.size(); d < dn; d++) {
 						final int detectionLevel = this.detectorLevels.get(d);
@@ -6870,24 +7263,22 @@ public class CUnit extends CWidget {
 						}
 					}
 
-					if ((a * a) <= radSq) {
-						fogOfWar.checkCardinalVision(game, pathingGrid, detections, flying, myXi, myYi - a, myXi,
-								(myYi - a) + 1, myX, myY - (a * CPlayerFogOfWar.GRID_STEP), myX,
-								myY - ((a - 1) * CPlayerFogOfWar.GRID_STEP), myZ);
-						fogOfWar.checkCardinalVision(game, pathingGrid, detections, flying, myXi, myYi + a, myXi,
-								(myYi + a) - 1, myX, myY + (a * CPlayerFogOfWar.GRID_STEP), myX,
-								myY + ((a - 1) * CPlayerFogOfWar.GRID_STEP), myZ);
-						fogOfWar.checkCardinalVision(game, pathingGrid, detections, flying, myXi - a, myYi,
-								(myXi - a) + 1, myYi, myX - (a * CPlayerFogOfWar.GRID_STEP), myY,
-								myX - ((a - 1) * CPlayerFogOfWar.GRID_STEP), myY, myZ);
-						fogOfWar.checkCardinalVision(game, pathingGrid, detections, flying, myXi + a, myYi,
-								(myXi + a) - 1, myYi, myX + (a * CPlayerFogOfWar.GRID_STEP), myY,
-								myX + ((a - 1) * CPlayerFogOfWar.GRID_STEP), myY, myZ);
-					}
+					fogOfWar.checkCardinalVision(game, pathingGrid, detections, flying, myXi, myYi - a, myXi,
+							(myYi - a) + 1, cellX, cellY - (a * CPlayerFogOfWar.GRID_STEP), cellX,
+							cellY - ((a - 1) * CPlayerFogOfWar.GRID_STEP), myZ);
+					fogOfWar.checkCardinalVision(game, pathingGrid, detections, flying, myXi, myYi + a, myXi,
+							(myYi + a) - 1, cellX, cellY + (a * CPlayerFogOfWar.GRID_STEP), cellX,
+							cellY + ((a - 1) * CPlayerFogOfWar.GRID_STEP), myZ);
+					fogOfWar.checkCardinalVision(game, pathingGrid, detections, flying, myXi - a, myYi,
+							(myXi - a) + 1, myYi, cellX - (a * CPlayerFogOfWar.GRID_STEP), cellY,
+							cellX - ((a - 1) * CPlayerFogOfWar.GRID_STEP), cellY, myZ);
+					fogOfWar.checkCardinalVision(game, pathingGrid, detections, flying, myXi + a, myYi,
+							(myXi + a) - 1, myYi, cellX + (a * CPlayerFogOfWar.GRID_STEP), cellY,
+							cellX + ((a - 1) * CPlayerFogOfWar.GRID_STEP), cellY, myZ);
 				}
 
-				for (int y = 1; y <= (maxYi - myYi); y++) {
-					for (int x = 1; x <= (maxXi - myXi); x++) {
+				for (int y = 1; y <= sightCells; y++) {
+					for (int x = 1; x <= sightCells; x++) {
 						final float distance = (x * x) + (y * y);
 						detections = 0;
 						for (int d = 0, dn = this.detectorLevels.size(); d < dn; d++) {
@@ -6896,25 +7287,25 @@ public class CUnit extends CWidget {
 								detections |= (byte) detectionLevel;
 							}
 						}
-						if (distance <= radSq) {
+						if (CPlayerFogOfWar.isInSight(x, y, sightCells)) {
 							final int xf = x * CPlayerFogOfWar.GRID_STEP;
 							final int yf = y * CPlayerFogOfWar.GRID_STEP;
 
 							fogOfWar.checkDiagonalVision(game, pathingGrid, detections, flying, x, y, myXi - x,
-									myYi - y, (myXi - x) + 1, (myYi - y) + 1, myX - xf, myY - yf,
-									(myX - xf) + CPlayerFogOfWar.GRID_STEP, (myY - yf) + CPlayerFogOfWar.GRID_STEP,
+									myYi - y, (myXi - x) + 1, (myYi - y) + 1, cellX - xf, cellY - yf,
+									(cellX - xf) + CPlayerFogOfWar.GRID_STEP, (cellY - yf) + CPlayerFogOfWar.GRID_STEP,
 									myZ);
 							fogOfWar.checkDiagonalVision(game, pathingGrid, detections, flying, x, y, myXi - x,
-									myYi + y, (myXi - x) + 1, (myYi + y) - 1, myX - xf, myY + yf,
-									(myX - xf) + CPlayerFogOfWar.GRID_STEP, (myY + yf) - CPlayerFogOfWar.GRID_STEP,
+									myYi + y, (myXi - x) + 1, (myYi + y) - 1, cellX - xf, cellY + yf,
+									(cellX - xf) + CPlayerFogOfWar.GRID_STEP, (cellY + yf) - CPlayerFogOfWar.GRID_STEP,
 									myZ);
 							fogOfWar.checkDiagonalVision(game, pathingGrid, detections, flying, x, y, myXi + x,
-									myYi - y, (myXi + x) - 1, (myYi - y) + 1, myX + xf, myY - yf,
-									(myX + xf) - CPlayerFogOfWar.GRID_STEP, (myY - yf) + CPlayerFogOfWar.GRID_STEP,
+									myYi - y, (myXi + x) - 1, (myYi - y) + 1, cellX + xf, cellY - yf,
+									(cellX + xf) - CPlayerFogOfWar.GRID_STEP, (cellY - yf) + CPlayerFogOfWar.GRID_STEP,
 									myZ);
 							fogOfWar.checkDiagonalVision(game, pathingGrid, detections, flying, x, y, myXi + x,
-									myYi + y, (myXi + x) - 1, (myYi + y) - 1, myX + xf, myY + yf,
-									(myX + xf) - CPlayerFogOfWar.GRID_STEP, (myY + yf) - CPlayerFogOfWar.GRID_STEP,
+									myYi + y, (myXi + x) - 1, (myYi + y) - 1, cellX + xf, cellY + yf,
+									(cellX + xf) - CPlayerFogOfWar.GRID_STEP, (cellY + yf) - CPlayerFogOfWar.GRID_STEP,
 									myZ);
 						}
 					}
@@ -7154,10 +7545,24 @@ public class CUnit extends CWidget {
 		this.autocastAbility = autocastAbility;
 	}
 
+	public void updateSeenBy(final CSimulation simulation, final int playerCount) {
+		for (int i = 0; i < playerCount; i++) {
+			if (((this.seenByPlayers & (1L << i)) == 0) && isVisible(simulation, i)) {
+				this.seenByPlayers |= 1L << i;
+			}
+		}
+	}
+
+	public boolean isSeenBy(final int playerIndex) {
+		return (this.seenByPlayers & (1L << playerIndex)) != 0;
+	}
+
 	public boolean isVisible(final CSimulation simulation, final int toPlayerIndex) {
 		final CPlayer toPlayer = simulation.getPlayer(toPlayerIndex);
+		final CPlayer owner = simulation.getPlayer(this.playerIndex);
 		if (this.isDead() || (((toPlayerIndex == this.playerIndex)
-				|| toPlayer.hasAlliance(this.playerIndex, CAllianceType.SHARED_VISION))
+				|| owner.hasAlliance(toPlayerIndex, CAllianceType.SHARED_VISION)
+				|| owner.hasAlliance(toPlayerIndex, CAllianceType.SHARED_VISION_FORCED))
 				&& (getCurrentSightRadius(simulation) > 0))) {
 			return true;
 		}

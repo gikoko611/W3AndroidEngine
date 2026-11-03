@@ -606,6 +606,10 @@
 		"ids": [{"id":"Ahea", "castId": "heal", "autoCastOnId": "healon", "autoCastOffId": "healoff", "autoCastType": "NEARESTVALID"},{"id":"Anhe", "castId": "heal", "autoCastOnId": "healon", "autoCastOffId": "healoff", "autoCastType": "NEARESTVALID"}],
 		"type": "NORMAL_UNITTARGET",
 		"overrideFields": {
+			"repeatCast": {
+				"type": "rawBoolean",
+				"value": "true"
+			},
 			"universalSpell": {
 				"type": "rawBoolean",
 				"value": "true"
@@ -623,21 +627,6 @@
 					}
 				},
 				"reason": "ALREADY_AT_FULL_HEALTH"
-			},{
-				"type": "setCantUseReasonOnFailure",
-				"condition": {
-					"type": "not",
-					"condition": {
-						"type": "doesUnitHaveBuff",
-						"unit": {
-							"type": "getAbilityTargetedUnit"
-						},
-						"id": {
-							"type": "getFirstBuffId"
-						}
-					}
-				},
-				"reason": "TARGET_IS_ALREADY_BEING_HEALED"
 		}],
 		"onEndCasting": [{
 			"type": "checkAbilityEffectReaction",
@@ -668,7 +657,8 @@
 						"type": "getFirstBuffId"
 					},
 					"duration": {
-						"type": "getAbilityCooldown"
+						"type": "rawFloat",
+						"value": 2
 					},
 					"dispellable": {
 						"type": "rawBoolean",

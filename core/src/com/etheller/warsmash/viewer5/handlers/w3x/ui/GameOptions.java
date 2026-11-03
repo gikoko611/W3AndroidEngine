@@ -130,7 +130,8 @@ public final class GameOptions {
 	}
 
 	public int getMusicVolume() {
-		return number("musicVolume", 100, 100);
+		// Warcraft III's own default: music at 40, sound effects at 100.
+		return number("musicVolume", 40, 100);
 	}
 
 	public void setMusicVolume(final int value) {
@@ -222,6 +223,39 @@ public final class GameOptions {
 
 	public void setAlwaysShowStatusBars(final boolean value) {
 		setFlag("statusBars", value);
+	}
+
+	public boolean isFormationMovement() {
+		return flag("formationMovement", true);
+	}
+
+	public void setFormationMovement(final boolean value) {
+		setFlag("formationMovement", value);
+	}
+
+	/** Whether Alt held while ordering inverts the formation movement preference. */
+	public boolean isFormationToggle() {
+		return flag("formationToggle", true);
+	}
+
+	public void setFormationToggle(final boolean value) {
+		setFlag("formationToggle", value);
+	}
+
+	public boolean isMinimapTerrain() {
+		return flag("minimapTerrain", true);
+	}
+
+	public void setMinimapTerrain(final boolean value) {
+		setFlag("minimapTerrain", value);
+	}
+
+	public boolean isMinimapCreeps() {
+		return flag("minimapCreeps", true);
+	}
+
+	public void setMinimapCreeps(final boolean value) {
+		setFlag("minimapCreeps", value);
 	}
 
 	public int getGamma() {

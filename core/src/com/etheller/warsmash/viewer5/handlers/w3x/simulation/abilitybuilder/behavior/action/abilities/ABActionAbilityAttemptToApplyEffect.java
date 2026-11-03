@@ -47,7 +47,8 @@ public class ABActionAbilityAttemptToApplyEffect implements ABSingleAction {
 				final BooleanAbilityTargetCheckReceiver<CWidget> booleanTargetReceiver = BooleanAbilityTargetCheckReceiver
 						.<CWidget>getInstance().reset();
 				active.checkCanTarget(game, theCaster, theOrderingPlayerIndex, orderId,
-						((Boolean) localStore.get(ABLocalStoreKeys.combineKey(ABLocalStoreKeys.ISAUTOCAST, castId))),
+						Boolean.TRUE.equals(
+								localStore.get(ABLocalStoreKeys.combineKey(ABLocalStoreKeys.ISAUTOCAST, castId))),
 						theTarget, booleanTargetReceiver);
 				if (booleanTargetReceiver.isTargetable()) {
 					if (theCaster.chargeMana(active.getChargedManaCost())) {

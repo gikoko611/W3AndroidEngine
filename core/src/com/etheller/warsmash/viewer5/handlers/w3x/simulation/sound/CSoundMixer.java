@@ -35,7 +35,9 @@ public final class CSoundMixer {
 
 	public static void setGroupScale(final CSoundVolumeGroup group, final float scale) {
 		GROUP_SCALES[group.ordinal()] = Math.max(0f, Math.min(1f, scale));
-		notifyMusic();
+		if (group == CSoundVolumeGroup.MUSIC) {
+			notifyMusic();
+		}
 	}
 
 	public static float getGroupScale(final CSoundVolumeGroup group) {
@@ -58,7 +60,14 @@ public final class CSoundMixer {
 
 	public static float channelScale(final int channel) {
 		final CSoundVolumeGroup group = groupOfChannel(channel);
+		if (group == null) {
+			return soundOption;
+		}
 		return GROUP_SCALES[group.ordinal()] * optionScale(group);
+	}
+
+	public static float musicScale() {
+		return GROUP_SCALES[CSoundVolumeGroup.MUSIC.ordinal()] * musicOption;
 	}
 
 	/** The player's own settings; scripts change only the group scales, so VolumeGroupReset leaves these alone. */
@@ -121,17 +130,21 @@ public final class CSoundMixer {
 	// Channels of the sound data: 0 general, 1 unit selection, 2 unit acknowledgement, 3 unit movement, 4 unit ready,
 	// 5 combat, 6 error, 7 music, 8 interface, 9 looping movement, 10 looping ambient, 11 animations, 12 constructions,
 	// 13 birth, 14 fire.
+	// Channel 0 carries the dialogue (DialogSounds has no channel) and belongs to no group: the speech and cinematic
+	// presets lower every other group so that it stays audible. Channel 3 holds the units' "Yes" responses
+	// (UnitAckSounds), not footsteps; the editor names the SPELLS group "Animation and Spell Sounds".
 	private static CSoundVolumeGroup groupOfChannel(final int channel) {
 		switch (channel) {
+		case 0:
+			return null;
 		case 1:
 		case 2:
+		case 3:
 		case 4:
 			return CSoundVolumeGroup.UNITSOUNDS;
-		case 3:
 		case 9:
 			return CSoundVolumeGroup.UNITMOVEMENT;
 		case 5:
-		case 11:
 			return CSoundVolumeGroup.COMBAT;
 		case 6:
 		case 8:

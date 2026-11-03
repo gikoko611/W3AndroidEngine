@@ -56,6 +56,7 @@ import com.etheller.warsmash.parsers.fdf.datamodel.TextJustify;
 import com.etheller.warsmash.parsers.fdf.datamodel.Vector4Definition;
 import com.etheller.warsmash.parsers.fdf.frames.AbstractRenderableFrame;
 import com.etheller.warsmash.parsers.fdf.frames.AbstractUIFrame;
+import com.etheller.warsmash.parsers.fdf.frames.FadingSpriteBatch;
 import com.etheller.warsmash.parsers.fdf.frames.FilterModeTextureFrame;
 import com.etheller.warsmash.parsers.fdf.frames.GlueTextButtonFrame;
 import com.etheller.warsmash.parsers.fdf.frames.ScrollBarFrame;
@@ -70,7 +71,6 @@ import com.etheller.warsmash.parsers.fdf.frames.StringFrame;
 import com.etheller.warsmash.parsers.fdf.frames.TextureFrame;
 import com.etheller.warsmash.parsers.fdf.frames.UIFrame;
 import com.etheller.warsmash.parsers.jass.Jass2.RootFrameListener;
-import com.etheller.warsmash.parsers.jass.scope.CommonTriggerExecutionScope;
 import com.etheller.warsmash.units.DataTable;
 import com.etheller.warsmash.units.Element;
 import com.etheller.warsmash.util.ArgbImage;
@@ -198,9 +198,11 @@ import com.etheller.warsmash.viewer5.handlers.w3x.simulation.players.CAllianceTy
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.players.CMapControl;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.players.CPlayer;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.players.CPlayerColor;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.players.CPlayerGameResult;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.players.CPlayerUnitOrderListener;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.players.CRace;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.players.CRaceManagerEntry;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.sound.CSoundMixer;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.timers.CTimer;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.trigger.JassGameEventsWar3;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.trigger.enumtypes.CPlayerSlotState;
@@ -313,10 +315,15 @@ public class MeleeUI implements CUnitStateListener, CommandButtonListener, Comma
 	private static final long IDLE_WORKER_HOLD_MILLIS = 500;
 	private final MultiSelectionIcon[] heroBarIcons = new MultiSelectionIcon[HERO_BAR_SIZE];
 	private final List<CUnit> heroBarUnits = new ArrayList<>();
+	// Calibration: the original's default count is not measured; three is the usual hero limit of a player.
+	private int reservedLocalHeroButtons = 3;
 	private int lastHeroBarPressed = -1;
 	private MultiSelectionIcon idleWorkerIcon;
 	private SimpleFrame heroBar;
 	private boolean interfaceShown = true;
+	private float interfaceOpacity = 1f;
+	private float interfaceFadeRate = 0f;
+	private boolean interfaceAlphaChanged = false;
 	private boolean userUIEnabled = true;
 	private final CineFilter cineFilter = new CineFilter();
 	private final List<CUnit> idleWorkers = new ArrayList<>();
@@ -371,6 +378,7 @@ public class MeleeUI implements CUnitStateListener, CommandButtonListener, Comma
 	private final CPlayerUnitOrderListener unitOrderListener;
 	private StringFrame errorMessageFrame;
 	private final ArrayDeque<GameMessage> gameMessages = new ArrayDeque<>();
+	private float gameMessageLift;
 	private long lastErrorMessageExpireTime;
 	private long lastErrorMessageFadeTime;
 
@@ -499,6 +507,22 @@ public class MeleeUI implements CUnitStateListener, CommandButtonListener, Comma
 	private UIFrame upperButtonBar;
 	private UIFrame cinematicPanel;
 	private UIFrame minimapButtonBar;
+	private final java.util.Map<UIFrame, String[]> frameTooltips = new java.util.HashMap<>();
+	private boolean minimapSignalTargeting;
+	private Runnable minimapTerrainRedraw = () -> {
+	};
+	private Runnable minimapCreepRedraw = () -> {
+	};
+	private Runnable formationRedraw = () -> {
+	};
+	private final List<SpriteFrame> creepCampFrames = new ArrayList<>();
+	private final List<String> creepCampModels = new ArrayList<>();
+	private final java.util.Map<UIFrame, Integer> timerDialogSlots = new java.util.IdentityHashMap<>();
+	private static final float TIMER_DIALOG_RIGHT = 0f;
+	private static final float TIMER_DIALOG_TOP = -0.03f;
+	private static final float TIMER_DIALOG_STEP = 0.03f;
+	private long creepCampsRefreshMillis;
+	private int hoveredResource = -1;
 	private StringFrame cinematicSpeakerText;
 	private StringFrame cinematicDialogueText;
 	private UIFrame simpleInfoPanelItemDetail;
@@ -564,6 +588,9 @@ public class MeleeUI implements CUnitStateListener, CommandButtonListener, Comma
 		else {
 			this.musicPlayer = MusicPlayer.DO_NOTHING;
 		}
+		// A campaign mission usually ends in cinematic mode, so the previous game's group volumes must not carry over.
+		CSoundMixer.reset();
+		CSoundMixer.setMusicScaleListener(this.musicPlayer::optionsChanged);
 	}
 
 	private MeleeUIMinimap createMinimap(final War3MapViewer war3MapViewer) {
@@ -674,7 +701,7 @@ public class MeleeUI implements CUnitStateListener, CommandButtonListener, Comma
 		this.menuButton = (SimpleButtonFrame) this.rootFrame.getFrameByName("UpperButtonBarMenuButton", 0);
 		this.alliesButton = (SimpleButtonFrame) this.rootFrame.getFrameByName("UpperButtonBarAlliesButton", 0);
 		this.allianceDialog = new MeleeAllianceDialog(this.rootFrame, this.uiViewport, this.war3MapViewer.simulation,
-				this.localPlayer);
+				this.localPlayer, this.war3MapViewer.getMapFileName());
 		this.scoreScreen = new MeleeScoreScreen(this.rootFrame, this.uiViewport, this.war3MapViewer.simulation,
 				this.war3MapViewer.getAllObjectData(), this.war3MapViewer.getLocalPlayerIndex(), this::quitMission);
 		this.alliesButton.setOnClick(this::toggleAllianceDialog);
@@ -700,7 +727,11 @@ public class MeleeUI implements CUnitStateListener, CommandButtonListener, Comma
 					}
 				});
 		this.messageLog = new MeleeMessageLog(this.rootFrame, this.uiViewport);
-		if (isSinglePlayerGame()) {
+		if (isSinglePlayerGame() && TouchInputRouter.isActive()) {
+			// A touch screen has no Enter key, so the button keeps opening the chat line that scripts listen to.
+			this.chatButton.setOnClick(this::toggleChatEntry);
+		}
+		else if (isSinglePlayerGame()) {
 			// The original's single player bar has the Message Log in the Chat button's place.
 			setUpperButtonLabels(this.chatButton, "KEY_LOG", "LOG");
 			this.chatButton.setOnClick(this::toggleMessageLog);
@@ -724,13 +755,30 @@ public class MeleeUI implements CUnitStateListener, CommandButtonListener, Comma
 		createHeroBar();
 
 		this.minimapButtonBar = this.rootFrame.createSimpleFrame("MinimapButtonBar", this.consoleUI, 0);
-		setupMinimapToggle("MiniMapTerrainButton", "MiniMapTerrainButtonActive", "MiniMapTerrainButtonInactive");
+		final SimpleButtonFrame signalButton = (SimpleButtonFrame) this.rootFrame.getFrameByName("MinimapSignalButton",
+				0);
+		if (signalButton != null) {
+			signalButton.setOnClick(this::beginMinimapSignal);
+			setFrameTooltip(signalButton, "MINIMAPSIGNALTOOLTIP");
+		}
+		final GameOptions options = GameOptions.get();
+		setupMinimapToggle("MiniMapTerrainButton", () -> options.isMinimapTerrain() ? 0 : 1,
+				(state) -> setMinimapTerrain(state == 0), (listener) -> this.minimapTerrainRedraw = listener,
+				"MiniMapTerrainButtonActive", "MiniMapTerrainButtonInactive");
 		final AllyColorFilter allyColorFilter = this.war3MapViewer.getAllyColorFilter();
 		setupMinimapToggle("MiniMapAllyButton", allyColorFilter::getState,
 				(state) -> allyColorFilter.setState(state % AllyColorFilter.MODE_COUNT), allyColorFilter::addListener,
 				"MiniMapAllyButtonOff", "MiniMapAllyButtonInactive", "MiniMapAllyButtonActive");
-		setupMinimapToggle("MiniMapCreepButton", "MiniMapCreepButtonActive", "MiniMapCreepButtonInactive");
-		setupMinimapToggle("FormationButton", "MiniMapFormationOnButton", "MiniMapFormationOffButton");
+		setupMinimapToggle("MiniMapCreepButton", () -> options.isMinimapCreeps() ? 0 : 1,
+				(state) -> setMinimapCreeps(state == 0), (listener) -> this.minimapCreepRedraw = listener,
+				"MiniMapCreepButtonActive", "MiniMapCreepButtonInactive");
+		setupMinimapToggle("FormationButton", () -> options.isFormationMovement() ? 0 : 1,
+				(state) -> setFormationMovement(state == 0), (listener) -> this.formationRedraw = listener,
+				"MiniMapFormationOnButton", "MiniMapFormationOffButton");
+		setFrameTooltip(this.rootFrame.getFrameByName("MiniMapTerrainButton", 0), "MINIMAPTERRAINTOOLTIP");
+		setFrameTooltip(this.rootFrame.getFrameByName("MiniMapAllyButton", 0), "MINIMAPALLYCOLORTOOLTIP");
+		setFrameTooltip(this.rootFrame.getFrameByName("MiniMapCreepButton", 0), "MINIMAPCREEPCOLORTOOLTIP");
+		setFrameTooltip(this.rootFrame.getFrameByName("FormationButton", 0), "FORMATION_TOOLTIP");
 
 		this.smashEscMenu = (SimpleFrame) this.rootFrame.createSimpleFrame("SmashEscMenu", this.rootFrame, 0);
 		this.smashEscMenu.addAnchor(new AnchorDefinition(FramePoint.TOP, 0, GameUI.convertY(this.uiViewport, -0.05f)));
@@ -823,6 +871,11 @@ public class MeleeUI implements CUnitStateListener, CommandButtonListener, Comma
 					}
 
 					@Override
+					public SavedGame.Loadability loadability(final FileHandle file) {
+						return SavedGame.loadability(file, MeleeUI.this.war3MapViewer);
+					}
+
+					@Override
 					public void closed() {
 					}
 				}, () -> this.musicPlayer.optionsChanged());
@@ -900,16 +953,19 @@ public class MeleeUI implements CUnitStateListener, CommandButtonListener, Comma
 				escMenuInnerEndGamePanel.setVisible(false);
 				final CPlayer localPlayer = MeleeUI.this.war3MapViewer.simulation
 						.getPlayer(MeleeUI.this.war3MapViewer.getLocalPlayerIndex());
-				if (localPlayer.hasPlayerEvents(JassGameEventsWar3.EVENT_PLAYER_LEAVE)) {
-					// The original counts quitting as leaving: the melee scripts record a defeat and end the game
-					// with the score screen.
+				final boolean resultGiven = localPlayer.getRemovedResult() != null;
+				if (resultGiven || localPlayer.hasPlayerEvents(JassGameEventsWar3.EVENT_PLAYER_LEAVE)) {
+					// 1.29 goes straight to the score screen: a victory already given stays, otherwise leaving
+					// is a defeat. The melee leave trigger is not run, as its defeat dialog never shows there.
 					MeleeUI.this.war3MapViewer.setGamePaused(War3MapViewer.PauseSource.MENU, false);
 					escMenuBackdrop.setVisible(false);
 					escMenuMainPanel.setVisible(false);
 					MeleeUI.this.smashEscMenu.setVisible(false);
-					localPlayer.setSlotState(CPlayerSlotState.LEFT);
-					localPlayer.firePlayerEvents(CommonTriggerExecutionScope::triggerPlayerScope,
-							JassGameEventsWar3.EVENT_PLAYER_LEAVE);
+					if (!resultGiven) {
+						localPlayer.setRemovedResult(CPlayerGameResult.DEFEAT);
+						localPlayer.setSlotState(CPlayerSlotState.LEFT);
+					}
+					endGame(true);
 				}
 				else {
 					MeleeUI.this.exitGameRunnable.run();
@@ -1588,6 +1644,7 @@ public class MeleeUI implements CUnitStateListener, CommandButtonListener, Comma
 
 		this.meleeUIMinimap = createMinimap(this.war3MapViewer);
 		this.meleeUIMinimap.setAllyColorFilter(this.war3MapViewer.getAllyColorFilter());
+		this.meleeUIMinimap.setTerrainVisible(GameOptions.get().isMinimapTerrain());
 		this.meleeUIMinimap.setAltIconSource(this.war3MapViewer::getAltMinimapIcon,
 				(path) -> ImageUtils.getAnyExtensionTexture(this.war3MapViewer.mapMpq, path));
 
@@ -1734,6 +1791,36 @@ public class MeleeUI implements CUnitStateListener, CommandButtonListener, Comma
 			this.subMenuOrderIdStack.add(orderId);
 		}
 		clearAndRepopulateCommandCard();
+		if (orderId == OrderIds.skillmenu) {
+			this.war3MapViewer.simulation.fireGameEvent(JassGameEventsWar3.EVENT_GAME_SHOW_SKILL);
+		}
+		else if ((orderId == OrderIds.buildmenu) || (orderId == OrderIds.humanbuild) || (orderId == OrderIds.orcbuild)
+				|| (orderId == OrderIds.undeadbuild) || (orderId == OrderIds.nightelfbuild)
+				|| (orderId == OrderIds.nagabuild)) {
+			this.war3MapViewer.simulation.fireGameEvent(JassGameEventsWar3.EVENT_GAME_BUILD_SUBMENU);
+		}
+	}
+
+	public void setReservedLocalHeroButtons(final int reserved) {
+		this.reservedLocalHeroButtons = Math.max(0, reserved);
+	}
+
+	/** ForceUIKey names the command's own hotkey letter, whatever key layout the player has chosen. */
+	public void forceUIKey(final String key) {
+		if ((key == null) || key.isEmpty()) {
+			return;
+		}
+		final char c = Character.toUpperCase(key.charAt(0));
+		final int keycode = Input.Keys.valueOf(String.valueOf(c));
+		for (int j = 0; j < COMMAND_CARD_HEIGHT; j++) {
+			for (int i = 0; i < COMMAND_CARD_WIDTH; i++) {
+				final CommandCardIcon icon = this.commandCard[j][i];
+				if (icon.isVisible() && icon.checkHotkey(c, keycode)) {
+					icon.onClick(Input.Buttons.LEFT);
+					return;
+				}
+			}
+		}
 	}
 
 	@Override
@@ -1792,6 +1879,29 @@ public class MeleeUI implements CUnitStateListener, CommandButtonListener, Comma
 		}
 	}
 
+	/** Messages stack up from the middle of the screen; a chat line lifted by the on-screen keyboard can reach it. */
+	private void liftGameMessages() {
+		float lift = 0;
+		final float chatTop = this.chat.entryTop();
+		if (!this.gameMessages.isEmpty() && (chatTop != Float.NEGATIVE_INFINITY)) {
+			final float newestHeight = this.gameMessages.getLast().stringFrame.getAssignedHeight();
+			final float newestBottom = this.rootFrame.getFramePointY(FramePoint.LEFT) - (newestHeight / 2);
+			lift = Math.max(0, (chatTop + GameUI.convertY(this.uiViewport, 0.005f)) - newestBottom);
+		}
+		if (lift == this.gameMessageLift) {
+			return;
+		}
+		this.gameMessageLift = lift;
+		if (this.gameMessages.isEmpty()) {
+			return;
+		}
+		this.gameMessages.getLast().stringFrame.addAnchor(new AnchorDefinition(FramePoint.LEFT, 0, lift));
+		final Iterator<GameMessage> descendingIterator = this.gameMessages.descendingIterator();
+		while (descendingIterator.hasNext()) {
+			descendingIterator.next().stringFrame.positionBounds(this.rootFrame, this.uiViewport);
+		}
+	}
+
 	public void showGameMessage(final String message, final float expireTime) {
 		this.messageLog.add(message);
 		final StringFrame gameMessagesFrame = this.rootFrame.createStringFrame("SmashGameMessageFrame", this.rootFrame,
@@ -1810,7 +1920,7 @@ public class MeleeUI implements CUnitStateListener, CommandButtonListener, Comma
 
 		final long lastGameMessageExpireTime = millis + (long) (expireTime * 1000);
 		final long lastGameMessageFadeTime = millis + (long) (expireTime * 900);
-		gameMessagesFrame.addAnchor(new AnchorDefinition(FramePoint.LEFT, 0, 0));
+		gameMessagesFrame.addAnchor(new AnchorDefinition(FramePoint.LEFT, 0, this.gameMessageLift));
 		if (!this.gameMessages.isEmpty()) {
 			final GameMessage lastFrame = this.gameMessages.getLast();
 			lastFrame.stringFrame
@@ -1877,9 +1987,12 @@ public class MeleeUI implements CUnitStateListener, CommandButtonListener, Comma
 	@Override
 	public void update(final float deltaTime) {
 		updateAlliesButton();
+		updateInterfaceFade(deltaTime);
 		this.portrait.update(deltaTime);
 		this.cineFilter.update(deltaTime);
 		this.questDialog.update();
+		this.chat.followKeyboard();
+		liftGameMessages();
 		if (this.questButtonFlashTime >= 0) {
 			this.questButtonFlashTime += deltaTime;
 			this.questsButton.setLit(((int) (this.questButtonFlashTime / QUEST_BUTTON_FLASH_PERIOD) % 2) == 0);
@@ -2064,6 +2177,9 @@ public class MeleeUI implements CUnitStateListener, CommandButtonListener, Comma
 			else if (right) {
 				setCursorState(MenuCursorState.SCROLL_RIGHT);
 			}
+			else if (this.minimapSignalTargeting) {
+				setCursorState(MenuCursorState.TARGET_CURSOR);
+			}
 			else if (this.mouseOverUnit != null) {
 				if (this.mouseOverUnit instanceof RenderUnit) {
 					final RenderUnit mouseOverUnitUnit = (RenderUnit) this.mouseOverUnit;
@@ -2127,6 +2243,8 @@ public class MeleeUI implements CUnitStateListener, CommandButtonListener, Comma
 		}
 		this.musicPlayer.update();
 		updateMinimapPings(currentMillis);
+		updateCreepCamps(currentMillis);
+		layoutTimerDialogs();
 		for (final CTimerDialog timerDialog : this.timerDialogs) {
 			timerDialog.update(this.rootFrame, this.war3MapViewer.simulation);
 		}
@@ -2397,14 +2515,194 @@ public class MeleeUI implements CUnitStateListener, CommandButtonListener, Comma
 		setCursorState(state, Color.WHITE);
 	}
 
+	private void setFrameTooltip(final UIFrame frame, final String key) {
+		if (frame != null) {
+			this.frameTooltips.put(frame, new String[] { key, key + "_UBER" });
+		}
+	}
+
+	private void beginMinimapSignal() {
+		if (this.activeCommand != null) {
+			this.activeCommandUnit = null;
+			this.activeCommand = null;
+			this.activeCommandOrderId = -1;
+			if (this.draggingItem != null) {
+				setDraggingItem(null);
+			}
+			clearAndRepopulateCommandCard();
+		}
+		this.minimapSignalTargeting = true;
+	}
+
 	/**
-	 * Cycles a minimap bar button through its skin states on click. The terrain, creep and formation behavior behind
-	 * the states is not implemented yet, so for those only the look changes.
+	 * The signal shows on the minimaps of the sender and of the sender's allies. Games here run on one machine without
+	 * a channel between players' interfaces, so only the local minimap shows it.
 	 */
-	private void setupMinimapToggle(final String buttonName, final String... statePrefixes) {
-		final int[] state = { 0 };
-		setupMinimapToggle(buttonName, () -> state[0], (value) -> state[0] = value, (listener) -> {
-		}, statePrefixes);
+	private void sendMinimapSignal(final float x, final float y) {
+		this.minimapSignalTargeting = false;
+		final Element pingColor = this.war3MapViewer.miscData.get("PingColor");
+		int red = 0;
+		int green = 255;
+		int blue = 0;
+		if ((pingColor != null) && pingColor.hasField("PingColor")) {
+			final String[] argb = pingColor.getField("PingColor").split(",");
+			if (argb.length == 4) {
+				red = Integer.parseInt(argb[1].trim());
+				green = Integer.parseInt(argb[2].trim());
+				blue = Integer.parseInt(argb[3].trim());
+			}
+		}
+		pingMinimap(x, y, MINIMAP_SIGNAL_SECONDS, red, green, blue, false);
+		this.war3MapViewer.getUiSounds().getSound("MapPing").play(this.uiScene.audioContext, 0, 0, 0);
+	}
+
+	private void setMinimapTerrain(final boolean shown) {
+		GameOptions.get().setMinimapTerrain(shown);
+		GameOptions.get().save();
+		this.meleeUIMinimap.setTerrainVisible(shown);
+		this.minimapTerrainRedraw.run();
+	}
+
+	private void setMinimapCreeps(final boolean shown) {
+		GameOptions.get().setMinimapCreeps(shown);
+		GameOptions.get().save();
+		this.creepCampsRefreshMillis = 0;
+		this.minimapCreepRedraw.run();
+	}
+
+	private void setFormationMovement(final boolean on) {
+		GameOptions.get().setFormationMovement(on);
+		GameOptions.get().save();
+		this.formationRedraw.run();
+	}
+
+	/** The formation preference for an order given now: Alt inverts it unless the player turned that off. */
+	private boolean isFormationOrder() {
+		final GameOptions options = GameOptions.get();
+		return options.isFormationMovement() != (options.isFormationToggle() && isAltDown());
+	}
+
+	/**
+	 * Creep camps on the minimap: neutral hostile units within CreepCampPathingCellDistance pathing cells of each
+	 * other form one camp, drawn at its centre and sized and colored by the camp's total level.
+	 */
+	private void updateCreepCamps(final long currentMillis) {
+		final boolean shown = GameOptions.get().isMinimapCreeps() && this.meleeUIMinimap.isVisible()
+				&& !this.scoreScreen.isVisible();
+		if (!shown) {
+			for (final SpriteFrame frame : this.creepCampFrames) {
+				frame.setVisible(false);
+			}
+			return;
+		}
+		if (currentMillis < this.creepCampsRefreshMillis) {
+			for (final SpriteFrame frame : this.creepCampFrames) {
+				if (frame.isVisible() && frame.isSequenceEnded()) {
+					frame.setSequence(0);
+				}
+			}
+			return;
+		}
+		this.creepCampsRefreshMillis = currentMillis + CREEP_CAMPS_REFRESH_MILLIS;
+		final CSimulation simulation = this.war3MapViewer.simulation;
+		final Element misc = this.war3MapViewer.miscData.get("Misc");
+		final Element minimap = this.war3MapViewer.miscData.get("Minimap");
+		final float linkDistance = (misc != null) && misc.hasField("CreepCampPathingCellDistance")
+				? misc.getFieldFloatValue("CreepCampPathingCellDistance") * 32
+				: 26 * 32;
+		final List<CUnit> creeps = new ArrayList<>();
+		for (final CUnit unit : simulation.getUnits()) {
+			if (!unit.isDead() && !unit.isHidden() && !unit.isBuilding()
+					&& simulation.isNeutralAggressive(unit.getPlayerIndex())) {
+				creeps.add(unit);
+			}
+		}
+		final int[] camp = new int[creeps.size()];
+		Arrays.fill(camp, -1);
+		int campCount = 0;
+		final float linkDistanceSq = linkDistance * linkDistance;
+		for (int i = 0; i < creeps.size(); i++) {
+			if (camp[i] != -1) {
+				continue;
+			}
+			camp[i] = campCount;
+			final ArrayDeque<Integer> open = new ArrayDeque<>();
+			open.add(i);
+			while (!open.isEmpty()) {
+				final CUnit member = creeps.get(open.poll());
+				for (int j = 0; j < creeps.size(); j++) {
+					if ((camp[j] == -1) && (member.distanceSquaredNoCollision(creeps.get(j)) <= linkDistanceSq)) {
+						camp[j] = campCount;
+						open.add(j);
+					}
+				}
+			}
+			campCount++;
+		}
+		final float middleThreshold = minimapField(minimap, "MinimapMiddleCampThreshold", 10);
+		final float toughThreshold = minimapField(minimap, "MinimapToughCampThreshold", 20);
+		final float middleScale = minimapField(minimap, "MinimapMiddleCampScale", 1.3f);
+		final Color weakColor = minimapColor(minimap, "MinimapWeakCampColor", new Color(0, 200 / 255f, 0, 1));
+		final Color middleColor = minimapColor(minimap, "MinimapMiddleCampColor",
+				new Color(1, 128 / 255f, 0, 1));
+		final Color toughColor = minimapColor(minimap, "MinimapToughCampColor", new Color(220 / 255f, 0, 0, 1));
+		for (int c = 0; c < campCount; c++) {
+			float sumX = 0;
+			float sumY = 0;
+			int members = 0;
+			int levels = 0;
+			for (int i = 0; i < creeps.size(); i++) {
+				if (camp[i] == c) {
+					final CUnit unit = creeps.get(i);
+					sumX += unit.getX();
+					sumY += unit.getY();
+					members++;
+					levels += unit.getUnitType().getLevel();
+				}
+			}
+			while (this.creepCampFrames.size() <= c) {
+				final SpriteFrame frame = (SpriteFrame) this.rootFrame.createFrameByType("SPRITE",
+						"SmashMinimapCreepCamp", this.rootFrame, "", 0);
+				frame.setZDepth(0.5f);
+				this.creepCampFrames.add(frame);
+				this.creepCampModels.add(null);
+			}
+			final SpriteFrame frame = this.creepCampFrames.get(c);
+			final boolean tough = levels >= toughThreshold;
+			final String model = this.rootFrame.getSkinField(tough ? "MinimapCreepCampTough" : "MinimapCreepCamp");
+			if (!model.equals(this.creepCampModels.get(c))) {
+				this.rootFrame.setSpriteFrameModel(frame, model);
+				this.creepCampModels.set(c, model);
+			}
+			final boolean middle = !tough && (levels >= middleThreshold);
+			frame.setModelScale(MINIMAP_CREEP_CAMP_SCALE * (middle ? middleScale : 1));
+			frame.setVertexColor(tough ? toughColor : (middle ? middleColor : weakColor));
+			frame.setFramePointX(FramePoint.LEFT, this.meleeUIMinimap.toMinimapX(sumX / members));
+			frame.setFramePointY(FramePoint.BOTTOM, this.meleeUIMinimap.toMinimapY(sumY / members));
+			if (!frame.isVisible()) {
+				frame.setSequence(0);
+				frame.setVisible(true);
+			}
+		}
+		for (int c = campCount; c < this.creepCampFrames.size(); c++) {
+			this.creepCampFrames.get(c).setVisible(false);
+		}
+	}
+
+	private static float minimapField(final Element minimap, final String field, final float fallback) {
+		return (minimap != null) && minimap.hasField(field) ? minimap.getFieldFloatValue(field) : fallback;
+	}
+
+	private static Color minimapColor(final Element minimap, final String field, final Color fallback) {
+		if ((minimap == null) || !minimap.hasField(field)) {
+			return fallback;
+		}
+		final String[] argb = minimap.getField(field).split(",");
+		if (argb.length != 4) {
+			return fallback;
+		}
+		return new Color(Integer.parseInt(argb[1].trim()) / 255f, Integer.parseInt(argb[2].trim()) / 255f,
+				Integer.parseInt(argb[3].trim()) / 255f, Integer.parseInt(argb[0].trim()) / 255f);
 	}
 
 	/** A minimap bar button whose state lives elsewhere: a click advances it, a change from elsewhere redraws it. */
@@ -2486,9 +2784,19 @@ public class MeleeUI implements CUnitStateListener, CommandButtonListener, Comma
 			return;
 		}
 		updateMinimapCameraFootprint();
+		final float gameInterfaceAlpha = getGameInterfaceAlpha();
+		final FadingSpriteBatch fadingBatch = (gameInterfaceAlpha < 1f) && (batch instanceof FadingSpriteBatch)
+				? (FadingSpriteBatch) batch
+				: null;
+		if (fadingBatch != null) {
+			fadingBatch.setAlphaScale(gameInterfaceAlpha);
+		}
 		this.meleeUIMinimap.render(this.war3MapViewer.simulation, batch, this.war3MapViewer.units,
 				this.war3MapViewer.simulation.getPathingGrid(), this.war3MapViewer.getFogOfWar(),
 				this.war3MapViewer.simulation.getPlayer(this.war3MapViewer.getLocalPlayerIndex()));
+		if (fadingBatch != null) {
+			fadingBatch.setAlphaScale(1f);
+		}
 		this.timeIndicator.setSequence(this.war3MapViewer.simulation.isFalseTimeOfDay() ? 1 : 0);
 		this.timeIndicator.setFrameByRatio(this.war3MapViewer.simulation.getGameTimeOfDay()
 				/ this.war3MapViewer.simulation.getGameplayConstants().getGameDayHours());
@@ -2523,7 +2831,10 @@ public class MeleeUI implements CUnitStateListener, CommandButtonListener, Comma
 				}
 			}
 		}
-		final ControlGroupBar bar = isGameInterfaceShown() ? getControlGroupBar() : null;
+		if (fadingBatch != null) {
+			fadingBatch.setAlphaScale(gameInterfaceAlpha);
+		}
+		final ControlGroupBar bar = gameInterfaceAlpha > 0f ? getControlGroupBar() : null;
 		if (bar != null) {
 			final int[] groupSizes = new int[ControlGroupBar.SLOT_COUNT];
 			final Texture[] groupIcons = new Texture[ControlGroupBar.SLOT_COUNT];
@@ -2538,7 +2849,7 @@ public class MeleeUI implements CUnitStateListener, CommandButtonListener, Comma
 			}
 			bar.render(batch, this.rootFrame.getFont20(), groupSizes, groupIcons);
 		}
-		if ((this.idleWorkerIcon != null) && this.idleWorkerIcon.isVisible() && isGameInterfaceShown()) {
+		if ((this.idleWorkerIcon != null) && this.idleWorkerIcon.isVisible() && (gameInterfaceAlpha > 0f)) {
 			final BitmapFont font20 = this.rootFrame.getFont20();
 			final Rectangle bounds = this.idleWorkerIcon.getRenderBounds();
 			final String count = Integer.toString(this.idleWorkers.size());
@@ -2556,6 +2867,9 @@ public class MeleeUI implements CUnitStateListener, CommandButtonListener, Comma
 			font20.setColor(Color.WHITE);
 			font20.draw(batch, count, x, y);
 			font20.getData().setScale(scaleX, scaleY);
+		}
+		if (fadingBatch != null) {
+			fadingBatch.setAlphaScale(1f);
 		}
 		if (WarsmashConstants.SHOW_FPS) {
 			final BitmapFont font14 = this.rootFrame.getFont14();
@@ -4242,7 +4556,7 @@ public class MeleeUI implements CUnitStateListener, CommandButtonListener, Comma
 	}
 
 	public void positionPortrait() {
-		if (this.cinematicPanel.isVisible()) {
+		if (this.cinematicPanel.isVisible() && !(isInterfaceFading() && this.userUIEnabled)) {
 			this.portrait.portraitScene.show = false;
 		}
 		else {
@@ -4527,6 +4841,9 @@ public class MeleeUI implements CUnitStateListener, CommandButtonListener, Comma
 		if (this.chat.isEntryOpen()) {
 			return this.chat.entryKeyDown(keycode);
 		}
+		if (pressScriptDialogHotkey(keycode)) {
+			return true;
+		}
 		if (keycode == Input.Keys.F10) {
 			this.openMenuAction.run();
 			return true;
@@ -4550,6 +4867,10 @@ public class MeleeUI implements CUnitStateListener, CommandButtonListener, Comma
 		}
 		if ((keycode == Input.Keys.ESCAPE) && this.allianceDialog.isVisible()) {
 			this.allianceDialog.setVisible(false);
+			return true;
+		}
+		if ((keycode == Input.Keys.ESCAPE) && this.minimapSignalTargeting) {
+			this.minimapSignalTargeting = false;
 			return true;
 		}
 		if (keycode == Input.Keys.ESCAPE) {
@@ -4584,6 +4905,22 @@ public class MeleeUI implements CUnitStateListener, CommandButtonListener, Comma
 		if ((keycode == Input.Keys.A) && isAltDown()) {
 			final AllyColorFilter allyColorFilter = this.war3MapViewer.getAllyColorFilter();
 			allyColorFilter.setState((Math.max(0, allyColorFilter.getState()) + 1) % AllyColorFilter.MODE_COUNT);
+			return true;
+		}
+		if ((keycode == Input.Keys.G) && isAltDown()) {
+			beginMinimapSignal();
+			return true;
+		}
+		if ((keycode == Input.Keys.T) && isAltDown()) {
+			setMinimapTerrain(!GameOptions.get().isMinimapTerrain());
+			return true;
+		}
+		if ((keycode == Input.Keys.R) && isAltDown()) {
+			setMinimapCreeps(!GameOptions.get().isMinimapCreeps());
+			return true;
+		}
+		if ((keycode == Input.Keys.F) && isAltDown()) {
+			setFormationMovement(!GameOptions.get().isFormationMovement());
 			return true;
 		}
 		if ((keycode == Input.Keys.F8) && !this.idleWorkers.isEmpty()) {
@@ -4630,6 +4967,58 @@ public class MeleeUI implements CUnitStateListener, CommandButtonListener, Comma
 			}
 		}
 		return this.cameraManager.keyDown(keycode);
+	}
+
+	/**
+	 * A script dialog hotkey is a Windows virtual key code ('C' is the C key; 'c' is no key). As in 1.29, only the
+	 * dialog shown last takes it, not even an earlier one still shown once that one is hidden, and of its buttons
+	 * sharing the key the one added last.
+	 */
+	private boolean pressScriptDialogHotkey(final int keycode) {
+		if (keycode == Input.Keys.UNKNOWN) {
+			return false;
+		}
+		CScriptDialog shown = null;
+		for (final CScriptDialog dialog : this.scriptDialogs) {
+			if ((shown == null) || (dialog.getShownOrder() > shown.getShownOrder())) {
+				shown = dialog;
+			}
+		}
+		if ((shown == null) || !shown.isVisible()) {
+			return false;
+		}
+		final List<CScriptDialogButton> buttons = shown.getButtons();
+		for (int i = buttons.size() - 1; i >= 0; i--) {
+			final CScriptDialogButton button = buttons.get(i);
+			if ((virtualKeyToKeycode(button.getHotkey()) == keycode) && (button.getButtonFrame() != null)) {
+				button.getButtonFrame().onClick(Input.Buttons.LEFT);
+				return true;
+			}
+		}
+		return false;
+	}
+
+	private static int virtualKeyToKeycode(final int virtualKey) {
+		if ((virtualKey >= 'A') && (virtualKey <= 'Z')) {
+			return Input.Keys.A + (virtualKey - 'A');
+		}
+		if ((virtualKey >= '0') && (virtualKey <= '9')) {
+			return Input.Keys.NUM_0 + (virtualKey - '0');
+		}
+		switch (virtualKey) {
+		case 0x08:
+			return Input.Keys.BACKSPACE;
+		case 0x09:
+			return Input.Keys.TAB;
+		case 0x0D:
+			return Input.Keys.ENTER;
+		case 0x1B:
+			return Input.Keys.ESCAPE;
+		case 0x20:
+			return Input.Keys.SPACE;
+		default:
+			return Input.Keys.UNKNOWN;
+		}
 	}
 
 	/** With the menu up the keys are its own: the game behind it takes no orders. */
@@ -4785,6 +5174,15 @@ public class MeleeUI implements CUnitStateListener, CommandButtonListener, Comma
 		if (this.meleeUIMinimap.containsMouse(screenCoordsVector.x, screenCoordsVector.y)) {
 			final Vector2 worldPoint = this.meleeUIMinimap.getWorldPointFromScreen(screenCoordsVector.x,
 					screenCoordsVector.y);
+			if ((button == Input.Buttons.LEFT)
+					&& (this.minimapSignalTargeting || ((this.activeCommand == null) && isAltDown()))) {
+				sendMinimapSignal(worldPoint.x, worldPoint.y);
+				return true;
+			}
+			if ((button == Input.Buttons.RIGHT) && this.minimapSignalTargeting) {
+				this.minimapSignalTargeting = false;
+				return true;
+			}
 			if ((button == Input.Buttons.RIGHT) && !this.selectedUnits.isEmpty()) {
 				// As in the original game, a right click on the minimap orders the selection there.
 				rightClickMoveTo(worldPoint.x, worldPoint.y);
@@ -4809,6 +5207,19 @@ public class MeleeUI implements CUnitStateListener, CommandButtonListener, Comma
 		}
 		if ((clickedUIFrame == null) && this.allianceDialog.contains(screenCoordsVector.x, screenCoordsVector.y)) {
 			// The window's background takes the click instead of the map under it.
+			return true;
+		}
+		if ((clickedUIFrame != null) && this.minimapSignalTargeting) {
+			this.minimapSignalTargeting = false;
+		}
+		if ((clickedUIFrame == null) && (button == Input.Buttons.LEFT)
+				&& (this.minimapSignalTargeting || ((this.activeCommand == null) && isAltDown()))) {
+			this.war3MapViewer.getClickLocation(clickLocationTemp, screenX, (int) worldScreenY, true, true);
+			sendMinimapSignal(clickLocationTemp.x, clickLocationTemp.y);
+			return true;
+		}
+		if ((clickedUIFrame == null) && (button == Input.Buttons.RIGHT) && this.minimapSignalTargeting) {
+			this.minimapSignalTargeting = false;
 			return true;
 		}
 		if (clickedUIFrame == null) {
@@ -4880,7 +5291,7 @@ public class MeleeUI implements CUnitStateListener, CommandButtonListener, Comma
 									this.war3MapViewer.showConfirmation(clickLocationTemp, 0, 1, 0);
 								}
 								final boolean formation = (this.selectedUnits.size() > 1)
-										&& CGroupMove.usesFormation(this.activeCommandOrderId);
+										&& CGroupMove.usesFormation(this.activeCommandOrderId) && isFormationOrder();
 								final List<CUnit> walkers = new ArrayList<>();
 								final List<CAbilityView> walkerAbilities = new ArrayList<>();
 								if (formation && CGroupMove.canTakeSlot(this.activeCommandUnit.getSimulationUnit())) {
@@ -5204,7 +5615,8 @@ public class MeleeUI implements CUnitStateListener, CommandButtonListener, Comma
 								PointAbilityTargetCheckReceiver.INSTANCE);
 						final Vector2 target = PointAbilityTargetCheckReceiver.INSTANCE.getTarget();
 						if (target != null) {
-							if (!(ability instanceof CAbilityRally) && CGroupMove.canTakeSlot(unit.getSimulationUnit())) {
+							if (!(ability instanceof CAbilityRally) && CGroupMove.canTakeSlot(unit.getSimulationUnit())
+									&& isFormationOrder()) {
 								walkers.add(unit.getSimulationUnit());
 								walkerAbilities.add(ability);
 							}
@@ -5662,9 +6074,29 @@ public class MeleeUI implements CUnitStateListener, CommandButtonListener, Comma
 			}
 			this.heroBarUnits.add(hero);
 		}
+		// Heroes of players sharing their units come after the slots kept for the local player's own heroes.
+		final int localPlayerIndex = this.localPlayer.getId();
+		boolean alliedPadding = true;
+		for (int playerIndex = 0; playerIndex < WarsmashConstants.MAX_PLAYERS; playerIndex++) {
+			final CPlayer player = this.war3MapViewer.simulation.getPlayer(playerIndex);
+			if ((playerIndex == localPlayerIndex) || !player.hasAlliance(localPlayerIndex, CAllianceType.SHARED_CONTROL)) {
+				continue;
+			}
+			for (final CUnit hero : player.getHeroes()) {
+				if (alliedPadding) {
+					alliedPadding = false;
+					while (this.heroBarUnits.size() < Math.min(this.reservedLocalHeroButtons, HERO_BAR_SIZE)) {
+						this.heroBarUnits.add(null);
+					}
+				}
+				if (this.heroBarUnits.size() < HERO_BAR_SIZE) {
+					this.heroBarUnits.add(hero);
+				}
+			}
+		}
 		for (int i = 0; i < HERO_BAR_SIZE; i++) {
 			final MultiSelectionIcon icon = this.heroBarIcons[i];
-			final boolean used = i < this.heroBarUnits.size();
+			final boolean used = (i < this.heroBarUnits.size()) && (this.heroBarUnits.get(i) != null);
 			if (icon.isVisible() != used) {
 				icon.setVisible(used);
 			}
@@ -5739,7 +6171,7 @@ public class MeleeUI implements CUnitStateListener, CommandButtonListener, Comma
 			return;
 		}
 		final CUnit hero = this.heroBarUnits.get(index);
-		final RenderUnit renderUnit = this.war3MapViewer.getRenderPeer(hero);
+		final RenderUnit renderUnit = hero == null ? null : this.war3MapViewer.getRenderPeer(hero);
 		if ((renderUnit == null) || hero.isDead()) {
 			return;
 		}
@@ -6049,10 +6481,26 @@ public class MeleeUI implements CUnitStateListener, CommandButtonListener, Comma
 				if (mousedUIFrame instanceof ClickableActionFrame) {
 					loadTooltip((ClickableActionFrame) mousedUIFrame);
 				}
+				else {
+					loadFrameTooltip(mousedUIFrame);
+				}
 			}
 			else {
 				this.mouseOverUIFrame = null;
 				this.tooltipFrame.setVisible(false);
+			}
+			this.hoveredResource = -1;
+		}
+		if (this.mouseOverUIFrame == null) {
+			final int resource = resourceAt(screenCoordsVector.x, screenCoordsVector.y);
+			if (resource != this.hoveredResource) {
+				this.hoveredResource = resource;
+				if (resource == -1) {
+					this.tooltipFrame.setVisible(false);
+				}
+				else {
+					loadResourceTooltip(resource);
+				}
 			}
 		}
 		final UIFrame hover = getHoveredFrame(this.rootFrame, screenCoordsVector.x, screenCoordsVector.y,
@@ -6086,12 +6534,110 @@ public class MeleeUI implements CUnitStateListener, CommandButtonListener, Comma
 	}
 
 	private void loadTooltip(final ClickableActionFrame mousedUIFrame) {
-		final int goldCost = mousedUIFrame.getToolTipGoldCost();
-		final int lumberCost = mousedUIFrame.getToolTipLumberCost();
-		final int foodCost = mousedUIFrame.getToolTipFoodCost();
-		final int manaCost = mousedUIFrame.getToolTipManaCost();
-		final String toolTip = mousedUIFrame.getToolTip();
-		final String uberTip = mousedUIFrame.getUberTip();
+		showTooltip(mousedUIFrame.getToolTip(), mousedUIFrame.getUberTip(), mousedUIFrame.getToolTipGoldCost(),
+				mousedUIFrame.getToolTipLumberCost(), mousedUIFrame.getToolTipFoodCost(),
+				mousedUIFrame.getToolTipManaCost());
+	}
+
+	private void loadFrameTooltip(final UIFrame frame) {
+		final String[] keys = this.frameTooltips.get(frame);
+		if (keys == null) {
+			this.tooltipFrame.setVisible(false);
+			return;
+		}
+		showTooltip(this.rootFrame.getTemplates().getDecoratedString(keys[0]),
+				this.rootFrame.getTemplates().getDecoratedString(keys[1]), 0, 0, 0, 0);
+	}
+
+	private static final int RESOURCE_GOLD = 0;
+	private static final int RESOURCE_LUMBER = 1;
+	private static final int RESOURCE_SUPPLY = 2;
+	private static final int RESOURCE_UPKEEP = 3;
+	private static final float RESOURCE_BAR_ICON_WIDTH = 0.01640625f;
+
+	/** The resource bar part under the point: its text and, left of gold, lumber and food, the icon. */
+	private int resourceAt(final float x, final float y) {
+		if ((this.resourceBar == null) || !this.resourceBar.isVisible() || !this.consoleUI.isVisible()) {
+			return -1;
+		}
+		final StringFrame[] texts = { this.resourceBarGoldText, this.resourceBarLumberText, this.resourceBarSupplyText,
+				this.resourceBarUpkeepText };
+		for (int i = 0; i < texts.length; i++) {
+			final com.badlogic.gdx.math.Rectangle bounds = texts[i].getRenderBounds();
+			final float left = bounds.x - (i == RESOURCE_UPKEEP ? 0 : GameUI.convertX(this.uiViewport,
+					RESOURCE_BAR_ICON_WIDTH));
+			if ((x >= left) && (x <= (bounds.x + bounds.width)) && (y >= bounds.y)
+					&& (y <= (bounds.y + bounds.height))) {
+				return i;
+			}
+		}
+		return -1;
+	}
+
+	private void loadResourceTooltip(final int resource) {
+		final String title;
+		final String uberTip;
+		switch (resource) {
+		case RESOURCE_GOLD:
+			title = decorated("GOLD");
+			uberTip = decorated("RESOURCE_UBERTIP_GOLD");
+			break;
+		case RESOURCE_LUMBER:
+			title = decorated("LUMBER");
+			uberTip = decorated("RESOURCE_UBERTIP_LUMBER");
+			break;
+		case RESOURCE_SUPPLY:
+			title = decorated("COLON_FOOD").replaceAll(":\\s*$", "");
+			uberTip = decorated("RESOURCE_UBERTIP_SUPPLY");
+			break;
+		default:
+			title = decorated("UPKEEP");
+			uberTip = decorated("RESOURCE_UBERTIP_UPKEEP") + upkeepLevelsText();
+			break;
+		}
+		showTooltip(title, uberTip, 0, 0, 0, 0);
+	}
+
+	private String decorated(final String key) {
+		return this.rootFrame.getTemplates().getDecoratedString(key);
+	}
+
+	/** One line per upkeep level up to the food ceiling: its food range, name and the share of income kept. */
+	private String upkeepLevelsText() {
+		final CGameplayConstants constants = this.war3MapViewer.simulation.getGameplayConstants();
+		final int[] usage = constants.getUpkeepUsage();
+		final float[] goldTax = constants.getUpkeepGoldTax();
+		final float[] lumberTax = constants.getUpkeepLumberTax();
+		final int ceiling = this.localPlayer.getFoodCapCeiling();
+		final String[] names = { "UPKEEP_NONE", "UPKEEP_LOW", "UPKEEP_HIGH" };
+		boolean taxesLumber = false;
+		for (final float tax : lumberTax) {
+			taxesLumber |= tax != 0;
+		}
+		final StringBuilder text = new StringBuilder();
+		int low = 0;
+		for (int level = 0; low <= ceiling; level++) {
+			final int high = (level < usage.length) ? Math.min(usage[level], ceiling) : ceiling;
+			final String name = decorated(names[Math.min(level, names.length - 1)]);
+			final int goldKept = Math.round(100 * (1 - tax(goldTax, level)));
+			if (taxesLumber) {
+				text.append(String.format(decorated("RESOURCE_UBERTIP_UPKEEP_INFO_WOOD"), low, high, name, goldKept,
+						Math.round(100 * (1 - tax(lumberTax, level)))));
+			}
+			else {
+				text.append(String.format(decorated("RESOURCE_UBERTIP_UPKEEP_INFO"), low, high, name, goldKept));
+			}
+			low = high + 1;
+		}
+		return text.toString();
+	}
+
+	private static float tax(final float[] taxes, final int level) {
+		return taxes.length == 0 ? 0 : taxes[Math.min(level, taxes.length - 1)];
+	}
+
+	private void showTooltip(final String toolTip, final String uberTip, final int goldCost, final int lumberCost,
+			final int foodCost, final int manaCost) {
 		if ((toolTip == null) || (uberTip == null)) {
 			this.tooltipFrame.setVisible(false);
 		}
@@ -6543,6 +7089,15 @@ public class MeleeUI implements CUnitStateListener, CommandButtonListener, Comma
 		}
 	}
 
+	private void toggleChatEntry() {
+		if (this.chat.isEntryOpen()) {
+			this.chat.closeEntry();
+		}
+		else {
+			this.chat.openEntry(null);
+		}
+	}
+
 	private void toggleChatDialog() {
 		if (this.chat.isDialogVisible()) {
 			this.chatOpenEntryAfterDialog = false;
@@ -6632,6 +7187,9 @@ public class MeleeUI implements CUnitStateListener, CommandButtonListener, Comma
 
 	// At its own size the model reaches well past the minimap; 1.29 keeps it around the point (eye calibration).
 	private static final float MINIMAP_PING_SCALE = 0.5f;
+	private static final float MINIMAP_CREEP_CAMP_SCALE = MINIMAP_PING_SCALE;
+	private static final float MINIMAP_SIGNAL_SECONDS = 3f;
+	private static final long CREEP_CAMPS_REFRESH_MILLIS = 1000;
 
 	private static final class MinimapPing {
 		private SpriteFrame frame;
@@ -6688,6 +7246,27 @@ public class MeleeUI implements CUnitStateListener, CommandButtonListener, Comma
 	@Override
 	public void removeTimerDialog(final CTimerDialog dialog) {
 		this.timerDialogs.remove(dialog);
+		this.timerDialogSlots.remove(dialog.getFrame());
+	}
+
+	/** Shown timer dialogs stack down from the top right corner under the upper bar, the oldest on top (1.29). */
+	private void layoutTimerDialogs() {
+		int slot = 0;
+		for (final CTimerDialog dialog : this.timerDialogs) {
+			final UIFrame frame = dialog.getFrame();
+			if (!dialog.isVisible()) {
+				continue;
+			}
+			final Integer placed = this.timerDialogSlots.get(frame);
+			if ((placed == null) || (placed != slot)) {
+				this.timerDialogSlots.put(frame, slot);
+				frame.addAnchor(new AnchorDefinition(FramePoint.TOPRIGHT,
+						GameUI.convertX(this.uiViewport, TIMER_DIALOG_RIGHT),
+						GameUI.convertY(this.uiViewport, TIMER_DIALOG_TOP - (slot * TIMER_DIALOG_STEP))));
+				frame.positionBounds(this.rootFrame, this.uiViewport);
+			}
+			slot++;
+		}
 	}
 
 	@Override
@@ -6730,12 +7309,11 @@ public class MeleeUI implements CUnitStateListener, CommandButtonListener, Comma
 	@Override
 	public CScriptDialogButton createScriptDialogButton(final CScriptDialog scriptDialog, final String text,
 			final char hotkey) {
-		// TODO use hotkey
 		if (scriptDialog.getScriptDialogFrame() == null) {
 			// A dialog destroyed before a save has no frames in the loaded game.
 			clearDialog(scriptDialog);
 		}
-		final CScriptDialogButton newButton = new CScriptDialogButton(null, null, text);
+		final CScriptDialogButton newButton = new CScriptDialogButton(null, null, text, hotkey);
 		attachScriptDialogButton(scriptDialog, newButton);
 		return newButton;
 	}
@@ -6770,6 +7348,13 @@ public class MeleeUI implements CUnitStateListener, CommandButtonListener, Comma
 
 	/** A loaded game is the map started again with the saved state put in place of its main function. */
 	private void loadSavedGame(final FileHandle file) {
+		// The script LoadGame comes here without the list, and leaving the game cannot be taken back.
+		final SavedGame.Loadability state = SavedGame.loadability(file, this.war3MapViewer);
+		if (state != SavedGame.Loadability.LOADABLE) {
+			displayTimedText(0, 0, 10,
+					this.rootFrame.getTemplates().getDecoratedString(SavedGameDialog.reasonKey(state)));
+			return;
+		}
 		try {
 			final SavedGame.Header header = SavedGame.readHeader(file);
 			SavedGame.setPendingLoad(file);
@@ -7022,10 +7607,89 @@ public class MeleeUI implements CUnitStateListener, CommandButtonListener, Comma
 		this.showing = true;
 	}
 
+	/**
+	 * As in 1.29 (probe interface-fade-shot): over the fade duration the game interface and the letterbox cross-fade
+	 * linearly; a duration of 0 switches at once.
+	 */
 	@Override
 	public void showInterface(final boolean show, final float fadeDuration) {
 		this.interfaceShown = show;
+		final float target = show ? 1f : 0f;
+		if ((fadeDuration <= 0f) || (this.interfaceOpacity == target)) {
+			this.interfaceOpacity = target;
+			this.interfaceFadeRate = 0f;
+			applyInterfaceVisibility();
+			return;
+		}
+		this.interfaceFadeRate = (target - this.interfaceOpacity) / fadeDuration;
 		applyInterfaceVisibility();
+	}
+
+	private void updateInterfaceFade(final float deltaTime) {
+		if (this.interfaceFadeRate == 0f) {
+			return;
+		}
+		this.interfaceOpacity += this.interfaceFadeRate * deltaTime;
+		if ((this.interfaceFadeRate > 0f) ? (this.interfaceOpacity >= 1f) : (this.interfaceOpacity <= 0f)) {
+			this.interfaceOpacity = this.interfaceShown ? 1f : 0f;
+			this.interfaceFadeRate = 0f;
+			applyInterfaceVisibility();
+		}
+		else {
+			setInterfaceAlpha(getGameInterfaceAlpha(), 1f - this.interfaceOpacity);
+		}
+	}
+
+	private boolean isInterfaceFading() {
+		return this.interfaceFadeRate != 0f;
+	}
+
+	private float getGameInterfaceAlpha() {
+		if (!this.userUIEnabled) {
+			return 0f;
+		}
+		if (isInterfaceFading()) {
+			return this.interfaceOpacity;
+		}
+		return this.interfaceShown ? 1f : 0f;
+	}
+
+	private void setInterfaceAlpha(final float gameAlpha, final float cinematicAlpha) {
+		if (!this.interfaceAlphaChanged && (gameAlpha >= 1f) && (cinematicAlpha >= 1f)) {
+			return;
+		}
+		this.interfaceAlphaChanged = (gameAlpha < 1f) || (cinematicAlpha < 1f);
+		for (final UIFrame frame : new UIFrame[] { this.consoleUI, this.resourceBar, this.timeIndicator,
+				this.minimapButtonBar, this.smashSimpleInfoPanel, this.smashCommandButtons, this.upperButtonBar,
+				this.inventoryCover, this.inventoryBarFrame, this.inventoryTitleFrame, this.heroBar }) {
+			fadeFrame(frame, gameAlpha);
+		}
+		fadeFrame(this.cinematicPanel, cinematicAlpha);
+		if (this.portrait.modelInstance != null) {
+			this.portrait.modelInstance.setVertexAlpha(gameAlpha);
+		}
+	}
+
+	private static void fadeFrame(final UIFrame frame, final float alpha) {
+		if (frame instanceof AbstractRenderableFrame) {
+			((AbstractRenderableFrame) frame).setRenderAlpha(alpha);
+		}
+		fadeFrameModels(frame, alpha);
+	}
+
+	// Interface models are drawn by the UI scene, not by their frames, so they fade apart from the batch.
+	private static void fadeFrameModels(final UIFrame frame, final float alpha) {
+		if (frame instanceof SpriteFrame) {
+			((SpriteFrame) frame).setModelAlpha(alpha);
+		}
+		else if (frame instanceof SpriteFrame2) {
+			((SpriteFrame2) frame).setModelAlpha(alpha);
+		}
+		if (frame instanceof AbstractUIFrame) {
+			for (final UIFrame child : ((AbstractUIFrame) frame).getChildFrames()) {
+				fadeFrameModels(child, alpha);
+			}
+		}
 	}
 
 	@Override
@@ -7044,13 +7708,17 @@ public class MeleeUI implements CUnitStateListener, CommandButtonListener, Comma
 	 * follows ShowInterface alone.
 	 */
 	private void applyInterfaceVisibility() {
-		updateInterfaceVisibility(this.interfaceShown && this.userUIEnabled);
-		this.cinematicPanel.setVisible(!this.interfaceShown);
+		if (isInterfaceFading()) {
+			updateInterfaceVisibility(this.userUIEnabled);
+			this.cinematicPanel.setVisible(true);
+			setInterfaceAlpha(getGameInterfaceAlpha(), 1f - this.interfaceOpacity);
+		}
+		else {
+			updateInterfaceVisibility(this.interfaceShown && this.userUIEnabled);
+			this.cinematicPanel.setVisible(!this.interfaceShown);
+			setInterfaceAlpha(1f, 1f);
+		}
 		positionPortrait();
-	}
-
-	private boolean isGameInterfaceShown() {
-		return this.interfaceShown && this.userUIEnabled;
 	}
 
 	private void updateInterfaceVisibility(final boolean show) {
@@ -7082,7 +7750,7 @@ public class MeleeUI implements CUnitStateListener, CommandButtonListener, Comma
 			this.rootFrame.setText(this.cinematicDialogueText, areSubtitlesShown() ? text : "");
 			this.cinematicPortrait.setCinematicTalkingHead(
 					unitTypeData == null ? null : unitTypeData.getPortraitModel(), color.getHandleId(),
-					unitTypeData.getRequiredAnimationNames(), sceneDuration);
+					unitTypeData == null ? SequenceUtils.EMPTY : unitTypeData.getRequiredAnimationNames(), sceneDuration);
 			this.cinematicPortrait.talk(null, voiceoverDuration);
 		}
 		else {
