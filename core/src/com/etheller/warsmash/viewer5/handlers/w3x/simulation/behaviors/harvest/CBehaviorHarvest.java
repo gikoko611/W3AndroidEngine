@@ -101,7 +101,7 @@ public class CBehaviorHarvest extends CAbstractRangedBehavior
 						this.abilityHarvest.onMineEntry(this.simulation, this.unit,
 								abilityGoldMine.getMiningDuration());
 						this.unit.setHidden(true);
-						this.unit.setInvulnerable(true);
+						this.unit.setInvulnerableSource(this.simulation, CUnit.INSIDE_INVULNERABLE, true);
 						this.popoutFromMineTurnTick = this.simulation.getGameTurnTick()
 								+ (int) (abilityGoldMine.getMiningDuration() / WarsmashConstants.SIMULATION_STEP_TIME);
 					}
@@ -132,7 +132,7 @@ public class CBehaviorHarvest extends CAbstractRangedBehavior
 		this.popoutFromMineTurnTick = 0;
 		this.poppedOut = true;
 		this.unit.setHidden(false);
-		this.unit.setInvulnerable(false);
+		this.unit.endInsideInvulnerable(this.simulation);
 		dropResources();
 		this.abilityHarvest.setCarriedResources(ResourceType.GOLD, goldMined);
 		if (this.unit.getUnitAnimationListener().addSecondaryTag(SecondaryTag.GOLD)) {

@@ -41,6 +41,7 @@ import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CSimulation;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CTerrainDeformations;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.util.SimulationRenderComponentUbersplat;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CUnit;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.timers.CTimer;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CUnitClassification;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CUnitType;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CWidget;
@@ -927,7 +928,15 @@ final class CampaignNatives {
 		add("UnitResetCooldown", (arguments, globalScope, triggerScope) -> {
 			final CUnit unit = object(arguments, 0);
 			if (unit != null) {
-				unit.resetCooldowns();
+				// Measured on 1.29: an order issued in the same tick still sees the cooldown.
+				final CTimer reset = new CTimer() {
+					@Override
+					public void onFire(final CSimulation game) {
+						unit.resetCooldowns();
+					}
+				};
+				reset.setTimeoutTime(0);
+				reset.start(this.simulation);
 			}
 			return null;
 		});

@@ -19,7 +19,6 @@ public class RenderDoodad {
 	private static final int SAMPLE_RADIUS = 4;
 	private static final float[] VERTEX_COLOR_BLACK = { 0f, 0f, 0f, 1f };
 	private static final float[] VERTEX_COLOR_HEAP = { 0f, 0f, 0f, 1f };
-	private static final float[] VERTEX_COLOR_UNEXPLORED = VERTEX_COLOR_BLACK; // later optionally gray
 	public final ModelInstance instance;
 	private final GameObject row;
 	private final float maxPitch;
@@ -134,7 +133,7 @@ public class RenderDoodad {
 		final int fogOfWarIndexX = pathingGrid.getFogOfWarIndexX(this.x);
 		final int fogOfWarIndexY = pathingGrid.getFogOfWarIndexY(this.y);
 		this.fogState = fogOfWar.getFogState(map.simulation, fogOfWarIndexX, fogOfWarIndexY);
-		this.lastFogStateColor = this.fogState.getMask(); 
+		this.lastFogStateColor = map.getFogShade(this.fogState.getMask());
 		for (int i = 0; i < this.vertexColorBase.length; i++) {
 			VERTEX_COLOR_HEAP[i] = (this.vertexColorBase[i] * (255 - (this.lastFogStateColor & 0xFF))) / 255f;
 		}
@@ -180,8 +179,9 @@ public class RenderDoodad {
 		if (newFogState != this.fogState) {
 			this.fogState = newFogState;
 		}
-		if (newFogState.getMask() != this.lastFogStateColor) {
-			this.lastFogStateColor = War3MapViewer.fadeLineOfSightColor(this.lastFogStateColor, newFogState.getMask());
+		final byte shade = war3MapViewer.getFogShade(newFogState.getMask());
+		if (shade != this.lastFogStateColor) {
+			this.lastFogStateColor = War3MapViewer.fadeLineOfSightColor(this.lastFogStateColor, shade);
 			for (int i = 0; i < this.vertexColorBase.length; i++) {
 				VERTEX_COLOR_HEAP[i] = (this.vertexColorBase[i] * (255 - (this.lastFogStateColor & 0xFF))) / 255f;
 			}

@@ -10,6 +10,7 @@ public interface AbilityFields {
 	public static final String DATA_F = "DataF";
 	public static final String DATA_G = "DataG";
 	public static final String DATA_H = "DataH";
+	public static final String DATA_I = "DataI";
 	public static final String UNIT_ID = "UnitID";
 	public static final String TARGETS_ALLOWED = "targs"; // replaced from 'atar'
 	public static final String LEVELS = "levels"; // replaced from 'alev'

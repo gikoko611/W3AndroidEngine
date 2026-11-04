@@ -1911,7 +1911,7 @@ public class Terrain {
 		boolean changed = !this.fogOfWarMapAllocated;
 		final byte[] mapping = this.fogStateMapping;
 		for (int i = 0; i < 256; i++) {
-			mapping[i] = fogMaskSettings.getFogStateFromSettings((byte) i);
+			mapping[i] = this.viewer.getFogShade(fogMaskSettings.getFogStateFromSettings((byte) i));
 		}
 		final byte[] visual = this.visualFogArray;
 		final byte[] states = this.fogStateArray;

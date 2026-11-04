@@ -43,6 +43,7 @@ public class MeleeUIMinimap {
 	private byte polarity = -1;
 	private boolean visible = true;
 	private boolean terrainVisible = true;
+	private boolean maskedAreasPartiallyVisible;
 	private final float[] cameraFootprint = new float[8];
 	private Texture lineTexture;
 	// The fog was drawn as one sprite per fog cell every frame, thousands of them, which phones could not keep up
@@ -146,10 +147,11 @@ public class MeleeUIMinimap {
 					for (int x = 0; x < width; x++) {
 						final CFogState state = fogOfWar.getFogState(game, x + minX, y + minY);
 						final int rgba;
+						// Measured on 1.29: fog leaves 75 % of the minimap's brightness, a partially visible mask 38 %.
 						if (CFogState.FOGGED.equals(state)) {
-							rgba = 0x0000007F;
+							rgba = 0x0000003F;
 						} else if (CFogState.MASKED.equals(state)) {
-							rgba = 0x000000FF;
+							rgba = this.maskedAreasPartiallyVisible ? 0x0000009F : 0x000000FF;
 						} else {
 							rgba = 0;
 						}
@@ -178,7 +180,8 @@ public class MeleeUIMinimap {
 			int dimensions = 4;
 			if (!(simUnit.isHidden() || simUnit.isHideMinimapIcon() || simUnit.isDead())
 					&& (this.observerView || simUnit.isVisible(game, player.getId())
-						|| isExploredLandmark(game, simUnit, pathingGrid, fogOfWar))) {
+						|| isExploredLandmark(game, simUnit, pathingGrid, fogOfWar,
+								this.maskedAreasPartiallyVisible))) {
 				float red = 1f;
 				float green = 1f;
 				float blue = 1f;
@@ -244,11 +247,11 @@ public class MeleeUIMinimap {
 	}
 
 	private static boolean isExploredLandmark(final CSimulation game, final CUnit unit, final PathingGrid pathingGrid,
-			final CPlayerFogOfWar fogOfWar) {
+			final CPlayerFogOfWar fogOfWar, final boolean maskedAreasPartiallyVisible) {
 		return ((unit.getGoldMineData() != null) || (unit.getOverlayedGoldMineData() != null)
 				|| unit.getUnitType().isNeutralBuildingShowMinimapIcon())
-				&& !CFogState.MASKED.equals(fogOfWar.getFogState(game, pathingGrid.getFogOfWarIndexX(unit.getX()),
-						pathingGrid.getFogOfWarIndexY(unit.getY())));
+				&& (maskedAreasPartiallyVisible || !CFogState.MASKED.equals(fogOfWar.getFogState(game, pathingGrid.getFogOfWarIndexX(unit.getX()),
+						pathingGrid.getFogOfWarIndexY(unit.getY()))));
 	}
 
 	// Icons are drawn grouped by texture, since every texture change is a separate draw call and the dots of
@@ -373,6 +376,10 @@ public class MeleeUIMinimap {
 
 	public boolean isVisible() {
 		return this.visible;
+	}
+
+	public void setMaskedAreasPartiallyVisible(final boolean maskedAreasPartiallyVisible) {
+		this.maskedAreasPartiallyVisible = maskedAreasPartiallyVisible;
 	}
 
 	public void setTerrainVisible(final boolean terrainVisible) {

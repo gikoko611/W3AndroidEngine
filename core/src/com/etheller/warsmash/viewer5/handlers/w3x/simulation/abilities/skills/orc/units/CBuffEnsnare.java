@@ -4,6 +4,7 @@ import com.etheller.warsmash.util.War3ID;
 import com.etheller.warsmash.util.WarsmashConstants;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CSimulation;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CUnit;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.CAbility;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.skills.util.CBuffTimed;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.unit.CUnitTypeJass;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.unit.StateModBuff;
@@ -21,6 +22,7 @@ public class CBuffEnsnare extends CBuffTimed {
 	private float lowerStepPerTick;
 	private boolean addedGroundType;
 	private boolean removedFlyingType;
+	private float scriptFlyHeight;
 
 	public CBuffEnsnare(final int handleId, final War3ID alias, final float duration, final boolean flying,
 			final float airUnitHeight) {
@@ -42,6 +44,7 @@ public class CBuffEnsnare extends CBuffTimed {
 		unit.computeUnitState(game, StateModBuffType.SNARED);
 		if (this.flying) {
 			final float startHeight = unit.getUnitType().getDefaultFlyingHeight();
+			this.scriptFlyHeight = startHeight;
 			final float targetHeight = Math.min(this.airUnitHeight, startHeight);
 			final int lowerTicks = (int) (this.airUnitLowerDuration / WarsmashConstants.SIMULATION_STEP_TIME);
 			if (lowerTicks > 0) {
@@ -86,6 +89,30 @@ public class CBuffEnsnare extends CBuffTimed {
 			}
 		}
 		super.onTick(game, unit);
+	}
+
+	/**
+	 * Measured (1.29, probe orc-ensnare-air): scripts still see a snared flyer at its own fly height and as a flying,
+	 * not a ground, unit, although it is drawn pulled down and land units may attack it.
+	 */
+	public static CBuffEnsnare getFlyingSnare(final CUnit unit) {
+		for (final CAbility ability : unit.getAbilities()) {
+			if ((ability instanceof CBuffEnsnare) && ((CBuffEnsnare) ability).flying) {
+				return (CBuffEnsnare) ability;
+			}
+		}
+		return null;
+	}
+
+	public float getScriptFlyHeight() {
+		return this.scriptFlyHeight;
+	}
+
+	public static boolean isScriptUnitType(final CUnit unit, final CUnitTypeJass type) {
+		if (((type == CUnitTypeJass.FLYING) || (type == CUnitTypeJass.GROUND)) && (getFlyingSnare(unit) != null)) {
+			return type == CUnitTypeJass.FLYING;
+		}
+		return unit.isUnitType(type);
 	}
 
 	@Override

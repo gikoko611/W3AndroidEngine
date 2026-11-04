@@ -187,6 +187,7 @@ import com.etheller.warsmash.viewer5.handlers.w3x.simulation.players.CPlayer;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.players.vision.CPlayerFogOfWar;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.timers.CTimer;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.trigger.enumtypes.CEffectType;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.trigger.enumtypes.CFogState;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.trigger.enumtypes.CSoundVolumeGroup;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.util.SimulationRenderComponent;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.util.SimulationRenderComponentLightning;
@@ -202,6 +203,8 @@ import mpq.MPQException;
 
 public class War3MapViewer extends AbstractMdxModelViewer implements MdxAssetLoader {
 	private static final int MAX_STEPS_PER_FRAME = 3;
+	private static final byte FOGGED_SHADE = (byte) 168;
+	private static final byte MASKED_PARTIALLY_VISIBLE_SHADE = (byte) 214;
 	private final EnumSet<PauseSource> pauseSources = EnumSet.noneOf(PauseSource.class);
 	private static final List<String> ORIGIN_STRING_LIST = Arrays.asList("origin");
 
@@ -3305,6 +3308,26 @@ public class War3MapViewer extends AbstractMdxModelViewer implements MdxAssetLoa
 		return (int) (value + (value < 0 ? -0.5f : 0.5f));
 	}
 
+	/**
+	 * The shade a fog state is drawn with, measured on 1.29 against the same view without fog: fog leaves 34 % of the
+	 * brightness. Melee maps set "masked areas are partially visible": the black mask then leaves 16 %, half of fog;
+	 * campaign maps do not, and their mask stays black.
+	 */
+	public byte getFogShade(final byte fogState) {
+		if (fogState == CFogState.FOGGED.getMask()) {
+			return FOGGED_SHADE;
+		}
+		if ((fogState == CFogState.MASKED.getMask()) && isMaskedAreasPartiallyVisible()) {
+			return MASKED_PARTIALLY_VISIBLE_SHADE;
+		}
+		return fogState;
+	}
+
+	public boolean isMaskedAreasPartiallyVisible() {
+		return (this.lastLoadedMapInformation != null)
+				&& this.lastLoadedMapInformation.hasFlag(War3MapW3iFlags.MASKED_AREAS_ARE_PARTIALLY_VISIBLE);
+	}
+
 	public CPlayerFogOfWar getFogOfWar() {
 		if (this.observerFogOfWar != null) {
 			return this.observerFogOfWar;
@@ -4482,8 +4505,7 @@ public class War3MapViewer extends AbstractMdxModelViewer implements MdxAssetLoa
 								final AbilityUI abilityUi = War3MapViewer.this.abilityDataUI.getUI(alias);
 								final String loopedSound;
 								if (abilityUi != null) {
-									loopedSound = abilityUi.getEffectSound() == null ? null
-											: abilityUi.getEffectSoundLooped();
+									loopedSound = abilityUi.getEffectSoundLooped();
 								}
 								else {
 									// Buffs such as Cyclone and Mana Flare carry their own looped sound.

@@ -16,6 +16,7 @@ import com.etheller.warsmash.viewer5.handlers.w3x.simulation.orders.OrderIds;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.unit.CUnitTypeJass;
 
 public class CAbilityEnsnare extends CAbilityTargetSpellBase {
+	private float airUnitLowerDuration;
 	private float airUnitHeight;
 	private float projectileSpeed;
 	private boolean projectileHomingEnabled;
@@ -33,6 +34,7 @@ public class CAbilityEnsnare extends CAbilityTargetSpellBase {
 
 	@Override
 	public void populateData(final GameObject worldEditorAbility, final int level) {
+		this.airUnitLowerDuration = worldEditorAbility.getFieldAsFloat(AbilityFields.DATA_A + level, 0);
 		this.airUnitHeight = worldEditorAbility.getFieldAsFloat(AbilityFields.DATA_B + level, 0);
 		this.projectileSpeed = worldEditorAbility.getFieldAsFloat(AbilityFields.PROJECTILE_SPEED, 0);
 		this.projectileHomingEnabled = worldEditorAbility.getFieldAsBoolean(AbilityFields.PROJECTILE_HOMING_ENABLED,
@@ -65,7 +67,8 @@ public class CAbilityEnsnare extends CAbilityTargetSpellBase {
 												flying ? CAbilityEnsnare.this.airBuffId
 														: CAbilityEnsnare.this.groundBuffId,
 												getDurationForTarget(unitTarget), flying,
-												CAbilityEnsnare.this.airUnitHeight));
+												CAbilityEnsnare.this.airUnitHeight,
+												CAbilityEnsnare.this.airUnitLowerDuration));
 							}
 						}
 					});

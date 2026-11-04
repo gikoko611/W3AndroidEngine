@@ -55,7 +55,7 @@ public class CAbilityAnimateDead extends CAbilityNoTargetSpellBase {
 			if (corpse.getPlayerIndex() != caster.getPlayerIndex()) {
 				corpse.setPlayerIndex(simulation, caster.getPlayerIndex(), true);
 			}
-			corpse.setInvulnerable(true);
+			corpse.setInvulnerableSource(simulation, CUnit.ANIMATED_INVULNERABLE, true);
 			corpse.add(simulation, new CBuffTimedLife(simulation.getHandleIdAllocator().createId(), this.buffId,
 					getDuration(), false));
 			simulation.createTemporarySpellEffectOnUnit(corpse, getAlias(), CEffectType.TARGET);

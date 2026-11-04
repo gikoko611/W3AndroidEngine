@@ -11,6 +11,9 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.nio.FloatBuffer;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
 
 import org.lwjgl.BufferUtils;
 import org.lwjgl.openal.AL;
@@ -135,8 +138,19 @@ public class DesktopLauncher {
 	}
 
 	public static DataTable loadWarsmashIni(final String iniPath) {
+		final File defaultIniFile = new File(DEFAULT_INI);
+		final DataTable warsmashIni = readIni(iniPath != null ? new File(iniPath) : defaultIniFile);
+		if ((iniPath != null) && defaultIniFile.isFile() && !sameFile(new File(iniPath), defaultIniFile)) {
+			addMissingSettings(warsmashIni, readIni(defaultIniFile));
+		}
+		return warsmashIni;
+	}
+
+	private static final String DEFAULT_INI = "warsmash.ini";
+
+	private static DataTable readIni(final File iniFile) {
 		final DataTable warsmashIni = new DataTable(StringBundle.EMPTY);
-		try (FileInputStream warsmashIniInputStream = new FileInputStream(iniPath != null ? iniPath : "warsmash.ini")) {
+		try (FileInputStream warsmashIniInputStream = new FileInputStream(iniFile)) {
 			warsmashIni.readTXT(warsmashIniInputStream, true);
 		}
 		catch (final FileNotFoundException e) {
@@ -146,6 +160,64 @@ public class DesktopLauncher {
 			throw new RuntimeException(e);
 		}
 		return warsmashIni;
+	}
+
+	/**
+	 * Data packaging tools write an ini with only the game data sources. Missing sections come from the default ini,
+	 * and so do its relative folder sources, which are the engine's own files. Keys are not filled in one by one: an
+	 * absent AbilityCompatibility means none, unlike the default ini.
+	 */
+	private static void addMissingSettings(final DataTable warsmashIni, final DataTable defaults) {
+		for (final String section : defaults.keySet()) {
+			final Element defaultElement = defaults.get(section);
+			final Element element = warsmashIni.get(section);
+			if (element == null) {
+				warsmashIni.put(section, defaultElement);
+			}
+			else if ("DataSources".equalsIgnoreCase(section)) {
+				addEngineDataSources(element, defaultElement);
+			}
+		}
+	}
+
+	private static void addEngineDataSources(final Element dataSources, final Element defaults) {
+		int count = dataSources.getFieldValue("Count");
+		final List<File> folders = new ArrayList<>();
+		for (int i = 0; i < count; i++) {
+			if ("Folder".equalsIgnoreCase(dataSources.getField(dataSourceKey("Type", i)))) {
+				folders.add(new File(dataSources.getField(dataSourceKey("Path", i))));
+			}
+		}
+		final int defaultCount = defaults.getFieldValue("Count");
+		for (int i = 0; i < defaultCount; i++) {
+			final File folder = new File(defaults.getField(dataSourceKey("Path", i)));
+			if (!"Folder".equalsIgnoreCase(defaults.getField(dataSourceKey("Type", i))) || folder.isAbsolute()) {
+				continue;
+			}
+			boolean present = false;
+			for (final File existing : folders) {
+				present |= sameFile(existing, folder);
+			}
+			if (!present) {
+				dataSources.setField(dataSourceKey("Type", count), "Folder");
+				dataSources.setField(dataSourceKey("Path", count), folder.getPath());
+				count++;
+			}
+		}
+		dataSources.setField("Count", Integer.toString(count));
+	}
+
+	private static String dataSourceKey(final String prefix, final int index) {
+		return String.format(Locale.ROOT, "%s%02d", prefix, index);
+	}
+
+	private static boolean sameFile(final File a, final File b) {
+		try {
+			return a.getCanonicalFile().equals(b.getCanonicalFile());
+		}
+		catch (final IOException e) {
+			return a.getAbsoluteFile().equals(b.getAbsoluteFile());
+		}
 	}
 
 	public static DataTable loadWarsmashIni() {

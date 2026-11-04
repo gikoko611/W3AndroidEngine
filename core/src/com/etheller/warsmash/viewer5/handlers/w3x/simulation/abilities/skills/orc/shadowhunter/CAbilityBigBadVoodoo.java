@@ -20,7 +20,7 @@ import com.etheller.warsmash.viewer5.handlers.w3x.simulation.trigger.enumtypes.C
 
 /**
  * Big Bad Voodoo: while channeled, the caster's own non-hero units around it are invulnerable; a unit that leaves
- * the area, or the end of the channel, ends it.
+ * the area, or the end of the channel, ends it after the buff's short linger.
  */
 public class CAbilityBigBadVoodoo extends CAbilityNoTargetSpellBase {
 	private float areaOfEffect;
@@ -73,9 +73,14 @@ public class CAbilityBigBadVoodoo extends CAbilityNoTargetSpellBase {
 		final Iterator<Map.Entry<CUnit, CBuffBigBadVoodoo>> iterator = this.protectedUnits.entrySet().iterator();
 		while (iterator.hasNext()) {
 			final Map.Entry<CUnit, CBuffBigBadVoodoo> entry = iterator.next();
-			if (!inArea.contains(entry.getKey())) {
-				entry.getKey().remove(simulation, entry.getValue());
+			if (!entry.getKey().getAbilities().contains(entry.getValue())) {
 				iterator.remove();
+			}
+			else if (inArea.contains(entry.getKey())) {
+				entry.getValue().stopLinger();
+			}
+			else {
+				entry.getValue().startLinger(simulation);
 			}
 		}
 		for (final CUnit unit : inArea) {
@@ -92,8 +97,8 @@ public class CAbilityBigBadVoodoo extends CAbilityNoTargetSpellBase {
 	@Override
 	public void doChannelEnd(final CSimulation game, final CUnit unit, final AbilityTarget target,
 			final boolean interrupted) {
-		for (final Map.Entry<CUnit, CBuffBigBadVoodoo> entry : this.protectedUnits.entrySet()) {
-			entry.getKey().remove(game, entry.getValue());
+		for (final CBuffBigBadVoodoo buff : this.protectedUnits.values()) {
+			buff.startLinger(game);
 		}
 		this.protectedUnits.clear();
 		if (this.casterBuff != null) {

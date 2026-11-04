@@ -25,7 +25,7 @@ Supported game versions: **1.31 and newer, including Reforged**, played with Cla
 
 ## Status
 
-Current version: **v0.1.085**
+Current version: **v0.1.088**
 
 - Custom Games work end-to-end; computer players take the computer slots of skirmish maps
 - Reign of Chaos and Frozen Throne campaign missions start and run with their own data, with heroes carried between missions
@@ -42,6 +42,7 @@ Known issues in this version:
 - Computer players do not buy zeppelins or items yet
 - Some unit movement and responses to nearby fights still differ from the original
 - Reign of Chaos balance values and interface skin still come from the Frozen Throne data
+- On screens 720 px high the game data screen's bottom lines overlap the folder box (scroll to reach Continue)
 
 ## Screenshots
 

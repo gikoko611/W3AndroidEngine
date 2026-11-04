@@ -144,6 +144,7 @@ import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.mine.CAbi
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.neutral.CAbilityWayGate;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.test.CAbilityCarrionSwarmDummy;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.skills.CAbilitySpell;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.skills.orc.units.CBuffEnsnare;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.skills.util.CBuffStun;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.skills.util.CBuffTimedLife;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.targeting.AbilityPointTarget;
@@ -3788,7 +3789,8 @@ public class Jass2 {
 					(arguments, globalScope, triggerScope) -> {
 						final CUnit unit = inGame(nullable(arguments, 0, ObjectJassValueVisitor.<CUnit>getInstance()));
 						if (unit != null) {
-							return RealJassValue.of(unit.getFlyHeight());
+							final CBuffEnsnare snare = CBuffEnsnare.getFlyingSnare(unit);
+							return RealJassValue.of(snare != null ? snare.getScriptFlyHeight() : unit.getFlyHeight());
 						}
 						return RealJassValue.ZERO;
 					});
@@ -4279,7 +4281,7 @@ public class Jass2 {
 						if (whichUnit != null) {
 							final CUnitTypeJass whichUnitType = arguments.get(1)
 									.visit(ObjectJassValueVisitor.getInstance());
-							return BooleanJassValue.of(whichUnit.isUnitType(whichUnitType));
+							return BooleanJassValue.of(CBuffEnsnare.isScriptUnitType(whichUnit, whichUnitType));
 						}
 						return BooleanJassValue.FALSE;
 					});
@@ -6333,7 +6335,7 @@ public class Jass2 {
 						final CUnit whichUnit = nullable(arguments, 0, ObjectJassValueVisitor.getInstance());
 						final boolean flag = arguments.get(1).visit(BooleanJassValueVisitor.getInstance());
 						if (whichUnit != null) {
-							whichUnit.setInvulnerable(flag);
+							whichUnit.setInvulnerable(CommonEnvironment.this.simulation, flag);
 						}
 						return null;
 					});
@@ -6926,7 +6928,11 @@ public class Jass2 {
 					(arguments, globalScope, triggerScope) -> {
 						final CUnit whichUnit = inGame(nullable(arguments, 0, ObjectJassValueVisitor.<CUnit>getInstance()));
 						int orderId;
-						if ((whichUnit != null) && (whichUnit.getCurrentOrder() != null)) {
+						if ((whichUnit != null) && whichUnit.isPaused()) {
+							// 1.29 (probe invuln-ad-cyclone-d379): a paused unit reads stunned.
+							orderId = OrderIds.stunned;
+						}
+						else if ((whichUnit != null) && (whichUnit.getCurrentOrder() != null)) {
 							orderId = whichUnit.getCurrentOrder().getOrderId();
 							// 1.29 (probe order-current-d286): hold position reads 0, also while it attacks; patrol
 							// reads 851991; a Peasant raising its building reads repair.
@@ -11421,7 +11427,8 @@ public class Jass2 {
 			// Orders without an ability, such as stop, are still issued.
 			this.simulation.getDefaultPlayerUnitOrderExecutor(orderingPlayerIndex).issueImmediateOrder(
 					whichUnit.getHandleId(), abilityHandleId, orderId, false);
-			return abilityHandleId != 0;
+			// Measured on 1.29: stop is accepted (true) although no ability carries it.
+			return (abilityHandleId != 0) || ((orderId == OrderIds.stop) && !whichUnit.isDead());
 		}
 
 		private CFogState fogState(final CPlayer player, final float x, final float y) {

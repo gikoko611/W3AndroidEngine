@@ -62,6 +62,7 @@ import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.skills.un
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.targeting.AbilityPointTarget;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.targeting.AbilityTarget;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.targeting.AbilityTargetVisitor;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.types.CAbilityType;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilitybuilder.buff.ABGenericTimedBuff;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilitybuilder.buff.CPausedTickingBuff;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.behaviors.BehaviorAbilityVisitor;
@@ -270,6 +271,11 @@ public class CUnit extends CWidget {
 	private boolean removedFromGame;
 	private boolean paused = false;
 	private boolean acceptingOrders = true;
+	private static final War3ID INVULNERABLE_ABILITY_ID = War3ID.fromString("Avul");
+	/** A worker inside a gold mine or the Orc building it builds. */
+	public static final StateModBuff INSIDE_INVULNERABLE = new StateModBuff(StateModBuffType.INVULNERABLE, 1);
+	/** A unit raised by Animate Dead, for its whole life. */
+	public static final StateModBuff ANIMATED_INVULNERABLE = new StateModBuff(StateModBuffType.INVULNERABLE, 1);
 	private boolean invulnerable = false;
 	private boolean scriptInvulnerable = false;
 	private boolean buffInvulnerable = false;
@@ -2879,7 +2885,7 @@ public class CUnit extends CWidget {
 
 	private void popoutWorker(final CSimulation game) {
 		if ((this.worker != null) && this.workerInside) {
-			this.worker.setInvulnerable(false);
+			this.worker.endInsideInvulnerable(game);
 			this.worker.setHidden(false);
 			this.worker.setAcceptingOrders(true);
 			this.worker.nudgeAround(game, this);
@@ -3554,6 +3560,23 @@ public class CUnit extends CWidget {
 				MovementType.FOOT);
 		setPoint(free[0], free[1], collision, game.getRegionManager());
 		game.unitRepositioned(this);
+	}
+
+	/**
+	 * Where this (non-building) unit would stand if put at the point, without moving it.
+	 */
+	public float[] findFreePoint(final float x, final float y, final CSimulation game) {
+		if (this.pathingDisabled || isBuilding()) {
+			return new float[] { x, y };
+		}
+		if (this.collisionRectangle != null) {
+			tempRect.set(this.collisionRectangle);
+		}
+		else {
+			tempRect.setSize(16, 16);
+		}
+		return findNearestFreeCell(x, y, game.getWorldCollision(), game.getPathingGrid(),
+				this.unitType.getCollisionSize(), getMovementType());
 	}
 
 	private boolean fitsAt(final float x, final float y, final CWorldCollision collision,
@@ -5433,12 +5456,47 @@ public class CUnit extends CWidget {
 	}
 
 	/**
-	 * The script flag (SetUnitInvulnerable); abilities make units invulnerable with INVULNERABLE state mod buffs so
-	 * that overlapping sources (Divine Shield under Big Bad Voodoo) do not end each other.
+	 * SetUnitInvulnerable. Measured on 1.29: it adds or removes the Invulnerable ability ('Avul'), so it is one flag
+	 * however often it is set, UnitRemoveAbility 'Avul' clears it, and it neither ends nor is ended by spell sources
+	 * (Divine Shield, Big Bad Voodoo, a gold mine visit), which are INVULNERABLE state mod buffs of their own.
 	 */
-	public void setInvulnerable(final boolean invulnerable) {
-		this.scriptInvulnerable = invulnerable;
+	public void setInvulnerable(final CSimulation simulation, final boolean invulnerable) {
+		// Saves from before 'Avul' kept the flag in scriptInvulnerable.
+		this.scriptInvulnerable = false;
+		final CLevelingAbility existing = getAbility(
+				GetAbilityByRawcodeVisitor.getInstance().reset(INVULNERABLE_ABILITY_ID));
+		if (invulnerable && (existing == null)) {
+			final CAbilityType<?> type = simulation.getAbilityData().getAbilityType(INVULNERABLE_ABILITY_ID);
+			if (type != null) {
+				add(simulation, type.createAbility(simulation.getHandleIdAllocator().createId()));
+			}
+			else {
+				this.scriptInvulnerable = true;
+			}
+		}
+		else if (!invulnerable && (existing != null)) {
+			remove(simulation, existing);
+		}
 		this.invulnerable = this.scriptInvulnerable || this.buffInvulnerable;
+	}
+
+	public void setInvulnerableSource(final CSimulation simulation, final StateModBuff source, final boolean active) {
+		if (active) {
+			addStateModBuff(source);
+		}
+		else {
+			removeStateModBuff(source);
+		}
+		computeUnitState(simulation, StateModBuffType.INVULNERABLE);
+	}
+
+	/**
+	 * A worker leaving a gold mine or an Orc building it was inside. Saves from before the per-source state kept that
+	 * in the script flag, which leaving cleared.
+	 */
+	public void endInsideInvulnerable(final CSimulation simulation) {
+		this.scriptInvulnerable = false;
+		setInvulnerableSource(simulation, INSIDE_INVULNERABLE, false);
 	}
 
 	@Override

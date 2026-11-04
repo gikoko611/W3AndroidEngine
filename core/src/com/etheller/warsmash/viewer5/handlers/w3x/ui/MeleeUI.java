@@ -628,7 +628,10 @@ public class MeleeUI implements CUnitStateListener, CommandButtonListener, Comma
 		specialIcons[5] = ImageUtils.getAnyExtensionTexture(war3MapViewer.mapMpq, "Textures\\white.blp");
 
 		final Rectangle playableMapArea = war3MapViewer.terrain.getPlayableMapArea();
-		return new MeleeUIMinimap(minimapDisplayArea, playableMapArea, minimapTexture, teamColors, specialIcons);
+		final MeleeUIMinimap minimap = new MeleeUIMinimap(minimapDisplayArea, playableMapArea, minimapTexture, teamColors,
+				specialIcons);
+		minimap.setMaskedAreasPartiallyVisible(war3MapViewer.isMaskedAreasPartiallyVisible());
+		return minimap;
 	}
 
 	/**

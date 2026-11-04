@@ -106,7 +106,7 @@ public class CBehaviorOrcBuild extends CAbstractRangedBehavior {
 				this.unit.checkDisabledAbilities(simulation, true);
 				this.unit.setHidden(true);
 				this.unit.setAcceptingOrders(false);
-				this.unit.setInvulnerable(true);
+				this.unit.setInvulnerableSource(simulation, CUnit.INSIDE_INVULNERABLE, true);
 				onStructureCreated(simulation, constructedStructure, abilityBuildInProgress);
 				simulation.getPlayer(playerIndex).addTechtreeInProgress(simulation, this.orderId);
 				simulation.unitConstructedEvent(this.unit, constructedStructure);

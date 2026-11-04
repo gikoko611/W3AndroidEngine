@@ -1719,21 +1719,37 @@
 		"ids": [{"id":"Acha"}],
 		"type": "HIDDEN",
 		"onAddAbility": [{
-				"type": "transformUnitInstant",
-				"unit": {
-					"type": "getCastingUnit"
+			"type": "createTimer",
+			"timeout": {
+				"type": "rawFloat",
+				"value": "0"
+			},
+			"actions": [{
+				"type": "if",
+				"condition": {
+					"type": "isUnitAlive",
+					"unit": {
+						"type": "getCastingUnit"
+					}
 				},
-				"alternateUnitId": {
-					"type": "getAbilityUnitId"
-				},
-				"permanent": {
-					"type": "rawBoolean",
-					"value": "true"
-				},
-				"keepRatios": {
-					"type": "rawBoolean",
-					"value": "false"
-				}
+				"thenActions": [{
+					"type": "transformUnitInstant",
+					"unit": {
+						"type": "getCastingUnit"
+					},
+					"alternateUnitId": {
+						"type": "getAbilityUnitId"
+					},
+					"permanent": {
+						"type": "rawBoolean",
+						"value": "true"
+					},
+					"keepRatios": {
+						"type": "rawBoolean",
+						"value": "false"
+					}
+				}]
+			}]
 		}]
 	},{
 		"ids": [{"id":"Aphx"}],
