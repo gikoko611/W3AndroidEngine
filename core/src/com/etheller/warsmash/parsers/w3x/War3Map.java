@@ -188,9 +188,13 @@ public class War3Map implements DataSource {
 		return this.dataSource.getListfile();
 	}
 
+	/**
+	 * Closes only the map's own archive: the game data under it belongs to whoever passed it in and stays open for
+	 * the menu and the next maps (a closed CASC storage cannot be read again).
+	 */
 	@Override
 	public void close() throws IOException {
-		this.dataSource.close();
+		this.internalMpqContentsDataSource.close();
 	}
 
 	public DataSource getCompoundDataSource() {

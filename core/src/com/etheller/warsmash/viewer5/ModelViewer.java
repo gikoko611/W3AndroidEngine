@@ -15,6 +15,7 @@ import com.badlogic.gdx.graphics.GL20;
 import com.etheller.warsmash.viewer5.gl.DataTexture;
 import com.etheller.warsmash.common.FetchDataTypeName;
 import com.etheller.warsmash.common.LoadGenericCallback;
+import com.etheller.warsmash.datasources.AssetPathFallback;
 import com.etheller.warsmash.datasources.DataSource;
 import com.etheller.warsmash.viewer5.gl.ClientBuffer;
 import com.etheller.warsmash.viewer5.gl.WebGL;
@@ -179,10 +180,23 @@ public abstract class ModelViewer {
 					finalSrc = ddsPath;
 				}
 				else {
-					System.err.println("Attempting to load non-existant file: " + finalSrc);
+					String fallback = AssetPathFallback.find(this.dataSource, finalSrc);
+					if (fallback == null) {
+						fallback = AssetPathFallback.find(this.dataSource, ddsPath);
+					}
+					if (fallback != null) {
+						finalSrc = fallback;
+					}
+					else {
+						System.err.println("Attempting to load non-existant file: " + finalSrc);
+					}
 				}
 			}
 			extension = solved.getExtension();
+			if (!finalSrc.equals(solved.getFinalSrc())) {
+				// Found under another name (a .dds beside it or in a graphics package), so it is read as that file's type.
+				extension = finalSrc.substring(finalSrc.lastIndexOf('.'));
+			}
 			isFetch = solved.isFetch();
 
 			if (!(extension instanceof String)) {

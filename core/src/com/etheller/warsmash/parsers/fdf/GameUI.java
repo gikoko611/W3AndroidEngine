@@ -106,6 +106,8 @@ public final class GameUI extends AbstractUIFrame implements UIFrame {
 	private final BitmapFont font14;
 	private final DynamicFontGeneratorHolder dynamicFontGeneratorHolder;
 	private final List<FocusableFrame> focusableFrames = new ArrayList<>();
+	// Each portrait frame renders through a scene of its own that its viewer does not know of.
+	private final List<SpriteFrame2> portraitFrames = new ArrayList<>();
 	private boolean wideRoot;
 
 	public GameUI(final DataSource dataSource, final GameSkin skin, final Viewport viewport, final Scene uiScene,
@@ -288,17 +290,21 @@ public final class GameUI extends AbstractUIFrame implements UIFrame {
 		return file;
 	}
 
-	public String trySkinField(String file) {
+	public String trySkinField(final String file) {
+		return trySkinField(this.skin, file);
+	}
+
+	public static String trySkinField(final Element skin, String file) {
 		if (file == null) {
 			throw new NullPointerException("file is null");
 		}
-		if (this.skin.hasField(file)) {
-			file = this.skin.getField(file);
+		if (skin.hasField(file)) {
+			file = skin.getField(file);
 		}
 		else {
 			final String fieldVersioned = file + "_V" + WarsmashConstants.GAME_VERSION;
-			if (this.skin.hasField(fieldVersioned)) {
-				file = this.skin.getField(fieldVersioned);
+			if (skin.hasField(fieldVersioned)) {
+				file = skin.getField(fieldVersioned);
 			}
 		}
 		return file;
@@ -582,6 +588,7 @@ public final class GameUI extends AbstractUIFrame implements UIFrame {
 						spriteFrame.add(inflate(childDefinition, spriteFrame, frameDefinition,
 								inDecorateFileNames || childDefinition.has("DecorateFileNames")));
 					}
+					this.portraitFrames.add(spriteFrame);
 					inflatedFrame = spriteFrame;
 				}
 				else {
@@ -1798,6 +1805,10 @@ public final class GameUI extends AbstractUIFrame implements UIFrame {
 
 	public void dispose() {
 		this.dynamicFontGeneratorHolder.dispose();
+		for (final SpriteFrame2 portraitFrame : this.portraitFrames) {
+			portraitFrame.dispose();
+		}
+		this.portraitFrames.clear();
 	}
 
 	public FocusableFrame getNextFocusFrame() {

@@ -7,6 +7,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -31,6 +32,7 @@ import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CDestructable;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CSimulation;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.campaign.CGameCache;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.campaign.CSaveStorage;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.players.CMapFlag;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.players.CPlayer;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.trigger.JassGameEventsWar3;
 
@@ -413,39 +415,55 @@ public final class SavedGame {
 				}
 			}
 
-			final ByteArrayOutputStream bodyBytes = new ByteArrayOutputStream(1 << 20);
+			// Only taking the state apart has to happen between two steps; the rest is left to the save writer.
+			final ByteArrayOutputStream bodyBytes = new SavedObjectGraph.Bytes(1 << 22);
 			final SavedObjectGraph.Writer writer;
-			try (DataOutputStream bodies = new DataOutputStream(new GZIPOutputStream(bodyBytes, 1 << 16))) {
+			try (DataOutputStream bodies = new DataOutputStream(bodyBytes)) {
 				writer = new SavedObjectGraph.Writer(rules, bodies);
 				writer.writeRoot(root);
 			}
 			header.positions = rules.getPositions();
 			header.positions.recordGlobals(scopes);
-			final ByteArrayOutputStream tableBytes = new ByteArrayOutputStream(1 << 16);
-			try (GZIPOutputStream table = new GZIPOutputStream(tableBytes)) {
-				table.write(writer.finishTable());
-			}
-			final boolean written = CSaveStorage.writeAtomically(file, out -> {
+			final byte[] table = writer.finishTable();
+			final ByteArrayOutputStream headerBytes = new ByteArrayOutputStream(1 << 16);
+			try (DataOutputStream out = new DataOutputStream(headerBytes)) {
 				header.write(out);
+			}
+			CSaveStorage.writeInBackground(file, out -> {
+				final ByteArrayOutputStream tableBytes = gzip(table.length, gzipped -> gzipped.write(table));
+				final ByteArrayOutputStream compressedBodies = gzip(bodyBytes.size(), bodyBytes::writeTo);
+				headerBytes.writeTo(out);
 				out.writeInt(tableBytes.size());
 				tableBytes.writeTo(out);
-				out.writeInt(bodyBytes.size());
-				bodyBytes.writeTo(out);
+				out.writeInt(compressedBodies.size());
+				compressedBodies.writeTo(out);
 			});
 			final StringBuilder report = new StringBuilder("Saved game ").append(file.name()).append(": ")
 					.append(writer.objectCount()).append(" objects, ")
-					.append(bodyBytes.size() + tableBytes.size()).append(" bytes, ")
+					.append(bodyBytes.size() + table.length).append(" bytes before compression, ")
 					.append(root.effects.size()).append(" effects, ").append(root.lightnings.size()).append(" lightnings");
 			for (final Map.Entry<String, Integer> dropped : rules.getDroppedReport().entrySet()) {
 				report.append("\n  left out ").append(dropped.getKey()).append(" x").append(dropped.getValue());
 			}
 			System.err.println(report);
-			return written;
+			return true;
 		}
 		catch (final Exception exc) {
 			exc.printStackTrace();
 			return false;
 		}
+	}
+
+	private interface Content {
+		void writeTo(OutputStream out) throws IOException;
+	}
+
+	private static ByteArrayOutputStream gzip(final int length, final Content content) throws IOException {
+		final ByteArrayOutputStream compressed = new ByteArrayOutputStream(Math.max(1 << 12, length / 4));
+		try (GZIPOutputStream out = new GZIPOutputStream(compressed, 1 << 16)) {
+			content.writeTo(out);
+		}
+		return compressed;
 	}
 
 	private static byte[] readFully(final DataInputStream compressed) throws IOException {
@@ -576,6 +594,10 @@ public final class SavedGame {
 		viewer.setGamePaused(War3MapViewer.PauseSource.PLAYER, root.playerPaused);
 		viewer.restoreInterfaceState(root.interfaceState);
 		simulation.setSaveBasicFilename(file.nameWithoutExtension());
+		// Zone maps restore their saves from the player's own save folder only on a player's load; a load by the
+		// map's LoadGame (zone travel) is told apart by this flag.
+		viewer.getMapConfig().setMapFlag(CMapFlag.MAP_RELOADED, pendingLoadByScript);
+		pendingLoadByScript = false;
 		simulation.fireGameEvent(JassGameEventsWar3.EVENT_GAME_LOADED);
 	}
 
@@ -585,6 +607,7 @@ public final class SavedGame {
 	}
 
 	private static FileHandle pendingLoad;
+	private static boolean pendingLoadByScript;
 
 	private static void checkIntact(final byte[] compressed) throws IOException {
 		try (DataInputStream in = gunzip(compressed)) {
@@ -596,7 +619,12 @@ public final class SavedGame {
 	}
 
 	public static void setPendingLoad(final FileHandle file) {
+		setPendingLoad(file, false);
+	}
+
+	public static void setPendingLoad(final FileHandle file, final boolean byScript) {
 		pendingLoad = file;
+		pendingLoadByScript = byScript;
 	}
 
 	public static FileHandle consumePendingLoad() {

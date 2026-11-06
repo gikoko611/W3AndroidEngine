@@ -196,6 +196,11 @@ public class MeleeToggleUI implements WarsmashUI {
 	}
 
 	@Override
+	public void pingMinimap(final float x, final float y, final float duration) {
+		this.meleeUI.pingMinimap(x, y, duration);
+	}
+
+	@Override
 	public void pingMinimap(final float x, final float y, final float duration, final int red, final int green,
 			final int blue, final boolean extraEffects) {
 		this.meleeUI.pingMinimap(x, y, duration, red, green, blue, extraEffects);

@@ -20,6 +20,7 @@ public class CBehaviorTargetSpellBase extends CAbstractRangedBehavior {
 	private boolean doneEffect = false;
 	private boolean channeling = false;
 	private boolean castEventsFired = false;
+	private int castEventTick = -1;
 
 	public CBehaviorTargetSpellBase(final CUnit unit, final CAbilitySpellBase ability) {
 		super(unit);
@@ -29,6 +30,7 @@ public class CBehaviorTargetSpellBase extends CAbstractRangedBehavior {
 
 	public CBehavior reset(CSimulation game, final CWidget target) {
 		this.castStartTick = 0;
+		this.castEventTick = -1;
 		this.doneEffect = false;
 		this.channeling = false;
 		this.castEventsFired = false;
@@ -63,11 +65,33 @@ public class CBehaviorTargetSpellBase extends CAbstractRangedBehavior {
 				final CBehavior prevBeh = this.unit.getCurrentBehavior();
 				this.unit.fireSpellEvents(simulation, JassGameEventsWar3.EVENT_UNIT_SPELL_CHANNEL, this.ability,
 						this.target);
-				this.unit.fireSpellEvents(simulation, JassGameEventsWar3.EVENT_UNIT_SPELL_CAST, this.ability,
-						this.target);
+				final int castingTicks = this.ability.isCastingTimeBeforeCast()
+						? (int) (this.ability.getCastingTime() / WarsmashConstants.SIMULATION_STEP_TIME)
+						: 0;
+				if (castingTicks > 0) {
+					this.castEventTick = this.castStartTick + castingTicks;
+				}
+				else {
+					this.unit.fireSpellEvents(simulation, JassGameEventsWar3.EVENT_UNIT_SPELL_CAST, this.ability,
+							this.target);
+				}
 				if (this.unit.getCurrentBehavior() != prevBeh) {
 					return this.unit.getCurrentBehavior();
 				}
+			}
+		}
+		if (this.castEventTick >= 0) {
+			// Measured on 1.29 (Dark Conversion): the casting time runs between the channel and cast events, and
+			// the cast point counts from the cast event.
+			if (simulation.getGameTurnTick() < this.castEventTick) {
+				return this;
+			}
+			this.castEventTick = -1;
+			this.castStartTick = simulation.getGameTurnTick();
+			final CBehavior prevBeh = this.unit.getCurrentBehavior();
+			this.unit.fireSpellEvents(simulation, JassGameEventsWar3.EVENT_UNIT_SPELL_CAST, this.ability, this.target);
+			if (this.unit.getCurrentBehavior() != prevBeh) {
+				return this.unit.getCurrentBehavior();
 			}
 		}
 		final int ticksSinceCast = simulation.getGameTurnTick() - this.castStartTick;

@@ -293,7 +293,9 @@ public class CAbilityAbilityBuilderStatAuraTemplate extends AbilityGenericSingle
 
 	@Override
 	public void onTick(CSimulation game, CUnit unit) {
-		if (unit.isIllusion()) {
+		// A disabled aura (player-disabled or unmet requirements) stays in the unit's ability list and keeps
+		// ticking; one added while disabled never ran onAdd.
+		if (unit.isIllusion() || isDisabled() || (this.auraGroup == null)) {
 			return;
 		}
 		if (loopTick % LEAVE_GROUP_TICKS == 0) {

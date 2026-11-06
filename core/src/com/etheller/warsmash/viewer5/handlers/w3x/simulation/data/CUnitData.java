@@ -1068,6 +1068,14 @@ public class CUnitData {
 		return this.unitData.get(unitTypeId.asStringValue()).getName();
 	}
 
+	/**
+	 * The race as the data names it; CUnitRace folds races such as "commoner" into OTHER.
+	 */
+	public String getRaceName(final War3ID unitTypeId) {
+		final GameObject unitType = this.unitData.get(unitTypeId.asStringValue());
+		return unitType == null ? "" : unitType.getFieldAsString(UNIT_RACE, 0);
+	}
+
 	public int getA1MinDamage(final War3ID unitTypeId) {
 		return this.unitData.get(unitTypeId.asStringValue()).getFieldAsInteger(ATTACK1_DMG_BASE, 0)
 				+ this.unitData.get(unitTypeId.asStringValue()).getFieldAsInteger(ATTACK1_DMG_DICE, 0);

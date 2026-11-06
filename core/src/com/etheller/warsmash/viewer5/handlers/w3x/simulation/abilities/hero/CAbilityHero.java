@@ -183,7 +183,9 @@ public class CAbilityHero extends AbstractCAbility {
 
 	/**
 	 * UnitStripHeroLevel, measured: the hero drops to the experience the lower level starts at and loses the skill
-	 * points of those levels; asking for too many stops at level 1.
+	 * points of those levels; asking for too many stops at level 1. Measured on 1.29: the levels go one at a time;
+	 * at each, skill levels the hero level no longer allows are unlearned first, then, while points are missing, a
+	 * level of the highest learned skill (the first in the hero's skill list on a tie).
 	 */
 	public boolean stripLevels(final CSimulation game, final CUnit unit, final int levels) {
 		final int newLevel = Math.max(1, this.heroLevel - levels);
@@ -191,12 +193,64 @@ public class CAbilityHero extends AbstractCAbility {
 		if (lost <= 0) {
 			return false;
 		}
-		this.heroLevel = newLevel;
+		while (this.heroLevel > newLevel) {
+			this.heroLevel--;
+			this.skillPoints--;
+			unlearnForHeroLevel(game, unit);
+		}
 		this.xp = newLevel > 1 ? game.getGameplayConstants().getNeedHeroXPSum(newLevel - 1) : 0;
-		this.skillPoints = Math.max(0, this.skillPoints - lost);
+		this.skillPoints = Math.max(0, this.skillPoints);
 		calculateDerivatedFields(game, unit);
 		unit.internalPublishHeroStatsChanged();
 		return true;
+	}
+
+	private void unlearnForHeroLevel(final CSimulation game, final CUnit unit) {
+		final CAbilityData abilityData = game.getAbilityData();
+		for (final War3ID skillId : this.skillsAvailable) {
+			CLevelingAbility ability = learnedSkill(unit, skillId);
+			while ((ability != null) && (this.heroLevel < abilityData.getHeroRequiredLevel(game, skillId,
+					ability.getLevel() - 1))) {
+				unlearnSkillLevel(game, unit, skillId, ability);
+				ability = learnedSkill(unit, skillId);
+			}
+		}
+		while (this.skillPoints < 0) {
+			War3ID highestId = null;
+			CLevelingAbility highest = null;
+			for (final War3ID skillId : this.skillsAvailable) {
+				final CLevelingAbility ability = learnedSkill(unit, skillId);
+				if ((ability != null) && ((highest == null) || (ability.getLevel() > highest.getLevel()))) {
+					highestId = skillId;
+					highest = ability;
+				}
+			}
+			if (highest == null) {
+				break;
+			}
+			unlearnSkillLevel(game, unit, highestId, highest);
+		}
+	}
+
+	private CLevelingAbility learnedSkill(final CUnit unit, final War3ID skillId) {
+		final CLevelingAbility ability = unit.getAbility(GetAbilityByRawcodeVisitor.getInstance().reset(skillId));
+		if ((ability == null) || !this.learnedAbilities.contains(ability) || (ability.getLevel() <= 0)) {
+			return null;
+		}
+		return ability;
+	}
+
+	private void unlearnSkillLevel(final CSimulation game, final CUnit unit, final War3ID skillId,
+			final CLevelingAbility ability) {
+		final int level = ability.getLevel();
+		if (level > 1) {
+			game.getAbilityData().getAbilityType(skillId).setLevel(game, unit, ability, level - 1);
+		}
+		else {
+			this.learnedAbilities.remove(ability);
+			unit.remove(game, ability);
+		}
+		this.skillPoints++;
 	}
 
 	public List<CAbility> getLearnedHeroAbilities() {

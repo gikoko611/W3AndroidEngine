@@ -22,7 +22,11 @@ public class PlayerProfileManager {
 			final String name = preferences.getString("Profile" + i + "_Name");
 			profiles.add(new PlayerProfile(name));
 		}
-		final String currentProfile = preferences.getString(CURRENT_PROFILE, "WorldEdit");
+		// Automated runs on one machine each name their own profile, so their campaign progress and game caches stay
+		// apart; it is not stored as the current profile.
+		final String forced = System.getProperty("warsmash.profile");
+		final String currentProfile = (forced != null) && !forced.isEmpty() ? forced
+				: preferences.getString(CURRENT_PROFILE, "WorldEdit");
 		if (profiles.isEmpty()) {
 			final PlayerProfile worldEditDefaultProfile = new PlayerProfile("WorldEdit");
 			saveProfile(preferences, profiles.size(), worldEditDefaultProfile);

@@ -28,6 +28,7 @@ import com.etheller.warsmash.viewer5.handlers.w3x.simulation.util.CommandStringE
 public class CBehaviorHumanBuild extends CAbstractRangedBehavior {
 	private int highlightOrderId;
 	private War3ID orderId;
+	private boolean charged = false;
 	private boolean unitCreated = false;
 	private final BuildOnBuildingIntersector buildOnBuildingIntersector;
 
@@ -38,8 +39,12 @@ public class CBehaviorHumanBuild extends CAbstractRangedBehavior {
 
 	public CBehavior reset(final CSimulation game, final AbilityPointTarget target, final int orderId,
 			final int highlightOrderId) {
+		// Measured on 1.29: the cost is paid when the build order is given and paid back when another order (also
+		// another build order) replaces it before the building is started.
+		refundUnbuilt(game);
 		this.highlightOrderId = highlightOrderId;
 		this.orderId = new War3ID(orderId);
+		this.charged = true;
 		this.unitCreated = false;
 		return innerReset(game, target);
 	}
@@ -60,6 +65,7 @@ public class CBehaviorHumanBuild extends CAbstractRangedBehavior {
 	protected CBehavior update(final CSimulation simulation, final boolean withinFacingWindow) {
 		if (!this.unitCreated) {
 			this.unitCreated = true;
+			this.charged = false;
 			final CUnitType unitTypeToCreate = simulation.getUnitData().getUnitType(this.orderId);
 			final ArgbImage buildingPathingPixelMap = unitTypeToCreate.getBuildingPathingPixelMap();
 			final boolean canBeBuiltOnThem = unitTypeToCreate.isCanBeBuiltOnThem();
@@ -162,10 +168,15 @@ public class CBehaviorHumanBuild extends CAbstractRangedBehavior {
 
 	@Override
 	public void end(final CSimulation game, final boolean interrupted) {
-		if (!this.unitCreated && interrupted) {
-			final CPlayer player = game.getPlayer(this.unit.getPlayerIndex());
-			final CUnitType unitTypeToCreate = game.getUnitData().getUnitType(this.orderId);
-			refund(player, unitTypeToCreate);
+		if (interrupted) {
+			refundUnbuilt(game);
+		}
+	}
+
+	private void refundUnbuilt(final CSimulation game) {
+		if (this.charged) {
+			this.charged = false;
+			refund(game.getPlayer(this.unit.getPlayerIndex()), game.getUnitData().getUnitType(this.orderId));
 		}
 	}
 
@@ -176,10 +187,8 @@ public class CBehaviorHumanBuild extends CAbstractRangedBehavior {
 
 	@Override
 	public void endMove(final CSimulation game, final boolean interrupted) {
-		if (!this.unitCreated && interrupted) {
-			final CPlayer player = game.getPlayer(this.unit.getPlayerIndex());
-			final CUnitType unitTypeToCreate = game.getUnitData().getUnitType(this.orderId);
-			refund(player, unitTypeToCreate);
+		if (interrupted) {
+			refundUnbuilt(game);
 		}
 	}
 

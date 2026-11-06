@@ -23,6 +23,7 @@ public class CBehaviorOrcBuild extends CAbstractRangedBehavior {
 	private final BuildOnBuildingIntersector buildOnBuildingIntersector;
 	private int highlightOrderId;
 	private War3ID orderId;
+	private boolean charged = false;
 	private CUnit constructedStructure = null;
 
 	public CBehaviorOrcBuild(final CUnit unit) {
@@ -32,8 +33,12 @@ public class CBehaviorOrcBuild extends CAbstractRangedBehavior {
 
 	public CBehavior reset(final CSimulation game, final AbilityPointTarget target, final int orderId,
 			final int highlightOrderId) {
+		// Measured on 1.29: the cost is paid when the build order is given and paid back when another order (also
+		// another build order) replaces it before the building is started.
+		refundUnbuilt(game);
 		this.highlightOrderId = highlightOrderId;
 		this.orderId = new War3ID(orderId);
+		this.charged = true;
 		this.constructedStructure = null;
 		return innerReset(game, target);
 	}
@@ -66,6 +71,7 @@ public class CBehaviorOrcBuild extends CAbstractRangedBehavior {
 					unitTypeToCreate, buildingPathingPixelMap, canBeBuiltOnThem, this.target.getX(), this.target.getY(),
 					this.unit, this.buildOnBuildingIntersector);
 			final int playerIndex = this.unit.getPlayerIndex();
+			this.charged = false;
 			if (!buildLocationObstructed) {
 				final CUnit constructedStructure = simulation.createUnit(this.orderId, playerIndex, this.target.getX()
 						, this.target.getY(), simulation.getGameplayConstants().getBuildingAngle(), true);
@@ -153,10 +159,15 @@ public class CBehaviorOrcBuild extends CAbstractRangedBehavior {
 
 	@Override
 	public void end(final CSimulation game, final boolean interrupted) {
-		if ((this.constructedStructure == null) && interrupted) {
-			final CPlayer player = game.getPlayer(this.unit.getPlayerIndex());
-			final CUnitType unitTypeToCreate = game.getUnitData().getUnitType(this.orderId);
-			refund(player, unitTypeToCreate);
+		if (interrupted) {
+			refundUnbuilt(game);
+		}
+	}
+
+	private void refundUnbuilt(final CSimulation game) {
+		if (this.charged) {
+			this.charged = false;
+			refund(game.getPlayer(this.unit.getPlayerIndex()), game.getUnitData().getUnitType(this.orderId));
 		}
 	}
 
@@ -167,10 +178,8 @@ public class CBehaviorOrcBuild extends CAbstractRangedBehavior {
 
 	@Override
 	public void endMove(final CSimulation game, final boolean interrupted) {
-		if ((this.constructedStructure == null) && interrupted) {
-			final CPlayer player = game.getPlayer(this.unit.getPlayerIndex());
-			final CUnitType unitTypeToCreate = game.getUnitData().getUnitType(this.orderId);
-			refund(player, unitTypeToCreate);
+		if (interrupted) {
+			refundUnbuilt(game);
 		}
 	}
 

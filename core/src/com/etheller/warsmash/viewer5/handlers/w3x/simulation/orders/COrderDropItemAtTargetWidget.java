@@ -4,6 +4,7 @@ import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CItem;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CSimulation;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CUnit;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CWidget;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.CAbility;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.inventory.CAbilityInventory;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.behaviors.CBehavior;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.util.ExternStringMsgTargetCheckReceiver;
@@ -54,16 +55,21 @@ public class COrderDropItemAtTargetWidget implements COrder {
 
 	@Override
 	public CBehavior begin(final CSimulation game, final CUnit caster) {
-		final CAbilityInventory ability = (CAbilityInventory) game.getAbility(this.abilityHandleId);
-		if (ability == null) {
+		final CAbility abilityForHandle = game.getAbility(this.abilityHandleId);
+		if (abilityForHandle == null) {
 			game.getCommandErrorListener().showInterfaceError(caster.getPlayerIndex(), "NOTEXTERN: No such ability");
 			return caster.pollNextOrderBehavior(game);
 		}
+		final CItem itemToDrop = heldItemToDrop(game, caster, abilityForHandle, this.itemHandleId);
+		final CWidget targetWidget = game.getWidget(this.targetHeroHandleId);
+		if ((itemToDrop == null) || !(targetWidget instanceof CUnit)) {
+			return caster.pollNextOrderBehavior(game);
+		}
+		final CAbilityInventory ability = (CAbilityInventory) abilityForHandle;
 		ability.checkCanUse(game, caster, this.playerIndex, this.orderId, false,
 				this.abilityActivationReceiver.reset());
 		if (this.abilityActivationReceiver.isUseOk()) {
-			final CItem itemToDrop = (CItem) game.getWidget(this.itemHandleId);
-			final CUnit targetHero = (CUnit) game.getWidget(this.targetHeroHandleId);
+			final CUnit targetHero = (CUnit) targetWidget;
 			final ExternStringMsgTargetCheckReceiver<CWidget> targetReceiver = (ExternStringMsgTargetCheckReceiver<CWidget>) targetCheckReceiver;
 			ability.checkCanTarget(game, caster, this.playerIndex, this.orderId, false, targetHero,
 					targetReceiver.reset());
@@ -81,6 +87,22 @@ public class COrderDropItemAtTargetWidget implements COrder {
 					this.abilityActivationReceiver.getExternStringKey());
 			return caster.pollNextOrderBehavior(game);
 		}
+	}
+
+	/**
+	 * The item a drop/give order moves, or null when the order is malformed: the ability must be the caster's own
+	 * inventory and the item must still be in it. Such orders are ignored, like the game ignores them.
+	 */
+	static CItem heldItemToDrop(final CSimulation game, final CUnit caster, final CAbility ability,
+			final int itemHandleId) {
+		if (!(ability instanceof CAbilityInventory) || !caster.getAbilities().contains(ability)) {
+			return null;
+		}
+		final CWidget item = game.getWidget(itemHandleId);
+		if (!(item instanceof CItem) || (((CAbilityInventory) ability).getSlot((CItem) item) == -1)) {
+			return null;
+		}
+		return (CItem) item;
 	}
 
 	@Override

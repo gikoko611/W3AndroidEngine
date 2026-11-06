@@ -72,6 +72,9 @@ public final class UnitSound {
 				sound.soundPaths.add(resolvedPath);
 				sound.sounds.add(null);
 			}
+			else if (!fileName.isEmpty()) {
+				System.err.println("Sound file not found: " + resolvedPath);
+			}
 		}
 		return sound;
 	}
@@ -115,6 +118,9 @@ public final class UnitSound {
 			catch (final Exception exc) {
 				exc.printStackTrace();
 			}
+		}
+		else {
+			System.err.println("Sound file not found: " + resolvedPath);
 		}
 		return newSound;
 	}

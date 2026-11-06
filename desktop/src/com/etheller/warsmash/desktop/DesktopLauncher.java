@@ -45,6 +45,7 @@ import com.etheller.warsmash.viewer5.gl.AudioExtension;
 import com.etheller.warsmash.viewer5.gl.DynamicShadowExtension;
 import com.etheller.warsmash.viewer5.gl.Extensions;
 import com.etheller.warsmash.viewer5.gl.WireframeExtension;
+import com.etheller.warsmash.viewer5.handlers.w3x.War3MapViewer;
 
 public class DesktopLauncher {
 	public static void main(final String[] arg) {
@@ -87,6 +88,10 @@ public class DesktopLauncher {
 			else if ((arg.length > (argIndex + 1)) && "-computer".equals(arg[argIndex])) {
 				argIndex++;
 				computerSlots = arg[argIndex];
+			}
+			else if ((arg.length > (argIndex + 1)) && "-speed".equals(arg[argIndex])) {
+				argIndex++;
+				War3MapViewer.timeScale = Float.parseFloat(arg[argIndex]);
 			}
 		}
 		if (!noLogs) {

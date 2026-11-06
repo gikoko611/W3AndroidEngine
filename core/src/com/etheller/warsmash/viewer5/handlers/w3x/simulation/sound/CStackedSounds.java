@@ -9,7 +9,7 @@ import java.util.Map;
 /**
  * RegisterStackedSound: region ambience such as lakes, streams and waves. All areas a sound is registered for share
  * one loop, heard from the area nearest to the camera target and only within the sound's distance cutoff.
- * Calibration (1.29 plays no sound in probe runs): distances are taken from the camera target, not the eye, otherwise
+ * Calibration (1.29 plays no sound in measurement runs): distances are taken from the camera target, not the eye, otherwise
  * the cutoff of 900 of the water loops would never be reached at the usual camera distance of 1650.
  */
 public final class CStackedSounds {

@@ -170,7 +170,8 @@ public class CItem extends CWidget {
 			final float centerX = newX + (checkX * 64);
 			final float centerY = newY + (checkY * 64);
 			tempRect.setCenter(centerX, centerY);
-			if (pathingGrid.isPathable(centerX, centerY, MovementType.FOOT, COLLISION_SIZE)) {
+			// Measured on 1.29: an item is only kept off the cell under its own point.
+			if (pathingGrid.isPathable(centerX, centerY, MovementType.FOOT, 0f)) {
 				outputX = centerX;
 				outputY = centerY;
 				break;

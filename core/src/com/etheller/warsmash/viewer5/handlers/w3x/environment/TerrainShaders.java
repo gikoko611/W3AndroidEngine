@@ -74,6 +74,12 @@ public class TerrainShaders {
 					"	  terrain_normal.z = 2.0;\r\n" + //
 					"	}\r\n" + //
 					"	terrain_normal = normalize(terrain_normal);\r\n" + //
+					// The ground parts of the cliff texture (lower half, and the right half below the top face row)
+					// are lit like the ground tiles around them; the model's normals on the lips would shade them
+					// darker and leave grey squares wherever a cliff cell meets a ground cell.
+					"	if (vUV.y >= 0.5 || (vUV.x >= 0.5 && vUV.y >= 0.25)) {\r\n" + //
+					"	  terrain_normal = normalize(vec3(hL - hR, hD - hU, 2.0));\r\n" + //
+					"	}\r\n" + //
 					"\r\n" + //
 					"	Normal = terrain_normal;\r\n" + //
 					Shaders.lightSystem("terrain_normal", "myposition.xyz", "lightTexture", "lightTextureHeight",

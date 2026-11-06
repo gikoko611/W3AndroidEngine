@@ -8,6 +8,7 @@ import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
 import java.nio.channels.SeekableByteChannel;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -74,10 +75,12 @@ import com.etheller.warsmash.parsers.jass.Jass2;
 import com.etheller.warsmash.parsers.jass.Jass2.RootFrameListener;
 import com.etheller.warsmash.parsers.w3x.War3Map;
 import com.etheller.warsmash.parsers.w3x.objectdata.Warcraft3MapObjectData;
+import com.etheller.warsmash.parsers.w3x.w3i.Player;
 import com.etheller.warsmash.parsers.w3x.w3i.War3MapW3i;
 import com.etheller.warsmash.parsers.w3x.w3i.War3MapW3iFlags;
 import com.etheller.warsmash.units.DataTable;
 import com.etheller.warsmash.units.Element;
+import com.etheller.warsmash.units.StandardObjectData;
 import com.etheller.warsmash.units.custom.WTS;
 import com.etheller.warsmash.util.DataSourceFileHandle;
 import com.etheller.warsmash.util.StringBundle;
@@ -121,6 +124,7 @@ import com.etheller.warsmash.viewer5.handlers.w3x.ui.menu.BattleNetUIActionListe
 import com.etheller.warsmash.viewer5.handlers.w3x.ui.menu.CampaignButtonUI;
 import com.etheller.warsmash.viewer5.handlers.w3x.ui.menu.CampaignMenuData;
 import com.etheller.warsmash.viewer5.handlers.w3x.ui.menu.CampaignMenuUI;
+import com.etheller.warsmash.viewer5.handlers.w3x.ui.menu.CampaignCatalog;
 import com.etheller.warsmash.viewer5.handlers.w3x.ui.menu.CampaignMission;
 import com.etheller.warsmash.viewer5.handlers.w3x.ui.sound.KeyedSounds;
 import com.etheller.warsmash.viewer5.gl.Extensions;
@@ -202,6 +206,9 @@ public class MenuUI {
 	private GlueTextButtonFrame campaignButton;
 	private GlueTextButtonFrame loadSavedButton;
 	private SavedGameDialog savedGameDialog;
+	/** The custom game screen's map list, its player slots and its Start Game, also used by a launcher. */
+	private PlayerSlotPaneListenerImplementation skirmishSlotListener;
+	private Runnable skirmishStart;
 	private SimpleFrame savedGameHolder;
 	private GameOptionsDialog optionsDialog;
 	private GlueTextButtonFrame viewReplayButton;
@@ -226,6 +233,7 @@ public class MenuUI {
 	private UIFrame missionSelectFrame;
 	private UIFrame campaignSelectFrame;
 	private DataTable campaignStrings;
+	private CampaignCatalog campaignCatalog;
 	private SpriteFrame campaignWarcraftIIILogo;
 	private final SingleModelScreen menuScreen;
 
@@ -262,8 +270,25 @@ public class MenuUI {
 	private StringFrame loadingTitleText;
 	private StringFrame loadingSubtitleText;
 	private StringFrame loadingText;
+	private StringFrame loadingBarText;
+	private Color loadingBarTextColor;
+	private static final String TAP_TO_CONTINUE = "TAP TO CONTINUE";
+	private static final float TAP_PULSE_SECONDS = 1.2f;
+	private boolean waitForTap;
+	/** A launcher shows its own menu: the glue menu is never shown, only the loading screens of the games. */
+	private boolean launcherMode;
+	/** The loading screen of the map a launcher starts, shown while the menu is still being built. */
+	private boolean previewingLoading;
+	/** The melee backdrop model of the previewed screen, null for a campaign one. */
+	private String previewedBackground;
+	/** The part of the loading bar the menu build filled before the map itself loads. */
+	private float loadingBarStart;
+	private boolean loadingMapDone;
+	private boolean continueTapped;
+	private float tapPulse;
 	private SpriteFrame loadingBar;
 	public static final int MAIN_PHASES = 4;
+	private static final float PREVIEW_BAR_SHARE = 0.25f;
 	private BeginGameInformation beginGameInformation;
 	private LoadingMap loadingMap;
 	private SpriteFrame loadingBackground;
@@ -846,7 +871,9 @@ public class MenuUI {
 				this.uiViewport, this.uiScene, this.viewer, 0, WTS.DO_NOTHING);
 		this.rootFrame.setWideRoot(true);
 
-		this.menuScreen.setModel(this.rootFrame.getSkinField("GlueSpriteLayerBackground"), this.menuFogSettings);
+		if (!this.launcherMode) {
+			this.menuScreen.setModel(this.rootFrame.getSkinField("GlueSpriteLayerBackground"), this.menuFogSettings);
+		}
 		this.rootFrameListener.onCreate(this.rootFrame);
 		try {
 			this.rootFrame.loadTOCFile("UI\\FrameDef\\FrameDef.toc");
@@ -861,30 +888,18 @@ public class MenuUI {
 			throw new IllegalStateException("Unable to load SmashFrameDef.toc", exc);
 		}
 
-		this.campaignStrings = new DataTable(StringBundle.EMPTY);
-		final String campaignStringPath = this.rootFrame.trySkinField("CampaignFile");
-		if (this.dataSource.has(campaignStringPath)) {
-			try (InputStream campaignStringStream = this.dataSource.getResourceAsStream(campaignStringPath)) {
-				this.campaignStrings.readTXT(campaignStringStream, true);
-				this.classicCampaignList = !campaignStringPath.toLowerCase().contains("_exp");
-				CCampaignProgress.setCampaignList(this.classicCampaignList ? CCampaignProgress.CampaignList.REIGN_OF_CHAOS
-						: CCampaignProgress.CampaignList.FROZEN_THRONE);
-			}
-			catch (final IOException e) {
-				throw new RuntimeException(e);
-			}
+		final CampaignCatalog campaignCatalog;
+		try {
+			campaignCatalog = CampaignCatalog.load(this.dataSource, this.rootFrame.trySkinField("CampaignFile"));
 		}
-		else {
-			try (InputStream campaignStringStream = this.dataSource
-					.getResourceAsStream("UI\\CampaignInfoClassic.txt")) {
-				this.campaignStrings.readTXT(campaignStringStream, true);
-				this.unifiedCampaignInfo = true;
-				CCampaignProgress.setCampaignList(CCampaignProgress.CampaignList.COMBINED);
-			}
-			catch (final IOException e) {
-				throw new RuntimeException(e);
-			}
+		catch (final IOException e) {
+			throw new RuntimeException(e);
 		}
+		this.campaignCatalog = campaignCatalog;
+		this.campaignStrings = campaignCatalog.getStrings();
+		this.classicCampaignList = campaignCatalog.isClassicList();
+		this.unifiedCampaignInfo = campaignCatalog.isUnified();
+		CCampaignProgress.setCampaignList(campaignCatalog.getList());
 
 	}
 
@@ -924,6 +939,11 @@ public class MenuUI {
 		final String centerModel = this.rootFrame.getSkinField("GlueSpriteLayerCenter");
 		this.rootFrame.setSpriteFrameModel(this.glueSpriteLayerCenter, centerModel);
 		this.glueSpriteLayerCenter.setVisible(false);
+		// A previewed loading screen goes straight on to its map; the menu behind it is never shown.
+		if (this.launcherMode || this.previewingLoading) {
+			this.glueSpriteLayerTopRight.setVisible(false);
+			this.glueSpriteLayerTopLeft.setVisible(false);
+		}
 
 		this.cursorFrame = (SpriteFrame) this.rootFrame.createFrameByType("SPRITE", "SmashCursorFrame", this.rootFrame,
 				"", 0);
@@ -1253,8 +1273,8 @@ public class MenuUI {
 							catch (final IOException e) {
 								e.printStackTrace();
 							}
-							this.lastMapListMap = map;
 						}
+						this.lastMapListMap = map;
 						final War3MapW3i mapInfo = map.readMapInformation();
 						final WTS wtsFile = Warcraft3MapObjectData.loadWTS(map);
 						MenuUI.this.rootFrame.setMapStrings(wtsFile);
@@ -1291,10 +1311,10 @@ public class MenuUI {
 						MenuUI.this.randomStartLocationCount = prepareMeleeLobby(war3MapConfig, mapInfo);
 						MenuUI.this.skirmishMapInfoPane.setMap(MenuUI.this.rootFrame, MenuUI.this.uiViewport, map,
 								mapInfo, war3MapConfig);
+						MenuUI.this.skirmishSlotListener = new PlayerSlotPaneListenerImplementation(teamSetupPane,
+								war3MapConfig, mapInfo, MenuUI.this.rootFrame, MenuUI.this.uiViewport);
 						teamSetupPane.setMap(MenuUI.this.rootFrame, MenuUI.this.uiViewport, war3MapConfig,
-								mapInfo.getPlayers().size(), mapInfo,
-								new PlayerSlotPaneListenerImplementation(teamSetupPane, war3MapConfig, mapInfo,
-										MenuUI.this.rootFrame, MenuUI.this.uiViewport));
+								mapInfo.getPlayers().size(), mapInfo, MenuUI.this.skirmishSlotListener);
 						MenuUI.this.currentMapConfig = war3MapConfig;
 					}
 					catch (final IOException e) {
@@ -1303,7 +1323,7 @@ public class MenuUI {
 				}
 			}
 		});
-		playGameButton.setOnClick(new Runnable() {
+		this.skirmishStart = new Runnable() {
 			@Override
 			public void run() {
 				final String selectedItem = mapListContainer.getSelectedItem();
@@ -1355,7 +1375,8 @@ public class MenuUI {
 				}
 
 			}
-		});
+		};
+		playGameButton.setOnClick(this.skirmishStart);
 
 		this.skirmishCancelButton = (GlueTextButtonFrame) this.rootFrame.getFrameByName("CancelButton", 0);
 		this.skirmishCancelButton.setOnClick(new Runnable() {
@@ -1474,42 +1495,8 @@ public class MenuUI {
 					this.rootFrame.add(missionSelectMenuUI);
 
 					for (final CampaignMission mission : campaign.getMissions()) {
-						missionButtons.add(missionSelectMenuUI.addButton(mission.getHeader(), mission.getMissionName(), new Runnable() {
-							@Override
-							public void run() {
-								MenuUI.this.campaignMenu.setVisible(false);
-								MenuUI.this.campaignBackButton.setVisible(false);
-								MenuUI.this.missionSelectFrame.setVisible(false);
-								MenuUI.this.campaignSelectFrame.setVisible(false);
-								MenuUI.this.campaignWarcraftIIILogo.setVisible(false);
-								MenuUI.this.campaignRootMenuUI.setVisible(false);
-								MenuUI.this.currentMissionSelectMenuUI.setVisible(false);
-								MenuUI.this.campaignFade.setSequence("Birth");
-								MenuUI.this.difficultySelect.getPopupMenuFrame().setVisible(false);
-								try {
-									loadAndCacheMapConfigs(mission.getMapFilename());
-								}
-								catch (final IOException e) {
-									e.printStackTrace();
-								}
-								MenuUI.this.currentMapConfig.setGameDifficulty(MenuUI.this.campaignDifficulty);
-								int localPlayerIndex = -1;
-								for (int i = 0; i < WarsmashConstants.MAX_PLAYERS; i++) {
-									final CBasePlayer player = MenuUI.this.currentMapConfig.getPlayer(i);
-									if (player.getController() == CMapControl.USER) {
-										player.setSlotState(CPlayerSlotState.PLAYING);
-										player.setName(MenuUI.this.profileManager.getCurrentProfile());
-										if (localPlayerIndex == -1) {
-											localPlayerIndex = i;
-										}
-									}
-								}
-								MenuUI.this.beginGameInformation = new BeginGameInformation();
-								MenuUI.this.beginGameInformation.gameMapLookup = new CurrentNetGameMapLookupPath(
-										mission.getMapFilename());
-								MenuUI.this.beginGameInformation.localPlayerIndex = localPlayerIndex;
-							}
-						}));
+						missionButtons.add(missionSelectMenuUI.addButton(mission.getHeader(), mission.getMissionName(),
+								() -> startMission(mission)));
 					}
 
 					final CampaignButtonUI campaignButtonUI = this.campaignRootMenuUI.addButton(campaign.getHeader(),
@@ -1552,6 +1539,133 @@ public class MenuUI {
 			this.campaignButton.setEnabled(false);
 		}
 
+	}
+
+	private void startMission(final CampaignMission mission) {
+		MenuUI.this.campaignMenu.setVisible(false);
+		MenuUI.this.campaignBackButton.setVisible(false);
+		MenuUI.this.missionSelectFrame.setVisible(false);
+		MenuUI.this.campaignSelectFrame.setVisible(false);
+		MenuUI.this.campaignWarcraftIIILogo.setVisible(false);
+		MenuUI.this.campaignRootMenuUI.setVisible(false);
+		if (MenuUI.this.currentMissionSelectMenuUI != null) {
+			MenuUI.this.currentMissionSelectMenuUI.setVisible(false);
+		}
+		MenuUI.this.campaignFade.setSequence("Birth");
+		MenuUI.this.difficultySelect.getPopupMenuFrame().setVisible(false);
+		try {
+			loadAndCacheMapConfigs(mission.getMapFilename());
+		}
+		catch (final IOException e) {
+			e.printStackTrace();
+		}
+		MenuUI.this.currentMapConfig.setGameDifficulty(MenuUI.this.campaignDifficulty);
+		int localPlayerIndex = -1;
+		for (int i = 0; i < WarsmashConstants.MAX_PLAYERS; i++) {
+			final CBasePlayer player = MenuUI.this.currentMapConfig.getPlayer(i);
+			if (player.getController() == CMapControl.USER) {
+				player.setSlotState(CPlayerSlotState.PLAYING);
+				player.setName(MenuUI.this.profileManager.getCurrentProfile());
+				if (localPlayerIndex == -1) {
+					localPlayerIndex = i;
+				}
+			}
+		}
+		MenuUI.this.beginGameInformation = new BeginGameInformation();
+		MenuUI.this.beginGameInformation.gameMapLookup = new CurrentNetGameMapLookupPath(mission.getMapFilename());
+		MenuUI.this.beginGameInformation.localPlayerIndex = localPlayerIndex;
+	}
+
+	/**
+	 * Starts a mission as its button on the mission screen does, for a launcher that shows the campaigns itself.
+	 *
+	 * @param campaignNumber the campaign's number among the named entries of the campaign list, as scripts count
+	 * @return false when the game data has no such mission
+	 */
+	public boolean startCampaignMission(final int campaignNumber, final int missionIndex,
+			final CMapDifficulty difficulty) {
+		return startCampaignMission(campaignNumber, missionIndex, difficulty, false);
+	}
+
+	/**
+	 * @param reforgedMaps the campaign screen's version choice: the Reforged maps of the missions where the data has
+	 *                     them, else the classic ones
+	 */
+	public boolean startCampaignMission(final int campaignNumber, final int missionIndex,
+			final CMapDifficulty difficulty, final boolean reforgedMaps) {
+		for (final CampaignEntry entry : this.campaignEntries) {
+			if (entry.number == campaignNumber) {
+				final List<CampaignMission> missions = entry.data.getMissions();
+				if ((missionIndex < 0) || (missionIndex >= missions.size())) {
+					return false;
+				}
+				CampaignMission mission = missions.get(missionIndex);
+				final CampaignCatalog.Entry catalogEntry = this.campaignCatalog.getEntry(campaignNumber);
+				if (catalogEntry != null) {
+					final String mapFilename = this.campaignCatalog.missionMapFilename(catalogEntry, missionIndex,
+							reforgedMaps);
+					if ((mapFilename != null) && !mapFilename.equals(mission.getMapFilename())) {
+						mission = new CampaignMission(mission.getHeader(), mission.getMissionName(), mapFilename);
+					}
+				}
+				this.mainMenuFrame.setVisible(false);
+				this.currentCampaign = entry.data;
+				this.currentMissionSelectMenuUI = entry.missionMenu;
+				if (difficulty != null) {
+					this.campaignDifficulty = difficulty;
+				}
+				startMission(mission);
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/**
+	 * Starts a custom game as the custom game screen does after the given choices, for a launcher that shows its own
+	 * screen: the map is selected in the list, the slots and options are set through the screen's own controls and
+	 * Start Game is pressed.
+	 *
+	 * @param slots   "slot:type:race:team:color" entries separated by ";", where type is a {@link LobbyPlayerType}
+	 *                name, race the race menu's item (0 random), team the team's index and color the player colour's
+	 *                number, -1 leaving any of them as the map has it
+	 * @param options the Advanced Options that are on, separated by ",": lockTeams, teamsTogether, sharedControl,
+	 *                randomRaces, randomHero; null keeps the screen's defaults
+	 * @return false when the map is not in the list or cannot be read
+	 */
+	public boolean startSkirmish(final String mapPath, final String slots, final String options) {
+		final PlayerSlotPaneListenerImplementation before = this.skirmishSlotListener;
+		if (!this.skirmishMapList.select(mapPath) || (this.skirmishSlotListener == before)
+				|| (this.skirmishSlotListener == null)) {
+			return false;
+		}
+		if (slots != null) {
+			for (final String slot : slots.split(";")) {
+				final String[] parts = slot.trim().split(":");
+				if (parts.length < 2) {
+					continue;
+				}
+				final int index = Integer.parseInt(parts[0].trim());
+				this.skirmishSlotListener.setPlayerSlot(index, LobbyPlayerType.valueOf(parts[1].trim()));
+				if ((parts.length > 2) && (Integer.parseInt(parts[2].trim()) >= 0)) {
+					this.skirmishSlotListener.setPlayerRace(index, Integer.parseInt(parts[2].trim()));
+				}
+				if ((parts.length > 3) && (Integer.parseInt(parts[3].trim()) >= 0)) {
+					this.skirmishSlotListener.setPlayerTeam(index, Integer.parseInt(parts[3].trim()));
+				}
+				if ((parts.length > 4) && (Integer.parseInt(parts[4].trim()) >= 0)) {
+					this.skirmishSlotListener.setPlayerColor(index, Integer.parseInt(parts[4].trim()));
+				}
+			}
+		}
+		if (options != null) {
+			final List<String> on = Arrays.asList(options.split(","));
+			this.skirmishAdvancedOptionsPane.setOptions(on.contains("lockTeams"), on.contains("teamsTogether"),
+					on.contains("sharedControl"), on.contains("randomRaces"), on.contains("randomHero"));
+		}
+		this.mainMenuFrame.setVisible(false);
+		this.skirmishStart.run();
+		return true;
 	}
 
 	/**
@@ -1607,10 +1721,11 @@ public class MenuUI {
 		}
 	}
 
-	private void mainDialogs() {
-		this.confirmDialog = this.rootFrame.createFrame("DialogWar3", this.rootFrame, 0, 0);
-		this.confirmDialog.setVisible(false);
-
+	/** The loading screen frame; built once, early when a launcher previews it. */
+	private void createLoadingFrame() {
+		if (this.loadingFrame != null) {
+			return;
+		}
 		this.loadingFrame = this.rootFrame.createFrame("Loading", this.rootFrame, 0, 0);
 		((AbstractRenderableFrame) this.loadingFrame).clearFramePointAssignments();
 		anchorGlueLayer(this.loadingFrame, FramePoint.CENTER);
@@ -1621,6 +1736,7 @@ public class MenuUI {
 		this.loadingSubtitleText = (StringFrame) this.rootFrame.getFrameByName("LoadingSubtitleText", 0);
 		this.loadingText = (StringFrame) this.rootFrame.getFrameByName("LoadingText", 0);
 		this.loadingBar = (SpriteFrame) this.rootFrame.getFrameByName("LoadingBar", 0);
+		this.loadingBarText = (StringFrame) this.rootFrame.getFrameByName("LoadingBarText", 0);
 		this.loadingBackground = (SpriteFrame) this.rootFrame.getFrameByName("LoadingBackground", 0);
 
 		this.loadingMeleePanel = this.rootFrame.getFrameByName("LoadingMeleePanel", 0);
@@ -1632,6 +1748,13 @@ public class MenuUI {
 		this.rootFrame.remove(this.loadingMinimapTexture);
 		((SimpleFrame) this.loadingMeleePanel).add(this.loadingMinimapTexture);
 		this.loadingMinimapTexture.setSetAllPoints(true);
+	}
+
+	private void mainDialogs() {
+		this.confirmDialog = this.rootFrame.createFrame("DialogWar3", this.rootFrame, 0, 0);
+		this.confirmDialog.setVisible(false);
+
+		createLoadingFrame();
 
 		this.battleNetUI = new BattleNetUI(this.rootFrame, this.uiViewport, this.uiScene, this.dataSource,
 				new BattleNetUIActionListener() {
@@ -1864,15 +1987,113 @@ public class MenuUI {
 			this.mainMenuGlueScreenLoop = new UnitSound(null, 0, 0, 0, 0, 0, 0, false);
 		}
 		this.glueScreenLoop = this.mainMenuGlueScreenLoop;
-		this.glueScreenLoop.play(this.uiScene.audioContext, 0f, 0f, 0f);
+		if (!this.launcherMode) {
+			this.glueScreenLoop.play(this.uiScene.audioContext, 0f, 0f, 0f);
+		}
 	}
 
 	public void show() {
+		if (this.launcherMode) {
+			return;
+		}
 		playMusic(this.rootFrame.trySkinField("GlueMusic"), true, 0);
 		this.glueScreenLoop.play(this.uiScene.audioContext, 0f, 0f, 0f);
 	}
 
+	/** Must be set before the menu is built. */
+	public void setLauncherMode(final boolean launcherMode) {
+		this.launcherMode = launcherMode;
+	}
+
+	/**
+	 * Shows the loading screen of the map a launcher starts while the rest of the menu is still being built, so that
+	 * the start shows the map's loading screen from its first frames; the game then goes on loading on the same
+	 * screen. The players of a melee screen are only listed once the game is set up.
+	 *
+	 * @param startupSlots the launcher's slots as {@link #startSkirmish} takes them, for the local player's race; or
+	 *                     null
+	 * @return false when the map cannot be read
+	 */
+	public boolean previewLoadingScreen(final String mapFilename, final String startupSlots) {
+		try {
+			final War3Map map = War3MapViewer.beginLoadingMap(this.dataSource, mapFilename);
+			final War3MapW3i mapInfo = map.readMapInformation();
+			final int campaignBackground = mapInfo.getCampaignBackground();
+			final WTS wts = Warcraft3MapObjectData.loadWTS(map);
+			createLoadingFrame();
+			if (campaignBackground < 0) {
+				this.previewedBackground = meleeLoadingBackground(map, previewSkinKey(mapInfo, startupSlots));
+				fillLoadingScreen(this.previewedBackground, 0, mapInfo, wts);
+				fillMapLoadingPanels(map, mapInfo, wts);
+			}
+			else {
+				final DataTable worldEditData = new StandardObjectData(map).getWorldEditData();
+				fillCampaignLoadingScreen(worldEditData, campaignBackground, mapInfo, wts);
+			}
+			this.loadingFrame.setVisible(true);
+			this.loadingBar.setVisible(true);
+			this.previewingLoading = true;
+			return true;
+		}
+		catch (final IOException | RuntimeException e) {
+			e.printStackTrace();
+			return false;
+		}
+	}
+
+	/** While the loading screen is previewed: how much of the menu is built. */
+	public void setPreviewProgress(final float ratio) {
+		if (this.previewingLoading) {
+			this.loadingBarStart = PREVIEW_BAR_SHARE * ratio;
+			this.loadingBar.setFrameByRatio(this.loadingBarStart);
+		}
+	}
+
+	/**
+	 * A loaded map waits on its loading screen until the player taps (or presses a key), the touch counterpart of the
+	 * original's "Press any key to continue"; the game clock does not start before.
+	 */
+	public void setWaitForTap(final boolean waitForTap) {
+		this.waitForTap = waitForTap;
+	}
+
+	private void showTapToContinue(final float deltaTime) {
+		if (this.tapPulse == 0) {
+			this.loadingBar.setFrameByRatio(1.0f);
+			this.rootFrame.setText(this.loadingBarText, TAP_TO_CONTINUE);
+			this.loadingBarText.setColor(new Color(0.99f, 0.827f, 0.0705f, 1.0f));
+		}
+		this.tapPulse = (this.tapPulse + deltaTime) % TAP_PULSE_SECONDS;
+		this.loadingBarText.setAlpha(
+				0.6f + (0.4f * (float) Math.cos((this.tapPulse / TAP_PULSE_SECONDS) * 2 * Math.PI)));
+	}
+
+	private boolean isWaitingForTap() {
+		return this.loadingMapDone && this.waitForTap && !this.continueTapped;
+	}
+
+	/** @return whether the input was the tap a loaded map waited for */
+	private boolean continueAfterLoading() {
+		if (!isWaitingForTap()) {
+			return false;
+		}
+		this.continueTapped = true;
+		this.tapPulse = 0;
+		this.loadingBarText.setAlpha(1.0f);
+		if (this.loadingBarTextColor != null) {
+			this.loadingBarText.setColor(this.loadingBarTextColor);
+		}
+		this.rootFrame.setDecoratedText(this.loadingBarText, "LOADING_LOADING");
+		return true;
+	}
+
 	private void internalStartMap(final String mapFilename, final int localPlayerIndex) {
+		this.loadingMapDone = false;
+		this.continueTapped = false;
+		this.tapPulse = 0;
+		if (this.loadingBarTextColor == null) {
+			this.loadingBarTextColor = new Color(this.loadingBarText.getColor());
+		}
 		this.loadingFrame.setVisible(true);
 		this.loadingBar.setVisible(true);
 		final DataSource codebase = WarsmashGdxMapScreen.parseDataSources(this.warsmashIni);
@@ -1889,60 +2110,32 @@ public class MenuUI {
 			viewer.setMapFileName(mapFilename);
 			final War3Map map = War3MapViewer.beginLoadingMap(codebase, mapFilename);
 			final War3MapW3i mapInfo = map.readMapInformation();
+			WarsmashConstants.selectMapGameVersion(mapFilename, mapInfo.getGameDataVersion());
 			final DataTable worldEditData = viewer.loadWorldEditData(map);
 			final WTS wts = viewer.preloadWTS(map);
 
 			final int campaignBackground = mapInfo.getCampaignBackground();
-			int animationSequenceIndex;
-			final String campaignScreenModel;
 			if (campaignBackground == -1) {
-				animationSequenceIndex = 0;
-				String skinKey = "Default";
-				for (int j = 0; j < WarsmashConstants.RACE_MANAGER.getEntryCount(); j++) {
-					final CRaceManagerEntry entry = WarsmashConstants.RACE_MANAGER.get(j);
-					final CRacePreference racePreference = WarsmashConstants.RACE_MANAGER
-							.getRacePreferenceById(entry.getRacePrefId());
-					if (this.currentMapConfig.getPlayer(localPlayerIndex).isRacePrefSet(racePreference)) {
-						skinKey = entry.getKey();
-						break;
-					}
+				final String background = meleeLoadingBackground(map,
+						loadingSkinKey(this.currentMapConfig.getPlayer(localPlayerIndex)));
+				// A previewed screen goes on with its bar; its backdrop only changes for a race the preview could not
+				// know.
+				if (!this.previewingLoading || !background.equals(this.previewedBackground)) {
+					fillLoadingScreen(background, 0, mapInfo, wts);
 				}
-				// NOTE: this is a heavy reload to get the user skin, because MeleeUI loads it
-				// again so much later in the map load pipeline. It's probably possible to
-				// optimize that, so that the stuff we load here is passed downstream to MeleeUI
-				// and only loaded once.
-				final GameSkin userSkin = GameUI.loadSkin(map, skinKey);
-				campaignScreenModel = userSkin.getSkin().getField("LoadingMeleeBackground");
+				if (!this.previewingLoading) {
+					this.loadingBarStart = 0;
+				}
+				this.loadingBar.setFrameByRatio(this.loadingBarStart);
 			}
-			else {
-				final Element loadingScreens = worldEditData.get("LoadingScreens");
-				final String key = String.format("%2s", Integer.toString(campaignBackground)).replace(' ', '0');
-				animationSequenceIndex = loadingScreens.getFieldValue(key, 2);
-				campaignScreenModel = loadingScreens.getField(key, 3);
+			else if (!this.previewingLoading) {
+				fillCampaignLoadingScreen(worldEditData, campaignBackground, mapInfo, wts);
+				this.loadingBarStart = 0;
 			}
-
-			this.menuScreen.setModel(null, null);
-			this.rootFrame.setSpriteFrameModel(this.loadingBackground, campaignScreenModel);
-			this.loadingBackground.setSequence(animationSequenceIndex);
-			fillScreenWidth(this.loadingBackground);
-			this.rootFrame.setSpriteFrameModel(this.loadingBar, this.rootFrame.getSkinField("LoadingProgressBar"));
-			this.loadingBar.setSequence(0);
-			this.loadingBar.setFrameByRatio(0.0f);
-			this.loadingBar.setZDepth(0.25f);
-			this.rootFrame.setText(this.loadingTitleText, getStringWithWTS(wts, mapInfo.getLoadingScreenTitle()));
-			this.rootFrame.setText(this.loadingSubtitleText, getStringWithWTS(wts, mapInfo.getLoadingScreenSubtitle()));
-			this.loadingText.setJustifyV(TextJustify.TOP);
-			this.rootFrame.setText(this.loadingText, getStringWithWTS(wts, mapInfo.getLoadingScreenText()));
-			final boolean meleeLoading = (campaignBackground == -1) && mapInfo.hasFlag(War3MapW3iFlags.MELEE_MAP);
-			this.loadingCustomPanel.setVisible(!meleeLoading);
-			this.loadingMeleePanel.setVisible(meleeLoading);
-			if (meleeLoading) {
-				this.rootFrame.setText((StringFrame) this.rootFrame.getFrameByName("LoadingMeleeMapName", 0),
-						getStringWithWTS(wts, mapInfo.getName()));
-				this.rootFrame.setDecoratedText(
-						(StringFrame) this.rootFrame.getFrameByName("LoadingMeleeGameTypeValue", 0), "MELEE");
-				setLoadingMinimap(map, mapInfo);
-				alignMinimapWithBackdrop();
+			// A previewed screen has been shown since the menu started building; only its bar goes on.
+			this.previewingLoading = false;
+			this.previewedBackground = null;
+			if (fillMapLoadingPanels(map, mapInfo, wts)) {
 				setLoadingPlayers();
 			}
 			this.loadingMap = new LoadingMap(viewer, map, mapInfo);
@@ -1951,6 +2144,111 @@ public class MenuUI {
 		catch (final IOException e) {
 			throw new RuntimeException(e);
 		}
+	}
+
+	/**
+	 * Shows the melee panel (map name, game type, minimap) or the custom panel of a loading screen without a campaign
+	 * background.
+	 *
+	 * @return whether it is the melee panel
+	 */
+	private boolean fillMapLoadingPanels(final War3Map map, final War3MapW3i mapInfo, final WTS wts) {
+		final boolean meleeLoading = (mapInfo.getCampaignBackground() == -1)
+				&& mapInfo.hasFlag(War3MapW3iFlags.MELEE_MAP);
+		this.loadingCustomPanel.setVisible(!meleeLoading);
+		this.loadingMeleePanel.setVisible(meleeLoading);
+		if (meleeLoading) {
+			this.rootFrame.setText((StringFrame) this.rootFrame.getFrameByName("LoadingMeleeMapName", 0),
+					getStringWithWTS(wts, mapInfo.getName()));
+			this.rootFrame.setDecoratedText(
+					(StringFrame) this.rootFrame.getFrameByName("LoadingMeleeGameTypeValue", 0), "MELEE");
+			setLoadingMinimap(map, mapInfo);
+			alignMinimapWithBackdrop();
+		}
+		return meleeLoading;
+	}
+
+	/**
+	 * NOTE: this is a heavy reload to get the user skin, because MeleeUI loads it again so much later in the map load
+	 * pipeline. It's probably possible to optimize that, so that the stuff we load here is passed downstream to
+	 * MeleeUI and only loaded once.
+	 */
+	private static String meleeLoadingBackground(final War3Map map, final String skinKey) {
+		final GameSkin userSkin = GameUI.loadSkin(map, skinKey);
+		return userSkin.getSkin().getField("LoadingMeleeBackground");
+	}
+
+	/** The skin whose melee loading backdrop a player sees: that of the chosen race, Default for random. */
+	private static String loadingSkinKey(final CBasePlayer player) {
+		for (int j = 0; j < WarsmashConstants.RACE_MANAGER.getEntryCount(); j++) {
+			final CRaceManagerEntry entry = WarsmashConstants.RACE_MANAGER.get(j);
+			final CRacePreference racePreference = WarsmashConstants.RACE_MANAGER
+					.getRacePreferenceById(entry.getRacePrefId());
+			if (player.isRacePrefSet(racePreference)) {
+				return entry.getKey();
+			}
+		}
+		return "Default";
+	}
+
+	/**
+	 * The skin of the local player's race before the map's script has set the players up: the race of the first user
+	 * slot of a launcher's slots ("slot:USER:race..." as {@link #startSkirmish}), else of the map's first human
+	 * player.
+	 */
+	private static String previewSkinKey(final War3MapW3i mapInfo, final String startupSlots) {
+		int raceId = -1;
+		if (startupSlots != null) {
+			for (final String slot : startupSlots.split(";")) {
+				final String[] parts = slot.trim().split(":");
+				if ((parts.length > 2) && "USER".equals(parts[1].trim())) {
+					try {
+						raceId = Integer.parseInt(parts[2].trim());
+					}
+					catch (final NumberFormatException e) {
+						raceId = -1;
+					}
+					break;
+				}
+			}
+		}
+		if (raceId < 0) {
+			for (final Player player : mapInfo.getPlayers()) {
+				if (player.getType() == 1) {
+					raceId = player.getRace();
+					break;
+				}
+			}
+		}
+		final CRace race = raceId > 0 ? WarsmashConstants.RACE_MANAGER.getRace(raceId) : null;
+		final CRaceManagerEntry entry = race == null ? null : WarsmashConstants.RACE_MANAGER.get(race);
+		return entry == null ? "Default" : entry.getKey();
+	}
+
+	private void fillCampaignLoadingScreen(final DataTable worldEditData, final int campaignBackground,
+			final War3MapW3i mapInfo, final WTS wts) {
+		final Element loadingScreens = worldEditData.get("LoadingScreens");
+		final String key = String.format("%2s", Integer.toString(campaignBackground)).replace(' ', '0');
+		fillLoadingScreen(loadingScreens.getField(key, 3), loadingScreens.getFieldValue(key, 2), mapInfo, wts);
+	}
+
+	private void fillLoadingScreen(final String screenModel, final int sequence, final War3MapW3i mapInfo,
+			final WTS wts) {
+		this.menuScreen.setModel(null, null);
+		this.rootFrame.setSpriteFrameModel(this.loadingBackground, screenModel);
+		this.loadingBackground.setSequence(sequence);
+		this.loadingBackground.setVisible(true);
+		fillScreenWidth(this.loadingBackground);
+		this.rootFrame.setSpriteFrameModel(this.loadingBar, this.rootFrame.getSkinField("LoadingProgressBar"));
+		this.loadingBar.setSequence(0);
+		this.loadingBar.setFrameByRatio(0.0f);
+		this.loadingBar.setZDepth(0.25f);
+		this.rootFrame.setText(this.loadingTitleText, getStringWithWTS(wts, mapInfo.getLoadingScreenTitle()));
+		this.rootFrame.setText(this.loadingSubtitleText, getStringWithWTS(wts, mapInfo.getLoadingScreenSubtitle()));
+		this.loadingText.setJustifyV(TextJustify.TOP);
+		this.rootFrame.setText(this.loadingText, getStringWithWTS(wts, mapInfo.getLoadingScreenText()));
+		this.loadingCustomPanel.setVisible(true);
+		this.loadingMeleePanel.setVisible(false);
 	}
 
 	private static String getStringWithWTS(final WTS wts, String string) {
@@ -2131,6 +2429,17 @@ public class MenuUI {
 				config.getPlayer(member).setStartLocationIndex(locations.remove(nearest));
 			}
 		}
+	}
+
+	/** The profile a launcher chose for the game it starts: saves and campaign progress go to its folder. */
+	public void useProfile(final String profileName) {
+		if ((profileName == null) || profileName.isEmpty()) {
+			return;
+		}
+		if (!this.profileManager.hasProfile(profileName)) {
+			this.profileManager.addProfile(profileName);
+		}
+		setCurrentProfile(profileName);
 	}
 
 	private void setCurrentProfile(final String selectedProfileName) {
@@ -2319,7 +2628,13 @@ public class MenuUI {
 				font14.draw(batch, "FPS: " + Gdx.graphics.getFramesPerSecond(), screen.x + 8,
 						(screen.y + screen.height) - 8);
 			}
-			this.rootFrame.render(batch, font20, glyphLayout);
+			if (this.previewingLoading) {
+				// The rest of the menu is still being built and shows nothing but the loading screen yet.
+				this.loadingFrame.render(batch, font20, glyphLayout);
+			}
+			else {
+				this.rootFrame.render(batch, font20, glyphLayout);
+			}
 		}
 	}
 
@@ -2360,7 +2675,15 @@ public class MenuUI {
 					final int localPlayerIndex = this.beginGameInformation.localPlayerIndex;
 					try {
 						if (this.loadingMap.activeMapLoader != null) {
-							if (this.loadingMap.activeMapLoader.process()) {
+							if (this.loadingMapDone || this.loadingMap.activeMapLoader.process()) {
+								this.loadingMapDone = true;
+								if (this.waitForTap && !this.continueTapped
+										&& (this.beginGameInformation.hostInetAddress == null)) {
+									showTapToContinue(deltaTime);
+									return;
+								}
+								this.loadingMapDone = false;
+								this.continueTapped = false;
 								CPlayerUnitOrderListener uiOrderListener;
 								final WarsmashClient warsmashClient;
 								if (this.beginGameInformation.hostInetAddress != null) {
@@ -2416,16 +2739,15 @@ public class MenuUI {
 										this.screenManager, (WarsmashGdxMenuScreen) this.menuScreen, uiOrderListener));
 								this.loadingMap = null;
 								this.beginGameInformation = null;
-
-								this.loadingBar.setVisible(false);
-								this.loadingFrame.setVisible(false);
-								this.loadingBackground.setVisible(false);
+								// The loading screen stays drawn until the game has drawn its first frame; hiding it now
+								// would end this frame black while the game's first frames are still being prepared.
 								if (warsmashClient != null) {
 									warsmashClient.startThread();
 								}
 							}
 							else {
-								this.loadingBar.setFrameByRatio(this.loadingMap.activeMapLoader.getCompletionRatio());
+								this.loadingBar.setFrameByRatio(this.loadingBarStart + ((1 - this.loadingBarStart)
+										* this.loadingMap.activeMapLoader.getCompletionRatio()));
 							}
 						}
 						else {
@@ -2482,7 +2804,9 @@ public class MenuUI {
 			this.cursorFrame.setVisible(!VirtualCursor.isCursorHidden());
 		}
 
-		if (this.glueSpriteLayerTopRight.isSequenceEnded() && this.glueSpriteLayerTopLeft.isSequenceEnded()
+		// A hidden sprite's animation does not advance (the launcher hides the glue layers), so it never ends.
+		if ((!this.glueSpriteLayerTopRight.isVisible() || this.glueSpriteLayerTopRight.isSequenceEnded())
+				&& (!this.glueSpriteLayerTopLeft.isVisible() || this.glueSpriteLayerTopLeft.isSequenceEnded())
 				&& (!this.campaignFade.isVisible() || this.campaignFade.isSequenceEnded())
 				&& (!this.battleNetUI.getDoors().isVisible() || this.battleNetUI.getDoors().isSequenceEnded())) {
 			switch (this.menuState) {
@@ -2747,6 +3071,9 @@ public class MenuUI {
 	}
 
 	public boolean touchDown(final int screenX, final int screenY, final float worldScreenY, final int button) {
+		if (isWaitingForTap()) {
+			return true;
+		}
 		screenCoordsVector.set(screenX, screenY);
 		this.uiViewport.unproject(screenCoordsVector);
 		final UIFrame clickedUIFrame = this.rootFrame.touchDown(screenCoordsVector.x, screenCoordsVector.y, button);
@@ -2869,17 +3196,24 @@ public class MenuUI {
 		this.savedGameDialog.showLoad();
 	}
 
-	private void startSavedGame(final String name) {
+	/**
+	 * Loads a saved game of the current profile, as Load Game in the saved games list does.
+	 *
+	 * @return false when the file cannot be read
+	 */
+	public boolean startSavedGame(final String name) {
 		final FileHandle file = CSaveStorage.savedGame(name);
 		try {
 			final SavedGame.Header header = SavedGame.readHeader(file);
 			SavedGame.setPendingLoad(file);
 			this.singlePlayerMenu.setVisible(false);
 			startMap(header.mapFile);
+			return true;
 		}
 		catch (final IOException exc) {
 			exc.printStackTrace();
 			this.singlePlayerMenu.setVisible(true);
+			return false;
 		}
 	}
 
@@ -2899,6 +3233,10 @@ public class MenuUI {
 	}
 
 	public boolean touchUp(final int screenX, final int screenY, final float worldScreenY, final int button) {
+		// The game starts on the release, so that no half of the tap reaches it.
+		if (continueAfterLoading()) {
+			return true;
+		}
 		screenCoordsVector.set(screenX, screenY);
 		this.uiViewport.unproject(screenCoordsVector);
 		final UIFrame clickedUIFrame = this.rootFrame.touchUp(screenCoordsVector.x, screenCoordsVector.y, button);
@@ -3112,6 +3450,9 @@ public class MenuUI {
 	}
 
 	public boolean keyDown(final int keycode) {
+		if (isWaitingForTap()) {
+			return true;
+		}
 		if ((this.optionsDialog != null) && this.optionsDialog.isShowing()) {
 			this.optionsDialog.keyDown(keycode);
 			return true;
@@ -3123,6 +3464,9 @@ public class MenuUI {
 	}
 
 	public boolean keyUp(final int keycode) {
+		if (continueAfterLoading()) {
+			return true;
+		}
 		if (keycode == Input.Keys.TAB) {
 			// accessibility tab focus ui
 			final List<FocusableFrame> focusableFrames = this.rootFrame.getFocusableFrames();
@@ -3162,6 +3506,9 @@ public class MenuUI {
 //		MenuUI.this.campaignWarcraftIIILogo.setVisible(true);
 //		MenuUI.this.campaignRootMenuUI.setVisible(false);
 //		MenuUI.this.currentMissionSelectMenuUI.setVisible(true);
+		this.loadingBar.setVisible(false);
+		this.loadingFrame.setVisible(false);
+		this.loadingBackground.setVisible(false);
 		final SavedGame.Loadability loadFailure = SavedGame.consumeLoadFailure();
 		if (loadFailure != null) {
 			this.dialog.showError(SavedGameDialog.reasonKey(loadFailure), null);

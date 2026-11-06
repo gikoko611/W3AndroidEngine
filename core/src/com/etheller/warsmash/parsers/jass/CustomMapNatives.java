@@ -33,8 +33,7 @@ import com.etheller.warsmash.viewer5.handlers.w3x.simulation.players.CPlayer;
 /**
  * 1.29 natives custom maps call that campaigns do not: unit owner and force checks, hero revive by coordinates,
  * ability level down, item owner, destructable name and invulnerability, unit stat and weapon getters and setters,
- * timed life cancel and event damage. Each rule is measured against 1.29 (probes natives-custom-units,
- * natives-unit-weapons).
+ * timed life cancel and event damage. Each rule is measured against 1.29.
  */
 final class CustomMapNatives {
 	private final JassProgram program;

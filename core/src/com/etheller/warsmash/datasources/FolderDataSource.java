@@ -1,15 +1,15 @@
 package com.etheller.warsmash.datasources;
 
+import java.io.DataInputStream;
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.nio.file.SimpleFileVisitor;
-import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.nio.file.attribute.FileTime;
 import java.util.Collection;
@@ -108,7 +108,7 @@ public class FolderDataSource implements DataSource {
 		if (storedPath == null) {
 			return null;
 		}
-		return Files.newInputStream(this.folderPath.resolve(storedPath), StandardOpenOption.READ);
+		return new FileInputStream(this.folderPath.resolve(storedPath).toFile());
 	}
 
 	@Override
@@ -136,7 +136,14 @@ public class FolderDataSource implements DataSource {
 		if (storedPath == null) {
 			return null;
 		}
-		return ByteBuffer.wrap(Files.readAllBytes(Paths.get(this.folderPath.toString(), storedPath)));
+		// Reads through a channel (Files.readAllBytes, Files.newInputStream) keep a direct buffer as big as the largest
+		// read on every thread that made one; Android counts those on the Java heap.
+		final File file = new File(this.folderPath.toString(), storedPath);
+		try (DataInputStream stream = new DataInputStream(new FileInputStream(file))) {
+			final byte[] bytes = new byte[(int) file.length()];
+			stream.readFully(bytes);
+			return ByteBuffer.wrap(bytes);
+		}
 	}
 
 	@Override

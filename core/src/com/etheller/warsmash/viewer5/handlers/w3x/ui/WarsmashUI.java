@@ -113,6 +113,8 @@ public interface WarsmashUI extends CommandErrorListener, WarsmashBaseUI {
 
 	void forceQuestDialogUpdate();
 
+	void pingMinimap(float x, float y, float duration);
+
 	void pingMinimap(float x, float y, float duration, int red, int green, int blue, boolean extraEffects);
 
 	void setLeaderboard(CLeaderboard leaderboard);

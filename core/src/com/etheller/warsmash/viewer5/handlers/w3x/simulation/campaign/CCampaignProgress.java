@@ -106,16 +106,24 @@ public final class CCampaignProgress {
 	}
 
 	public static void readAll(final DataInputStream in) throws IOException {
+		final Map<CampaignList, Progress> read = parse(in, campaignList);
+		PROGRESS.clear();
+		PROGRESS.putAll(read);
+		loaded = true;
+	}
+
+	private static Map<CampaignList, Progress> parse(final DataInputStream in, final CampaignList olderFileList)
+			throws IOException {
 		final int version = in.readInt();
 		if ((version < 1) || (version > STORE_VERSION)) {
 			throw new IOException("Unknown campaign progress version");
 		}
-		PROGRESS.clear();
+		final Map<CampaignList, Progress> read = new EnumMap<>(CampaignList.class);
 		if (version < 3) {
 			// Older files kept one progress, written with the campaign list this game data still has.
 			final Progress progress = new Progress();
 			progress.read(in, version >= 2);
-			PROGRESS.put(campaignList, progress);
+			read.put(olderFileList, progress);
 		}
 		else {
 			final int lists = in.readInt();
@@ -124,14 +132,56 @@ public final class CCampaignProgress {
 				final Progress progress = new Progress();
 				progress.read(in, true);
 				try {
-					PROGRESS.put(CampaignList.valueOf(listName), progress);
+					read.put(CampaignList.valueOf(listName), progress);
 				}
 				catch (final IllegalArgumentException e) {
 					// A list a later version knows about; this one cannot show it.
 				}
 			}
 		}
-		loaded = true;
+		return read;
+	}
+
+	/**
+	 * The progress of one campaign list as a profile's file holds it, read without touching the progress the game is
+	 * playing with (the launcher reads it beside the engine).
+	 */
+	public static final class Snapshot {
+		private final Progress progress;
+
+		private Snapshot(final Progress progress) {
+			this.progress = progress != null ? progress : new Progress();
+		}
+
+		public boolean isMissionAvailable(final int campaign, final int mission) {
+			return this.progress.missions.contains(missionKey(campaign, mission));
+		}
+
+		public boolean isCampaignAvailable(final int campaign) {
+			return this.progress.campaigns.contains(campaign);
+		}
+
+		public int getMenuCampaignIndex() {
+			return this.progress.menuCampaignIndex;
+		}
+
+		/** Scripts open a campaign's ending cinematic when its last mission is won. */
+		public boolean isEndingCinematicAvailable(final int campaign) {
+			return this.progress.endingCinematics.contains(campaign);
+		}
+
+		public int getClassicMenuCampaignIndex() {
+			return this.progress.classicMenuCampaignIndex;
+		}
+	}
+
+	/** An empty progress, as a new profile has. */
+	public static Snapshot emptySnapshot() {
+		return new Snapshot(null);
+	}
+
+	public static Snapshot readSnapshot(final DataInputStream in, final CampaignList list) throws IOException {
+		return new Snapshot(parse(in, list).get(list));
 	}
 
 	private static void writeFlags(final DataOutputStream out, final Set<Integer> flags) throws IOException {
@@ -251,6 +301,10 @@ public final class CCampaignProgress {
 		final String slots = pendingComputerSlots;
 		pendingComputerSlots = null;
 		return slots;
+	}
+
+	public static boolean hasPendingLevel() {
+		return pendingLevel != null;
 	}
 
 	public static String consumePendingLevel() {

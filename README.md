@@ -1,10 +1,10 @@
-<div align="center">
+![Warsmash Android](docs/images/banner.png)
 
-<img src="docs/images/icon.png" alt="Warsmash Android icon" width="128">
+<div align="center">
 
 # Warsmash Android
 
-A hobby Android port of the [Warsmash](https://github.com/Retera/WarsmashModEngine) engine for W3.
+Continuation of Retera's [Warsmash](https://github.com/Retera/WarsmashModEngine) engine for W3, with full native Android support.
 
 [![License: AGPL v3](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](LICENSE)
 ![Platform](https://img.shields.io/badge/platform-Android%20%7C%20Desktop-3DDC84?logo=android&logoColor=white)
@@ -16,7 +16,7 @@ A hobby Android port of the [Warsmash](https://github.com/Retera/WarsmashModEngi
 
 ## About
 
-This fork continues Retera's work on Warsmash and adapts it for Android. The aim is to play W3 on phones and tablets with classic graphics at a steady 60 FPS.
+The aim is to play W3 on phones and tablets with classic graphics at a steady 30 FPS on weaker devices and up to 120 FPS on faster ones.
 
 > [!IMPORTANT]
 > No game files are included or distributed. The engine reads them from your own legally obtained copy of W3.
@@ -25,24 +25,18 @@ Supported game versions: **1.31 and newer, including Reforged**, played with Cla
 
 ## Status
 
-Current version: **v0.1.088**
+Current version: **v0.2.9**
 
-- Custom Games work end-to-end; computer players take the computer slots of skirmish maps
-- Reign of Chaos and Frozen Throne campaign missions start and run with their own data, with heroes carried between missions
-- Cinematics use the original volume levels for dialogue and music
-- Full touch screen control support + S-pen support
-- Save and load, with load from the main menu; saves stay loadable after app updates
-- Game menu and Options (sound, gameplay and video), kept between runs
-- Allies window, player chat and the message log
-- Weather effects, ubersplats and terrain deformations
+- **Custom games:** work end-to-end.
+- **Campaigns:** Reign of Chaos and The Frozen Throne can be completed to the end. Tweaking required.
+- **Controls:** full touch screen control, with S Pen support.
+- **Launcher:** built from your own game data, with Campaign, Custom Game, Load Game, Options and Help.
+- **Save and load**, also from the main menu.
 
-Known issues in this version:
+## Technical specification
 
-- A save cannot be loaded when a script function it was paused in has changed
-- Computer players do not buy zeppelins or items yet
-- Some unit movement and responses to nearby fights still differ from the original
-- Reign of Chaos balance values and interface skin still come from the Frozen Throne data
-- On screens 720 px high the game data screen's bottom lines overlap the folder box (scroll to reach Continue)
+- **Languages:** Java 17 (engine, Android launcher, tools); JASS2 scripts run by the engine's own interpreter; GLSL / GLSL ES shaders.
+- **Libraries:** libGDX 1.12.1 (with `gdx-freetype`), LWJGL 2 on desktop, ANTLR 4, Gson, Guava, Apache Commons Compress.
 
 ## Screenshots
 

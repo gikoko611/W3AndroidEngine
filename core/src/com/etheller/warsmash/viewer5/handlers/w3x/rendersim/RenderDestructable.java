@@ -56,7 +56,7 @@ public class RenderDestructable extends RenderDoodad implements RenderWidget {
 			}
 			if (simulationDestructable.isBlighted()) {
 				this.blighted = true;
-				this.replaceableTextureFile += "Blight";
+				this.replaceableTextureFile = blightTextureFile(map, this.replaceableTextureFile);
 			}
 			this.instance.setReplaceableTexture(this.replaceableTextureId, this.replaceableTextureFile + ".blp");
 			if (model.hd) {
@@ -68,6 +68,15 @@ public class RenderDestructable extends RenderDoodad implements RenderWidget {
 		simulationDestructable.setUnitAnimationListener(this.unitAnimationListenerImpl);
 		this.unitAnimationListenerImpl.playAnimation(true, getAnimation(), SequenceUtils.EMPTY, 1.0f, true);
 		this.selectable = row.readSLKTagBoolean("selectable");
+	}
+
+	// Only trees have blight art (AshenTreeBlight); other replaceable textures such as Cliff\Cliff0 keep their own.
+	private static String blightTextureFile(final War3MapViewer map, final String textureFile) {
+		final String blightFile = textureFile + "Blight";
+		if (map.dataSource.has(blightFile + ".blp") || map.dataSource.has(blightFile + ".dds")) {
+			return blightFile;
+		}
+		return textureFile;
 	}
 
 	public MdxModel getPortraitModel() {
@@ -134,10 +143,13 @@ public class RenderDestructable extends RenderDoodad implements RenderWidget {
 		final boolean blighted = this.simulationDestructable.isBlighted();
 		if (blighted && !this.blighted) {
 			this.blighted = blighted;
-			if (this.replaceableTextureFile != null) {
-				this.replaceableTextureFile += "Blight";
+			if ((this.replaceableTextureFile != null) && (this.replaceableTextureFile.length() > 1)) {
+				final String blightFile = blightTextureFile(war3MapViewer, this.replaceableTextureFile);
+				if (!blightFile.equals(this.replaceableTextureFile)) {
+					this.replaceableTextureFile = blightFile;
+					this.instance.setReplaceableTexture(this.replaceableTextureId, blightFile + ".blp");
+				}
 			}
-			this.instance.setReplaceableTexture(this.replaceableTextureId, this.replaceableTextureFile + ".blp");
 		}
 		this.unitAnimationListenerImpl.update();
 	}

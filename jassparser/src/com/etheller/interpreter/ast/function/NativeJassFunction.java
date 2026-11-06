@@ -87,7 +87,7 @@ public class NativeJassFunction {
 			return this.returnType.getNullValue();
 		}
 		catch (final ClassCastException e) {
-			// Measured (1.29, convert-enum-d348): a native given an enum value the game has no constant for reads
+			// Measured (1.29): a native given an enum value the game has no constant for reads
 			// it as 0 or false and changes nothing.
 			if (!hasUnknownEnum(arguments)) {
 				throw e;

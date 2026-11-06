@@ -5,6 +5,7 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.IntBuffer;
 import java.util.EnumSet;
+import java.util.function.Consumer;
 
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input;
@@ -79,11 +80,34 @@ public class WarsmashGdxMenuScreen implements InputProcessor, Screen, SingleMode
 	private EnumSet<SecondaryTag> tags = SequenceUtils.EMPTY;
 	/** Measured desktop times in ms: data sources, viewer, menu UI, then the {@link MenuUI#MAIN_PHASES} menu parts. */
 	private static final float[] STARTUP_STEP_WEIGHTS = { 460, 100, 20, 630, 320, 520, 610 };
+	/** The step that loads the skins and frame definitions, after which a loading screen can be built. */
+	private static final int FIRST_MENU_STEP = 3;
 	private StartupLoadingView startupView;
 	private int startupStep;
 	private boolean startupFrameShown;
-	private String pendingMap;
-	private String pendingComputerSlots;
+	private Consumer<MenuUI> pendingStart;
+	private boolean waitForTap;
+	private GameEndListener gameEndListener;
+	private String startupMap;
+	private String startupSlots;
+	private boolean launcherMode;
+	/** The menu shows the startup map's own loading screen while the rest of it is built. */
+	private boolean previewing;
+	private boolean previewTried;
+
+	/**
+	 * Told instead of the menu coming back when a game ends, by a launcher that shows its own menu (the menu is still
+	 * used when the game goes on to another map).
+	 */
+	public interface GameEndListener {
+		/**
+		 * @param result      victory, defeat, tie or quit
+		 * @param mapFile     the map that was played last
+		 * @param loadFailure why a saved game could not be loaded, or null
+		 * @param race        the race id the local player played (a random race as drawn), 0 when unknown
+		 */
+		void gameEnded(String result, String mapFile, String loadFailure, int race);
+	}
 
 	public WarsmashGdxMenuScreen(final DataTable warsmashIni, final WarsmashGdxMultiScreenGame game) {
 		this.warsmashIni = warsmashIni;
@@ -119,11 +143,13 @@ public class WarsmashGdxMenuScreen implements InputProcessor, Screen, SingleMode
 		if (this.startupStep >= STARTUP_STEP_WEIGHTS.length) {
 			this.startupView.dispose();
 			this.startupView = null;
+			this.previewing = false;
 			this.loaded = true;
 			show();
-			if (this.pendingMap != null) {
-				this.menuUI.startMap(this.pendingMap, this.pendingComputerSlots);
-				this.pendingMap = null;
+			if (this.pendingStart != null) {
+				final Consumer<MenuUI> start = this.pendingStart;
+				this.pendingStart = null;
+				start.accept(this.menuUI);
 			}
 			return;
 		}
@@ -135,7 +161,30 @@ public class WarsmashGdxMenuScreen implements InputProcessor, Screen, SingleMode
 				done += STARTUP_STEP_WEIGHTS[i];
 			}
 		}
-		this.startupView.render(done / total);
+		if (!this.previewTried && (this.startupMap != null) && (this.startupStep > FIRST_MENU_STEP)) {
+			this.previewTried = true;
+			this.previewing = this.menuUI.previewLoadingScreen(this.startupMap, this.startupSlots);
+			if (this.previewing) {
+				resize(Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
+			}
+		}
+		if (this.previewing) {
+			this.menuUI.setPreviewProgress(done / total);
+			renderPreview();
+			return;
+		}
+		this.startupView.render(done / total, this.startupMap == null);
+	}
+
+	/** The loading screen frame the menu has so far, drawn as the built menu draws its frames. */
+	private void renderPreview() {
+		Gdx.gl30.glEnable(GL30.GL_SCISSOR_TEST);
+		Gdx.gl30.glBindVertexArray(WarsmashGdxGame.VAO);
+		this.viewer.updateAndRender();
+		Gdx.gl30.glDisable(GL30.GL_SCISSOR_TEST);
+		Gdx.gl30.glDisable(GL30.GL_CULL_FACE);
+		this.viewer.webGL.useShaderProgram(null);
+		Gdx.gl30.glActiveTexture(GL30.GL_TEXTURE0);
 	}
 
 	private void runStartupStep(final int step) {
@@ -173,7 +222,9 @@ public class WarsmashGdxMenuScreen implements InputProcessor, Screen, SingleMode
 		System.err.println("Renderer: " + renderer);
 
 		this.codebase = WarsmashGdxMapScreen.parseDataSources(this.warsmashIni);
-		this.startupView.loadGameTextures(this.codebase);
+		if (this.startupMap == null) {
+			this.startupView.loadGameTextures(this.codebase);
+		}
 	}
 
 	private void createViewer() {
@@ -280,6 +331,8 @@ public class WarsmashGdxMenuScreen implements InputProcessor, Screen, SingleMode
 //						WarsmashGdxMapGame.this.viewer.setGameUI(rootFrame);
 					}
 				}, new GamingNetworkConnectionImpl(server), mapDownloadDir);
+		this.menuUI.setWaitForTap(this.waitForTap);
+		this.menuUI.setLauncherMode(this.launcherMode);
 		final ModelInstance libgdxContentInstance = new LibGDXContentLayerModel(null, this.viewer, "",
 				PathSolver.DEFAULT, "").addInstance();
 		libgdxContentInstance.setLocation(0f, 0f, 0.5f);
@@ -1019,12 +1072,56 @@ public class WarsmashGdxMenuScreen implements InputProcessor, Screen, SingleMode
 	 *                      played by the computer, or null
 	 */
 	public void startMap(final String finalFileToLoad, final String computerSlots) {
+		if (!this.loaded && (this.startupMap == null)) {
+			this.startupMap = finalFileToLoad;
+		}
+		whenLoaded(menu -> menu.startMap(finalFileToLoad, computerSlots));
+	}
+
+	/** Runs a start of a game on the menu once the menu is built. */
+	public void whenLoaded(final Consumer<MenuUI> start) {
 		if (!this.loaded) {
-			this.pendingMap = finalFileToLoad;
-			this.pendingComputerSlots = computerSlots;
+			this.pendingStart = start;
 			return;
 		}
-		this.menuUI.startMap(finalFileToLoad, computerSlots);
+		start.accept(this.menuUI);
+	}
+
+	/**
+	 * A launcher that starts a map as soon as the menu is built names it here, before the menu is built: the startup
+	 * screen then shows the map's loading screen backdrop, so the loading screen does not change on the way.
+	 */
+	public void setStartupMap(final String map) {
+		this.startupMap = map;
+	}
+
+	/**
+	 * The slots a launcher starts a custom game with, as {@link MenuUI#startSkirmish} takes them, named before the menu
+	 * is built: the startup screen then shows the backdrop of the local player's race from the start.
+	 */
+	public void setStartupSlots(final String slots) {
+		this.startupSlots = slots;
+	}
+
+	/** See {@link MenuUI#setLauncherMode(boolean)}; must be set before the menu is built. */
+	public void setLauncherMode(final boolean launcherMode) {
+		this.launcherMode = launcherMode;
+	}
+
+	/** See {@link MenuUI#setWaitForTap(boolean)}; may be set before the menu is built. */
+	public void setWaitForTap(final boolean waitForTap) {
+		this.waitForTap = waitForTap;
+		if (this.menuUI != null) {
+			this.menuUI.setWaitForTap(waitForTap);
+		}
+	}
+
+	public void setGameEndListener(final GameEndListener gameEndListener) {
+		this.gameEndListener = gameEndListener;
+	}
+
+	public GameEndListener getGameEndListener() {
+		return this.gameEndListener;
 	}
 
 	public void onReturnFromGame() {

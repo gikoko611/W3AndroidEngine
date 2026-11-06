@@ -23,6 +23,7 @@ import com.etheller.interpreter.ast.value.visitor.IntegerJassValueVisitor;
 import com.etheller.interpreter.ast.value.visitor.ObjectJassValueVisitor;
 import com.etheller.interpreter.ast.value.visitor.RealJassValueVisitor;
 import com.etheller.interpreter.ast.value.visitor.StringJassValueVisitor;
+import com.etheller.warsmash.parsers.fdf.GameUI;
 import com.etheller.warsmash.parsers.jass.scope.CommonTriggerExecutionScope;
 import com.etheller.warsmash.units.Element;
 import com.etheller.warsmash.util.War3ID;
@@ -322,8 +323,12 @@ final class CampaignNatives {
 			return null;
 		});
 		add("ChangeLevel", (arguments, globalScope, triggerScope) -> {
-			CCampaignProgress.setPendingLevel(string(arguments, 0));
-			this.ui.endGame(bool(arguments, 1));
+			final String level = string(arguments, 0);
+			final boolean showScoreScreen = bool(arguments, 1);
+			this.viewer.runAfterPendingSave(() -> {
+				CCampaignProgress.setPendingLevel(level);
+				this.ui.endGame(showScoreScreen);
+			});
 			return null;
 		});
 		add("SaveGameExists", (arguments, globalScope, triggerScope) -> BooleanJassValue
@@ -336,13 +341,28 @@ final class CampaignNatives {
 			source.copyTo(CSaveStorage.savedGame(noneIfNull(string(arguments, 1))));
 			return BooleanJassValue.TRUE;
 		});
-		add("RemoveSaveDirectory", (arguments, globalScope, triggerScope) -> BooleanJassValue.FALSE);
+		add("RemoveSaveDirectory", (arguments, globalScope, triggerScope) -> {
+			final FileHandle folder = CSaveStorage.saveFolder(noneIfNull(string(arguments, 0)));
+			if ((folder == null) || !folder.isDirectory()) {
+				return BooleanJassValue.FALSE;
+			}
+			return BooleanJassValue.of(folder.deleteDirectory());
+		});
+		add("RenameSaveDirectory", (arguments, globalScope, triggerScope) -> {
+			final FileHandle source = CSaveStorage.saveFolder(noneIfNull(string(arguments, 0)));
+			final FileHandle target = CSaveStorage.saveFolder(noneIfNull(string(arguments, 1)));
+			if ((source == null) || (target == null) || !source.isDirectory() || target.exists()) {
+				return BooleanJassValue.FALSE;
+			}
+			source.moveTo(target);
+			return BooleanJassValue.of(target.isDirectory());
+		});
 		add("SaveGame", (arguments, globalScope, triggerScope) -> {
 			this.viewer.requestSaveGame(CSaveStorage.savedGame(noneIfNull(string(arguments, 0))));
 			return null;
 		});
 		add("LoadGame", (arguments, globalScope, triggerScope) -> {
-			this.viewer.requestLoadGame(CSaveStorage.savedGame(noneIfNull(string(arguments, 0))));
+			this.viewer.requestLoadGame(CSaveStorage.savedGame(noneIfNull(string(arguments, 0))), true);
 			return null;
 		});
 		add("SaveGameCheckpoint", (arguments, globalScope, triggerScope) -> {
@@ -565,8 +585,13 @@ final class CampaignNatives {
 			return null;
 		});
 		add("MathRound", (arguments, globalScope, triggerScope) -> IntegerJassValue.of(Math.round(real(arguments, 0))));
-		add("SkinManagerGetLocalPath",
-				(arguments, globalScope, triggerScope) -> new StringJassValue(noneIfNull(string(arguments, 0))));
+		add("SkinManagerGetLocalPath", (arguments, globalScope, triggerScope) -> {
+			// A key of the local player's race skin (war3skins.txt), e.g. AttackMarker in Human01.
+			final String key = noneIfNull(string(arguments, 0));
+			final GameUI gameUI = this.viewer.getGameUI();
+			return new StringJassValue(
+					(gameUI != null) && gameUI.hasSkinField(key) ? gameUI.getSkinField(key) : key);
+		});
 		add("BlzIsSelectionEnabled", (arguments, globalScope, triggerScope) -> BooleanJassValue.TRUE);
 		add("SetDoodadAnimation", (arguments, globalScope, triggerScope) -> {
 			this.viewer.setDoodadAnimation(new War3ID(integer(arguments, 3)).toString(), null, real(arguments, 0),
@@ -766,7 +791,7 @@ final class CampaignNatives {
 
 	private void registerMinimapAndIndicators() {
 		add("PingMinimap", (arguments, globalScope, triggerScope) -> {
-			this.ui.pingMinimap(real(arguments, 0), real(arguments, 1), real(arguments, 2), 255, 255, 255, false);
+			this.ui.pingMinimap(real(arguments, 0), real(arguments, 1), real(arguments, 2));
 			return null;
 		});
 		add("PingMinimapEx", (arguments, globalScope, triggerScope) -> {
@@ -968,10 +993,15 @@ final class CampaignNatives {
 				((CommonTriggerExecutionScope) triggerScope).getRevivingUnit()));
 		add("UnitUseItemPoint", (arguments, globalScope, triggerScope) -> {
 			final Object location = new AbilityPointTarget(real(arguments, 2), real(arguments, 3));
-			return globalScope.getNativeById(globalScope.getNativeId("UnitUseItemPointLoc")).call(
-					java.util.Arrays.asList(arguments.get(0), arguments.get(1),
-							new HandleJassValue(type("location"), location)),
-					globalScope, triggerScope);
+			final java.util.List<JassValue> locArguments = java.util.Arrays.asList(arguments.get(0),
+					arguments.get(1), new HandleJassValue(type("location"), location));
+			// 1.29 common.j declares only UnitUseItemPoint; UnitUseItemPointLoc is a Blizzard.j function there.
+			final Integer locId = globalScope.getNativeId("UnitUseItemPointLoc");
+			if (locId != null) {
+				return globalScope.getNativeById(locId).call(locArguments, globalScope, triggerScope);
+			}
+			return this.program.getJassNativeManager().getUndeclaredNative("UnitUseItemPointLoc")
+					.call(locArguments, globalScope, triggerScope);
 		});
 		add("TriggerRegisterPlayerChatEvent", (arguments, globalScope, triggerScope) -> {
 			final Trigger whichTrigger = object(arguments, 0);

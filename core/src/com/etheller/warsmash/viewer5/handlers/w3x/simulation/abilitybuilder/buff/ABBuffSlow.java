@@ -16,6 +16,12 @@ public class ABBuffSlow extends ABGenericTimedBuff {
 	private static NonStackingStatBuff STANDARD_ATTACK_DEBUFF;
 	private static NonStackingStatBuff STANDARD_MOVE_DEBUFF;
 
+	/** The standard slow follows the map's gameplay constants, so a game does not keep the last game's. */
+	public static void releaseStaticReferences() {
+		STANDARD_ATTACK_DEBUFF = null;
+		STANDARD_MOVE_DEBUFF = null;
+	}
+
 	private NonStackingStatBuff attackSpeedDebuff;
 	private NonStackingStatBuff moveSpeedDebuff;
 

@@ -33,7 +33,8 @@ public class WarsmashConstants {
 	/**
 	 * The game the current map is played in. Measured on 1.29: Reign of Chaos has no object marked version 1 in its
 	 * data, whatever the files hold, and its campaign is reached only from that game; here every campaign is on one
-	 * menu, so a campaign map saved as .w3m selects it by itself.
+	 * menu, so a campaign map saved as .w3m selects it by itself, as does a Reforged map of a Reign of Chaos campaign
+	 * (Campaign/Reforged/ROC, saved as .w3x).
 	 */
 	public static int MAP_GAME_VERSION = 1;
 	public static final int REPLACEABLE_TEXTURE_LIMIT = 64;
@@ -41,7 +42,7 @@ public class WarsmashConstants {
 	public static final int PORT_NUMBER = GamingNetwork.UDP_SINGLE_GAME_PORT;
 	public static final float BUILDING_CONSTRUCT_START_LIFE = 0.1f;
 	public static final int BUILD_QUEUE_SIZE = 7;
-	public static final int MAX_SELECTION_SIZE = 18;
+	public static final int MAX_SELECTION_SIZE = 24;
 	// It looks like in Patch 1.22, "Particle" in video settings will change this
 	// factor:
 	// Low - unknown ?
@@ -90,8 +91,25 @@ public class WarsmashConstants {
 
 	public static void selectMapGameVersion(final String mapFileName) {
 		final String name = mapFileName == null ? "" : mapFileName.toLowerCase(Locale.ROOT).replace('\\', '/');
-		final boolean reignOfChaosCampaign = name.endsWith(".w3m") && name.contains("campaign/");
+		final boolean reignOfChaosCampaign = name.contains("campaign/")
+				&& (name.endsWith(".w3m") || name.contains("/roc/"));
 		MAP_GAME_VERSION = reignOfChaosCampaign ? 0 : GAME_VERSION;
+	}
+
+	/**
+	 * The game data version named in war3map.w3i wins over the file name: the Reforged Reign of Chaos campaign maps
+	 * ask for The Frozen Throne data and place its units (the Human01 Wolf Rider), while their Classic copies ask for
+	 * Reign of Chaos data. A negative version means an older map that does not name one. Other maps keep the rule
+	 * by file name for now.
+	 */
+	public static void selectMapGameVersion(final String mapFileName, final long gameDataVersion) {
+		final String name = mapFileName == null ? "" : mapFileName.toLowerCase(Locale.ROOT).replace('\\', '/');
+		if ((gameDataVersion < 0) || !name.contains("campaign/")) {
+			selectMapGameVersion(mapFileName);
+		}
+		else {
+			MAP_GAME_VERSION = (int) Math.min(gameDataVersion, GAME_VERSION);
+		}
 	}
 
 	public static boolean isOutOfMapVersion(final GameObject gameObject) {

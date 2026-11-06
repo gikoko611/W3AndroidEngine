@@ -11,7 +11,7 @@ import com.etheller.interpreter.ast.util.CHandle;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CUnit;
 
 /**
- * Measured on 1.29 (group-removed-d308): a removed unit leaves every group it was in, so ForGroup,
+ * Measured on 1.29: a removed unit leaves every group it was in, so ForGroup,
  * CountUnitsInGroup, FirstOfGroup and IsUnitInGroup no longer see it. Removed members are dropped on read.
  */
 public class UnitGroup extends ArrayList<CUnit> implements CHandle {
@@ -27,7 +27,7 @@ public class UnitGroup extends ArrayList<CUnit> implements CHandle {
 	}
 
 	/**
-	 * Measured on 1.29 (group-order-d313): a group keeps its units by handle id, newest first, whatever the order
+	 * Measured on 1.29: a group keeps its units by handle id, newest first, whatever the order
 	 * they were added in; ForGroup and FirstOfGroup follow it.
 	 */
 	@Override
@@ -117,6 +117,19 @@ public class UnitGroup extends ArrayList<CUnit> implements CHandle {
 	public void forEach(final Consumer<? super CUnit> action) {
 		dropRemovedUnits();
 		super.forEach(action);
+	}
+
+	@Override
+	public Object[] toArray() {
+		// ForGroup walks a copy (new ArrayList<>(group)), which reads toArray.
+		dropRemovedUnits();
+		return super.toArray();
+	}
+
+	@Override
+	public <T> T[] toArray(final T[] a) {
+		dropRemovedUnits();
+		return super.toArray(a);
 	}
 
 }

@@ -12,12 +12,18 @@ public class CBehaviorAttackMove implements CRangedBehavior {
 	private AbilityPointTarget target;
 	private boolean justAutoAttacked = false;
 	private boolean endedMove = false;
+	private boolean continueMove = false;
 
 	public CBehaviorAttackMove(final CUnit unit) {
 		this.unit = unit;
 	}
 
 	public CBehavior reset(final AbilityPointTarget target) {
+		// Measured on 1.29: an attack-move given again to the same point walks on along its way, as a repeated move
+		// does; starting the path search over at every repeat left the unit walking straight into the nearest pocket.
+		final CBehaviorMove moveBehavior = this.unit.getMoveBehavior();
+		this.continueMove = (this.unit.getCurrentBehavior() == moveBehavior)
+				&& moveBehavior.continuesAttackMove(this, target);
 		this.target = target;
 		this.endedMove = false;
 		return this;
@@ -50,6 +56,12 @@ public class CBehaviorAttackMove implements CRangedBehavior {
 		if (innerIsWithinRange()) {
 			this.unit.setDefaultBehavior(this.unit.getStopBehavior());
 			return this.unit.pollNextOrderBehavior(simulation);
+		}
+		if (this.continueMove) {
+			this.continueMove = false;
+			if (this.unit.getMoveBehavior().continuesAttackMove(this, this.target)) {
+				return this.unit.getMoveBehavior();
+			}
 		}
 		return this.unit.getMoveBehavior().reset(this.target, this, false);
 	}

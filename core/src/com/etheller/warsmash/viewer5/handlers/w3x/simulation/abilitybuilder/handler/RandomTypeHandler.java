@@ -15,6 +15,18 @@ public class RandomTypeHandler {
 	private static List<CUnitType> seaCritters = null;
 
 	private static List<CItemType> randomItems = null;
+	// The lists hold one game's types (its tileset, its map's data); another game in the same process loads its own.
+	private static CSimulation critterGame = null;
+	private static CSimulation itemGame = null;
+
+	public static void releaseStaticReferences() {
+		landCritters = null;
+		airCritters = null;
+		seaCritters = null;
+		randomItems = null;
+		critterGame = null;
+		itemGame = null;
+	}
 
 	private static void loadCritterLists(CSimulation game) {
 		landCritters = new ArrayList<>();
@@ -62,7 +74,8 @@ public class RandomTypeHandler {
 	}
 
 	public static CUnitType getRandomMechanicalCritterType(CSimulation game) {
-		if (landCritters == null) {
+		if ((landCritters == null) || (critterGame != game)) {
+			critterGame = game;
 			loadCritterLists(game);
 		}
 		if (landCritters.size() > 0 || seaCritters.size() > 0) {
@@ -80,7 +93,8 @@ public class RandomTypeHandler {
 	}
 
 	public static CItemType getRandomItemType(CSimulation game) {
-		if (randomItems == null) {
+		if ((randomItems == null) || (itemGame != game)) {
+			itemGame = game;
 			loadItemLists(game);
 		}
 		int i = game.getSeededRandom().nextInt(randomItems.size());

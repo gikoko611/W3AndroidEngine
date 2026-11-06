@@ -267,6 +267,13 @@ public abstract class CAbilitySpellBase extends AbstractGenericSingleIconNoSmart
 		return false;
 	}
 
+	/**
+	 * Whether the "Cast" field holds the caster between the channel and cast events (generic spells ignore it).
+	 */
+	public boolean isCastingTimeBeforeCast() {
+		return false;
+	}
+
 	@Override
 	public boolean isUniversal() {
 		return false;

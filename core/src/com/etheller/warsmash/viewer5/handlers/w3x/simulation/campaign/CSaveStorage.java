@@ -8,6 +8,11 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.files.FileHandle;
@@ -21,6 +26,13 @@ public final class CSaveStorage {
 	public static final String SAVE_EXTENSION = ".w3z";
 	private static final String CURRENT_PROFILE_FALLBACK = "Player";
 	private static String profile = CURRENT_PROFILE_FALLBACK;
+	private static final ThreadPoolExecutor BACKGROUND_WRITER = new ThreadPoolExecutor(1, 1, 5, TimeUnit.SECONDS,
+			new LinkedBlockingQueue<>(), runnable -> new Thread(runnable, "SaveWriter"));
+	private static Future<?> lastBackgroundWrite;
+
+	static {
+		BACKGROUND_WRITER.allowCoreThreadTimeOut(true);
+	}
 
 	private CSaveStorage() {
 	}
@@ -41,19 +53,40 @@ public final class CSaveStorage {
 	}
 
 	public static FileHandle savedGame(final String name) {
+		finishBackgroundWrites();
 		return profileFile(fileNameOf(name));
 	}
 
 	/**
-	 * A script's name for a save can have folders and its own extension; only the last part names the file.
+	 * A script's name for a save can have folders and its own extension. The folders are kept, as in the original:
+	 * zone maps keep a save per zone in Blizzard\Zones, copy them to a folder named after the player's save and
+	 * remove the folder when the chapter starts again; the saved game list shows only the profile's own folder.
 	 */
 	private static String fileNameOf(final String name) {
-		String baseName = name.replace('\\', '/');
-		baseName = baseName.substring(baseName.lastIndexOf('/') + 1);
-		if (baseName.toLowerCase().endsWith(SAVE_EXTENSION)) {
-			baseName = baseName.substring(0, baseName.length() - SAVE_EXTENSION.length());
+		String path = folderOf(name);
+		if (path.toLowerCase().endsWith(SAVE_EXTENSION)) {
+			path = path.substring(0, path.length() - SAVE_EXTENSION.length());
 		}
-		return safeName(baseName) + SAVE_EXTENSION;
+		return path + SAVE_EXTENSION;
+	}
+
+	/** Each part made safe; empty, "." and ".." parts are dropped, so a name never leaves the profile folder. */
+	private static String folderOf(final String name) {
+		final StringBuilder path = new StringBuilder();
+		for (final String part : name.replace('\\', '/').split("/")) {
+			final String safe = safeName(part);
+			if (!safe.isEmpty()) {
+				path.append(path.length() == 0 ? "" : "/").append(safe);
+			}
+		}
+		return path.toString();
+	}
+
+	/** A folder of saves named by a script, or null for an empty name (the profile folder itself). */
+	public static FileHandle saveFolder(final String name) {
+		finishBackgroundWrites();
+		final String path = folderOf(name);
+		return path.isEmpty() ? null : profileFile(path);
 	}
 
 	/** Names as typed by a player must stay inside the save folder and be legal on every file system. */
@@ -62,6 +95,7 @@ public final class CSaveStorage {
 	}
 
 	public static List<String> savedGameNames() {
+		finishBackgroundWrites();
 		final List<String> names = new ArrayList<>();
 		final FileHandle folder = profileFile("");
 		if (folder.isDirectory()) {
@@ -98,6 +132,36 @@ public final class CSaveStorage {
 				temporary.delete();
 			}
 			return false;
+		}
+	}
+
+	/**
+	 * Campaign scripts save checkpoints in the middle of play, and compressing and storing a save held the frame for
+	 * as long as it took; that part runs beside the game. Writes still happen one after another, in the order asked.
+	 */
+	public static synchronized void writeInBackground(final FileHandle file, final Writer writer) {
+		lastBackgroundWrite = BACKGROUND_WRITER.submit(() -> {
+			writeAtomically(file, writer);
+		});
+	}
+
+	/** Anything that reads or lists saved games first waits for the ones still being written. */
+	public static void finishBackgroundWrites() {
+		final Future<?> pending;
+		synchronized (CSaveStorage.class) {
+			pending = lastBackgroundWrite;
+		}
+		if ((pending == null) || pending.isDone()) {
+			return;
+		}
+		try {
+			pending.get();
+		}
+		catch (final InterruptedException exc) {
+			Thread.currentThread().interrupt();
+		}
+		catch (final ExecutionException exc) {
+			exc.printStackTrace();
 		}
 	}
 

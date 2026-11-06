@@ -15,6 +15,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.WeakHashMap;
 
 import com.etheller.interpreter.ast.execution.JassStackFrame;
 import com.etheller.interpreter.ast.execution.JassThread;
@@ -53,6 +54,10 @@ final class SavedScriptPositions {
 		private final String[] sources;
 		private final Map<String, Integer> segmentByKey = new HashMap<>();
 		private final Map<Integer, Long> hashes = new HashMap<>();
+		// A function's instructions do not change while its program lives, and every save asks again for the
+		// hashes of the same functions; keyed by the function's first instruction, with its length.
+		private static final Map<JassInstruction, long[]> FUNCTION_HASHES = Collections
+				.synchronizedMap(new WeakHashMap<>());
 		private String[] globalNames;
 		private String[] nativeNames;
 
@@ -154,6 +159,12 @@ final class SavedScriptPositions {
 			if (known != null) {
 				return known;
 			}
+			final JassInstruction first = this.instructions.get(this.starts[segment]);
+			final long[] remembered = FUNCTION_HASHES.get(first);
+			if ((remembered != null) && (remembered[0] == length(segment))) {
+				this.hashes.put(segment, remembered[1]);
+				return remembered[1];
+			}
 			final StringBuilder text = new StringBuilder();
 			final int end = this.starts[segment] + length(segment);
 			for (int i = this.starts[segment]; i < end; i++) {
@@ -165,6 +176,7 @@ final class SavedScriptPositions {
 				hash *= 0x100000001b3L;
 			}
 			this.hashes.put(segment, hash);
+			FUNCTION_HASHES.put(first, new long[] { length(segment), hash });
 			return hash;
 		}
 

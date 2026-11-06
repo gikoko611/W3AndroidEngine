@@ -11,11 +11,11 @@ import com.etheller.warsmash.datasources.DataSource;
 import com.etheller.warsmash.util.ImageUtils;
 
 /**
- * Drawn while the menu is being built, so startup is not a black screen. Until the game data is open only a plain bar
- * is available; after that the generic loading backdrop and the load bar textures of the game itself are used.
+ * Drawn while the menu is being built when no map is started right after it, so startup is not a black screen without
+ * progress. Until the game data is open only a plain bar is available; after that the load bar textures of the game
+ * itself are used. There is no backdrop: the original shows no picture before its menu or a loading screen.
  */
 final class StartupLoadingView {
-	private static final String GENERIC = "UI\\Glues\\Loading\\Load-Generic\\Generic-Loading-";
 	private static final String BAR = "UI\\Glues\\Loading\\LoadBar\\Loading-Bar";
 	private static final String MODEL_TEXTURES = "Textures\\Loading-Bar";
 	// Layout of UI\Glues\Loading\LoadBar\LoadBar.mdx, the bar of the map loading screen: the border spans 0.458 of the
@@ -29,18 +29,12 @@ final class StartupLoadingView {
 
 	private final SpriteBatch batch = new SpriteBatch();
 	private final ShapeRenderer shapes = new ShapeRenderer();
-	private Texture[] backdrop;
 	private Texture barBackground;
 	private Texture barFill;
 	private Texture barGlass;
 	private Texture barBorder;
 
 	void loadGameTextures(final DataSource dataSource) {
-		final Texture[] quarters = { load(dataSource, GENERIC + "TopLeft.blp"),
-				load(dataSource, GENERIC + "TopRight.blp"), load(dataSource, GENERIC + "BotLeft.blp"),
-				load(dataSource, GENERIC + "BotRight.blp") };
-		this.backdrop = (quarters[0] != null) && (quarters[1] != null) && (quarters[2] != null)
-				&& (quarters[3] != null) ? quarters : null;
 		this.barBackground = loadEither(dataSource, MODEL_TEXTURES + "Background.blp", BAR + "Background.blp");
 		this.barFill = load(dataSource, BAR + "Fill.blp");
 		this.barGlass = loadEither(dataSource, MODEL_TEXTURES + "Glass.blp", BAR + "Glass.blp");
@@ -61,7 +55,11 @@ final class StartupLoadingView {
 		}
 	}
 
-	void render(final float progress) {
+	/**
+	 * @param showBar false while a map's own loading screen is about to be shown: the screen stays black until then, as
+	 *                the original goes to black before its loading screen
+	 */
+	void render(final float progress, final boolean showBar) {
 		final int width = Gdx.graphics.getWidth();
 		final int height = Gdx.graphics.getHeight();
 		Gdx.gl.glViewport(0, 0, width, height);
@@ -70,6 +68,9 @@ final class StartupLoadingView {
 		Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT | GL20.GL_DEPTH_BUFFER_BIT);
 		this.batch.getProjectionMatrix().setToOrtho2D(0, 0, width, height);
 		this.shapes.setProjectionMatrix(this.batch.getProjectionMatrix());
+		if (!showBar) {
+			return;
+		}
 
 		final float fourThirdsWidth = Math.min(width, (height * 4f) / 3f);
 		final float barWidth = fourThirdsWidth * BAR_WIDTH_OF_4_3;
@@ -80,9 +81,6 @@ final class StartupLoadingView {
 
 		this.batch.begin();
 		this.batch.setColor(Color.WHITE);
-		if (this.backdrop != null) {
-			drawBackdrop(width, height);
-		}
 		final boolean textured = (this.barBackground != null) && (this.barFill != null);
 		if (textured) {
 			drawPart(this.barBackground, barX, barY, barWidth, barHeight, CHANNEL, 1);
@@ -122,43 +120,12 @@ final class StartupLoadingView {
 				texture.getHeight(), false, false);
 	}
 
-	/** The four quarters form one 4:3 picture; it is scaled to the full screen width and cropped, like the map loading screen. */
-	private void drawBackdrop(final int width, final int height) {
-		final Texture topLeft = this.backdrop[0];
-		final Texture topRight = this.backdrop[1];
-		final Texture botLeft = this.backdrop[2];
-		final Texture botRight = this.backdrop[3];
-		final float sourceWidth = topLeft.getWidth() + topRight.getWidth();
-		final float sourceHeight = (sourceWidth * 3) / 4;
-		final float scale = Math.max(width / sourceWidth, height / sourceHeight);
-		final float drawWidth = sourceWidth * scale;
-		final float drawHeight = sourceHeight * scale;
-		final float x = (width - drawWidth) / 2;
-		final float y = (height - drawHeight) / 2;
-		final float topHeight = topLeft.getHeight() * scale;
-		final float bottomHeight = drawHeight - topHeight;
-		final float leftWidth = topLeft.getWidth() * scale;
-		final float top = y + bottomHeight;
-		this.batch.draw(topLeft, x, top, leftWidth, topHeight);
-		this.batch.draw(topRight, x + leftWidth, top, drawWidth - leftWidth, topHeight);
-		final int botSourceHeight = Math.round(bottomHeight / scale);
-		this.batch.draw(botLeft, x, y, leftWidth, bottomHeight, 0, 0, botLeft.getWidth(),
-				Math.min(botSourceHeight, botLeft.getHeight()), false, false);
-		this.batch.draw(botRight, x + leftWidth, y, drawWidth - leftWidth, bottomHeight, 0, 0, botRight.getWidth(),
-				Math.min(botSourceHeight, botRight.getHeight()), false, false);
-	}
-
 	void dispose() {
 		this.batch.dispose();
 		this.shapes.dispose();
 		final Texture[] owned = { this.barBackground, this.barFill, this.barGlass, this.barBorder };
 		for (final Texture texture : owned) {
 			if (texture != null) {
-				texture.dispose();
-			}
-		}
-		if (this.backdrop != null) {
-			for (final Texture texture : this.backdrop) {
 				texture.dispose();
 			}
 		}

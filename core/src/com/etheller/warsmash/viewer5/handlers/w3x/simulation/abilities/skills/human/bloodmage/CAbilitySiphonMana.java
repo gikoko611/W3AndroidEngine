@@ -111,6 +111,11 @@ public class CAbilitySiphonMana extends CAbilityTargetSpellBase {
 		this.buffedTarget = targetUnit;
 		if (!friendly) {
 			startBonus(simulation, caster, kind);
+			if (this.lifeDrainedPerSecond > 0) {
+				// Measured on 1.29: Life Drain hits its target for 0 on the effect.
+				targetUnit.damage(simulation, caster, DAMAGE_FLAGS, CAttackType.SPELLS, CDamageType.UNIVERSAL, null,
+						0f);
+			}
 		}
 		removeBeam();
 		// A negative duration keeps the beam until the channel ends instead of the lightning type's own duration.

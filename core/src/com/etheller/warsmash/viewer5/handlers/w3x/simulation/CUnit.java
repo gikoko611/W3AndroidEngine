@@ -264,6 +264,7 @@ public class CUnit extends CWidget {
 	private boolean constructing = false;
 	private boolean constructingPaused = false;
 	private boolean structure;
+	private boolean uprooted;
 	private War3ID upgradeIdType = null;
 	private final List<War3ID> upgradedFromTypeIds = new ArrayList<>();
 	private float constructionProgress;
@@ -322,6 +323,7 @@ public class CUnit extends CWidget {
 	private int guardAwayTick = -1;
 	private static final War3ID CREEP_SLEEP = War3ID.fromString("Asla");
 	private StateModBuff naturalSleep;
+	private CAbility finishedSpell;
 	private SimulationRenderComponentModel naturalSleepEffect;
 	private static final float SLEEP_AFTER_WAKE_SECONDS = 2.0f;
 	private int lastWakeTick = Integer.MIN_VALUE / 2;
@@ -1941,7 +1943,8 @@ public class CUnit extends CWidget {
 			CBuff currentBuff = this.getFirstAbilityOfType(buff.getClass());
 			if (currentBuff == buff) {
 				this.remove(game, currentBuff);
-				if (!existingBuffs.isEmpty()) {
+				// Auras leave a removed unit one by one; the next one's buff would go on a unit no longer drawn.
+				if (!existingBuffs.isEmpty() && !this.removedFromGame) {
 					currentBuff = null;
 					for (final CBuff iterBuff : existingBuffs) {
 						if ((currentBuff == null) || (currentBuff.getLevel() < iterBuff.getLevel())) {
@@ -2898,6 +2901,11 @@ public class CUnit extends CWidget {
 	}
 
 	public boolean autoAcquireTargets(final CSimulation game, final boolean disableMove) {
+		// Cinematic maps park hostile units hidden among the player's (ShowUnit false); hidden units carry out
+		// script orders but never pick targets themselves.
+		if (this.hidden) {
+			return false;
+		}
 		boolean autocast = false;
 		final int tick = game.getGameTurnTick();
 		if (this.autoCast && (this.autocastAbility != null) && (tick >= this.nextIdleAutocastScanTick)) {
@@ -3101,7 +3109,16 @@ public class CUnit extends CWidget {
 			this.stateNotifier.waypointsChanged();
 		} else {
 			setDefaultBehavior(this.stopBehavior);
-			beginBehavior(game, beginOrder(game, order), true);
+			final CRangedBehavior walkingFor = ((this.moveBehavior != null) && (this.currentBehavior == this.moveBehavior))
+					? this.moveBehavior.getRangedBehavior()
+					: null;
+			final CBehavior nextBehavior = beginOrder(game, order);
+			if ((walkingFor != null) && (this.moveBehavior.getRangedBehavior() != walkingFor)) {
+				// The new order took over the move the unit was on (one move behaviour per unit), so it is never
+				// ended; the behaviour it was walking for still has to learn it was interrupted (a build pays back).
+				walkingFor.endMove(game, true);
+			}
+			beginBehavior(game, nextBehavior, true);
 			for (final COrder queuedOrder : this.orderQueue) {
 				if (queuedOrder != null) {
 					final int abilityHandleId = queuedOrder.getAbilityHandleId();
@@ -3491,7 +3508,7 @@ public class CUnit extends CWidget {
 
 	public void setPointAndCheckUnstuck(final float newX, final float newY, final CSimulation game) {
 		if (this.removedFromGame) {
-			// Measured (1.29, group-removed-d308): moving a removed unit does nothing.
+			// Measured (1.29): moving a removed unit does nothing.
 			return;
 		}
 		final CWorldCollision collision = game.getWorldCollision();
@@ -3956,7 +3973,8 @@ public class CUnit extends CWidget {
 				kill(simulation, source);
 			}
 		} else {
-			if (isIdleForAttack() || isReturningFromLostTarget()) {
+			// 1.29: a hit for 0 (Life Drain's first) draws no answer or run.
+			if (((damage + bonusDamage) > 0) && (isIdleForAttack() || isReturningFromLostTarget())) {
 				queueAttackBack(source, true, false);
 			}
 			this.lastCombatTick = simulation.getGameTurnTick();
@@ -3973,7 +3991,7 @@ public class CUnit extends CWidget {
 	/**
 	 * Measured on 1.29: a guarding creep that can sleep is asleep the moment it is idle at night (made at night, at
 	 * nightfall, when UnitAddSleep allows it). Called for help or UnitWakeUp, it stays awake at least 2 s; a hit gives
-	 * no such delay and ends one already running (probe creep-wake-sleep). A creep that chased and lost its target
+	 * no such delay and ends one already running. A creep that chased and lost its target
 	 * sleeps once its walk back ends; otherwise it falls asleep where it stands. It snores under the creep sleep
 	 * effect and wakes at daybreak.
 	 */
@@ -4004,6 +4022,21 @@ public class CUnit extends CWidget {
 
 	public boolean isNaturallyAsleep() {
 		return this.naturalSleep != null;
+	}
+
+	/**
+	 * Stunned or put to sleep by a spell. 1.29: such a unit's current
+	 * order reads stunned, a creep in its night sleep reads 0.
+	 */
+	public boolean isStunnedBySpell() {
+		for (final StateModBuff buff : this.stateModBuffs) {
+			if ((buff != this.naturalSleep) && (buff.getValue() != 0)
+					&& ((buff.getBuffType() == StateModBuffType.STUN)
+							|| (buff.getBuffType() == StateModBuffType.SLEEPING))) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	/** Whether the unit may fall asleep at night: its type's setting until a trigger sets it (UnitAddSleep). */
@@ -4065,7 +4098,7 @@ public class CUnit extends CWidget {
 	}
 
 	/**
-	 * Measured on 1.29 (probe creep-guard-return): a guard that fought and lost its target (removed, dead) walks back
+	 * Measured on 1.29: a guard that fought and lost its target (removed, dead) walks back
 	 * a moment later and stops 48 short of its spot, still fighting back when hit on the way. A guard that has been
 	 * fighting beyond GuardDistance gives up about GuardReturnTime + 1.5 s after crossing it, unless it was hit within
 	 * the last GuardReturnTime while not beyond MaxGuardDistance; it then walks to the spot itself, ignoring attacks.
@@ -4151,12 +4184,17 @@ public class CUnit extends CWidget {
 	}
 
 	/**
-	 * Measured on 1.29 (probe creep-hit-removed): a unit hit by a source that the same script call removes or kills
+	 * Measured on 1.29: a unit hit by a source that the same script call removes or kills
 	 * never answers it; a sleeping creep woken by the hit is asleep again at once and does not move. So the answer
 	 * (attack back, alert, flee) waits for the unit's own update and is dropped if the source is gone by then.
 	 */
+	private static final float FLEE_DISTANCE = 300f;
+	private static final float FLEE_STOP_SHORT = 15f;
+
 	private void queueAttackBack(final CUnit source, final boolean wasHit, final boolean help) {
-		if ((source != null) && (this.pendingAttackBackSource == null)) {
+		// 1.29: a unit hit after a neighbour called it for help answers its own hit (runs).
+		if ((source != null) && ((this.pendingAttackBackSource == null)
+				|| (wasHit && !this.pendingAttackBackWasHit && this.pendingAttackBackHelp))) {
 			this.pendingAttackBackSource = source;
 			this.pendingAttackBackWasHit = wasHit;
 			this.pendingAttackBackHelp = help;
@@ -4179,19 +4217,45 @@ public class CUnit extends CWidget {
 			alertCreeps(simulation, source);
 		}
 		if (wasHit && !foundMatchingReturnFireAttack && this.unitType.isCanFlee() && !isMovementDisabled()
-				&& (this.moveBehavior != null) && (this.playerIndex != source.getPlayerIndex())) {
+				&& (this.moveBehavior != null) && (this.playerIndex != source.getPlayerIndex())
+				&& !holdsBackOnlyForPassive(simulation, source)) {
+			// Measured on 1.29: the run is a real move order (order events fire, the current order is move) to a
+			// point 300 straight away from the source whatever the unit's speed, and the unit stops 15 short of it.
 			final double angleTo = source.angleTo(this);
-			final int distanceToFlee = getSpeed();
-			this.beginBehavior(simulation,
-					this.moveBehavior.reset(OrderIds.move,
-							new AbilityPointTarget((float) (getX() + (distanceToFlee * StrictMath.cos(angleTo))),
-									(float) (getY() + (distanceToFlee * StrictMath.sin(angleTo))))),
-					true);
+			final double cos = StrictMath.cos(angleTo);
+			final double sin = StrictMath.sin(angleTo);
+			final AbilityPointTarget fleePoint = new AbilityPointTarget((float) (getX() + (FLEE_DISTANCE * cos)),
+					(float) (getY() + (FLEE_DISTANCE * sin)));
+			final AbilityPointTarget stopPoint = new AbilityPointTarget(
+					(float) (getX() + ((FLEE_DISTANCE - FLEE_STOP_SHORT) * cos)),
+					(float) (getY() + ((FLEE_DISTANCE - FLEE_STOP_SHORT) * sin)));
+			if (!order(simulation, OrderIds.move, fleePoint)) {
+				beginBehavior(simulation, this.moveBehavior.reset(OrderIds.move, stopPoint), true);
+			} else if (this.currentBehavior == this.moveBehavior) {
+				this.moveBehavior.reset(OrderIds.move, stopPoint);
+			}
 		}
 	}
 
 	/**
-	 * Measured on 1.29 (probe cast-acquire-d283): an idle unit that an enemy's unit-target spell takes effect on (Slow,
+	 * 1.29: a unit that does not answer only because its owner is passive toward the source (a
+	 * Neutral Passive Footman or Peasant) stands still; one with no attack for the source (a Sheep) runs.
+	 */
+	private boolean holdsBackOnlyForPassive(final CSimulation simulation, final CUnit source) {
+		if (!simulation.getPlayer(getPlayerIndex()).hasAlliance(source.getPlayerIndex(), CAllianceType.PASSIVE)) {
+			return false;
+		}
+		for (final CUnitAttack attack : getCurrentAttacks()) {
+			if (source.canBeTargetedBy(simulation, this, true, attack.getTargetsAllowed(),
+					BooleanAbilityTargetCheckReceiver.<CWidget>getInstance().reset(), true)) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/**
+	 * Measured on 1.29: an idle unit that an enemy's unit-target spell takes effect on (Slow,
 	 * Curse, Faerie Fire) answers the caster as if hit, and calls its allies for help; the caster itself does not
 	 * attack after its cast. Point and no-target spells draw no answer.
 	 */
@@ -4262,7 +4326,7 @@ public class CUnit extends CWidget {
 	}
 
 	/**
-	 * Measured on 1.29 (probe answer-pick-d289): a unit called for help does not go for the attacker that called it but
+	 * Measured on 1.29: a unit called for help does not go for the attacker that called it but
 	 * for the enemy nearest to itself, even one that has not attacked; the attacker when nothing is nearer.
 	 */
 	private CUnit nearestHelpTarget(final CSimulation simulation, final CUnit attacker) {
@@ -4377,6 +4441,8 @@ public class CUnit extends CWidget {
 		}
 
 		this.orderQueue.clear();
+		// Measured on 1.29: a unit killed while walking under an order reads current order 0.
+		this.lastStartedOrder = null;
 		killPathingInstance();
 		popoutWorker(simulation);
 		for (int i = this.abilities.size() - 1; i >= 0; i--) {
@@ -5068,7 +5134,7 @@ public class CUnit extends CWidget {
 
 		@Override
 		public boolean call(final CUnit unit) {
-			if (unit.isAutoTargetable() && this.type != AutocastType.NONE
+			if (unit.isAutoTargetable() && !unit.isHidden() && this.type != AutocastType.NONE
 					&& this.source.canReach(unit, AUTOCAST_SEARCH_RANGE)) {
 				switch (this.type) {
 				case ATTACKINGALLY:
@@ -5277,7 +5343,8 @@ public class CUnit extends CWidget {
 			if ((this.priorityTargets != null) && !isPriorityAttackTarget(unit, this.priorityTargets)) {
 				return false;
 			}
-			if (unit.isAutoTargetable() && (this.source.getAttackBehavior() != null)
+			if (unit.isAutoTargetable() && !unit.isHidden() && !this.source.isHidden()
+					&& (this.source.getAttackBehavior() != null)
 					&& !this.source.getFirstAbilityOfType(CAbilityAttack.class).isDisabled()) {
 				// TODO this "attack behavior null" check was added for some weird Root edge
 				// case with NE, maybe
@@ -6083,7 +6150,7 @@ public class CUnit extends CWidget {
 	}
 
 	/**
-	 * Measured on 1.29 (probe unit-anim-script): an animation a script sets on a unit walking under an order is not
+	 * Measured on 1.29: an animation a script sets on a unit walking under an order is not
 	 * replaced by the walk; it repeats while the unit keeps walking, until the unit gets another order or the order
 	 * ends. An idle unit plays it once.
 	 */
@@ -6236,6 +6303,18 @@ public class CUnit extends CWidget {
 
 	public void setStructure(final boolean flag) {
 		this.structure = flag;
+	}
+
+	/**
+	 * Measured on 1.29: an uprooted ancient is still a structure for IsUnitType and is counted by
+	 * GetPlayerStructureCount with incomplete structures, though it walks and paths as a unit.
+	 */
+	public boolean isUprooted() {
+		return this.uprooted;
+	}
+
+	public void setUprooted(final boolean uprooted) {
+		this.uprooted = uprooted;
 	}
 
 	/**
@@ -6447,7 +6526,7 @@ public class CUnit extends CWidget {
 		case DEAD:
 			return isDead();
 		case STRUCTURE:
-			return isBuilding();
+			return isBuilding() || this.uprooted;
 
 		case FLYING:
 			return this.targetedAs.contains(CTargetType.AIR);
@@ -6492,7 +6571,8 @@ public class CUnit extends CWidget {
 		case SUMMONED:
 			return this.classifications.contains(CUnitClassification.SUMMONED);
 		case STUNNED:
-			return getCurrentBehavior().getHighlightOrderId() == OrderIds.stunned;
+			// 1.29: false also on a stunned unit, and UnitAddType cannot set it.
+			return false;
 		case PLAGUED:
 			return getFirstAbilityOfType(CBuffDisease.class) != null;
 		case SNARED:
@@ -6613,8 +6693,7 @@ public class CUnit extends CWidget {
 			addCheesyStateModBuff(game, StateModBuffType.SNARED);
 			return true;
 		case STUNNED:
-			addCheesyStateModBuff(game, StateModBuffType.STUN);
-			return true;
+			return false;
 		case SLEEPING:
 			addCheesyStateModBuff(game, StateModBuffType.SLEEPING);
 			return true;
@@ -6696,7 +6775,7 @@ public class CUnit extends CWidget {
 		case SNARED:
 			return removeCheesyStateModBuff(game, StateModBuffType.SNARED);
 		case STUNNED:
-			return removeCheesyStateModBuff(game, StateModBuffType.STUN);
+			return false;
 		case SLEEPING:
 			return removeCheesyStateModBuff(game, StateModBuffType.SLEEPING);
 		case DEAD:
@@ -6845,7 +6924,19 @@ public class CUnit extends CWidget {
 	}
 
 	public void fireSpellEvents(final CSimulation game, final JassGameEventsWar3 eventId, final CAbility ability,
-			final AbilityTarget target) {
+			AbilityTarget target) {
+		// 1.29: finish, and the endcast after it, have no target unit and target
+		// point 0,0; an endcast without finish (interrupted) keeps the target.
+		if (eventId == JassGameEventsWar3.EVENT_UNIT_SPELL_FINISH) {
+			this.finishedSpell = ability;
+			target = null;
+		}
+		else if (eventId == JassGameEventsWar3.EVENT_UNIT_SPELL_ENDCAST) {
+			if (this.finishedSpell == ability) {
+				target = null;
+			}
+			this.finishedSpell = null;
+		}
 		if (eventId == JassGameEventsWar3.EVENT_UNIT_SPELL_EFFECT) {
 			game.spellEffectEvent(this, ability);
 			final CUnit targetUnit = (target == null) ? null : target.visit(AbilityTargetVisitor.UNIT);
@@ -6972,6 +7063,23 @@ public class CUnit extends CWidget {
 		}
 	}
 
+	/**
+	 * Selection events go to the unit and to the player who selected it, not to its owner.
+	 */
+	public void fireSelectionEvents(final CSimulation game, final CPlayer selector, final boolean selected) {
+		final JassGameEventsWar3 type = selected ? JassGameEventsWar3.EVENT_UNIT_SELECTED
+				: JassGameEventsWar3.EVENT_UNIT_DESELECTED;
+		final List<CWidgetEvent> eventList = getEventList(type);
+		if (eventList != null) {
+			for (int i = eventList.size() - 1; i >= 0; i--) {
+				final CWidgetEvent event = eventList.get(i);
+				event.fire(this, CommonTriggerExecutionScope.simpleUnitScope(type, event.getTrigger(), this, selector));
+			}
+		}
+		selector.fireSimpleUnitEvents(this, selected ? JassGameEventsWar3.EVENT_PLAYER_UNIT_SELECTED
+				: JassGameEventsWar3.EVENT_PLAYER_UNIT_DESELECTED, game);
+	}
+
 	public void fireSimpleEvents(final CSimulation game, JassGameEventsWar3 type) {
 		final List<CWidgetEvent> eventList = getEventList(type);
 		if (eventList != null) {
@@ -6994,6 +7102,28 @@ public class CUnit extends CWidget {
 			}
 		}
 		game.getPlayer(this.playerIndex).firePickUpItemEvents(this, item, game);
+	}
+
+	public void fireUseItemEvents(final CSimulation game, final CItem item) {
+		fireItemEvents(game, item, JassGameEventsWar3.EVENT_UNIT_USE_ITEM, JassGameEventsWar3.EVENT_PLAYER_UNIT_USE_ITEM);
+	}
+
+	public void fireDropItemEvents(final CSimulation game, final CItem item) {
+		fireItemEvents(game, item, JassGameEventsWar3.EVENT_UNIT_DROP_ITEM,
+				JassGameEventsWar3.EVENT_PLAYER_UNIT_DROP_ITEM);
+	}
+
+	private void fireItemEvents(final CSimulation game, final CItem item, final JassGameEventsWar3 unitEvent,
+			final JassGameEventsWar3 playerEvent) {
+		final List<CWidgetEvent> eventList = getEventList(unitEvent);
+		if (eventList != null) {
+			for (int i = eventList.size() - 1; i >= 0; i--) {
+				final CWidgetEvent event = eventList.get(i);
+				event.fire(this,
+						CommonTriggerExecutionScope.unitPickupItemScope(unitEvent, event.getTrigger(), this, item));
+			}
+		}
+		game.getPlayer(this.playerIndex).fireItemEvents(this, item, playerEvent);
 	}
 
 	public void fireOrderEvents(final CSimulation game, final COrderNoTarget order) {

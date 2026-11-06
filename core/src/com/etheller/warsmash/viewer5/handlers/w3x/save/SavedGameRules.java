@@ -19,6 +19,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.concurrent.ConcurrentHashMap;
 
 import com.etheller.interpreter.ast.execution.JassThread;
 import com.etheller.interpreter.ast.execution.instruction.JassInstruction;
@@ -62,6 +63,8 @@ final class SavedGameRules implements SavedObjectGraph.Rules {
 
 	private static final String SCRIPT_DIALOG_PREFIX = "com.etheller.warsmash.viewer5.handlers.w3x.ui.dialog.CScriptDialog";
 	private static final String SCRIPT_DIALOG_BUTTON_CLICK = SCRIPT_DIALOG_PREFIX + "Button$1";
+	// Asked for every object a save meets; matching class names is slow enough on Android to show.
+	private static final Map<Class<?>, Boolean> DROPPED_CLASSES = new ConcurrentHashMap<>();
 
 	private final Map<SpellEffectModel, SavedEffectModel> effectModels = new IdentityHashMap<>();
 	private final War3MapViewer viewer;
@@ -296,10 +299,20 @@ final class SavedGameRules implements SavedObjectGraph.Rules {
 
 	@Override
 	public boolean isDropped(final Object object) {
-		if (object instanceof CTimerDialog) {
+		final Class<?> type = object.getClass();
+		Boolean dropped = DROPPED_CLASSES.get(type);
+		if (dropped == null) {
+			dropped = isDroppedClass(type);
+			DROPPED_CLASSES.put(type, dropped);
+		}
+		return dropped;
+	}
+
+	private static boolean isDroppedClass(final Class<?> type) {
+		if (CTimerDialog.class.isAssignableFrom(type)) {
 			return false;
 		}
-		final String name = object.getClass().getName();
+		final String name = type.getName();
 		if (name.startsWith(SCRIPT_DIALOG_PREFIX) && !name.startsWith(SCRIPT_DIALOG_BUTTON_CLICK)) {
 			return false;
 		}

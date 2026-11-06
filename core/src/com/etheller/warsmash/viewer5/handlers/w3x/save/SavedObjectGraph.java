@@ -17,7 +17,9 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.EnumMap;
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -31,6 +33,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Writes and reads a whole graph of game objects by their fields, so that the hundreds of ability, buff and behavior
@@ -62,6 +65,13 @@ public final class SavedObjectGraph {
 	private static final int DROPPED = -1;
 
 	private static final Map<Class<?>, List<Field>> FIELDS = new HashMap<>();
+	// The class tests below compare class names, which costs more than the rest of storing an object on Android.
+	private static final Map<Class<?>, Boolean> UNSTORABLE_CLASSES = new ConcurrentHashMap<>();
+	private static final Map<Class<?>, Boolean> LIST_TYPES = new ConcurrentHashMap<>();
+	private static final Map<Class<?>, Boolean> HASH_COLLECTIONS = new ConcurrentHashMap<>();
+	private static final Map<Class<?>, Boolean> MAP_TYPES = new ConcurrentHashMap<>();
+	// The next save meets about as many objects as the last one; growing the identity table is a large part otherwise.
+	private static int lastObjectCount = 1 << 16;
 
 	private SavedObjectGraph() {
 	}
@@ -111,14 +121,15 @@ public final class SavedObjectGraph {
 	public static final class Writer {
 		private final Rules rules;
 		private final DataOutputStream bodies;
-		private final ByteArrayOutputStream tableBytes = new ByteArrayOutputStream();
+		private final ByteArrayOutputStream tableBytes = new Bytes(1 << 16);
 		private final DataOutputStream table = new DataOutputStream(this.tableBytes);
-		private final IdentityHashMap<Object, Integer> ids = new IdentityHashMap<>();
+		private final IdentityHashMap<Object, Integer> ids = new IdentityHashMap<>(lastObjectCount + (lastObjectCount >> 2));
+		private final Set<Object> external = Collections.newSetFromMap(new IdentityHashMap<>());
 		private final ArrayDeque<Object> queue = new ArrayDeque<>();
 		private final Map<Class<?>, Integer> classIds = new HashMap<>();
 		private int nextId = 1;
 		private Class<?> currentHolder;
-		private String currentField;
+		private Field currentField;
 
 		public Writer(final Rules rules, final DataOutputStream bodies) {
 			this.rules = rules;
@@ -130,6 +141,7 @@ public final class SavedObjectGraph {
 			while (!this.queue.isEmpty()) {
 				writeBody(this.queue.removeFirst());
 			}
+			lastObjectCount = this.nextId;
 		}
 
 		/** Goes after the bodies; a reader needs it first, so the caller stores it where it can be found. */
@@ -186,7 +198,8 @@ public final class SavedObjectGraph {
 			}
 			final String externalName = this.rules.externalName(object);
 			if ((externalName == null) && (this.rules.isDropped(object) || isUnstorable(object))) {
-				this.rules.reportDropped(this.currentHolder, this.currentField, object);
+				this.rules.reportDropped(this.currentHolder,
+						this.currentField == null ? null : this.currentField.getName(), object);
 				return DROPPED;
 			}
 			final int id = this.nextId++;
@@ -201,6 +214,15 @@ public final class SavedObjectGraph {
 		 */
 		private static boolean isUnstorable(final Object object) {
 			final Class<?> type = object.getClass();
+			Boolean unstorable = UNSTORABLE_CLASSES.get(type);
+			if (unstorable == null) {
+				unstorable = isUnstorableClass(type, object);
+				UNSTORABLE_CLASSES.put(type, unstorable);
+			}
+			return unstorable;
+		}
+
+		private static boolean isUnstorableClass(final Class<?> type, final Object object) {
 			if (type.isArray() || (object instanceof String) || (object instanceof Number) || (object instanceof Boolean)
 					|| (object instanceof Character) || (object instanceof Enum) || (object instanceof Class)) {
 				return false;
@@ -217,6 +239,7 @@ public final class SavedObjectGraph {
 		private void writeTableEntry(final Object object, final String externalName) throws IOException {
 			final Class<?> type = object.getClass();
 			if (externalName != null) {
+				this.external.add(object);
 				this.table.writeByte(KIND_EXTERNAL);
 				this.table.writeUTF(externalName);
 				if (this.rules.isInPlace(object)) {
@@ -356,7 +379,7 @@ public final class SavedObjectGraph {
 			final Class<?> type = object.getClass();
 			this.currentHolder = type;
 			this.currentField = null;
-			if (this.rules.externalName(object) != null) {
+			if (this.external.contains(object)) {
 				writeExternalBody(object);
 			}
 			else if (type.isArray()) {
@@ -419,7 +442,7 @@ public final class SavedObjectGraph {
 
 		private void writeFields(final Object object, final List<Field> fields) throws IOException {
 			for (final Field field : fields) {
-				this.currentField = field.getName();
+				this.currentField = field;
 				final Class<?> fieldType = field.getType();
 				try {
 					if (fieldType == int.class) {
@@ -457,7 +480,6 @@ public final class SavedObjectGraph {
 		}
 
 		private void writeArrayBody(final Object array, final Class<?> componentType) throws IOException {
-			final int length = Array.getLength(array);
 			if (componentType == int.class) {
 				for (final int value : (int[]) array) {
 					this.bodies.writeInt(value);
@@ -497,11 +519,41 @@ public final class SavedObjectGraph {
 				}
 			}
 			else {
-				for (int i = 0; i < length; i++) {
-					final int id = ref(Array.get(array, i));
+				// Any array of references is an Object[]; reading it through reflection costs a call per element.
+				for (final Object element : (Object[]) array) {
+					final int id = ref(element);
 					this.bodies.writeInt(id == DROPPED ? 0 : id);
 				}
 			}
+		}
+	}
+
+	/**
+	 * A byte buffer without the locking of {@link ByteArrayOutputStream}, which costs more than the copy itself when
+	 * a save writes millions of single values into it from one thread.
+	 */
+	public static final class Bytes extends ByteArrayOutputStream {
+		public Bytes(final int size) {
+			super(size);
+		}
+
+		private void grow(final int needed) {
+			if ((this.count + needed) > this.buf.length) {
+				this.buf = Arrays.copyOf(this.buf, Math.max(this.buf.length << 1, this.count + needed));
+			}
+		}
+
+		@Override
+		public void write(final int b) {
+			grow(1);
+			this.buf[this.count++] = (byte) b;
+		}
+
+		@Override
+		public void write(final byte[] b, final int off, final int len) {
+			grow(len);
+			System.arraycopy(b, off, this.buf, this.count, len);
+			this.count += len;
 		}
 	}
 
@@ -531,6 +583,15 @@ public final class SavedObjectGraph {
 	}
 
 	private static boolean isListType(final Class<?> type) {
+		Boolean known = LIST_TYPES.get(type);
+		if (known == null) {
+			known = isListTypeByName(type);
+			LIST_TYPES.put(type, known);
+		}
+		return known;
+	}
+
+	private static boolean isListTypeByName(final Class<?> type) {
 		return (type == ArrayList.class) || (type == LinkedList.class) || (type == ArrayDeque.class)
 				|| type.getName().startsWith("java.util.Collections$") && Collection.class.isAssignableFrom(type)
 						&& !Set.class.isAssignableFrom(type)
@@ -543,11 +604,29 @@ public final class SavedObjectGraph {
 	}
 
 	private static boolean isHashCollection(final Class<?> type) {
+		Boolean known = HASH_COLLECTIONS.get(type);
+		if (known == null) {
+			known = isHashCollectionByName(type);
+			HASH_COLLECTIONS.put(type, known);
+		}
+		return known;
+	}
+
+	private static boolean isHashCollectionByName(final Class<?> type) {
 		return (type == HashSet.class) || (type == LinkedHashSet.class) || (type == TreeSet.class)
 				|| type.getName().startsWith("java.util.Collections$") && Set.class.isAssignableFrom(type);
 	}
 
 	private static boolean isMapType(final Class<?> type) {
+		Boolean known = MAP_TYPES.get(type);
+		if (known == null) {
+			known = isMapTypeByName(type);
+			MAP_TYPES.put(type, known);
+		}
+		return known;
+	}
+
+	private static boolean isMapTypeByName(final Class<?> type) {
 		return (type == HashMap.class) || (type == LinkedHashMap.class) || (type == TreeMap.class) || (type == LinkedTreeMap.class)
 				|| type.getName().startsWith("java.util.Collections$") && Map.class.isAssignableFrom(type);
 	}

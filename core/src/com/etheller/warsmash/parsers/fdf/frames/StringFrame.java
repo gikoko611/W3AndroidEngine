@@ -31,7 +31,9 @@ public class StringFrame extends AbstractRenderableFrame {
 	private float predictedViewportHeight;
 	private float predictedViewportWidth;
 
-	static ShapeRenderer shapeRenderer = new ShapeRenderer();
+	// Made on first use: a renderer made with the class would hold a mesh and a shader of the GL context that
+	// first loaded it, for every later game activity too.
+	private static ShapeRenderer shapeRenderer;
 	private final Color fontHighlightColor;
 	private final Color fontDisabledColor;
 	private final Color fontColor;
@@ -135,6 +137,9 @@ public class StringFrame extends AbstractRenderableFrame {
 
 		if (GameUI.DEBUG) {
 			batch.end();
+			if (shapeRenderer == null) {
+				shapeRenderer = new ShapeRenderer();
+			}
 			shapeRenderer.setProjectionMatrix(batch.getProjectionMatrix());
 			shapeRenderer.setColor(1f, 1f, 1f, 1f);
 			shapeRenderer.begin(ShapeType.Line);

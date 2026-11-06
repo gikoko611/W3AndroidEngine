@@ -13,6 +13,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import com.etheller.warsmash.units.Element;
 
@@ -28,6 +30,10 @@ final class DataFolderCheck {
 	static final String CLASSIC_PREFIXES = "war3.w3mod,war3.w3mod\\_deprecated.w3mod,war3.w3mod\\_locales\\enus.w3mod";
 
 	private static final Map<String, String> DESCRIPTIONS = new HashMap<>();
+	/** Written last by the data packer into a folder it made. */
+	private static final String PACKER_MARKER = "w3-datapacker.txt";
+	/** A text locale among the build tags, such as "enUS? enUS speech?:enUS text?". */
+	private static final Pattern LOCALE_TAG = Pattern.compile("\\b([a-z]{2}[A-Z]{2})\\b");
 	private static final int MAX_SEARCH_DEPTH = 2;
 	/** Picking the root of a full storage must not freeze the window. */
 	private static final int MAX_SEARCHED_FOLDERS = 400;
@@ -131,18 +137,21 @@ final class DataFolderCheck {
 		return null;
 	}
 
-	/** The engine cannot read zipped data, and the prep tool hands its output out as a zip. */
-	static boolean hasZip(final File folder) {
+	/**
+	 * The name of a zip file lying in the folder, or null: the engine cannot read zipped data, and the prep tool hands
+	 * its output out as a zip.
+	 */
+	static String zipName(final File folder) {
 		final File[] children = folder == null ? null : folder.listFiles();
 		if (children == null) {
-			return false;
+			return null;
 		}
 		for (final File child : children) {
 			if (child.isFile() && child.getName().toLowerCase(Locale.ROOT).endsWith(".zip")) {
-				return true;
+				return child.getName();
 			}
 		}
-		return false;
+		return null;
 	}
 
 	/** Whether the main data source of an engine configuration still holds game data. */
@@ -206,7 +215,91 @@ final class DataFolderCheck {
 		return description;
 	}
 
-	private static String cascVersion(final File folder) {
+	/**
+	 * The game version an extracted folder was made from: a build info kept beside or above it, or the version the
+	 * data packer noted in its marker file; empty when the folder does not say.
+	 */
+	static synchronized String folderGameVersion(final File folder) {
+		final String key = "version:" + folder.getAbsolutePath();
+		String version = DESCRIPTIONS.get(key);
+		if (version == null) {
+			version = "";
+			for (final File dir : new File[] { folder, folder.getParentFile() }) {
+				if (version.isEmpty() && (dir != null) && new File(dir, ".build.info").isFile()) {
+					version = cascVersion(dir).replace("version ", "");
+				}
+			}
+			if (version.isEmpty()) {
+				version = markerVersion(new File(folder, PACKER_MARKER));
+			}
+			DESCRIPTIONS.put(key, version);
+		}
+		return version;
+	}
+
+	private static String markerVersion(final File marker) {
+		return markerField(marker, "gameVersion");
+	}
+
+	private static String markerField(final File marker, final String name) {
+		if (!marker.isFile()) {
+			return "";
+		}
+		try (BufferedReader reader = new BufferedReader(
+				new InputStreamReader(new FileInputStream(marker), StandardCharsets.UTF_8))) {
+			for (String line = reader.readLine(); line != null; line = reader.readLine()) {
+				final int equals = line.indexOf('=');
+				if ((equals > 0) && name.equalsIgnoreCase(line.substring(0, equals).trim())) {
+					return line.substring(equals + 1).trim();
+				}
+			}
+		}
+		catch (final IOException e) {
+			return "";
+		}
+		return "";
+	}
+
+	/** The data packer that made an extracted folder, from its marker file; empty for other folders. */
+	static String packerTool(final File folder) {
+		return markerField(new File(folder, PACKER_MARKER), "tool");
+	}
+
+	/** The file whose reading made the folder count as game data. */
+	static String checkedFile(final Kind kind) {
+		return kind == Kind.CASC ? ".build.info" : "units/UnitData.slk";
+	}
+
+	/**
+	 * The game's text language: an install's build tags, the data packer's note or the locale layer of a local files
+	 * install; empty when the folder does not say.
+	 */
+	static synchronized String locale(final Kind kind, final File folder) {
+		final String key = "locale:" + folder.getAbsolutePath();
+		String locale = DESCRIPTIONS.get(key);
+		if (locale == null) {
+			locale = "";
+			if (kind == Kind.CASC) {
+				final Matcher matcher = LOCALE_TAG.matcher(buildInfoField(folder, "Tags!"));
+				if (matcher.find()) {
+					locale = matcher.group(1);
+				}
+			}
+			else {
+				locale = markerField(new File(folder, PACKER_MARKER), "locale");
+				final File layer = locale.isEmpty() ? localeLayer(folder) : null;
+				if (layer != null) {
+					final String name = layer.getName().replaceAll("(?i)\\.w3mod$", "");
+					locale = name.length() == 4 ? name.substring(0, 2).toLowerCase(Locale.ROOT)
+							+ name.substring(2).toUpperCase(Locale.ROOT) : name;
+				}
+			}
+			DESCRIPTIONS.put(key, locale);
+		}
+		return locale;
+	}
+
+	private static String buildInfoField(final File folder, final String prefix) {
 		try (BufferedReader reader = new BufferedReader(
 				new InputStreamReader(new FileInputStream(new File(folder, ".build.info")), StandardCharsets.UTF_8))) {
 			final String header = reader.readLine();
@@ -215,8 +308,8 @@ final class DataFolderCheck {
 				final String[] names = header.split("\\|");
 				final String[] fields = values.split("\\|", -1);
 				for (int i = 0; (i < names.length) && (i < fields.length); i++) {
-					if (names[i].startsWith("Version!")) {
-						return "version " + fields[i];
+					if (names[i].startsWith(prefix)) {
+						return fields[i];
 					}
 				}
 			}
@@ -225,6 +318,11 @@ final class DataFolderCheck {
 			return "";
 		}
 		return "";
+	}
+
+	private static String cascVersion(final File folder) {
+		final String version = buildInfoField(folder, "Version!");
+		return version.isEmpty() ? "" : "version " + version;
 	}
 
 	private static int countFiles(final File folder) {

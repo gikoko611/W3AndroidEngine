@@ -82,6 +82,10 @@ public class CDestructable extends CWidget {
 		}
 		final boolean wasDead = isDead();
 		this.life -= damage;
+		if (this.life < 0) {
+			// Measured on 1.29: a destructable killed by damage reads 0 life, not the overkill.
+			this.life = 0;
+		}
 		simulation.destructableDamageEvent(this, weaponSoundType, this.destType.getArmorType());
 		if (!wasDead && isDead()) {
 			kill(simulation);
@@ -277,7 +281,7 @@ public class CDestructable extends CWidget {
 		this.removedFromGame = true;
 	}
 
-	/** Measured (1.29, null-handles-d311): a removed destructable's handle reads position 0 and type 0. */
+	/** Measured (1.29): a removed destructable's handle reads position 0 and type 0. */
 	public boolean isRemovedFromGame() {
 		return this.removedFromGame;
 	}

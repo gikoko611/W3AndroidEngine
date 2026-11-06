@@ -2,9 +2,11 @@ package com.etheller.warsmash.viewer5.handlers.w3x.rendersim;
 
 import java.util.EnumSet;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 
 import com.badlogic.gdx.math.Vector3;
+import com.etheller.warsmash.datasources.AssetPathFallback;
 import com.etheller.warsmash.datasources.DataSource;
 import com.etheller.warsmash.units.DataTable;
 import com.etheller.warsmash.units.Element;
@@ -19,6 +21,7 @@ import com.etheller.warsmash.viewer5.handlers.w3x.UnitSoundset;
 
 public class RenderUnitTypeData extends RenderWidgetTypeData<RenderUnitType> {
 	private static final String UNIT_FILE = "file"; // replaced from 'umdl'
+	private static final String[] CLASSIC_MODEL_QUALITIES = { "sd", "de" };
 	private static final String UNIT_PATHING = "pathTex"; // replaced from 'upat'
 	private static final String UNIT_SPECIAL = "Specialart"; // replaced from 'uspa'
 	private static final String UNIT_SHADOW = "unitShadow"; // replaced from 'ushu'
@@ -75,7 +78,33 @@ public class RenderUnitTypeData extends RenderWidgetTypeData<RenderUnitType> {
 		}
 
 		path += ".mdx";
+		if (!hasModel(path)) {
+			final String fallback = AssetPathFallback.find(this.dataSource, path);
+			if (fallback != null) {
+				return fallback;
+			}
+			// Reforged maps give some units models in their skin data that Classic data do not have (H08 Emissary:
+			// the Chaplain); without the HD packages the unit's own Classic model stands in.
+			for (final String quality : CLASSIC_MODEL_QUALITIES) {
+				String classicPath = row.getFieldAsString(UNIT_FILE + ":" + quality, 0);
+				if ((classicPath == null) || classicPath.isEmpty()) {
+					continue;
+				}
+				if (classicPath.toLowerCase(Locale.ROOT).endsWith(".mdl") || classicPath.toLowerCase(Locale.ROOT).endsWith(".mdx")) {
+					classicPath = classicPath.substring(0, classicPath.length() - 4);
+				}
+				classicPath += ".mdx";
+				if (hasModel(classicPath)) {
+					return classicPath;
+				}
+			}
+		}
 		return path;
+	}
+
+	private boolean hasModel(final String mdxPath) {
+		return this.dataSource.has(mdxPath)
+				|| this.dataSource.has(mdxPath.substring(0, mdxPath.length() - 4) + ".mdl");
 	}
 
 	// The simulation asks for every unit type's pathing map as soon as it knows the type (a shop knows every unit it
@@ -144,7 +173,8 @@ public class RenderUnitTypeData extends RenderWidgetTypeData<RenderUnitType> {
 			}
 		}
 		String buildingShadow = row.getFieldAsString(BUILDING_SHADOW, 0);
-		if ("_".equals(buildingShadow)) {
+		if ((buildingShadow == null) || buildingShadow.isEmpty() || "_".equals(buildingShadow)
+				|| "none".equalsIgnoreCase(buildingShadow)) {
 			buildingShadow = null;
 		}
 		final String requiredAnimationNamesForAttachmentsString = row.getField(ATTACHMENT_ANIM_PROPS);

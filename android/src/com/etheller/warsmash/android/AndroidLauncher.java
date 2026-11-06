@@ -14,7 +14,11 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.WeakHashMap;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
+import android.app.Activity;
 import android.content.Intent;
 import android.graphics.Rect;
 import android.media.MediaMetadataRetriever;
@@ -52,6 +56,9 @@ import com.etheller.warsmash.viewer5.gl.AudioExtension;
 import com.etheller.warsmash.viewer5.gl.DynamicShadowExtension;
 import com.etheller.warsmash.viewer5.gl.Extensions;
 import com.etheller.warsmash.viewer5.gl.WireframeExtension;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.trigger.enumtypes.CMapDifficulty;
+import com.etheller.warsmash.viewer5.handlers.w3x.ui.GameOptions;
+import com.etheller.warsmash.viewer5.handlers.w3x.ui.MenuUI;
 
 public class AndroidLauncher extends AndroidApplication {
 	private static final String TAG = "Warsmash";
@@ -59,8 +66,14 @@ public class AndroidLauncher extends AndroidApplication {
 	/**
 	 * Map to start right away, like the desktop -loadfile argument.
 	 */
-	private static final String EXTRA_LOAD_FILE = "loadfile";
+	static final String EXTRA_LOAD_FILE = "loadfile";
 	private AndroidPointerSource pointerSource;
+	/** Started by the launcher: the game begins at once and the launcher comes back when it ends. */
+	private boolean fromLauncher;
+	private volatile boolean resultWritten;
+	/** The game started from the launcher that is running, for the crash handler. */
+	private static volatile AndroidLauncher launched;
+	private static boolean crashHandlerSet;
 
 	/**
 	 * Settings files written before version 2 were made with music off by default, when music could not play yet; they
@@ -97,6 +110,27 @@ public class AndroidLauncher extends AndroidApplication {
 	@Override
 	protected void onCreate(final Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
+		final String token = getIntent().getStringExtra(LaunchContract.EXTRA_TOKEN);
+		if (token != null) {
+			// Android restores a closed game activity with its old extras; that must not start the game again.
+			if (showRunningGame(this)) {
+				// One game at a time: the engine's state is shared by the whole process.
+				Log.w(TAG, "A game is already running; the second start is dropped");
+				this.resultWritten = true;
+				finish();
+				return;
+			}
+			if ((savedInstanceState != null) || !LaunchContract.consumeToken(this, token)) {
+				Log.w(TAG, "Launch without a valid token, back to the launcher");
+				this.resultWritten = true;
+				startActivity(new Intent(this, LauncherActivity.class));
+				finish();
+				return;
+			}
+			this.fromLauncher = true;
+			launched = this;
+			leaveCrashResult();
+		}
 		final File iniFile = new File(getExternalFilesDir(null), INI_FILE_NAME);
 		if (!iniFile.isFile()) {
 			final Intent intent = new Intent(this, DataFolderActivity.class);
@@ -147,12 +181,146 @@ public class AndroidLauncher extends AndroidApplication {
 		initialize(game, config);
 		trackOnscreenKeyboard();
 		Gdx.app.postRunnable(() -> {
+			// The launcher's Options page may have changed the file since an earlier game in this process read it.
+			GameOptions.reload();
 			final WarsmashGdxMenuScreen menuScreen = new WarsmashGdxMenuScreen(warsmashIni, game);
+			if (this.fromLauncher) {
+				menuScreen.setLauncherMode(true);
+				menuScreen.setWaitForTap(true);
+				menuScreen.setStartupMap(getIntent().getStringExtra(LaunchContract.EXTRA_MAP_FILE));
+				menuScreen.setStartupSlots(getIntent().getStringExtra(LaunchContract.EXTRA_SLOTS));
+				menuScreen.setGameEndListener(this::gameEnded);
+				final Intent launch = getIntent();
+				menuScreen.whenLoaded(menu -> {
+					if (!startFromLauncher(menu, launch)) {
+						Log.e(TAG, "The launcher asked for a game the engine cannot start: " + launch.getExtras());
+						gameEnded("error", null, null, 0);
+					}
+				});
+			}
 			game.setScreen(menuScreen);
-			if (fileToLoad != null) {
+			if (!this.fromLauncher && (fileToLoad != null)) {
 				menuScreen.startMap(fileToLoad);
 			}
 		});
+	}
+
+	private static boolean startFromLauncher(final MenuUI menu, final Intent launch) {
+		try {
+			menu.useProfile(launch.getStringExtra(LaunchContract.EXTRA_PROFILE));
+			if (launch.hasExtra(LaunchContract.EXTRA_CAMPAIGN)) {
+				return menu.startCampaignMission(launch.getIntExtra(LaunchContract.EXTRA_CAMPAIGN, -1),
+						launch.getIntExtra(LaunchContract.EXTRA_MISSION, -1),
+						difficulty(launch.getStringExtra(LaunchContract.EXTRA_DIFFICULTY)),
+						LaunchContract.CAMPAIGN_MAPS_REFORGED
+								.equals(launch.getStringExtra(LaunchContract.EXTRA_CAMPAIGN_MAPS)));
+			}
+			if (launch.hasExtra(LaunchContract.EXTRA_CUSTOM_MAP)) {
+				return menu.startSkirmish(launch.getStringExtra(LaunchContract.EXTRA_CUSTOM_MAP),
+						launch.getStringExtra(LaunchContract.EXTRA_SLOTS),
+						launch.getStringExtra(LaunchContract.EXTRA_OPTIONS));
+			}
+			if (launch.hasExtra(LaunchContract.EXTRA_SAVE_FILE)) {
+				return menu.startSavedGame(launch.getStringExtra(LaunchContract.EXTRA_SAVE_FILE));
+			}
+		}
+		catch (final RuntimeException e) {
+			Log.e(TAG, "Unable to start the game", e);
+		}
+		return false;
+	}
+
+	private static CMapDifficulty difficulty(final String name) {
+		if ("easy".equalsIgnoreCase(name)) {
+			return CMapDifficulty.EASY;
+		}
+		if ("hard".equalsIgnoreCase(name)) {
+			return CMapDifficulty.HARD;
+		}
+		return CMapDifficulty.NORMAL;
+	}
+
+	/**
+	 * A game started from the launcher that has not ended (left in the background, say) is brought back instead of
+	 * the launcher or a second game opening beside it in the same process.
+	 *
+	 * @return whether there was such a game
+	 */
+	static boolean showRunningGame(final Activity from) {
+		final AndroidLauncher running = launched;
+		if ((running == null) || running.isFinishing() || running.isDestroyed() || (running == from)) {
+			return false;
+		}
+		final Intent intent = new Intent(from, AndroidLauncher.class);
+		intent.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
+		from.startActivity(intent);
+		return true;
+	}
+
+	/** Leaves the result for the launcher and gives the screen back to it. */
+	private void gameEnded(final String result, final String mapFile, final String loadFailure, final int race) {
+		writeResult(result, mapFile, loadFailure, race);
+		runOnUiThread(() -> {
+			final Intent intent = new Intent(this, LauncherActivity.class);
+			intent.putExtra(LaunchContract.EXTRA_RETURNED, true);
+			startActivity(intent);
+			finish();
+			overridePendingTransition(0, 0);
+		});
+	}
+
+	private void writeResult(final String result, final String mapFile, final String loadFailure, final int race) {
+		if (this.resultWritten) {
+			return;
+		}
+		this.resultWritten = true;
+		final Intent launch = getIntent();
+		final LaunchContract.Result written = new LaunchContract.Result();
+		written.result = result;
+		written.source = launch.hasExtra(LaunchContract.EXTRA_CAMPAIGN) ? LaunchContract.SOURCE_CAMPAIGN
+				: launch.hasExtra(LaunchContract.EXTRA_CUSTOM_MAP) ? LaunchContract.SOURCE_CUSTOM
+						: LaunchContract.SOURCE_LOAD;
+		written.map = mapFile != null ? mapFile : "";
+		written.profile = GameCatalog.currentProfile(this);
+		written.loadFailure = loadFailure;
+		written.race = race;
+		written.finished = System.currentTimeMillis();
+		LaunchContract.writeResult(this, written);
+	}
+
+	/** An exception that ends the program leaves a crash result, so the launcher can tell a crash from a force stop. */
+	private static synchronized void leaveCrashResult() {
+		if (crashHandlerSet) {
+			return;
+		}
+		crashHandlerSet = true;
+		final Thread.UncaughtExceptionHandler system = Thread.getDefaultUncaughtExceptionHandler();
+		Thread.setDefaultUncaughtExceptionHandler((thread, error) -> {
+			final AndroidLauncher game = launched;
+			if (game != null) {
+				try {
+					game.writeResult("crash", null, null, 0);
+				}
+				catch (final Throwable e) {
+					Log.e(TAG, "Unable to leave the crash result", e);
+				}
+			}
+			if (system != null) {
+				system.uncaughtException(thread, error);
+			}
+		});
+	}
+
+	@Override
+	protected void onDestroy() {
+		if (launched == this) {
+			launched = null;
+		}
+		// Exit Program in the game menu closes the program; the launcher hears that it was no crash.
+		if (this.fromLauncher && isFinishing()) {
+			writeResult("exit", null, null, 0);
+		}
+		super.onDestroy();
 	}
 
 	/**
@@ -202,7 +370,7 @@ public class AndroidLauncher extends AndroidApplication {
 		return super.dispatchGenericMotionEvent(event);
 	}
 
-	private static DataTable loadWarsmashIni(final File iniFile) throws IOException {
+	static DataTable loadWarsmashIni(final File iniFile) throws IOException {
 		final DataTable warsmashIni = new DataTable(StringBundle.EMPTY);
 		try (InputStream stream = new FileInputStream(iniFile)) {
 			warsmashIni.readTXT(stream, true);
@@ -210,7 +378,7 @@ public class AndroidLauncher extends AndroidApplication {
 		return warsmashIni;
 	}
 
-	private static void loadExtensions(final File soundCache) {
+	static void loadExtensions(final File soundCache) {
 		Extensions.angleInstancedArrays = new ANGLEInstancedArrays() {
 			@Override
 			public void glVertexAttribDivisorANGLE(final int index, final int divisor) {
@@ -255,12 +423,13 @@ public class AndroidLauncher extends AndroidApplication {
 		};
 		Extensions.audio = new AudioExtension() {
 			// SoundPool does not report durations, so they are read from the cached file.
-			private final Map<Sound, Float> durations = Collections.synchronizedMap(new WeakHashMap<>());
+			private final Map<Sound, File> soundFiles = Collections.synchronizedMap(new WeakHashMap<>());
 
 			@Override
 			public float getDuration(final Sound sound) {
-				final Float duration = sound == null ? null : this.durations.get(sound);
-				return duration == null ? 1 : duration;
+				final File file = sound == null ? null : this.soundFiles.get(sound);
+				final float duration = file == null ? 0 : durationOf(file);
+				return duration > 0 ? duration : 1;
 			}
 
 			@Override
@@ -285,9 +454,10 @@ public class AndroidLauncher extends AndroidApplication {
 			public Sound newSound(final FileHandle file) {
 				final FileHandle copy = cachedCopy(soundCache, file);
 				final Sound sound = Gdx.audio.newSound(copy);
-				final float duration = readDuration(copy.file());				if (duration > 0) {
-					this.durations.put(sound, duration);
-				}
+				this.soundFiles.put(sound, copy.file());
+				// Reading the length opens a decoder for the file, too slow for the render thread when a map
+				// loads hundreds of sounds; it is read ahead and only waited for when asked before it is known.
+				DURATION_READER.execute(() -> durationOf(copy.file()));
 				return sound;
 			}
 
@@ -298,9 +468,28 @@ public class AndroidLauncher extends AndroidApplication {
 		};
 	}
 
+	private static final Map<String, Float> DURATIONS = new ConcurrentHashMap<>();
+	private static final ExecutorService DURATION_READER = Executors.newSingleThreadExecutor(runnable -> {
+		final Thread thread = new Thread(runnable, "sound-durations");
+		thread.setDaemon(true);
+		thread.setPriority(Thread.MIN_PRIORITY);
+		return thread;
+	});
+
 	/**
-	 * @return the duration in seconds, or 0 if the file does not report one
+	 * @return the duration in seconds, or 0 if the file does not report one; a cached copy keeps its length for the
+	 *         life of the process
 	 */
+	private static float durationOf(final File file) {
+		final String path = file.getAbsolutePath();
+		Float duration = DURATIONS.get(path);
+		if (duration == null) {
+			duration = readDuration(file);
+			DURATIONS.put(path, duration);
+		}
+		return duration;
+	}
+
 	private static float readDuration(final File file) {
 		final MediaMetadataRetriever retriever = new MediaMetadataRetriever();
 		try {

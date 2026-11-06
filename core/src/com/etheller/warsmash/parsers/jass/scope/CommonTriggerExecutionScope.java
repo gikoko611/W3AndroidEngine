@@ -542,6 +542,9 @@ public class CommonTriggerExecutionScope extends TriggerExecutionScope {
 		final CommonTriggerExecutionScope scope = new CommonTriggerExecutionScope(parentScope.getTriggeringTrigger(),
 				parentScope);
 		scope.enumDestructable = enumDestructable;
+		// Measured on 1.29: in the action of EnumDestructablesInRect, GetFilterDestructable is the enumerated one too
+		// (Reforged Human03 opens its barricades with KillDestructable(GetFilterDestructable())).
+		scope.filterDestructable = enumDestructable;
 		return scope;
 	}
 

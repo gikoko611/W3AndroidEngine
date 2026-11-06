@@ -253,7 +253,8 @@ public interface RenderWidget {
 		@Override
 		public boolean isAnimationQueued(final PrimaryTag animationName) {
 			for (QueuedAnimation anim : this.animationQueue) {
-				if (anim.animationName.equals(animationName)) {
+				// A name without a primary tag, like Reforged's "Cinematic Standard One", queues none.
+				if (anim.animationName == animationName) {
 					return true;
 				}
 			}

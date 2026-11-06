@@ -43,7 +43,7 @@ public class MpqDataSource implements DataSource {
 	public InputStream getResourceAsStream(final String filepath) throws IOException {
 		ArchivedFile file = null;
 		try {
-			file = this.archive.lookupHash2(new HashLookup(filepath));
+			file = this.archive.lookupHash2(new HashLookup(archivePath(filepath)));
 		}
 		catch (final MPQException exc) {
 			if (exc.getMessage().equals("lookup not found")) {
@@ -62,7 +62,7 @@ public class MpqDataSource implements DataSource {
 	public ByteBuffer read(final String path) throws IOException {
 		ArchivedFile file = null;
 		try {
-			file = this.archive.lookupHash2(new HashLookup(path));
+			file = this.archive.lookupHash2(new HashLookup(archivePath(path)));
 		}
 		catch (final MPQException exc) {
 			if (exc.getMessage().equals("lookup not found")) {
@@ -87,7 +87,7 @@ public class MpqDataSource implements DataSource {
 		// filepath);
 		ArchivedFile file = null;
 		try {
-			file = this.archive.lookupHash2(new HashLookup(filepath));
+			file = this.archive.lookupHash2(new HashLookup(archivePath(filepath)));
 		}
 		catch (final MPQException exc) {
 			if (exc.getMessage().equals("lookup not found")) {
@@ -120,7 +120,7 @@ public class MpqDataSource implements DataSource {
 	@Override
 	public boolean has(final String filepath) {
 		try {
-			this.archive.lookupPath(filepath);
+			this.archive.lookupPath(archivePath(filepath));
 			return true;
 		}
 		catch (final MPQException exc) {
@@ -161,6 +161,11 @@ public class MpqDataSource implements DataSource {
 				throw new RuntimeException(exc);
 			}
 		}
+	}
+
+	/** Like the original's archives, a path names the same file with / as with \. */
+	private static String archivePath(final String filepath) {
+		return filepath.replace('/', '\\');
 	}
 
 	@Override

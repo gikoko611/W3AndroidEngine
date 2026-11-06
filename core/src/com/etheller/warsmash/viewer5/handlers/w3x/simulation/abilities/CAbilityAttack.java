@@ -100,9 +100,9 @@ public class CAbilityAttack extends AbstractCAbility {
 			}
 			else {
 				if ((lastUnavailableAttack != null) && game.isScriptOrder()
-						&& onlyAirMismatch(game, unit, target, lastUnavailableAttack)) {
-					// Measured (1.29): a script attack order on a unit no weapon can hit (a Footman on a flyer) is
-					// accepted; the unit follows it.
+						&& scriptFollowableMismatch(game, unit, target, lastUnavailableAttack)) {
+					// Measured (1.29): a script attack order on a unit or tree no weapon can hit (a Footman on a
+					// flyer, a Warden on a tree) is accepted; the unit follows it.
 					receiver.targetOk(target);
 				}
 				else if (lastUnavailableAttack != null) {
@@ -119,10 +119,12 @@ public class CAbilityAttack extends AbstractCAbility {
 		}
 	}
 
-	private static boolean onlyAirMismatch(final CSimulation game, final CUnit unit, final CWidget target,
+	private static boolean scriptFollowableMismatch(final CSimulation game, final CUnit unit, final CWidget target,
 			final CUnitAttack attack) {
 		target.canBeTargetedBy(game, unit, attack.getTargetsAllowed(), SCRIPT_TARGET_CHECK.reset());
-		return CommandStringErrorKeys.UNABLE_TO_TARGET_AIR_UNITS.equals(SCRIPT_TARGET_CHECK.getExternStringKey());
+		final String key = SCRIPT_TARGET_CHECK.getExternStringKey();
+		return CommandStringErrorKeys.UNABLE_TO_TARGET_AIR_UNITS.equals(key)
+				|| CommandStringErrorKeys.UNABLE_TO_TARGET_TREES.equals(key);
 	}
 
 	@Override

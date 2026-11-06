@@ -182,6 +182,7 @@ public class DataTable implements ObjectData {
 		String[] dataNames = new String[colCount];
 		int col = 0;
 		int lastFieldId = 0;
+		int lastColumn = 0;
 		while ((input = reader.readLine()) != null) {
 			if (DEBUG) {
 				System.out.println(input);
@@ -281,7 +282,16 @@ public class DataTable implements ObjectData {
 					continue;
 				}
 			}
-			if (input.contains("X1;") || ((input != kInput) && input.endsWith("X1"))) {
+			// A cell without X stays in the previous cell's column (3.0 DialogueHumanBase.slk starts rows so).
+			final boolean keyCell = input.contains("X1;") || ((input != kInput) && input.endsWith("X1"))
+					|| (input.startsWith("C;Y") && (slkColumn(input) == -1) && (lastColumn == 1));
+			if (input.startsWith("C;")) {
+				final int column = slkColumn(input);
+				if (column != -1) {
+					lastColumn = column;
+				}
+			}
+			if (keyCell) {
 				final int start = kInput.indexOf("\"") + 1;
 				final int end = kInput.lastIndexOf("\"");
 				if ((start - 1) != end) {
@@ -325,6 +335,22 @@ public class DataTable implements ObjectData {
 		}
 
 		reader.close();
+	}
+
+	private static int slkColumn(final String record) {
+		final int valueIndex = record.indexOf(";K");
+		final String[] fields = (valueIndex == -1 ? record : record.substring(0, valueIndex)).split(";");
+		for (final String field : fields) {
+			if (field.startsWith("X")) {
+				try {
+					return Integer.parseInt(field.substring(1));
+				}
+				catch (final NumberFormatException e) {
+					return -1;
+				}
+			}
+		}
+		return -1;
 	}
 
 	@Override

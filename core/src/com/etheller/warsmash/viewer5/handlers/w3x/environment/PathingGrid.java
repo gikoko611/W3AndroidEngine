@@ -32,6 +32,7 @@ public class PathingGrid {
 	private final int[] pathingGridSizes;
 	private final float[] centerOffset;
 	private final List<RemovablePathingMapInstance> dynamicPathingInstances;
+	private int overlayVersion;
 
 	public PathingGrid(final War3MapWpm terrainPathing, final float[] centerOffset) {
 		this.centerOffset = centerOffset;
@@ -46,6 +47,7 @@ public class PathingGrid {
 	// https://github.com/stijnherfst/HiveWE/blob/master/Base/PathingMap.cpp
 	private void blitPathingOverlayTexture(final float positionX, final float positionY, final int rotationInput,
 			final ArgbImage pathingTextureTga, boolean blocksVision) {
+		this.overlayVersion++;
 		final int rotation = (rotationInput + 450) % 360;
 		final int divW = ((rotation % 180) != 0) ? pathingTextureTga.getHeight() : pathingTextureTga.getWidth();
 		final int divH = ((rotation % 180) != 0) ? pathingTextureTga.getWidth() : pathingTextureTga.getHeight();
@@ -191,14 +193,18 @@ public class PathingGrid {
 			final int rotationInput, final ArgbImage pathingTextureTga) {
 		final RemovablePathingMapInstance removablePathingMapInstance = new RemovablePathingMapInstance(positionX,
 				positionY, rotationInput, pathingTextureTga);
-		removablePathingMapInstance.blit();
-		this.dynamicPathingInstances.add(removablePathingMapInstance);
+		removablePathingMapInstance.add();
 		return removablePathingMapInstance;
 	}
 
 	public RemovablePathingMapInstance createRemovablePathingOverlayTexture(final float positionX,
 			final float positionY, final int rotationInput, final ArgbImage pathingTextureTga) {
 		return new RemovablePathingMapInstance(positionX, positionY, rotationInput, pathingTextureTga);
+	}
+
+	/** Changes whenever buildings or destructables add or remove pathing. */
+	public int getOverlayVersion() {
+		return this.overlayVersion;
 	}
 
 	public int getWidth() {
@@ -575,6 +581,7 @@ public class PathingGrid {
 		private final int rotationInput;
 		private final ArgbImage pathingTextureTga;
 		private boolean blocksVision = false;
+		private boolean added = false;
 
 		public RemovablePathingMapInstance(final float positionX, final float positionY, final int rotationInput,
 				final ArgbImage pathingTextureTga) {
@@ -590,21 +597,33 @@ public class PathingGrid {
 		}
 
 		public void remove() {
+			if (!this.added) {
+				return;
+			}
+			this.added = false;
 			PathingGrid.this.dynamicPathingInstances.remove(this);
 			Arrays.fill(PathingGrid.this.dynamicPathingOverlay, (short) 0);
+			PathingGrid.this.overlayVersion++;
 			for (final RemovablePathingMapInstance instance : PathingGrid.this.dynamicPathingInstances) {
 				instance.blit();
 			}
 		}
 
 		public void add() {
+			if (this.added) {
+				return;
+			}
+			this.added = true;
 			PathingGrid.this.dynamicPathingInstances.add(this);
 			blit();
 		}
 
 		public void setBlocksVision(boolean flag) {
 			this.blocksVision = flag;
-			blit();
+			// An instance that is not in the grid (a dead destructable's live pathing) must not leave cells behind.
+			if (this.added) {
+				blit();
+			}
 		}
 	}
 }

@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <application>
+        <!-- Debug builds leave a report of every crash; the provider starts with the process. -->
+        <provider
+            android:name=".DebugCrashLog"
+            android:authorities="${applicationId}.debugcrashlog"
+            android:exported="false"
+            android:initOrder="1000" />
+    </application>
+
+</manifest>

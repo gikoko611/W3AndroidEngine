@@ -27,6 +27,13 @@ public class JassNativeManager {
 		this.nameToNativeCode.put(name, nativeCode);
 	}
 
+	/**
+	 * Native code created by the engine that common.j has not declared (yet), or null.
+	 */
+	public JassFunction getUndeclaredNative(final String name) {
+		return this.nameToNativeCode.get(name);
+	}
+
 	public void registerNativeCode(final int lineNo, final String sourceFile, final String name,
 			final List<JassParameterDefinition> parameterDefinitions, final JassTypeToken returnTypeToken,
 			final Scope globals) {

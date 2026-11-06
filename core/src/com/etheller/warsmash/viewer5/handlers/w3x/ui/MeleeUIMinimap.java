@@ -1,6 +1,9 @@
 package com.etheller.warsmash.viewer5.handlers.w3x.ui;
 
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.Set;
+import java.util.WeakHashMap;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -45,6 +48,8 @@ public class MeleeUIMinimap {
 	private boolean terrainVisible = true;
 	private boolean maskedAreasPartiallyVisible;
 	private final float[] cameraFootprint = new float[8];
+	/** Structures stay on the minimap where the local player last saw them, as in the original. */
+	private final Set<CUnit> seenStructures = Collections.newSetFromMap(new WeakHashMap<>());
 	private Texture lineTexture;
 	// The fog was drawn as one sprite per fog cell every frame, thousands of them, which phones could not keep up
 	// with; it is now painted into a texture a few times a second and drawn as one sprite.
@@ -178,8 +183,12 @@ public class MeleeUIMinimap {
 		for (final RenderUnit unit : units) {
 			final CUnit simUnit = unit.getSimulationUnit();
 			int dimensions = 4;
+			final boolean unitVisible = this.observerView || simUnit.isVisible(game, player.getId());
+			if (unitVisible && simUnit.isBuilding()) {
+				this.seenStructures.add(simUnit);
+			}
 			if (!(simUnit.isHidden() || simUnit.isHideMinimapIcon() || simUnit.isDead())
-					&& (this.observerView || simUnit.isVisible(game, player.getId())
+					&& (unitVisible || this.seenStructures.contains(simUnit)
 						|| isExploredLandmark(game, simUnit, pathingGrid, fogOfWar,
 								this.maskedAreasPartiallyVisible))) {
 				float red = 1f;

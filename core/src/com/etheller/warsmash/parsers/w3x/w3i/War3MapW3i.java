@@ -156,10 +156,13 @@ public class War3MapW3i {
 			ParseUtils.readUInt8Array(stream, this.alphaTileMinimapColor);
 		}
 
+		// Format 39 player records of the 2.0 campaign maps (editor 6117, 6127) have no race HUD; later editors (6140
+		// melee maps, 7003 campaign maps) write it.
+		final boolean playerRaceHud = (this.version >= 39) && (this.editorVersion > 6127);
 		for (int i = 0, l = stream.readInt(); i < l; i++) {
 			final Player player = new Player();
 
-			player.load(stream, this.version);
+			player.load(stream, this.version, playerRaceHud);
 
 			this.players.add(player);
 		}

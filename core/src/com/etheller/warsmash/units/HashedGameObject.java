@@ -5,6 +5,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 public abstract class HashedGameObject implements GameObject {
 	HashMap<StringKey, List<String>> fields = new HashMap<>();
@@ -12,6 +13,32 @@ public abstract class HashedGameObject implements GameObject {
 	ObjectData parentTable;
 
 	transient HashMap<String, List<GameObject>> hashedLists = new HashMap<>();
+
+	// The game's object data holds about a million field values, mostly the same few names and values ("0", "",
+	// "_"); one copy of each keeps the data within an Android app's Java heap.
+	private static final ConcurrentHashMap<String, StringKey> SHARED_KEYS = new ConcurrentHashMap<>();
+	private static final ConcurrentHashMap<String, String> SHARED_VALUES = new ConcurrentHashMap<>();
+	private static final int MAX_SHARED_VALUE_LENGTH = 256;
+
+	static StringKey sharedKey(final String field) {
+		final StringKey key = SHARED_KEYS.get(field);
+		if (key != null) {
+			return key;
+		}
+		final StringKey newKey = new StringKey(field);
+		// Its cached hash is published with the key through the map, so every thread sees it.
+		newKey.hashCode();
+		final StringKey existing = SHARED_KEYS.putIfAbsent(field, newKey);
+		return existing == null ? newKey : existing;
+	}
+
+	static String sharedValue(final String value) {
+		if ((value == null) || (value.length() > MAX_SHARED_VALUE_LENGTH)) {
+			return value;
+		}
+		final String existing = SHARED_VALUES.putIfAbsent(value, value);
+		return existing == null ? value : existing;
+	}
 
 	public HashedGameObject(final String id, final ObjectData table) {
 		this.id = id;
@@ -66,12 +93,12 @@ public abstract class HashedGameObject implements GameObject {
 		final StringKey key = new StringKey(field);
 		List<String> list = this.fields.get(key);
 		if (list == null) {
-			list = new ArrayList<>();
-			this.fields.put(key, list);
-			list.add(value);
+			list = new ArrayList<>(1);
+			this.fields.put(sharedKey(field), list);
+			list.add(sharedValue(value));
 		}
 		else {
-			list.set(0, value);
+			list.set(0, sharedValue(value));
 		}
 	}
 
@@ -81,7 +108,13 @@ public abstract class HashedGameObject implements GameObject {
 			this.fields.remove(key);
 		}
 		else {
-			this.fields.put(key, value);
+			if (value instanceof ArrayList) {
+				for (int i = 0; i < value.size(); i++) {
+					value.set(i, sharedValue(value.get(i)));
+				}
+				((ArrayList<String>) value).trimToSize();
+			}
+			this.fields.put(sharedKey(field), value);
 		}
 	}
 
@@ -176,27 +209,27 @@ public abstract class HashedGameObject implements GameObject {
 		List<String> list = this.fields.get(key);
 		if (list == null) {
 			if (index == 0) {
-				list = new ArrayList<>();
-				this.fields.put(key, list);
-				list.add(value);
+				list = new ArrayList<>(1);
+				this.fields.put(sharedKey(field), list);
+				list.add(sharedValue(value));
 			}
 			else {
-				list = new ArrayList<>();
+				list = new ArrayList<>(index + 1);
 				for (int k = 0; k < index; k++) {
 					list.add("");
 				}
-				list.add(value);
+				list.add(sharedValue(value));
 			}
 		}
 		else {
 			if (list.size() == index) {
-				list.add(value);
+				list.add(sharedValue(value));
 			}
 			else {
 				for (int k = list.size(); k <= index; k++) {
 					list.add("");
 				}
-				list.set(index, value);
+				list.set(index, sharedValue(value));
 			}
 		}
 	}

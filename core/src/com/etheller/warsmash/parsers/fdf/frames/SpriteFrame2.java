@@ -49,6 +49,10 @@ public class SpriteFrame2 extends AbstractUIFrame {
 		this.uiViewport = uiViewport;
 	}
 
+	public void dispose() {
+		this.scene.dispose();
+	}
+
 	public void setModel(final MdxModel model) {
 		if (this.instance != null) {
 			this.scene.removeInstance(this.instance);

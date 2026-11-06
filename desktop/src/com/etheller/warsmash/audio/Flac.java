@@ -133,6 +133,32 @@ public class Flac {
 			// Else the hash check passed
 		}
 
+		// libGDX plays only mono and stereo: wider layouts (the quad ambient loops of the Reforged data) are folded
+		// to stereo, even channels to the left and odd ones to the right.
+		if (samples.length > 2) {
+			final int[][] stereo = new int[2][samples[0].length];
+			final int[] counts = new int[2];
+			for (int j = 0; j < samples.length; j++) {
+				counts[j % 2]++;
+			}
+			for (int i = 0; i < samples[0].length; i++) {
+				long left = 0;
+				long right = 0;
+				for (int j = 0; j < samples.length; j++) {
+					if ((j % 2) == 0) {
+						left += samples[j][i];
+					}
+					else {
+						right += samples[j][i];
+					}
+				}
+				stereo[0][i] = (int) (left / counts[0]);
+				stereo[1][i] = (int) (right / counts[1]);
+			}
+			samples = stereo;
+		}
+		final int numChannels = samples.length;
+
 		// Start writing WAV output file
 		int bytesPerSample = streamInfo.sampleDepth / 8;
 		final boolean needsDownscaleForLibgdx = bytesPerSample >= 3;
@@ -144,7 +170,7 @@ public class Flac {
 		final ByteArrayOutputStream baos = new ByteArrayOutputStream();
 		try (DataOutputStream out = new DataOutputStream(new BufferedOutputStream(baos))) {
 			// Header chunk
-			final int sampleDataLen = samples[0].length * streamInfo.numChannels * bytesPerSample;
+			final int sampleDataLen = samples[0].length * numChannels * bytesPerSample;
 			out.writeInt(0x52494646); // "RIFF"
 			writeLittleInt32(out, sampleDataLen + 36);
 			out.writeInt(0x57415645); // "WAVE"
@@ -153,10 +179,10 @@ public class Flac {
 			out.writeInt(0x666D7420); // "fmt "
 			writeLittleInt32(out, 16);
 			writeLittleInt16(out, 0x0001);
-			writeLittleInt16(out, streamInfo.numChannels);
+			writeLittleInt16(out, numChannels);
 			writeLittleInt32(out, streamInfo.sampleRate);
-			writeLittleInt32(out, streamInfo.sampleRate * streamInfo.numChannels * bytesPerSample);
-			writeLittleInt16(out, streamInfo.numChannels * bytesPerSample);
+			writeLittleInt32(out, streamInfo.sampleRate * numChannels * bytesPerSample);
+			writeLittleInt16(out, numChannels * bytesPerSample);
 			writeLittleInt16(out, needsDownscaleForLibgdx ? 16 : streamInfo.sampleDepth);
 
 			// Audio data chunk ("data")

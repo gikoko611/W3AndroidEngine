@@ -12,6 +12,10 @@ android {
             assets.srcDirs = ["assets", "build/generated/engineAssets"]
             jniLibs.srcDirs = ["libs"]
         }
+        debug {
+            java.srcDirs = ["src-debug"]
+            manifest.srcFile "src-debug/AndroidManifest.xml"
+        }
     }
 
     defaultConfig {
@@ -19,7 +23,7 @@ android {
         minSdk 26
         targetSdk 34
         versionCode 1
-        versionName "0.1.088"
+        versionName "0.2.9"
     }
 
     buildTypes {

@@ -5,6 +5,7 @@ import java.io.InputStream;
 import java.util.Locale;
 
 import com.badlogic.gdx.files.FileHandle;
+import com.etheller.warsmash.datasources.AssetPathFallback;
 import com.etheller.warsmash.datasources.DataSource;
 
 public class DataSourceFileHandle extends FileHandle {
@@ -53,7 +54,16 @@ public class DataSourceFileHandle extends FileHandle {
 			}
 		}
 		final String found = dataSource.findFirst(candidatePaths);
-		return found != null ? found : path;
+		if (found != null) {
+			return found;
+		}
+		for (int i = 0; i < candidateCount; i++) {
+			final String fallback = AssetPathFallback.find(dataSource, candidatePaths[i]);
+			if (fallback != null) {
+				return fallback;
+			}
+		}
+		return path;
 	}
 
 	public static boolean isSoundPath(final String path) {

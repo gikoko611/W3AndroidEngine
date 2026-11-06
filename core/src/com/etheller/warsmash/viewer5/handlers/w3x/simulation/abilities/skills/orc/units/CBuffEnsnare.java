@@ -92,7 +92,7 @@ public class CBuffEnsnare extends CBuffTimed {
 	}
 
 	/**
-	 * Measured (1.29, probe orc-ensnare-air): scripts still see a snared flyer at its own fly height and as a flying,
+	 * Measured (1.29): scripts still see a snared flyer at its own fly height and as a flying,
 	 * not a ground, unit, although it is drawn pulled down and land units may attack it.
 	 */
 	public static CBuffEnsnare getFlyingSnare(final CUnit unit) {

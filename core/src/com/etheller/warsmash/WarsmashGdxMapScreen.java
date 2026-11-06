@@ -8,6 +8,7 @@ import java.nio.IntBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.files.FileHandle;
@@ -63,6 +64,8 @@ import com.etheller.warsmash.viewer5.handlers.w3x.camera.CameraPreset;
 import com.etheller.warsmash.viewer5.handlers.w3x.camera.CameraRates;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.players.CPlayerUnitOrderListener;
 import com.etheller.warsmash.viewer5.handlers.w3x.save.SavedGame;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.players.CPlayerGameResult;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.players.CRace;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.campaign.CCampaignProgress;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.campaign.CGameCache;
 import com.etheller.warsmash.viewer5.handlers.w3x.ui.MeleeUI;
@@ -98,6 +101,8 @@ public class WarsmashGdxMapScreen implements InputProcessor, Screen, TouchTarget
 	private int previousVao;
 	private int vao;
 	private List<Disposable> sessionResources;
+	private boolean disposed;
+	private static final float MAX_INTERFACE_FRAME_TIME = 3 * WarsmashConstants.SIMULATION_STEP_TIME;
 
 	public WarsmashGdxMapScreen(final War3MapViewer mapViewer, final WarsmashGdxMultiScreenGame screenManager,
 			final WarsmashGdxMenuScreen menuScreen, final CPlayerUnitOrderListener uiOrderListener) {
@@ -105,6 +110,18 @@ public class WarsmashGdxMapScreen implements InputProcessor, Screen, TouchTarget
 		this.screenManager = screenManager;
 		this.menuScreen = menuScreen;
 		this.uiOrderListener = uiOrderListener;
+	}
+
+	public War3MapViewer getViewer() {
+		return this.viewer;
+	}
+
+	public WarsmashGdxMenuScreen getMenuScreen() {
+		return this.menuScreen;
+	}
+
+	public boolean isDisposed() {
+		return this.disposed;
 	}
 
 	/*
@@ -194,6 +211,8 @@ public class WarsmashGdxMapScreen implements InputProcessor, Screen, TouchTarget
 				"ReplaceableTextures\\TeamColor\\TeamColor06.blp");
 
 		Gdx.input.setInputProcessor(this);
+		// Android's Back would otherwise close the activity and drop the match without a word.
+		Gdx.input.setCatchKey(Input.Keys.BACK, true);
 
 		this.shapeRenderer = new ShapeRenderer();
 
@@ -211,8 +230,21 @@ public class WarsmashGdxMapScreen implements InputProcessor, Screen, TouchTarget
 				}, this.uiOrderListener, new Runnable() {
 					@Override
 					public void run() {
+						final String result = localPlayerResult();
+						final int race = localPlayerRace();
 						// The menu picks up its own sounds and textures from here on.
 						WarsmashGdxMapScreen.this.endSession();
+						final WarsmashGdxMenuScreen.GameEndListener gameEndListener = WarsmashGdxMapScreen.this.menuScreen
+								.getGameEndListener();
+						if ((gameEndListener != null) && !CCampaignProgress.hasPendingLevel()) {
+							final SavedGame.Loadability loadFailure = SavedGame.consumeLoadFailure();
+							final String mapFile = WarsmashGdxMapScreen.this.viewer.getMapFileName();
+							WarsmashGdxMapScreen.this.screenManager.setScreen(null);
+							CGameCache.dropUnsaved();
+							gameEndListener.gameEnded(result, mapFile, loadFailure == null ? null : loadFailure.name(),
+									race);
+							return;
+						}
 						WarsmashGdxMapScreen.this.menuScreen.onReturnFromGame();
 						WarsmashGdxMapScreen.this.screenManager.setScreen(WarsmashGdxMapScreen.this.menuScreen);
 						CGameCache.dropUnsaved();
@@ -340,7 +372,10 @@ public class WarsmashGdxMapScreen implements InputProcessor, Screen, TouchTarget
 	public void render(final float delta) {
 		this.uiCamera.update();
 		Gdx.gl30.glEnable(GL30.GL_SCISSOR_TEST);
-		final float deltaTime = Gdx.graphics.getDeltaTime();
+		// Like the game, which runs slower on a slow frame instead of catching up, the interface's fades do not skip
+		// ahead: the first frames, drawn while textures are still being uploaded, would end a map's opening fade from
+		// black before it is ever seen.
+		final float deltaTime = Math.min(Gdx.graphics.getDeltaTime(), MAX_INTERFACE_FRAME_TIME);
 		Gdx.gl30.glBindVertexArray(WarsmashGdxGame.VAO);
 		this.meleeUI.update(deltaTime);
 		this.viewer.updateAndRender();
@@ -386,6 +421,10 @@ public class WarsmashGdxMapScreen implements InputProcessor, Screen, TouchTarget
 
 	@Override
 	public void dispose() {
+		if (this.disposed) {
+			return;
+		}
+		this.disposed = true;
 		endSession();
 		this.meleeUI.dispose();
 		this.batch.dispose();
@@ -399,6 +438,32 @@ public class WarsmashGdxMapScreen implements InputProcessor, Screen, TouchTarget
 		Gdx.gl30.glDeleteVertexArrays(1, vaos);
 		WarsmashGdxGame.VAO = this.previousVao;
 		Gdx.gl30.glBindVertexArray(WarsmashGdxGame.VAO);
+	}
+
+	/** How the game ended for the local player: victory, defeat or tie, or quit when it had no result yet. */
+	private String localPlayerResult() {
+		try {
+			final CPlayerGameResult result = this.viewer.simulation.getPlayer(this.viewer.getLocalPlayerIndex())
+					.getRemovedResult();
+			if ((result == null) || (result == CPlayerGameResult.NEUTRAL)) {
+				return "quit";
+			}
+			return result.name().toLowerCase(Locale.ROOT);
+		}
+		catch (final RuntimeException e) {
+			return "quit";
+		}
+	}
+
+	/** The race the local player played, a random one as it was drawn; 0 when unknown. */
+	private int localPlayerRace() {
+		try {
+			final CRace race = this.viewer.simulation.getPlayer(this.viewer.getLocalPlayerIndex()).getRace();
+			return race == null ? 0 : race.getId();
+		}
+		catch (final RuntimeException e) {
+			return 0;
+		}
 	}
 
 	private void endSession() {
@@ -677,6 +742,7 @@ public class WarsmashGdxMapScreen implements InputProcessor, Screen, TouchTarget
 
 	@Override
 	public void hide() {
+		Gdx.input.setCatchKey(Input.Keys.BACK, false);
 		this.meleeUI.gameClosed();
 		endSession();
 		// Leaving the game happens in the middle of this screen's own frame, which still has to finish.

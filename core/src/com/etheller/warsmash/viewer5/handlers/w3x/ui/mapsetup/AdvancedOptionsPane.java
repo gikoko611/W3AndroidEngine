@@ -87,6 +87,18 @@ public class AdvancedOptionsPane {
 		this.lockTeams.setEnabled(!customForces);
 	}
 
+	/** The boxes as a launcher set them; a lock the map forces stays on. */
+	public void setOptions(final boolean lockTeams, final boolean teamsTogether, final boolean sharedControl,
+			final boolean randomRaces, final boolean randomHero) {
+		if (this.lockTeams.isEnabled()) {
+			this.lockTeams.setChecked(lockTeams);
+		}
+		this.teamsTogether.setChecked(teamsTogether);
+		this.sharedControl.setChecked(sharedControl);
+		this.randomRaces.setChecked(randomRaces);
+		this.randomHero.setChecked(randomHero);
+	}
+
 	public void applyTo(final War3MapConfig config) {
 		config.setMapFlag(CMapFlag.MAP_LOCK_ALLIANCE_CHANGES, this.lockTeams.isChecked());
 		config.setMapFlag(CMapFlag.MAP_SHARED_ADVANCED_CONTROL, this.sharedControl.isChecked());

@@ -41,6 +41,7 @@ public class CommandCardIcon extends AbstractRenderableFrame implements Clickabl
 	private int tipFoodCost;
 	private int tipManaCost;
 	private char hotkey;
+	private boolean leftClickPlacesItem;
 
 	public CommandCardIcon(final String name, final UIFrame parent,
 			final CommandCardCommandListener commandCardCommandListener) {
@@ -184,7 +185,7 @@ public class CommandCardIcon extends AbstractRenderableFrame implements Clickabl
 	@Override
 	public UIFrame touchDown(final float screenX, final float screenY, final int button) {
 		if (isVisible() && this.renderBounds.contains(screenX, screenY)) {
-			if (((button == Input.Buttons.LEFT) && (this.orderId != 0))
+			if (((button == Input.Buttons.LEFT) && ((this.orderId != 0) || placesItemOnLeftClick()))
 					|| ((button == Input.Buttons.RIGHT) && (this.autoCastOrderId != 0)) || this.menuButton) {
 				return this;
 			}
@@ -211,7 +212,10 @@ public class CommandCardIcon extends AbstractRenderableFrame implements Clickabl
 
 	@Override
 	public void onClick(final int button) {
-		if (button == Input.Buttons.LEFT) {
+		if ((button == Input.Buttons.LEFT) && placesItemOnLeftClick()) {
+			this.commandCardCommandListener.onClick(this.abilityHandleId, this.autoCastOrderId, true);
+		}
+		else if (button == Input.Buttons.LEFT) {
 			if (this.menuButton) {
 				this.commandCardCommandListener.openMenu(this.orderId);
 			}
@@ -222,6 +226,18 @@ public class CommandCardIcon extends AbstractRenderableFrame implements Clickabl
 		else if (button == Input.Buttons.RIGHT) {
 			this.commandCardCommandListener.onClick(this.abilityHandleId, this.autoCastOrderId, true);
 		}
+	}
+
+	/**
+	 * Inventory slots while an item is held on the cursor: a left click places (moves or swaps) the item like a right
+	 * click does, instead of using the item in the slot.
+	 */
+	public void setLeftClickPlacesItem(final boolean leftClickPlacesItem) {
+		this.leftClickPlacesItem = leftClickPlacesItem;
+	}
+
+	private boolean placesItemOnLeftClick() {
+		return this.leftClickPlacesItem && (this.autoCastOrderId != 0);
 	}
 
 	public boolean isAutoCastCapable() {

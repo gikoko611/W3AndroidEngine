@@ -67,6 +67,8 @@ public abstract class Scene {
 	private final SceneLightManager lightManager;
 	public FogSettings fogSettings = new FogSettings();
 	public boolean show = true;
+	/** Where the scene may draw, when that is less than its camera's viewport (a cropped view of the scene). */
+	public Rectangle clip;
 
 	public Scene(final ModelViewer viewer, final SceneLightManager lightManager) {
 		final CanvasProvider canvas = viewer.canvas;
@@ -252,7 +254,8 @@ public abstract class Scene {
 		gl.glViewport((int) viewport.x, (int) viewport.y, (int) viewport.width, (int) viewport.height);
 
 		// Allow to render only in the viewport
-		gl.glScissor((int) viewport.x, (int) viewport.y, (int) viewport.width, (int) viewport.height);
+		final Rectangle drawn = this.clip != null ? this.clip : viewport;
+		gl.glScissor((int) drawn.x, (int) drawn.y, (int) drawn.width, (int) drawn.height);
 
 		// If this scene doesn't want alpha, clear it.
 		gl.glDepthMask(true);

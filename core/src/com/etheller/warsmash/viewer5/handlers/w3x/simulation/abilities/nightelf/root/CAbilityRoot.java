@@ -247,6 +247,7 @@ public class CAbilityRoot extends AbstractGenericSingleIconNoSmartActiveAbility 
 			unit.setUnitSpecificCurrentAttacks(this.rootedAttacks);
 			unit.setDefenseType(unit.getUnitType().getDefenseType());
 			unit.setStructure(true);
+			unit.setUprooted(false);
 			unit.regeneratePathingInstance(game, unit.getUnitType().getBuildingPathingPixelMap());
 			game.getWorldCollision().addUnit(unit);
 		}
@@ -263,6 +264,7 @@ public class CAbilityRoot extends AbstractGenericSingleIconNoSmartActiveAbility 
 			unit.setUnitSpecificCurrentAttacks(this.uprootedAttacks);
 			unit.setDefenseType(this.uprootedDefenseType);
 			unit.setStructure(false);
+			unit.setUprooted(true);
 			unit.killPathingInstance();
 			game.getWorldCollision().addUnit(unit);
 		}

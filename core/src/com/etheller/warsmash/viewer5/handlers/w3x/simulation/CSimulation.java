@@ -452,8 +452,43 @@ public class CSimulation implements CPlayerAPI, CFogMaskSettings {
 		if (this.itemData.getItemType(alias) == null) {
 			return null;
 		}
-		return this.simulationRenderController.createItem(this, alias, unitX, unitY);
+		float x = unitX;
+		float y = unitY;
+		if (this.pathingGrid.contains(x, y) && !this.pathingGrid.isPathable(x, y, PathingGrid.PathingType.WALKABLE)) {
+			// Measured on 1.29: an item made on unwalkable ground (in a stand of trees) goes to the centre of a
+			// walkable cell on the nearest square ring of 32 steps round the point; heroes could not reach it there.
+			search: for (int ring = 1; ring <= ITEM_SPOT_RINGS; ring++) {
+				double bestDistance = Double.MAX_VALUE;
+				for (int i = -ring; i <= ring; i++) {
+					for (int j = -ring; j <= ring; j++) {
+						if ((Math.abs(i) != ring) && (Math.abs(j) != ring)) {
+							continue;
+						}
+						final float spotX = unitX + (i * 32);
+						final float spotY = unitY + (j * 32);
+						if (!this.pathingGrid.contains(spotX, spotY)
+								|| !this.pathingGrid.isPathable(spotX, spotY, PathingGrid.PathingType.WALKABLE)) {
+							continue;
+						}
+						final float cellX = this.pathingGrid.getWorldX(this.pathingGrid.getCellX(spotX));
+						final float cellY = this.pathingGrid.getWorldY(this.pathingGrid.getCellY(spotY));
+						final double distance = StrictMath.hypot(cellX - unitX, cellY - unitY);
+						if (distance < bestDistance) {
+							bestDistance = distance;
+							x = cellX;
+							y = cellY;
+						}
+					}
+				}
+				if (bestDistance < Double.MAX_VALUE) {
+					break search;
+				}
+			}
+		}
+		return this.simulationRenderController.createItem(this, alias, x, y);
 	}
+
+	private static final int ITEM_SPOT_RINGS = 32;
 
 	public void updateItemModel(CItem item) {
 		this.simulationRenderController.updateItemModel(item);
@@ -557,7 +592,14 @@ public class CSimulation implements CPlayerAPI, CFogMaskSettings {
 			newUnit.unlockUpgradedFromTypes(this, player);
 			player.scoreUnitGained(newUnitType);
 			// nudge unit
+			final boolean silentEnter = this.regionManager.isRunningEnterTriggers();
+			if (silentEnter) {
+				this.regionManager.setSilentEnterUnit(newUnit);
+			}
 			newUnit.setPointAndCheckUnstuck(x, y, this);
+			if (silentEnter) {
+				this.regionManager.setSilentEnterUnit(null);
+			}
 			if (newUnit.isGuarding()) {
 				newUnit.setGuardPosition(newUnit.getX(), newUnit.getY());
 			}
@@ -836,6 +878,7 @@ public class CSimulation implements CPlayerAPI, CFogMaskSettings {
 		}
 		PerfStats.stepEnd(PerfStats.Step.UNITS);
 		for (final CDestructable destructable : this.removedDestructables) {
+			this.worldCollision.removeDestructable(destructable);
 			this.simulationRenderController.removeDestructable(destructable);
 			destructable.onRemove(this);
 		}
@@ -1478,6 +1521,11 @@ public class CSimulation implements CPlayerAPI, CFogMaskSettings {
 	}
 
 	public void removeDestructable(final CDestructable dest) {
+		// A removed destructable is gone for enumerations too; a script that removes it again (a campaign cleanup
+		// enumerating a rect it already cleared) must not remove its model twice.
+		if (dest.isRemovedFromGame() || this.removedDestructables.contains(dest)) {
+			return;
+		}
 		dest.setLife(this, 0);
 		this.removedDestructables.add(dest);
 	}
@@ -1760,12 +1808,12 @@ public class CSimulation implements CPlayerAPI, CFogMaskSettings {
 		return this.fogEnabled;
 	}
 
-	/** iseedeadpeople: measured on 1.29 (cheat-native-d296), every place is visible to every player. */
+	/** iseedeadpeople: measured on 1.29, every place is visible to every player. */
 	public void toggleCheatRevealMap() {
 		this.cheatRevealMap = !this.cheatRevealMap;
 	}
 
-	/** warpten: measured on 1.29 (cheat-warpten-d296), train, research and build run 16 times faster. */
+	/** warpten: measured on 1.29, train, research and build run 16 times faster. */
 	public void toggleCheatBuildSpeed() {
 		this.cheatBuildSpeed = this.cheatBuildSpeed == 1.0f ? 16.0f : 1.0f;
 	}

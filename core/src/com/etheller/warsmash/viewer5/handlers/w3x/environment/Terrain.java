@@ -151,6 +151,8 @@ public class Terrain {
 	public final SoftwareGroundMesh softwareGroundMesh;
 	public final SoftwareWaterAndGroundMesh softwareWaterAndGroundMesh;
 	private int testArrayBuffer;
+	private final int quadVertexBuffer;
+	private final int quadIndexBuffer;
 	private final int testElementBuffer;
 	private boolean initShadowsFinished = false;
 	private byte[] staticShadowData;
@@ -469,6 +471,8 @@ public class Terrain {
 				GL30.GL_STATIC_DRAW);
 
 		this.testElementBuffer = gl.glGenBuffer();
+		this.quadVertexBuffer = Shapes.INSTANCE.createQuadVertexBuffer(gl);
+		this.quadIndexBuffer = Shapes.INSTANCE.createQuadIndexBuffer(gl);
 //		gl.glBindBuffer(GL30.GL_ELEMENT_ARRAY_BUFFER, this.testElementBuffer);
 //		gl.glBufferData(GL30.GL_ELEMENT_ARRAY_BUFFER, this.softwareGroundMesh.indices.length,
 //				RenderMathUtils.wrap(this.softwareGroundMesh.indices), GL30.GL_STATIC_DRAW);
@@ -1118,10 +1122,10 @@ public class Terrain {
 		gl.glBindTexture(GL30.GL_TEXTURE_2D, this.fogOfWarMap);
 
 //		gl.glEnableVertexAttribArray(0);
-		gl.glBindBuffer(GL30.GL_ARRAY_BUFFER, Shapes.INSTANCE.vertexBuffer);
+		gl.glBindBuffer(GL30.GL_ARRAY_BUFFER, this.quadVertexBuffer);
 		gl.glVertexAttribPointer(this.groundShader.getAttributeLocation("vPosition"), 2, GL30.GL_FLOAT, false, 0, 0);
 
-		gl.glBindBuffer(GL30.GL_ELEMENT_ARRAY_BUFFER, Shapes.INSTANCE.indexBuffer);
+		gl.glBindBuffer(GL30.GL_ELEMENT_ARRAY_BUFFER, this.quadIndexBuffer);
 		if (WIREFRAME_TERRAIN) {
 			Extensions.wireframeExtension.glPolygonMode(GL20.GL_FRONT_AND_BACK, Extensions.GL_LINE);
 		}
@@ -1246,10 +1250,10 @@ public class Terrain {
 		gl.glActiveTexture(GL30.GL_TEXTURE5);
 		gl.glBindTexture(GL30.GL_TEXTURE_2D, this.fogOfWarMap);
 
-		gl.glBindBuffer(GL30.GL_ARRAY_BUFFER, Shapes.INSTANCE.vertexBuffer);
+		gl.glBindBuffer(GL30.GL_ARRAY_BUFFER, this.quadVertexBuffer);
 		gl.glVertexAttribPointer(this.waterShader.getAttributeLocation("vPosition"), 2, GL30.GL_FLOAT, false, 0, 0);
 
-		gl.glBindBuffer(GL30.GL_ELEMENT_ARRAY_BUFFER, Shapes.INSTANCE.indexBuffer);
+		gl.glBindBuffer(GL30.GL_ELEMENT_ARRAY_BUFFER, this.quadIndexBuffer);
 		gl.glDrawElementsInstanced(GL30.GL_TRIANGLES, Shapes.INSTANCE.quadIndices.length * 3, GL30.GL_UNSIGNED_INT, 0,
 				(this.columns - 1) * (this.rows - 1));
 
@@ -2014,6 +2018,8 @@ public class Terrain {
 		gl.glDeleteTexture(this.fogOfWarMap);
 		gl.glDeleteBuffer(this.testArrayBuffer);
 		gl.glDeleteBuffer(this.testElementBuffer);
+		gl.glDeleteBuffer(this.quadVertexBuffer);
+		gl.glDeleteBuffer(this.quadIndexBuffer);
 	}
 
 	public void updateGroundBuffer(int[] rect, float[] modBuffer) {

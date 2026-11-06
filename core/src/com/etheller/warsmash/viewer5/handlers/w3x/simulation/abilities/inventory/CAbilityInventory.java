@@ -41,6 +41,7 @@ public class CAbilityInventory extends AbstractGenericNoIconAbility {
 	private final List<CUnitTypeRequirement> requirements;
 	private final CItem[] itemsHeld;
 	private final List<CAbility>[] itemsHeldAbilities;
+	private CItem droppingItem;
 	private CBehaviorGetItem behaviorGetItem;
 	private CBehaviorDropItem behaviorDropItem;
 	private CBehaviorGiveItemToHero behaviorGiveItem;
@@ -147,15 +148,19 @@ public class CAbilityInventory extends AbstractGenericNoIconAbility {
 
 	private void consumePerishableCharge(final CSimulation game, final CUnit caster, final int slot,
 			final CItem cItem) {
+		if (cItem == null) {
+			return;
+		}
 		final int updatedCharges = cItem.getCharges() - 1;
 		if (updatedCharges >= 0) {
 			cItem.setCharges(updatedCharges);
-			if (updatedCharges == 0) {
-				if (cItem.getItemType().isPerishable()) {
-					dropItem(game, caster, slot, caster.getX(), caster.getY(), false);
-					game.removeItem(cItem);
-				}
-			}
+		}
+		// Measured on 1.29: the use event sees the charge already spent and the item still held; a used-up
+		// perishable item then fires a drop event before it goes.
+		caster.fireUseItemEvents(game, cItem);
+		if ((updatedCharges == 0) && cItem.getItemType().isPerishable() && (this.itemsHeld[slot] == cItem)) {
+			dropItem(game, caster, slot, caster.getX(), caster.getY(), false);
+			game.removeItem(cItem);
 		}
 	}
 
@@ -542,6 +547,12 @@ public class CAbilityInventory extends AbstractGenericNoIconAbility {
 						hero.remove(simulation, ability);
 					}
 				}
+				else if (itemType.getAbilityList().isEmpty()) {
+					// Measured on 1.29: a power up with no ability is picked up (the event sees it alive and not
+					// held) and then dies; UnitAddItem returns true.
+					hero.onPickUpItem(simulation, item, true);
+					item.setLife(simulation, 0);
+				}
 			}
 			else {
 				for (int i = 0; i < this.itemsHeld.length; i++) {
@@ -580,36 +591,39 @@ public class CAbilityInventory extends AbstractGenericNoIconAbility {
 	public void dropItem(final CSimulation simulation, final CUnit hero, final int slotIndex, final float x,
 			final float y, final boolean playUserUISounds) {
 		final CItem droppedItem = this.itemsHeld[slotIndex];
-		hero.onDropItem(simulation, droppedItem, playUserUISounds);
-		this.itemsHeld[slotIndex] = null;
-		for (final CAbility ability : this.itemsHeldAbilities[slotIndex]) {
-			hero.remove(simulation, ability);
+		if (droppedItem != null) {
+			dropItem(simulation, hero, droppedItem, x, y, playUserUISounds);
 		}
-		this.itemsHeldAbilities[slotIndex].clear();
-		droppedItem.setHidden(false);
-		droppedItem.setContainedInventory(null, null);
-		droppedItem.setPointAndCheckUnstuck(x, y, simulation);
 	}
 
 	public void dropItem(final CSimulation simulation, final CUnit hero, final CItem itemToDrop, final float x,
 			final float y, final boolean playUserUISounds) {
-		boolean foundItem = false;
-		int index = -1;
-		for (int i = 0; i < this.itemsHeld.length; i++) {
-			if (this.itemsHeld[i] == itemToDrop) {
-				this.itemsHeld[i] = null;
-				index = i;
-				foundItem = true;
-			}
+		final int index = getSlot(itemToDrop);
+		if ((index < 0) || (itemToDrop == this.droppingItem)) {
+			// Not held, or a drop event's trigger removed the item while it is being dropped: the outer drop
+			// finishes it.
+			return;
 		}
-		if (foundItem) {
-			hero.onDropItem(simulation, itemToDrop, playUserUISounds);
+		// Measured on 1.29: the drop event fires while the hero still holds the item.
+		this.droppingItem = itemToDrop;
+		try {
+			hero.fireDropItemEvents(simulation, itemToDrop);
+		}
+		finally {
+			this.droppingItem = null;
+		}
+		if (this.itemsHeld[index] != itemToDrop) {
+			return;
+		}
+		this.itemsHeld[index] = null;
+		hero.onDropItem(simulation, itemToDrop, playUserUISounds);
+		itemToDrop.setContainedInventory(null, null);
+		for (final CAbility ability : this.itemsHeldAbilities[index]) {
+			hero.remove(simulation, ability);
+		}
+		this.itemsHeldAbilities[index].clear();
+		if (!itemToDrop.isDead()) {
 			itemToDrop.setHidden(false);
-			itemToDrop.setContainedInventory(null, null);
-			for (final CAbility ability : this.itemsHeldAbilities[index]) {
-				hero.remove(simulation, ability);
-			}
-			this.itemsHeldAbilities[index].clear();
 			itemToDrop.setPointAndCheckUnstuck(x, y, simulation);
 		}
 	}

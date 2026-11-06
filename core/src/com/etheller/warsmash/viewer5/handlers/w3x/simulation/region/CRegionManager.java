@@ -15,6 +15,8 @@ public class CRegionManager {
 	private final RegionChecker regionChecker = new RegionChecker();
 	private final List<CRegion>[][] cellRegions;
 	private final PathingGrid pathingGrid;
+	private transient int enterTriggerDepth;
+	private transient CUnit silentEnterUnit;
 
 	public CRegionManager(final Rectangle entireMapBounds, final PathingGrid pathingGrid) {
 		this.regionTree = new Quadtree<>(entireMapBounds);
@@ -188,9 +190,30 @@ public class CRegionManager {
 	}
 
 	public void onUnitEnterRegion(final CUnit unit, final CRegion region) {
-		for (final CRegionTriggerEnter enterTrigger : region.getEnterTriggers()) {
-			enterTrigger.fire(unit, region);
+		if (unit == this.silentEnterUnit) {
+			return;
 		}
+		this.enterTriggerDepth++;
+		try {
+			for (final CRegionTriggerEnter enterTrigger : region.getEnterTriggers()) {
+				enterTrigger.fire(unit, region);
+			}
+		}
+		finally {
+			this.enterTriggerDepth--;
+		}
+	}
+
+	public boolean isRunningEnterTriggers() {
+		return this.enterTriggerDepth > 0;
+	}
+
+	/**
+	 * Measured on 1.29: a unit created while enter-region triggers run counts as inside its regions without firing
+	 * them (Reforged Human06 replaces each unit entering a rect by a new one in the same rect).
+	 */
+	public void setSilentEnterUnit(final CUnit unit) {
+		this.silentEnterUnit = unit;
 	}
 
 	public void onUnitLeaveRegion(final CUnit unit, final CRegion region) {

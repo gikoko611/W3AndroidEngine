@@ -29,6 +29,7 @@ import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.nightelf.
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.nightelf.root.CAbilityEntangleGoldMine;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.skills.human.bloodmage.CAbilitySiphonMana;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.skills.nightelf.keeper.CAbilityEntanglingRoots;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.skills.item.CAbilitySoulTrap;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.skills.item.CAbilityWandOfIllusion;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.skills.undead.cryptlord.CAbilityLocustSwarm;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.skills.orc.blademaster.CAbilityMirrorImage;
@@ -385,6 +386,8 @@ public class CAbilityData {
 		// Items
 		this.codeToAbilityTypeDefinition.put(War3ID.fromString("AIil"),
 				new CAbilityTypeDefinitionSpellBase((handleId, alias) -> new CAbilityWandOfIllusion(handleId, alias)));
+		this.codeToAbilityTypeDefinition.put(War3ID.fromString("AIso"),
+				new CAbilityTypeDefinitionSpellBase((handleId, alias) -> new CAbilitySoulTrap(handleId, alias)));
 		// ----Neutral----
 		// Dark Ranger:
 		this.codeToAbilityTypeDefinition.put(War3ID.fromString("ANch"),
@@ -400,6 +403,11 @@ public class CAbilityData {
 				new CAbilityTypeDefinitionSpellBase((handleId, alias) -> new CAbilityPocketFactory(handleId, alias)));
 		this.codeToAbilityTypeDefinition.put(War3ID.fromString("Asds"),
 				new CAbilityTypeDefinitionSpellBase((handleId, alias) -> new CAbilityKaboom(handleId, alias)));
+
+		// Mal'Ganis (SNdc is the same code with no casting time)
+		this.codeToAbilityTypeDefinition.put(War3ID.fromString("ANdc"), new CAbilityTypeDefinitionSpellBase(
+				(handleId, alias) -> new com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.skills.neutral.malganis.CAbilityDarkConversion(
+						handleId, alias)));
 
 		// Beastmaster
 		this.codeToAbilityTypeDefinition.put(War3ID.fromString("ANsg"),

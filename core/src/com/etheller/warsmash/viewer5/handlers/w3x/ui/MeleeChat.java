@@ -294,6 +294,12 @@ final class MeleeChat {
 		return recipient == Recipient.PLAYER ? text.replace("%s", player.getName()) : text;
 	}
 
+	/** The text color of a player color as RGBA. */
+	static int playerTextColorRgba(final int color) {
+		final String hex = (color >= 0) && (color < PLAYER_TEXT_COLORS.length) ? PLAYER_TEXT_COLORS[color] : "959697";
+		return (Integer.parseInt(hex, 16) << 8) | 0xFF;
+	}
+
 	private static String coloredName(final CPlayer player) {
 		final int color = player.getColor();
 		final String hex = (color >= 0) && (color < PLAYER_TEXT_COLORS.length) ? PLAYER_TEXT_COLORS[color] : "959697";

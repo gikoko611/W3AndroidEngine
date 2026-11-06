@@ -285,6 +285,33 @@ public class Jass2 {
 
 	private static final java.util.Set<String> REPORTED_MISSING_DESTRUCTORS = java.util.concurrent.ConcurrentHashMap
 			.newKeySet();
+	/**
+	 * Reforged dialogue text carries FaceFX analysis tags (["Happy" type=lt easein=0.25]...[/"Happy"]); the curves
+	 * are already baked into the .animset and the original never shows the tags. The data also has unquoted
+	 * ([Angry type=tt v1=4.0]), typographic-quoted, unterminated ([/"Happy]) and bare ([PH]) variants. Tags start
+	 * with a letter, so color-coded bracketed text ([|cffffcc00...|r]) survives.
+	 */
+	private static final java.util.regex.Pattern DIALOGUE_ANIMATION_TAG = java.util.regex.Pattern
+			.compile("\\[/?[\"\u201C\u201D]?\\p{L}[^\\[\\]]*\\]");
+
+	/**
+	 * 1.29: a unit target reads as where that unit is now; without a target (finish,
+	 * endcast after it, no target spells) the point is 0,0.
+	 */
+	private static AbilityPointTarget spellTargetPoint(final CommonTriggerExecutionScope scope) {
+		final AbilityPointTarget point = scope.getSpellTargetPoint();
+		if (point != null) {
+			return point;
+		}
+		CWidget widget = scope.getSpellTargetUnit();
+		if (widget == null) {
+			widget = scope.getSpellTargetItem();
+		}
+		if (widget == null) {
+			widget = scope.getSpellTargetDestructable();
+		}
+		return widget == null ? new AbilityPointTarget(0, 0) : new AbilityPointTarget(widget.getX(), widget.getY());
+	}
 
 	// Campaign scripts call these natives tens of thousands of times per map.
 	private static void reportMissingDestructorOnce(final String nativeName) {
@@ -300,6 +327,7 @@ public class Jass2 {
 		final JassProgram jassProgramVisitor = new JassProgram();
 		final CommonEnvironment environment = new CommonEnvironment(jassProgramVisitor, dataSource, uiViewport, uiScene,
 				war3MapViewer, meleeUI, files);
+		final GameUI mapStrings = war3MapViewer.getGameUI();
 		for (final String file : files) {
 			String jassFilePath = file;
 			if (!dataSource.has(jassFilePath)) {
@@ -321,7 +349,7 @@ public class Jass2 {
 					if (lowerCasePath.startsWith(lowerCaseDirectoryPath)
 							|| lowerCasePath.startsWith(lowerCaseDirectoryPathLinux)) {
 						try {
-							readJassFile(dataSource, jassProgramVisitor, realPath);
+							readJassFile(dataSource, jassProgramVisitor, realPath, mapStrings);
 						}
 						catch (final Exception e) {
 							e.printStackTrace();
@@ -331,7 +359,7 @@ public class Jass2 {
 				}
 			}
 			else {
-				readJassFile(dataSource, jassProgramVisitor, jassFilePath);
+				readJassFile(dataSource, jassProgramVisitor, jassFilePath, mapStrings);
 			}
 		}
 		try {
@@ -346,11 +374,24 @@ public class Jass2 {
 	}
 
 	private static void readJassFile(final DataSource dataSource, final JassProgram jassProgramVisitor,
-			final String jassFilePath) {
+			final String jassFilePath, final GameUI mapStrings) {
 		final String jassFile = jassFilePath;
 		try {
 			try (InputStreamReader reader = new InputStreamReader(dataSource.getResourceAsStream(jassFile))) {
-				final SmashJassParser smashJassParser = new SmashJassParser(reader);
+				final SmashJassParser smashJassParser;
+				if (mapStrings == null) {
+					smashJassParser = new SmashJassParser(reader);
+				}
+				else {
+					final StringBuilder text = new StringBuilder();
+					final char[] buffer = new char[8192];
+					int read;
+					while ((read = reader.read(buffer)) != -1) {
+						text.append(buffer, 0, read);
+					}
+					smashJassParser = new SmashJassParser(
+							new java.io.StringReader(replaceMapStringLiterals(text, mapStrings)));
+				}
 				smashJassParser.scanAndParse(jassFile, jassProgramVisitor);
 			}
 		}
@@ -358,6 +399,71 @@ public class Jass2 {
 			e.printStackTrace();
 			JassLog.report(e);
 		}
+	}
+
+	/**
+	 * The original swaps every "TRIGSTR_nnn" string literal of the map script for the map's string table text when
+	 * it loads the script, so timer dialogs, leaderboards, dialogs, quests and the rest show the text, not the key.
+	 * A text with a double quote cannot be written as a literal this lexer reads back, so that key stays as it is.
+	 */
+	static String replaceMapStringLiterals(final CharSequence script, final GameUI mapStrings) {
+		final int length = script.length();
+		final StringBuilder out = new StringBuilder(length);
+		int i = 0;
+		while (i < length) {
+			final char c = script.charAt(i);
+			if ((c == '/') && ((i + 1) < length) && (script.charAt(i + 1) == '/')) {
+				final int start = i;
+				while ((i < length) && (script.charAt(i) != '\n')) {
+					i++;
+				}
+				out.append(script, start, i);
+			}
+			else if (c == '\'') {
+				final int start = i++;
+				while ((i < length) && (script.charAt(i) != '\'')) {
+					i++;
+				}
+				i = Math.min(length, i + 1);
+				out.append(script, start, i);
+			}
+			else if (c == '"') {
+				final int start = i++;
+				while ((i < length) && (script.charAt(i) != '"')) {
+					i += (script.charAt(i) == '\\') ? 2 : 1;
+				}
+				i = Math.min(length, i + 1);
+				out.append(resolveMapStringLiteral(script.subSequence(start, i).toString(), mapStrings));
+			}
+			else {
+				out.append(c);
+				i++;
+			}
+		}
+		return out.toString();
+	}
+
+	private static String resolveMapStringLiteral(final String literal, final GameUI mapStrings) {
+		if ((literal.length() < 11) || !literal.startsWith("\"TRIGSTR_") || !literal.endsWith("\"")) {
+			return literal;
+		}
+		final String key = literal.substring(1, literal.length() - 1);
+		for (int j = 8; j < key.length(); j++) {
+			if (!Character.isDigit(key.charAt(j))) {
+				return literal;
+			}
+		}
+		final String text;
+		try {
+			text = mapStrings.getTrigStr(key);
+		}
+		catch (final RuntimeException e) {
+			return literal;
+		}
+		if ((text == null) || (text.indexOf('"') != -1)) {
+			return literal;
+		}
+		return '"' + text.replace("\\", "\\\\") + '"';
 	}
 
 	public static ConfigEnvironment loadConfig(final DataSource dataSource, final Viewport uiViewport,
@@ -387,7 +493,7 @@ public class Jass2 {
 					if (lowerCasePath.startsWith(lowerCaseDirectoryPath)
 							|| lowerCasePath.startsWith(lowerCaseDirectoryPathLinux)) {
 						try {
-							readJassFile(dataSource, jassProgramVisitor, realPath);
+							readJassFile(dataSource, jassProgramVisitor, realPath, gameUI);
 						}
 						catch (final Exception e) {
 							e.printStackTrace();
@@ -397,7 +503,7 @@ public class Jass2 {
 				}
 			}
 			else {
-				readJassFile(dataSource, jassProgramVisitor, jassFilePath);
+				readJassFile(dataSource, jassProgramVisitor, jassFilePath, gameUI);
 			}
 		}
 		try {
@@ -1475,7 +1581,7 @@ public class Jass2 {
 						CAttackType attackType = (CAttackType) attackTypeValue;
 						final Object damageTypeValue = nullable(arguments, 6, ObjectJassValueVisitor.getInstance());
 						final Object weaponTypeValue = nullable(arguments, 7, ObjectJassValueVisitor.getInstance());
-						// 1.29 (convert-enum-d348) still deals the damage with an unknown damage type of 0 or more, but
+						// 1.29 still deals the damage with an unknown damage type of 0 or more, but
 						// none with a negative one or with an unknown weapon type.
 						if ((weaponTypeValue instanceof UnknownEnumHandle) || ((damageTypeValue instanceof UnknownEnumHandle)
 								&& (((UnknownEnumHandle) damageTypeValue).getHandleId() < 0))) {
@@ -1775,7 +1881,9 @@ public class Jass2 {
 						if (group != null) {
 							final CodeJassValue callback = arguments.get(1).visit(CodeJassValueVisitor.getInstance());
 							try {
-								for (final CUnit unit : group) {
+								// Measured on 1.29: the callback may add or remove units of the same group; the loop
+								// still calls it once for each unit the group held when it started.
+								for (final CUnit unit : new ArrayList<>(group)) {
 									globalScope.runThreadUntilCompletion(globalScope.createThread(callback,
 											CommonTriggerExecutionScope.enumScope(triggerScope, unit)));
 								}
@@ -2863,7 +2971,6 @@ public class Jass2 {
 					});
 			jassProgramVisitor.getJassNativeManager().createNative("ResumeMusic",
 					(arguments, globalScope, triggerScope) -> {
-						final boolean fadeOut = arguments.get(0).visit(BooleanJassValueVisitor.getInstance());
 						meleeUI.resumeMusic();
 						return null;
 					});
@@ -3471,13 +3578,18 @@ public class Jass2 {
 			}
 			jassProgramVisitor.getJassNativeManager().createNative("KillDestructable",
 					(arguments, globalScope, triggerScope) -> {
-						final CDestructable dest = arguments.get(0).visit(ObjectJassValueVisitor.getInstance());
-						dest.setLife(CommonEnvironment.this.simulation, 0f);
+						final CDestructable dest = nullable(arguments, 0, ObjectJassValueVisitor.getInstance());
+						if (dest != null) {
+							dest.setLife(CommonEnvironment.this.simulation, 0f);
+						}
 						return null;
 					});
 			jassProgramVisitor.getJassNativeManager().createNative("RemoveDestructable",
 					(arguments, globalScope, triggerScope) -> {
-						final CDestructable dest = arguments.get(0).visit(ObjectJassValueVisitor.getInstance());
+						final CDestructable dest = nullable(arguments, 0, ObjectJassValueVisitor.getInstance());
+						if (dest == null) {
+							return null;
+						}
 						dest.setLife(CommonEnvironment.this.simulation, 0f);
 						this.simulation.removeDestructable(dest);
 						return null;
@@ -4436,7 +4548,7 @@ public class Jass2 {
 			jassProgramVisitor.getJassNativeManager().createNative("GetPlayerHandicapXP",
 					(arguments, globalScope, triggerScope) -> {
 						final CPlayer whichPlayer = arguments.get(0).visit(ObjectJassValueVisitor.getInstance());
-						// 1.29 reads 1.0 (no handicap) for a null player (null-players-d320).
+						// 1.29 reads 1.0 (no handicap) for a null player.
 						return RealJassValue.of(whichPlayer == null ? 1.0 : whichPlayer.getHandicapXP());
 					});
 			jassProgramVisitor.getJassNativeManager().createNative("SetPlayerHandicap",
@@ -4865,7 +4977,7 @@ public class Jass2 {
 						final CPlayer player = arguments.get(0).visit(ObjectJassValueVisitor.getInstance());
 						final Object whichStateValue = arguments.get(1).visit(ObjectJassValueVisitor.getInstance());
 						if ((player != null) && (whichStateValue instanceof UnknownEnumHandle)) {
-							// 1.29 (convert-enum-d348) makes a modifier for a fog state it has no constant for; it changes nothing.
+							// 1.29 makes a modifier for a fog state it has no constant for; it changes nothing.
 							return newFogModifier(fogmodifierType, new CFogModifierJassMulti(new ArrayList<>()));
 						}
 						final CFogState whichState = (CFogState) whichStateValue;
@@ -4902,7 +5014,7 @@ public class Jass2 {
 						final CPlayer player = arguments.get(0).visit(ObjectJassValueVisitor.getInstance());
 						final Object whichStateValue = arguments.get(1).visit(ObjectJassValueVisitor.getInstance());
 						if ((player != null) && (whichStateValue instanceof UnknownEnumHandle)) {
-							// 1.29 (convert-enum-d348) makes a modifier for a fog state it has no constant for; it changes nothing.
+							// 1.29 makes a modifier for a fog state it has no constant for; it changes nothing.
 							return newFogModifier(fogmodifierType, new CFogModifierJassMulti(new ArrayList<>()));
 						}
 						final CFogState whichState = (CFogState) whichStateValue;
@@ -4942,7 +5054,7 @@ public class Jass2 {
 						final CPlayer player = arguments.get(0).visit(ObjectJassValueVisitor.getInstance());
 						final Object whichStateValue = arguments.get(1).visit(ObjectJassValueVisitor.getInstance());
 						if ((player != null) && (whichStateValue instanceof UnknownEnumHandle)) {
-							// 1.29 (convert-enum-d348) makes a modifier for a fog state it has no constant for; it changes nothing.
+							// 1.29 makes a modifier for a fog state it has no constant for; it changes nothing.
 							return newFogModifier(fogmodifierType, new CFogModifierJassMulti(new ArrayList<>()));
 						}
 						final CFogState whichState = (CFogState) whichStateValue;
@@ -4989,16 +5101,22 @@ public class Jass2 {
 					});
 			jassProgramVisitor.getJassNativeManager().createNative("FogModifierStart",
 					(arguments, globalScope, triggerScope) -> {
-						final CFogModifierJass modifier = arguments.get(0).visit(ObjectJassValueVisitor.getInstance());
-						modifier.setEnabled(true);
-						modifier.applyNow(this.simulation);
+						final CFogModifierJass modifier = nullable(arguments, 0,
+								ObjectJassValueVisitor.<CFogModifierJass>getInstance());
+						if (modifier != null) {
+							modifier.setEnabled(true);
+							modifier.applyNow(this.simulation);
+						}
 						return null;
 					});
 			jassProgramVisitor.getJassNativeManager().createNative("FogModifierStop",
 					(arguments, globalScope, triggerScope) -> {
-						final CFogModifierJass modifier = arguments.get(0).visit(ObjectJassValueVisitor.getInstance());
-						modifier.setEnabled(false);
-						modifier.fogVisibleCells(this.simulation);
+						final CFogModifierJass modifier = nullable(arguments, 0,
+								ObjectJassValueVisitor.<CFogModifierJass>getInstance());
+						if (modifier != null) {
+							modifier.setEnabled(false);
+							modifier.fogVisibleCells(this.simulation);
+						}
 						return null;
 					});
 			jassProgramVisitor.getJassNativeManager().createNative("GetTerrainCliffLevel",
@@ -5607,7 +5725,7 @@ public class Jass2 {
 			jassProgramVisitor.getJassNativeManager().createNative("GetPlayerHandicap",
 					(arguments, globalScope, triggerScope) -> {
 						final CPlayer whichPlayer = arguments.get(0).visit(ObjectJassValueVisitor.getInstance());
-						// 1.29 reads 1.0 (no handicap) for a null player (null-players-d320).
+						// 1.29 reads 1.0 (no handicap) for a null player.
 						return RealJassValue.of(whichPlayer == null ? 1.0 : whichPlayer.getHandicap());
 					});
 			jassProgramVisitor.getJassNativeManager().createNative("GetHandleId",
@@ -5840,7 +5958,7 @@ public class Jass2 {
 					});
 			jassProgramVisitor.getJassNativeManager().createNative("DestroyEffect",
 					(arguments, globalScope, triggerScope) -> {
-						final ScriptEffect fx = arguments.get(0).visit(ObjectJassValueVisitor.getInstance());
+						final ScriptEffect fx = nullable(arguments, 0, ObjectJassValueVisitor.<ScriptEffect>getInstance());
 						if (fx != null) {
 							fx.setKillWhenDone(true);
 						}
@@ -6356,7 +6474,7 @@ public class Jass2 {
 			jassProgramVisitor.getJassNativeManager().createNative("GetPlayerRace",
 					(arguments, globalScope, triggerScope) -> {
 						final CPlayer whichPlayer = arguments.get(0).visit(ObjectJassValueVisitor.getInstance());
-						// 1.29 reads RACE_HUMAN for a null player (null-players-d320).
+						// 1.29 reads RACE_HUMAN for a null player.
 						if (whichPlayer == null) {
 							return new HandleJassValue(raceType, WarsmashConstants.RACE_MANAGER.getRace(1));
 						}
@@ -6439,9 +6557,14 @@ public class Jass2 {
 						}
 						final float life = arguments.get(1).visit(RealJassValueVisitor.getInstance()).floatValue();
 						final boolean birth = arguments.get(2).visit(BooleanJassValueVisitor.getInstance());
-						// TODO this "restore" function, is it a summation or assignment below???
-						// Guessing assign is OK
-						whichDestructable.setLife(CommonEnvironment.this.simulation, life);
+						// Measured on 1.29: only a dead destructable is restored; life 0 restores it to its max life
+						// and any other value is kept within 0.5 and the max life.
+						if (!whichDestructable.isDead()) {
+							return null;
+						}
+						final float maxLife = whichDestructable.getMaxLife();
+						final float restoredLife = (life == 0) ? maxLife : Math.min(maxLife, Math.max(0.5f, life));
+						whichDestructable.setLife(CommonEnvironment.this.simulation, restoredLife);
 						if (!birth) {
 							final RenderDestructable renderPeer = war3MapViewer.getRenderPeer(whichDestructable);
 							if (renderPeer != null) {
@@ -6525,6 +6648,9 @@ public class Jass2 {
 
 						speakerTitle = this.gameUI.getTrigStr(speakerTitle);
 						text = this.gameUI.getTrigStr(text);
+						if (text != null) {
+							text = DIALOGUE_ANIMATION_TAG.matcher(text).replaceAll("").trim();
+						}
 
 						meleeUI.setCinematicScene(portraitUnitId, color, speakerTitle, text, sceneDuration,
 								voiceoverDuration);
@@ -6714,28 +6840,28 @@ public class Jass2 {
 					});
 			jassProgramVisitor.getJassNativeManager().createNative("GetSpellTargetPoint",
 					(arguments, globalScope, triggerScope) -> {
-						final AbilityPointTarget spellTargetPoint = ((CommonTriggerExecutionScope) triggerScope)
-								.getSpellTargetPoint();
+						final AbilityPointTarget spellTargetPoint = spellTargetPoint(
+								(CommonTriggerExecutionScope) triggerScope);
 						final LocationJass jassLocation = new LocationJass(spellTargetPoint.x, spellTargetPoint.y,
 								this.simulation.getHandleIdAllocator().createId());
 						return new HandleJassValue(locationType, jassLocation);
 					});
 			jassProgramVisitor.getJassNativeManager().createNative("GetSpellTargetX",
 					(arguments, globalScope, triggerScope) -> {
-						final AbilityPointTarget spellTargetPoint = ((CommonTriggerExecutionScope) triggerScope)
-								.getSpellTargetPoint();
+						final AbilityPointTarget spellTargetPoint = spellTargetPoint(
+								(CommonTriggerExecutionScope) triggerScope);
 						return RealJassValue.of(spellTargetPoint.x);
 					});
 			jassProgramVisitor.getJassNativeManager().createNative("GetSpellTargetY",
 					(arguments, globalScope, triggerScope) -> {
-						final AbilityPointTarget spellTargetPoint = ((CommonTriggerExecutionScope) triggerScope)
-								.getSpellTargetPoint();
+						final AbilityPointTarget spellTargetPoint = spellTargetPoint(
+								(CommonTriggerExecutionScope) triggerScope);
 						return RealJassValue.of(spellTargetPoint.y);
 					});
 			jassProgramVisitor.getJassNativeManager().createNative("GetSpellTargetLoc",
 					(arguments, globalScope, triggerScope) -> {
-						final AbilityPointTarget spellTargetPoint = ((CommonTriggerExecutionScope) triggerScope)
-								.getSpellTargetPoint();
+						final AbilityPointTarget spellTargetPoint = spellTargetPoint(
+								(CommonTriggerExecutionScope) triggerScope);
 						return new HandleJassValue(locationType, new LocationJass(spellTargetPoint.x,
 								spellTargetPoint.y, this.simulation.getHandleIdAllocator().createId()));
 					});
@@ -6928,13 +7054,14 @@ public class Jass2 {
 					(arguments, globalScope, triggerScope) -> {
 						final CUnit whichUnit = inGame(nullable(arguments, 0, ObjectJassValueVisitor.<CUnit>getInstance()));
 						int orderId;
-						if ((whichUnit != null) && whichUnit.isPaused()) {
-							// 1.29 (probe invuln-ad-cyclone-d379): a paused unit reads stunned.
+						if ((whichUnit != null) && (whichUnit.isPaused() || whichUnit.isStunnedBySpell())) {
+							// 1.29: a paused or stunned unit reads
+							// stunned.
 							orderId = OrderIds.stunned;
 						}
 						else if ((whichUnit != null) && (whichUnit.getCurrentOrder() != null)) {
 							orderId = whichUnit.getCurrentOrder().getOrderId();
-							// 1.29 (probe order-current-d286): hold position reads 0, also while it attacks; patrol
+							// 1.29: hold position reads 0, also while it attacks; patrol
 							// reads 851991; a Peasant raising its building reads repair.
 							if (orderId == OrderIds.holdposition) {
 								orderId = 0;
@@ -7278,9 +7405,16 @@ public class Jass2 {
 						final List<CUnit> units = CommonEnvironment.this.simulation.getUnitsIncludingNew();
 						int count = 0;
 						for (final CUnit unit : units) {
-							if ((unit.getPlayerIndex() == whichPlayer.getId()) && unit.isBuilding() && !unit.isDead()) {
-								if (includeIncomplete || !unit.isConstructing()) {
-									count++;
+							if ((unit.getPlayerIndex() == whichPlayer.getId()) && !unit.isDead()) {
+								if (unit.isBuilding()) {
+									if (includeIncomplete || !unit.isConstructing()) {
+										count++;
+									}
+								}
+								else if (unit.isUprooted() && includeIncomplete) {
+									// Measured on 1.29: an uprooted ancient adds two to this count and none without
+									// incomplete structures.
+									count += 2;
 								}
 							}
 						}
@@ -7431,7 +7565,7 @@ public class Jass2 {
 					(arguments, globalScope, triggerScope) -> {
 						return BooleanJassValue.FALSE;
 					});
-			// Measured on 1.29 (cheat-native-d296): the release chat cheats work from a script and affect every
+			// Measured on 1.29: the release chat cheats work from a script and affect every
 			// player; the developer cheats campaign AI scripts call (showmap, av, dg, vision N, gold N, ...) do
 			// nothing.
 			jassProgramVisitor.getJassNativeManager().createNative("Cheat",
@@ -11332,7 +11466,7 @@ public class Jass2 {
 			return abilityHandleId != 0;
 		}
 
-		// Measured (1.29, probe dispel-orders-d290): a unit-target script order of a point-target spell (Dispel Magic,
+		// Measured (1.29): a unit-target script order of a point-target spell (Dispel Magic,
 		// Disenchant, Flame Strike, Blizzard, Shockwave, Carrion Swarm) casts it at the unit.
 		private boolean issueSpellPointOrderAtUnit(final int orderingPlayerIndex, final CUnit whichUnit, final int orderId,
 				final CWidget whichTarget) {
@@ -11399,7 +11533,7 @@ public class Jass2 {
 			}
 		}
 
-		// Measured (1.29, probe dispel-orders-d290): true when any unit of the group took the order.
+		// Measured (1.29): true when any unit of the group took the order.
 		private boolean groupTargetOrder(final List<CUnit> group, final int orderId, final CWidget target) {
 			boolean success = false;
 			for (final CUnit unit : new ArrayList<>(group.subList(0,
@@ -12053,11 +12187,11 @@ public class Jass2 {
 
 	// Measured on 1.29: to scripts an illusion is no hero, whatever stats it copied.
 	private static CAbilityHero scriptHeroData(final CUnit unit) {
-		return unit.isIllusion() ? null : unit.getHeroData();
+		return ((unit == null) || unit.isIllusion()) ? null : unit.getHeroData();
 	}
 
 	/**
-	 * Measured on 1.29 (probe enum-rect-grid): rect enumerations of units, items and destructables work on the 32
+	 * Measured on 1.29: rect enumerations of units, items and destructables work on the 32
 	 * world-unit cells. An object is found when the rect covers the whole cell its centre is in and the rect's
 	 * left and bottom edges lie strictly before that cell: cells floor(min / 32) + 1 to floor(max / 32) - 1.
 	 */
@@ -12537,8 +12671,7 @@ public class Jass2 {
 							new LocationJass(mapConfig.getStartLoc(whichStartLoc).getX(),
 									mapConfig.getStartLoc(whichStartLoc).getY(), handleIdAllocator.createId()));
 				});
-		// PlayerAPI: with a null player the setters do nothing and the getters read what 1.29 reads
-		// (null-players-d320).
+		// PlayerAPI: with a null player the setters do nothing and the getters read what 1.29 reads.
 
 		jassProgramVisitor.getJassNativeManager().createNative("SetPlayerTeam",
 				(arguments, globalScope, triggerScope) -> {
@@ -12595,7 +12728,7 @@ public class Jass2 {
 					final CAllianceType whichAllianceSetting = arguments.get(2)
 							.visit(ObjectJassValueVisitor.<CAllianceType>getInstance());
 					final Boolean value = arguments.get(3).visit(BooleanJassValueVisitor.getInstance());
-					// Measured (1.29, null-handles-d311): a null player on either side changes nothing.
+					// Measured (1.29): a null player on either side changes nothing.
 					if ((player != null) && (otherPlayer != null) && (whichAllianceSetting != null)) {
 						player.setAlliance(otherPlayer.getId(), whichAllianceSetting, value);
 					}
@@ -12616,7 +12749,7 @@ public class Jass2 {
 					return BooleanJassValue.of(player.hasAlliance(otherPlayer.getId(), whichAllianceSetting));
 				});
 		// Measured: a player is another's ally exactly when it is passive toward it, and its enemy otherwise; with a null
-		// player on either side 1.29 reads both as false (null-players-d320).
+		// player on either side 1.29 reads both as false.
 		jassProgramVisitor.getJassNativeManager().createNative("IsPlayerAlly",
 				(arguments, globalScope, triggerScope) -> {
 					final CPlayerJass player = arguments.get(0)
@@ -12737,7 +12870,7 @@ public class Jass2 {
 		jassProgramVisitor.getJassNativeManager().createNative("GetPlayerController",
 				(arguments, globalScope, triggerScope) -> {
 					final CPlayerJass player = nullable(arguments, 0, ObjectJassValueVisitor.getInstance());
-					// 1.29 reads MAP_CONTROL_NONE for a null player (null-players-d320).
+					// 1.29 reads MAP_CONTROL_NONE for a null player.
 					if (player == null) {
 						return new HandleJassValue(mapcontrolType, CMapControl.NONE);
 					}
@@ -13267,9 +13400,16 @@ public class Jass2 {
 					if (key == null) {
 						return new StringJassValue("");
 					}
+					// The original replaces map string keys in the script when the map loads, so 1.32+ dialogue
+					// keys (SetDialogueSpeakerNameKey "TRIGSTR_405") reach this as the map's text.
+					if (key.startsWith("TRIGSTR_")) {
+						final String mapString = gameUI.getTrigStr(key);
+						return new StringJassValue(mapString == null ? key : mapString);
+					}
 					// TODO this might be wrong, or a subset of the needed return values
 					final String decoratedString = gameUI.getTemplates().getDecoratedString(key);
-					if (key.equals(decoratedString)) {
+					// Map texts already replaced their keys at script load and pass through unchanged.
+					if (key.equals(decoratedString) && key.matches("[A-Z0-9_]+")) {
 						System.err.println("GetLocalizedString: NOT FOUND: " + key);
 					}
 					return new StringJassValue(decoratedString);

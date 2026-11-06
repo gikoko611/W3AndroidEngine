@@ -14,6 +14,8 @@ import com.etheller.warsmash.viewer5.handlers.w3x.ui.GameOptions;
 public final class GameCameraManager extends CameraManager {
 	private Vector2 quickPosition;
 	private static final float TWO_PI = (float) Math.PI * 2;
+	// Reforged map cameras may set near Z to 0, which makes the projection matrix non-invertible.
+	private static final float MIN_NEAR_Z = 16f;
 	private static final CameraRates INFINITE_CAMERA_RATES = new CameraRates(Float.POSITIVE_INFINITY,
 			Float.POSITIVE_INFINITY, Float.POSITIVE_INFINITY, Float.POSITIVE_INFINITY, Float.POSITIVE_INFINITY,
 			Float.POSITIVE_INFINITY);
@@ -141,7 +143,8 @@ public final class GameCameraManager extends CameraManager {
 		this.position = this.position.add(this.target);
 		this.fov = applyAtRate(this.fov, (float) Math.toRadians(cameraPreset.getFov() / 2),
 				(float) Math.toRadians(cameraRate.fov / 2));
-		this.camera.perspective(this.fov, this.camera.getAspect(), cameraPreset.getNearZ(), cameraPreset.getFarZ());
+		this.camera.perspective(this.fov, this.camera.getAspect(), Math.max(MIN_NEAR_Z, cameraPreset.getNearZ()),
+				cameraPreset.getFarZ());
 
 		final float deltaTime = Gdx.graphics.getDeltaTime();
 		this.noisyEye.set(this.position);

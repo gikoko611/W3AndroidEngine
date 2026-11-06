@@ -22,11 +22,12 @@ public class Player {
 	private long enemyLowPrioritiesFlags;
 	private long enemyHighPrioritiesFlags;
 
-	public void load(final LittleEndianDataInputStream stream, final int version) throws IOException {
+	public void load(final LittleEndianDataInputStream stream, final int version, final boolean hasRaceHud)
+			throws IOException {
 		this.id = (int) ParseUtils.readUInt32(stream);
 		this.type = stream.readInt();
 		this.race = stream.readInt();
-		if (version >= 39) {
+		if (hasRaceHud) {
 			this.raceHud = stream.readInt();
 		}
 		this.isFixedStartPosition = stream.readInt();

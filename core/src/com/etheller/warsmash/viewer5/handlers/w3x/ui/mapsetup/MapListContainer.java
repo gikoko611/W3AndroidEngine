@@ -27,9 +27,7 @@ public class MapListContainer {
 		final Collection<String> listfile = dataSource.getListfile();
 		final List<String> displayItemPaths = new ArrayList<>();
 		for (final String file : listfile) {
-			final String lower = file.toLowerCase().replace('/', '\\');
-			if ((lower.endsWith(".w3x") || lower.endsWith(".w3m"))
-					&& ((!lower.contains("\\")) || lower.startsWith("maps\\"))) {
+			if (isListedMap(file)) {
 				displayItemPaths.add(file);
 			}
 		}
@@ -43,6 +41,27 @@ public class MapListContainer {
 		}
 		this.mapListBox.sortItems();
 		this.mapListContainer.add(this.mapListBox);
+	}
+
+	/** The maps the custom game list offers: those under Maps and those at the top of a data source. */
+	public static boolean isListedMap(final String file) {
+		final String lower = file.toLowerCase().replace('/', '\\');
+		return (lower.endsWith(".w3x") || lower.endsWith(".w3m"))
+				&& ((!lower.contains("\\")) || lower.startsWith("maps\\"));
+	}
+
+	/**
+	 * Selects a map as a click on it would.
+	 *
+	 * @return false when the list does not have it
+	 */
+	public boolean select(final String path) {
+		final int index = this.mapListBox.indexOf(path);
+		if (index < 0) {
+			return false;
+		}
+		this.mapListBox.selectIndex(index);
+		return true;
 	}
 
 	public void addSelectionListener(final ListBoxSelelectionListener listener) {

@@ -25,7 +25,7 @@ import com.etheller.warsmash.viewer5.handlers.w3x.simulation.pathing.CPathfindin
 public class CBehaviorMove implements CBehavior {
 	private static boolean ALWAYS_INTERRUPT_MOVE = false;
 	/**
-	 * Measured on 1.29 (probe move-turn): a unit turns its heading by turnRate radians every 0.029 s and walks once the
+	 * Measured on 1.29: a unit turns its heading by turnRate radians every 0.029 s and walks once the
 	 * heading is inside the propulsion window, straight toward its next point; the drawn facing turns slower and on its
 	 * own.
 	 */
@@ -69,11 +69,42 @@ public class CBehaviorMove implements CBehavior {
 	private CGroupMove group;
 
 	public CBehaviorMove reset(final int highlightOrderId, final AbilityTarget target) {
-		target.visit(this.targetVisitingResetter.reset(highlightOrderId));
+		if (!continuesSameMove(highlightOrderId, target)) {
+			target.visit(this.targetVisitingResetter.reset(highlightOrderId));
+		}
 		this.rangedBehavior = null;
 		this.group = null;
 		resetDisableCollision(false);
 		return this;
+	}
+
+	/**
+	 * Measured on 1.29: a unit given the same move order again and again (a player clicking on, a script repeating its
+	 * order) walks on along its way. Here a long path search spans many ticks, so starting it over threw away the path
+	 * and walked the unit straight at the target, into the nearest pocket, at every repeat.
+	 */
+	private boolean continuesSameMove(final int highlightOrderId, final AbilityTarget target) {
+		if (!(target instanceof AbilityPointTarget) || (this.unit.getCurrentBehavior() != this)
+				|| (this.rangedBehavior != null) || (this.followUnit != null) || (this.target == null)
+				|| (highlightOrderId != this.highlightOrderId) || this.pathfindingFailedGiveUp) {
+			return false;
+		}
+		return isUnderwayTo((AbilityPointTarget) target);
+	}
+
+	/**
+	 * Whether an attack-move given again to the same point can walk on along this move (see continuesSameMove).
+	 */
+	public boolean continuesAttackMove(final CBehaviorAttackMove attackMove, final AbilityPointTarget point) {
+		return (this.rangedBehavior == attackMove) && (this.followUnit == null) && (this.target != null)
+				&& !this.pathfindingFailedGiveUp && isUnderwayTo(point);
+	}
+
+	private boolean isUnderwayTo(final AbilityPointTarget point) {
+		if ((point.x != this.target.x) || (point.y != this.target.y)) {
+			return false;
+		}
+		return this.pathfindingActive || ((this.path != null) && !this.path.isEmpty() && this.pathReachesGoal);
 	}
 
 	public CBehaviorMove reset(final AbilityTarget target, final CRangedBehavior rangedBehavior,
@@ -474,7 +505,7 @@ public class CBehaviorMove implements CBehavior {
 	}
 
 	/**
-	 * Measured on 1.29 (probe chase-target-lost): a unit chasing a target it picked itself (acquired, attacked back)
+	 * Measured on 1.29: a unit chasing a target it picked itself (acquired, attacked back)
 	 * drops the chase as soon as the target dies or is removed, while one ordered onto the target walks on to where it
 	 * was and stops there.
 	 */
@@ -560,6 +591,21 @@ public class CBehaviorMove implements CBehavior {
 
 	public CRangedBehavior getRangedBehavior() {
 		return this.rangedBehavior;
+	}
+
+	/**
+	 * A search started for an earlier target (the order was replaced while it ran) brings nothing: the unit asks for
+	 * a path to its current target on its next update. Measured on 1.29: a new move order given right after a long
+	 * one goes straight to the new point.
+	 */
+	public void pathFound(final CPathPoint searchedGoal, final List<CPathPoint> waypoints, final boolean reachesGoal,
+			final CSimulation simulation) {
+		if (searchedGoal != this.target) {
+			this.pathfindingActive = false;
+			this.followSearch = false;
+			return;
+		}
+		pathFound(waypoints, reachesGoal, simulation);
 	}
 
 	public void pathFound(final List<CPathPoint> waypoints, final boolean reachesGoal,

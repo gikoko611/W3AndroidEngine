@@ -20,6 +20,8 @@ import com.etheller.warsmash.viewer5.handlers.w3x.simulation.sound.CStackedSound
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.util.CWidgetAbilityTargetCheckReceiver;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.unit.BuildOnBuildingIntersector;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilitybuilder.ability.GetInstantTransformationBuffVisitor;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilitybuilder.buff.ABBuffSlow;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilitybuilder.handler.RandomTypeHandler;
 import com.etheller.warsmash.viewer5.handlers.w3x.rendersim.commandbuttons.CommandCardPopulatingAbilityVisitor;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.combat.attacks.CUnitAttackMissileSplash;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.combat.attacks.CUnitAttackMissileBounce;
@@ -203,6 +205,8 @@ import mpq.MPQException;
 
 public class War3MapViewer extends AbstractMdxModelViewer implements MdxAssetLoader {
 	private static final int MAX_STEPS_PER_FRAME = 3;
+	/** Game seconds per real second (desktop -speed), so automated playthroughs of long games finish sooner. */
+	public static float timeScale = 1;
 	private static final byte FOGGED_SHADE = (byte) 168;
 	private static final byte MASKED_PARTIALLY_VISIBLE_SHADE = (byte) 214;
 	private final EnumSet<PauseSource> pauseSources = EnumSet.noneOf(PauseSource.class);
@@ -347,6 +351,8 @@ public class War3MapViewer extends AbstractMdxModelViewer implements MdxAssetLoa
 	private final List<CreatedDestructable> createdDestructables = new ArrayList<>();
 	private FileHandle pendingSave;
 	private FileHandle pendingLoad;
+	private boolean pendingLoadByScript;
+	private Runnable afterPendingSave;
 	private SaveGameListener saveGameListener;
 	private LoadGameListener loadGameListener;
 
@@ -572,7 +578,7 @@ public class War3MapViewer extends AbstractMdxModelViewer implements MdxAssetLoa
 			}
 			if (resolved) {
 				row.setField("DirectoryBase", "");
-				row.setField("FileNames", fileNames.toString());
+				row.setField("FileNames", Arrays.asList(fileNames.toString().split(",")));
 			}
 		}
 	}
@@ -776,6 +782,9 @@ public class War3MapViewer extends AbstractMdxModelViewer implements MdxAssetLoa
 		TreeBlightingCallback.INSTANCE.reset(null);
 		CWidgetAbilityTargetCheckReceiver.INSTANCE.reset();
 		CSoundMixer.forgetPlayingLoops();
+		CSoundMixer.setMusicScaleListener(null);
+		RandomTypeHandler.releaseStaticReferences();
+		ABBuffSlow.releaseStaticReferences();
 		this.stackedSounds.stopAll();
 	}
 
@@ -1055,9 +1064,35 @@ public class War3MapViewer extends AbstractMdxModelViewer implements MdxAssetLoa
 		this.decals.add(renderDoodad);
 	}
 
+	// Measured on 1.29: a destructable with a fixed rotation (gates, pathing blockers) ignores the facing it is
+	// created with, and its pathing keeps the fixed orientation.
+	private static float getDestructableFacing(final GameObject row, final float requestedFacingRadians) {
+		final String fixedRotation = row.readSLKTag("fixedRot");
+		if ((fixedRotation != null) && !fixedRotation.isEmpty()) {
+			try {
+				final float degrees = Float.parseFloat(fixedRotation.trim());
+				if (degrees >= 0) {
+					return (float) Math.toRadians(degrees);
+				}
+			}
+			catch (final NumberFormatException e) {
+				// not a fixed rotation
+			}
+		}
+		return requestedFacingRadians;
+	}
+
+	// Measured on 1.29: a destructable's pathing map turns only in quarter turns, to the one nearest its facing
+	// (45 degrees takes 90, 269.0 takes 270).
+	private static int getPathingRotation(final float facingRadians) {
+		final int quarterTurns = Math.round((float) Math.toDegrees(facingRadians) / 90f);
+		return (((quarterTurns * 90) % 360) + 360) % 360;
+	}
+
 	private RenderDestructable createNewDestructable(final War3ID doodadId, final GameObject row,
-			final int doodadVariation, final float[] location, final float facingRadians, final short lifePercent,
-			final float[] scale) {
+			final int doodadVariation, final float[] location, final float requestedFacingRadians,
+			final short lifePercent, final float[] scale) {
+		final float facingRadians = getDestructableFacing(row, requestedFacingRadians);
 		BuildingShadow destructableShadow = null;
 		RemovablePathingMapInstance destructablePathing = null;
 		RemovablePathingMapInstance destructablePathingDeath = null;
@@ -1069,14 +1104,15 @@ public class War3MapViewer extends AbstractMdxModelViewer implements MdxAssetLoa
 		final float maxPitch = row.readSLKTagFloat("maxPitch");
 		final float maxRoll = row.readSLKTagFloat("maxRoll");
 		final String shadowString = row.readSLKTag("shadow");
-		if ((shadowString != null) && (shadowString.length() > 0) && !"_".equals(shadowString)) {
+		if ((shadowString != null) && (shadowString.length() > 0) && !"_".equals(shadowString)
+				&& !"none".equalsIgnoreCase(shadowString)) {
 			destructableShadow = this.terrain.addShadow(shadowString, location[0], location[1]);
 		}
 
 		final ArgbImage destructablePathingPixelMap = getDestructablePathingPixelMap(row);
 		if (destructablePathingPixelMap != null) {
 			destructablePathing = this.terrain.pathingGrid.createRemovablePathingOverlayTexture(location[0],
-					location[1], (int) Math.toDegrees(facingRadians), destructablePathingPixelMap);
+					location[1], getPathingRotation(facingRadians), destructablePathingPixelMap);
 			if (lifePercent > 0) {
 				destructablePathing.add();
 			}
@@ -1084,7 +1120,7 @@ public class War3MapViewer extends AbstractMdxModelViewer implements MdxAssetLoa
 		final ArgbImage destructablePathingDeathPixelMap = getDestructablePathingDeathPixelMap(row);
 		if (destructablePathingDeathPixelMap != null) {
 			destructablePathingDeath = this.terrain.pathingGrid.createRemovablePathingOverlayTexture(location[0],
-					location[1], (int) Math.toDegrees(facingRadians), destructablePathingDeathPixelMap);
+					location[1], getPathingRotation(facingRadians), destructablePathingDeathPixelMap);
 			if (lifePercent <= 0) {
 				destructablePathingDeath.add();
 			}
@@ -1434,7 +1470,26 @@ public class War3MapViewer extends AbstractMdxModelViewer implements MdxAssetLoa
 	}
 
 	public void requestLoadGame(final FileHandle file) {
+		requestLoadGame(file, false);
+	}
+
+	/** byScript: a map's LoadGame (zone travel), which the loaded map tells apart from a player's load. */
+	public void requestLoadGame(final FileHandle file, final boolean byScript) {
 		this.pendingLoad = file;
+		this.pendingLoadByScript = byScript;
+	}
+
+	/**
+	 * SaveAndChangeLevelBJ is SaveGame then ChangeLevel in one thread; leaving the map at once would drop the save
+	 * still waiting for the end of the step, so the level changes after it is written.
+	 */
+	public void runAfterPendingSave(final Runnable action) {
+		if (this.pendingSave == null) {
+			action.run();
+		}
+		else {
+			this.afterPendingSave = action;
+		}
 	}
 
 	public void setLoadGameListener(final LoadGameListener loadGameListener) {
@@ -1449,11 +1504,17 @@ public class War3MapViewer extends AbstractMdxModelViewer implements MdxAssetLoa
 			if (this.saveGameListener != null) {
 				this.saveGameListener.saveFinished(file, saved);
 			}
+			if (this.afterPendingSave != null) {
+				final Runnable action = this.afterPendingSave;
+				this.afterPendingSave = null;
+				action.run();
+				return;
+			}
 		}
 		if ((this.pendingLoad != null) && (this.loadGameListener != null)) {
 			final FileHandle file = this.pendingLoad;
 			this.pendingLoad = null;
-			this.loadGameListener.loadRequested(file);
+			this.loadGameListener.loadRequested(file, this.pendingLoadByScript);
 		}
 	}
 
@@ -1466,7 +1527,7 @@ public class War3MapViewer extends AbstractMdxModelViewer implements MdxAssetLoa
 	}
 
 	public interface LoadGameListener {
-		void loadRequested(FileHandle file);
+		void loadRequested(FileHandle file, boolean byScript);
 	}
 
 	public SavedInterfaceState captureInterfaceState() {
@@ -1731,7 +1792,7 @@ public class War3MapViewer extends AbstractMdxModelViewer implements MdxAssetLoa
 			super.update(rawDeltaTime);
 			PerfStats.end(PerfStats.Section.SCENE_UPDATE);
 
-			this.updateTime += rawDeltaTime;
+			this.updateTime += rawDeltaTime * timeScale;
 
 			final Iterator<TextTag> textTagIterator = this.textTags.iterator();
 			while (textTagIterator.hasNext()) {
@@ -1776,7 +1837,7 @@ public class War3MapViewer extends AbstractMdxModelViewer implements MdxAssetLoa
 			}
 			int stepsThisFrame = 0;
 			while (this.updateTime >= WarsmashConstants.SIMULATION_STEP_TIME) {
-				if (stepsThisFrame >= MAX_STEPS_PER_FRAME) {
+				if (stepsThisFrame >= (MAX_STEPS_PER_FRAME * timeScale)) {
 					// A slow device would otherwise spend the next frame catching up and fall further behind each
 					// time; like the original, the game runs slower instead.
 					this.updateTime = 0;

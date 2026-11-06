@@ -13,7 +13,10 @@ import com.etheller.warsmash.viewer5.handlers.w3x.simulation.sound.CSoundMixer;
 
 public class MusicPlayerLibGDX implements MusicPlayer {
 	private static final float GAME_MSECS_DIVISOR = 1000f;
-	private Music[] currentMusics;
+	private String[] currentPaths;
+	// Only the track that plays is open: every open track holds a decoder (a MediaPlayer on Android) until disposed.
+	private Music currentMusic;
+	private String currentMusicPath;
 	private int currentMusicIndex;
 	private boolean currentMusicRandomizeIndex;
 	// The map music starts with the game, as soon as the map script has named it.
@@ -33,21 +36,16 @@ public class MusicPlayerLibGDX implements MusicPlayer {
 	@Override
 	public void update() {
 		if (this.currentMusicActive) {
-			if (this.currentMusics == null) {
+			if (this.currentPaths == null) {
 				playDefaultMusic();
 			}
-			if ((this.currentMusics != null) && (this.currentMusics.length > 0)) {
-				if ((this.currentMusics[this.currentMusicIndex] != null)
-						&& !this.currentMusics[this.currentMusicIndex].isPlaying()) {
-					if (this.currentMusicRandomizeIndex) {
-						this.currentMusicIndex = (int) (Math.random() * this.currentMusics.length);
-					}
-					else {
-						this.currentMusicIndex = (this.currentMusicIndex + 1) % this.currentMusics.length;
-					}
-					if (this.currentMusics[this.currentMusicIndex] != null) {
-						this.currentMusics[this.currentMusicIndex].play();
-					}
+			if ((this.currentPaths != null) && (this.currentPaths.length > 0) && (this.currentMusic != null)
+					&& !this.currentMusic.isPlaying()) {
+				if (this.currentMusicRandomizeIndex) {
+					startTrack((int) (Math.random() * this.currentPaths.length), 0);
+				}
+				else {
+					startTrack((this.currentMusicIndex + 1) % this.currentPaths.length, 0);
 				}
 			}
 		}
@@ -55,20 +53,16 @@ public class MusicPlayerLibGDX implements MusicPlayer {
 
 	@Override
 	public void setMusicPosition(int positionMSecs) {
-		if ((this.currentMusics != null) && (this.currentMusics.length > 0)) {
-			if (this.currentMusics[this.currentMusicIndex] != null) {
-				this.currentMusics[this.currentMusicIndex].setPosition(positionMSecs / GAME_MSECS_DIVISOR);
-			}
+		if (this.currentMusic != null) {
+			this.currentMusic.setPosition(positionMSecs / GAME_MSECS_DIVISOR);
 		}
 	}
 
 	@Override
 	public void stopMusic() {
-		if (this.currentMusics != null) {
-			for (final Music music : this.currentMusics) {
-				if (music != null) {
-					music.pause();
-				}
+		if (this.currentPaths != null) {
+			if (this.currentMusic != null) {
+				this.currentMusic.pause();
 			}
 			this.currentMusicActive = false;
 		}
@@ -82,12 +76,8 @@ public class MusicPlayerLibGDX implements MusicPlayer {
 
 	@Override
 	public void optionsChanged() {
-		if (this.currentMusics != null) {
-			for (final Music music : this.currentMusics) {
-				if (music != null) {
-					music.setVolume(this.volume * CSoundMixer.musicScale());
-				}
-			}
+		if (this.currentMusic != null) {
+			this.currentMusic.setVolume(this.volume * CSoundMixer.musicScale());
 		}
 	}
 
@@ -130,50 +120,62 @@ public class MusicPlayerLibGDX implements MusicPlayer {
 			}
 			final String[] moreSplitMusics = musicPath.split(",");
 			for (final String finalSplitPath : moreSplitMusics) {
-				musicPaths.add(finalSplitPath);
-			}
-		}
-		final String[] musics = musicPaths.toArray(new String[musicPaths.size()]);
-
-		this.currentMusics = new Music[musics.length];
-		int validMusicCount = 0;
-		for (int i = 0; i < musics.length; i++) {
-			final String path = findMusicFile(this.dataSource, musics[i]);
-			if (path != null) {
-				final Music newMusic = SessionResources
-						.track(Extensions.audio.newMusic(new DataSourceFileHandle(this.dataSource, path)));
-				newMusic.setVolume(this.volume * CSoundMixer.musicScale());
-				this.currentMusics[i] = newMusic;
-				validMusicCount++;
-			}
-		}
-		if (this.currentMusics.length != validMusicCount) {
-			final Music[] fixedList = new Music[validMusicCount];
-			int fixedListIndex = 0;
-			for (int i = 0; i < this.currentMusics.length; i++) {
-				if (this.currentMusics[i] != null) {
-					fixedList[fixedListIndex++] = this.currentMusics[i];
+				final String path = findMusicFile(this.dataSource, finalSplitPath);
+				if (path != null) {
+					musicPaths.add(path);
 				}
 			}
-			this.currentMusics = fixedList;
 		}
-		if (this.currentMusics.length == 0) {
+		this.currentPaths = musicPaths.toArray(new String[musicPaths.size()]);
+		this.currentMusicRandomizeIndex = random;
+		if (this.currentPaths.length == 0) {
+			closeCurrentMusic();
 			return null;
 		}
 		if (random) {
-			index = (int) (Math.random() * this.currentMusics.length);
+			index = (int) (Math.random() * this.currentPaths.length);
 		}
-		index = Math.min(index, this.currentMusics.length - 1);
+		index = Math.min(index, this.currentPaths.length - 1);
+		return startTrack(index, fromMSecs);
+	}
+
+	/**
+	 * Plays one track of the current list from the start (or the given position). The same track again reuses its
+	 * player; any other track closes it.
+	 */
+	private Music startTrack(final int index, final int fromMSecs) {
 		this.currentMusicIndex = index;
-		this.currentMusicRandomizeIndex = random;
-		if (this.currentMusics[index] != null) {
-			this.currentMusics[index].play();
-			if (fromMSecs != 0) {
-				this.currentMusics[index].setPosition(fromMSecs / GAME_MSECS_DIVISOR);
-			}
-			return this.currentMusics[index];
+		final String path = this.currentPaths[index];
+		if ((this.currentMusic != null) && path.equals(this.currentMusicPath)) {
+			this.currentMusic.stop();
 		}
-		return null;
+		else {
+			closeCurrentMusic();
+			try {
+				this.currentMusic = SessionResources
+						.track(Extensions.audio.newMusic(new DataSourceFileHandle(this.dataSource, path)));
+			}
+			catch (final RuntimeException exc) {
+				exc.printStackTrace();
+				return null;
+			}
+			this.currentMusicPath = path;
+			this.currentMusic.setVolume(this.volume * CSoundMixer.musicScale());
+		}
+		this.currentMusic.play();
+		if (fromMSecs != 0) {
+			this.currentMusic.setPosition(fromMSecs / GAME_MSECS_DIVISOR);
+		}
+		return this.currentMusic;
+	}
+
+	private void closeCurrentMusic() {
+		if (this.currentMusic != null) {
+			// The session disposes what it tracked again at its end, which a disposed track ignores.
+			this.currentMusic.dispose();
+			this.currentMusic = null;
+			this.currentMusicPath = null;
+		}
 	}
 
 	/**

@@ -22,8 +22,25 @@ public final class IconTexture {
 	public Texture get() {
 		if (!this.loaded) {
 			this.texture = this.gameUI.loadTexture(this.path);
+			if (this.texture == null) {
+				// Reforged campaign maps point units at versioned icons (BTNPriestV0.blp) that only the HD
+				// package has; the classic package keeps the same picture under the plain name.
+				final String unversioned = unversioned(this.path);
+				if (unversioned != null) {
+					this.texture = this.gameUI.loadTexture(unversioned);
+				}
+			}
 			this.loaded = true;
 		}
 		return this.texture;
+	}
+
+	static String unversioned(final String path) {
+		final int dotIndex = path.lastIndexOf('.');
+		final int end = dotIndex == -1 ? path.length() : dotIndex;
+		if ((end >= 2) && (path.charAt(end - 2) == 'V') && Character.isDigit(path.charAt(end - 1))) {
+			return path.substring(0, end - 2) + path.substring(end);
+		}
+		return null;
 	}
 }

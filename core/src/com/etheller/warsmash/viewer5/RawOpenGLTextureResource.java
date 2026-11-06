@@ -3,6 +3,7 @@ package com.etheller.warsmash.viewer5;
 import java.awt.image.BufferedImage;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.util.Locale;
 
 import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.GL30;
@@ -151,7 +152,9 @@ public abstract class RawOpenGLTextureResource extends Texture {
 	public void update(final int imageWidth, final int imageHeight, final ByteBuffer rgba, final boolean sRGBFix) {
 		final GL20 gl = this.viewer.gl;
 		final ByteBuffer buffer = rgba;
-		this.data = buffer;
+		// Only the terrain's building shadows read pixels back. Every other texture kept its pixels on the Java heap,
+		// where Android counts direct buffers too, and a game with the menu behind it ran out of heap on phones.
+		this.data = keepsPixels() ? buffer : null;
 
 		gl.glBindTexture(GL20.GL_TEXTURE_2D, this.handle);
 
@@ -183,6 +186,10 @@ public abstract class RawOpenGLTextureResource extends Texture {
 	 */
 	public ByteBuffer getData() {
 		return this.data;
+	}
+
+	private boolean keepsPixels() {
+		return (this.fetchUrl != null) && this.fetchUrl.toLowerCase(Locale.ROOT).contains("shadows");
 	}
 
 }

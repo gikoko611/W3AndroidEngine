@@ -19,6 +19,8 @@ final class GammaOverlay {
 	private static final float MAX_DARKEN = 0.5f;
 	private static final Matrix4 PROJECTION = new Matrix4().setToOrtho2D(0, 0, 1, 1);
 	private static Texture white;
+	// A finished game activity takes its GL context along, and with it the texture; the next one makes its own.
+	private static Object whiteContext;
 
 	private GammaOverlay() {
 	}
@@ -28,7 +30,8 @@ final class GammaOverlay {
 		if (gamma == GameOptions.NEUTRAL_GAMMA) {
 			return;
 		}
-		if (white == null) {
+		if ((white == null) || (whiteContext != Gdx.app)) {
+			whiteContext = Gdx.app;
 			final Pixmap pixmap = new Pixmap(1, 1, Pixmap.Format.RGBA8888);
 			pixmap.setColor(Color.WHITE);
 			pixmap.fill();

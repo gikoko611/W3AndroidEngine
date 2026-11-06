@@ -76,19 +76,7 @@ public class CAbilityWayGate extends AbstractGenericAliasedAbility
 			final boolean autoOrder, final CWidget target) {
 		final CUnit unitTarget = target.visit(AbilityTargetVisitor.UNIT);
 		if (unitTarget != null) {
-			if (!unitTarget.isMovementDisabled()) {
-				final float targetX = target.getX();
-				if (Math.abs(targetX - caster.getX()) <= (this.teleportAreaWidth / 2)) {
-					final float targetY = target.getY();
-					if (Math.abs(targetY - caster.getY()) <= (this.teleportAreaHeight / 2)) {
-						game.spawnTemporarySpellEffectOnPoint(targetX, targetY, 0, CAbilityMove.CODE,
-								CEffectType.SPECIAL, 0);
-						unitTarget.setPointAndCheckUnstuck(this.destination.x, this.destination.y, game);
-						game.spawnTemporarySpellEffectOnPoint(target.getX(), target.getY(), 0, CAbilityMove.CODE,
-								CEffectType.SPECIAL, 0);
-					}
-				}
-			}
+			teleport(game, caster, unitTarget);
 		}
 		return caster.pollNextOrderBehavior(game);
 	}
@@ -207,6 +195,20 @@ public class CAbilityWayGate extends AbstractGenericAliasedAbility
 
 	public void setDestination(final AbilityPointTarget destination) {
 		this.destination = destination;
+	}
+
+	public boolean teleport(final CSimulation game, final CUnit gate, final CUnit unit) {
+		if (unit.isMovementDisabled() || (this.destination == null)
+				|| (Math.abs(unit.getX() - gate.getX()) > (this.teleportAreaWidth / 2))
+				|| (Math.abs(unit.getY() - gate.getY()) > (this.teleportAreaHeight / 2))) {
+			return false;
+		}
+		game.spawnTemporarySpellEffectOnPoint(unit.getX(), unit.getY(), 0, CAbilityMove.CODE, CEffectType.SPECIAL,
+				0);
+		unit.setPointAndCheckUnstuck(this.destination.x, this.destination.y, game);
+		game.spawnTemporarySpellEffectOnPoint(unit.getX(), unit.getY(), 0, CAbilityMove.CODE, CEffectType.SPECIAL,
+				0);
+		return true;
 	}
 
 	public static CAbilityWayGate getWayGateAbility(final CSimulation game, final CUnit caster, final CUnit transport,
