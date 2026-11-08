@@ -53,6 +53,7 @@ import com.badlogic.gdx.utils.IntArray;
 import com.badlogic.gdx.utils.IntMap;
 import com.badlogic.gdx.utils.LongMap;
 import com.badlogic.gdx.utils.ObjectMap;
+import com.etheller.warsmash.util.Log;
 
 /** @author Nathan Sweet */
 public class OpenALAudio implements Audio {
@@ -92,7 +93,7 @@ public class OpenALAudio implements Audio {
 		}
 		catch (final LWJGLException ex) {
 			this.noDevice = true;
-			ex.printStackTrace();
+			Log.error(ex);
 			return;
 		}
 
@@ -393,6 +394,7 @@ public class OpenALAudio implements Audio {
 				Thread.sleep(10);
 			}
 			catch (final InterruptedException e) {
+				// Shutting down: keep waiting until OpenAL is gone.
 			}
 		}
 	}

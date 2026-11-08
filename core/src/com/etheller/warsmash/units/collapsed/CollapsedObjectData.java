@@ -9,6 +9,8 @@ import com.etheller.warsmash.units.custom.Change;
 import com.etheller.warsmash.units.custom.ObjectDataChangeEntry;
 import com.etheller.warsmash.units.custom.War3ObjectDataChangeset;
 import com.etheller.warsmash.units.manager.MutableObjectData.WorldEditorDataType;
+import com.etheller.warsmash.util.DataErrors;
+import com.etheller.warsmash.util.Log;
 import com.etheller.warsmash.util.War3ID;
 import com.etheller.warsmash.util.WorldEditStrings;
 
@@ -43,7 +45,8 @@ public class CollapsedObjectData {
 					final List<Change> changes = changeEntry.getValue();
 					final GameObject metaDataField = sourceSLKMetaData.get(metaKey.asStringValue());
 					if (metaDataField == null) {
-						System.err.println("UNKNOWN META DATA FIELD: " + metaKey + " on " + unitId);
+						DataErrors.report(DataErrors.BAD_ENTRY, "meta data field " + metaKey,
+								"UNKNOWN META DATA FIELD: " + metaKey + " on " + unitId);
 						continue;
 					}
 					applyChange(gameObject, changes, metaDataField);
@@ -63,7 +66,8 @@ public class CollapsedObjectData {
 					final List<Change> changes = changeEntry.getValue();
 					final GameObject metaDataField = sourceSLKMetaData.get(metaKey.asStringValue());
 					if (metaDataField == null) {
-						System.err.println("UNKNOWN META DATA FIELD: " + metaKey + " on " + unitId);
+						DataErrors.report(DataErrors.BAD_ENTRY, "meta data field " + metaKey,
+								"UNKNOWN META DATA FIELD: " + metaKey + " on " + unitId);
 						continue;
 					}
 					applyChange(gameObject, changes, metaDataField);

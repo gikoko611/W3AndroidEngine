@@ -10,6 +10,7 @@ import java.util.Map;
 import com.badlogic.gdx.math.Rectangle;
 import com.etheller.warsmash.parsers.w3x.wpm.War3MapWpm;
 import com.etheller.warsmash.util.ArgbImage;
+import com.etheller.warsmash.util.Log;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CSimulation;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CUnit;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CWorldCollision;
@@ -158,22 +159,22 @@ public class PathingGrid {
 				(positionY - (height / 2)) + offsetY, width, height);
 		if (cWorldCollision.intersectsAnythingOtherThan(pathingMapRectangle, unitToExcludeFromCollisionChecks, null,
 				MovementType.AMPHIBIOUS, true, simulation, ignoredControllerIndex)) {
-			System.out.println("intersects amph unit");
+			Log.info("intersects amph unit");
 			anyPathingTypesInRegion |= PathingFlags.UNBUILDABLE | PathingFlags.UNWALKABLE | PathingFlags.UNSWIMABLE;
 		}
 		if (cWorldCollision.intersectsAnythingOtherThan(pathingMapRectangle, unitToExcludeFromCollisionChecks, null,
 				MovementType.FLOAT, true, simulation, ignoredControllerIndex)) {
-			System.out.println("intersects float unit");
+			Log.info("intersects float unit");
 			anyPathingTypesInRegion |= PathingFlags.UNSWIMABLE;
 		}
 		if (cWorldCollision.intersectsAnythingOtherThan(pathingMapRectangle, unitToExcludeFromCollisionChecks, null,
 				MovementType.FLY, true, simulation, ignoredControllerIndex)) {
-			System.out.println("intersects fly unit");
+			Log.info("intersects fly unit");
 			anyPathingTypesInRegion |= PathingFlags.UNFLYABLE;
 		}
 		if (cWorldCollision.intersectsAnythingOtherThan(pathingMapRectangle, unitToExcludeFromCollisionChecks, null,
 				MovementType.FOOT, true, simulation, ignoredControllerIndex)) {
-			System.out.println("intersects foot unit");
+			Log.info("intersects foot unit");
 			anyPathingTypesInRegion |= PathingFlags.UNBUILDABLE | PathingFlags.UNWALKABLE;
 		}
 		for (final CBuildingPathingType pathingType : preventPathingTypes) {

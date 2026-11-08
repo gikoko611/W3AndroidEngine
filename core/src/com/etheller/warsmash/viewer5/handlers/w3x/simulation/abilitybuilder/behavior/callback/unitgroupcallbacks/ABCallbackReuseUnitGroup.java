@@ -4,6 +4,7 @@ import java.util.Map;
 import java.util.Set;
 
 import com.etheller.warsmash.parsers.jass.JassTextGenerator;
+import com.etheller.warsmash.util.Log;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CSimulation;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CUnit;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilitybuilder.ability.AbilityBuilderAbility;
@@ -27,10 +28,10 @@ public class ABCallbackReuseUnitGroup extends ABUnitGroupCallback {
 			if (callback != null && callback instanceof ABUnitGroupCallback) {
 				return ((ABUnitGroupCallback) callback).callback(game, caster, localStore, castId);
 			} else {
-				System.err.println("Trying to run ReuseUnitGroupCallback, but key is missing or callback was the wrong type: " + keyS);
+				Log.error("Trying to run ReuseUnitGroupCallback, but key is missing or callback was the wrong type: " + keyS);
 			}
 		} else {
-			System.err.println("Trying to run ReuseUnitGroupCallback, but none defined");
+			Log.warn("Trying to run ReuseUnitGroupCallback, but none defined");
 		}
 		return null;
 	}

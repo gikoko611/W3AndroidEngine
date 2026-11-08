@@ -21,6 +21,7 @@ import com.etheller.interpreter.ast.value.visitor.ObjectJassValueVisitor;
 import com.etheller.interpreter.ast.value.visitor.RealJassValueVisitor;
 import com.etheller.warsmash.datasources.DataSource;
 import com.etheller.warsmash.parsers.jass.ai.AIController;
+import com.etheller.warsmash.util.Log;
 import com.etheller.warsmash.util.War3ID;
 import com.etheller.warsmash.util.WarsmashConstants;
 import com.etheller.warsmash.viewer5.Scene;
@@ -484,7 +485,7 @@ public class JassAIEnvironment {
 		catch (final Exception exception) {
 			// One broken native must not end the game for every player; the AI keeps running on its other threads.
 			if (this.errors++ < MAX_REPORTED_ERRORS) {
-				exception.printStackTrace();
+				Log.error(exception);
 				JassLog.report(exception);
 			}
 		}

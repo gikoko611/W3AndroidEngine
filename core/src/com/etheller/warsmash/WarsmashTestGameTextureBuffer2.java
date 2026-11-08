@@ -10,6 +10,7 @@ import com.badlogic.gdx.ApplicationAdapter;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.glutils.ShaderProgram;
+import com.etheller.warsmash.util.Log;
 import com.etheller.warsmash.viewer5.Shaders;
 import com.etheller.warsmash.viewer5.gl.DataTexture;
 
@@ -32,7 +33,7 @@ public class WarsmashTestGameTextureBuffer2 extends ApplicationAdapter {
 
 		Gdx.gl30.glBindVertexArray(this.VAO);
 
-		System.out.println(vsSimple);
+		Log.info(vsSimple);
 		this.shaderProgram = new ShaderProgram(vsSimple, fsSimple);
 		if (!this.shaderProgram.isCompiled()) {
 			throw new IllegalStateException(this.shaderProgram.getLog());
@@ -40,7 +41,7 @@ public class WarsmashTestGameTextureBuffer2 extends ApplicationAdapter {
 
 		this.arrayBuffer = Gdx.gl.glGenBuffer();
 		this.elementBuffer = Gdx.gl.glGenBuffer();
-		System.out.println("arrayBuffer: " + this.arrayBuffer + ", elementBuffer: " + this.elementBuffer);
+		Log.info("arrayBuffer: " + this.arrayBuffer + ", elementBuffer: " + this.elementBuffer);
 
 		Gdx.gl.glBindBuffer(GL20.GL_ARRAY_BUFFER, this.arrayBuffer);
 
@@ -106,7 +107,7 @@ public class WarsmashTestGameTextureBuffer2 extends ApplicationAdapter {
 		Gdx.gl.glBufferData(GL20.GL_ELEMENT_ARRAY_BUFFER, 3 * 2, null, GL20.GL_STATIC_DRAW);
 
 		final int glGetError = Gdx.gl.glGetError();
-		System.out.println(glGetError);
+		Log.info(glGetError);
 
 		final ByteBuffer vertex3ByteBuffer = ByteBuffer.allocateDirect(4 * 16);
 		vertex3ByteBuffer.order(ByteOrder.LITTLE_ENDIAN);

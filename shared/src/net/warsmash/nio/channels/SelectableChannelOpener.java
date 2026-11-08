@@ -21,6 +21,8 @@ import net.warsmash.nio.channels.tcp.TCPServerKeyAttachment;
 import net.warsmash.nio.channels.udp.UDPServerKeyAttachment;
 import net.warsmash.nio.util.ExceptionListener;
 
+import com.etheller.warsmash.util.Log;
+
 public class SelectableChannelOpener implements ChannelOpener {
 
 	private Selector selector;
@@ -124,8 +126,8 @@ public class SelectableChannelOpener implements ChannelOpener {
 			}
 		}
 		catch (final IOException e) {
-			System.err.println("Error reading from channel:");
-			e.printStackTrace();
+			Log.error("Error reading from channel:");
+			Log.error(e);
 		}
 	}
 

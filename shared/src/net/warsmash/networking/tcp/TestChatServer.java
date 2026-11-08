@@ -13,6 +13,8 @@ import net.warsmash.nio.channels.WritableSocketOutput;
 import net.warsmash.nio.channels.tcp.TCPClientParser;
 import net.warsmash.nio.util.ExceptionListener;
 
+import com.etheller.warsmash.util.Log;
+
 public class TestChatServer {
 	private static final int PORT = 8989;
 
@@ -23,7 +25,7 @@ public class TestChatServer {
 			@Override
 			public TCPClientParser onConnect(final WritableSocketOutput writableOpenedChannel,
 					final SocketAddress remoteAddress) {
-				System.out.println("Received connection from " + remoteAddress);
+				Log.info("Received connection from " + remoteAddress);
 				outputs.add(writableOpenedChannel);
 				return new TCPClientParser() {
 					@Override
@@ -43,7 +45,7 @@ public class TestChatServer {
 							output.write(
 									ByteBuffer.wrap((remoteAddress.toString() + " has left the chat.").getBytes()));
 						}
-						System.out.println("Disconnected from " + remoteAddress);
+						Log.info("Disconnected from " + remoteAddress);
 					}
 				};
 			}

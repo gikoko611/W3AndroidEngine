@@ -6,6 +6,7 @@ import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.math.Vector3;
 import com.etheller.warsmash.units.Element;
 import com.etheller.warsmash.units.GameObject;
+import com.etheller.warsmash.util.Log;
 import com.etheller.warsmash.util.War3ID;
 import com.etheller.warsmash.viewer5.handlers.mdx.MdxComplexInstance;
 import com.etheller.warsmash.viewer5.handlers.mdx.MdxModel;
@@ -305,7 +306,7 @@ public class War3MapRenderController implements SimulationRenderController {
 	public void removeUnit(final CUnit unit) {
 		final RenderUnit renderUnit = this.viewer.unitToRenderPeer.remove(unit);
 		if (renderUnit == null) {
-			System.err.println("Attempted to remove a null unit!");
+			Log.warn("Attempted to remove a null unit!");
 			return;
 		}
 		this.viewer.widgets.remove(renderUnit);

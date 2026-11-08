@@ -149,4 +149,10 @@ public class CPlayerCommandRecorder implements CPlayerUnitOrderListener {
 		this.encoder.minimapSignal(x, y);
 		apply();
 	}
+
+	@Override
+	public void trackableEvent(final int trackableHandleId, final boolean hit) {
+		this.encoder.trackableEvent(trackableHandleId, hit);
+		apply();
+	}
 }

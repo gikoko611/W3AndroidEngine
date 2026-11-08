@@ -13,6 +13,7 @@ import java.util.zip.CRC32;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.files.FileHandle;
 import com.etheller.warsmash.datasources.DataSource;
+import com.etheller.warsmash.util.Log;
 import com.etheller.warsmash.viewer5.handlers.w3x.War3MapViewer;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.campaign.CGameCache;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.config.War3MapConfig;
@@ -100,7 +101,7 @@ public final class GameReplays {
 				}
 			}
 			catch (final IOException e) {
-				System.err.println("No engine version: " + e);
+				Log.error("No engine version: " + e);
 			}
 		}
 		return bundledVersion;
@@ -209,14 +210,14 @@ public final class GameReplays {
 	 * program ends.
 	 */
 	public static void report(final String line) {
-		System.err.println("Replay: " + line);
+		Log.warn("Replay: " + line);
 		final String reportFile = System.getProperty(REPORT_PROPERTY);
 		if ((reportFile != null) && !reportFile.isEmpty()) {
 			try {
 				Files.write(new File(reportFile).toPath(), (line + "\n").getBytes(StandardCharsets.UTF_8));
 			}
 			catch (final IOException e) {
-				e.printStackTrace();
+				Log.error(e);
 			}
 		}
 		if (Boolean.getBoolean(EXIT_PROPERTY)) {

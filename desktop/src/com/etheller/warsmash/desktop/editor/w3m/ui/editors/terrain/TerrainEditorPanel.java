@@ -31,6 +31,7 @@ import com.etheller.warsmash.parsers.w3x.w3i.War3MapW3i;
 import com.etheller.warsmash.units.DataTable;
 import com.etheller.warsmash.units.Element;
 import com.etheller.warsmash.units.StandardObjectData;
+import com.etheller.warsmash.util.Log;
 import com.etheller.warsmash.util.WarsmashConstants;
 import com.etheller.warsmash.viewer5.CanvasProvider;
 import com.etheller.warsmash.viewer5.handlers.w3x.War3MapViewer;
@@ -89,7 +90,7 @@ public class TerrainEditorPanel extends AbstractWorldEditorPanel {
 					if (userResult == JFileChooser.APPROVE_OPTION) {
 						final File selectedFile = TerrainEditorPanel.this.userFileChooser.getSelectedFile();
 						if (selectedFile != null) {
-							System.out.println("selected file: " + selectedFile);
+							Log.info("selected file: " + selectedFile);
 
 							final GameTurnManager turnManager = GameTurnManager.PAUSED;
 							Gdx.app.postRunnable(new Runnable() {
@@ -116,7 +117,7 @@ public class TerrainEditorPanel extends AbstractWorldEditorPanel {
 										final War3MapW3i mapInfo = map.readMapInformation();
 										final MapLoader mapLoader = viewer.createMapLoader(map, mapInfo, 0);
 										while (!mapLoader.process()) {
-											System.out.println(mapLoader.getCompletionRatio());
+											Log.info(mapLoader.getCompletionRatio());
 										}
 										final Element unitLights = worldEditData.get("UnitLights");
 										final Element terrainLights = worldEditData.get("TerrainLights");
@@ -124,11 +125,11 @@ public class TerrainEditorPanel extends AbstractWorldEditorPanel {
 										final String unitLightString = unitLights.getField(tilesetString);
 										final String terrainLightString = unitLights.getField(tilesetString);
 										viewer.setDayNightModels(terrainLightString, unitLightString);
-										System.out.println("map loader finished");
+										Log.info("map loader finished");
 										TerrainEditorPanel.this.warsmashGdxTerrainEditor.loadViewer(viewer);
 									}
 									catch (final IOException exc) {
-										exc.printStackTrace();
+										Log.error(exc);
 										SwingUtilities.invokeLater(new Runnable() {
 											@Override
 											public void run() {
@@ -142,7 +143,7 @@ public class TerrainEditorPanel extends AbstractWorldEditorPanel {
 					}
 				}
 				catch (final Exception exc) {
-					exc.printStackTrace();
+					Log.error(exc);
 					ExceptionPopup.display(exc);
 				}
 			}

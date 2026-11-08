@@ -19,6 +19,7 @@ import com.etheller.warsmash.parsers.fdf.frames.SpriteFrame;
 import com.etheller.warsmash.parsers.fdf.frames.StringFrame;
 import com.etheller.warsmash.parsers.fdf.frames.UIFrame;
 import com.etheller.warsmash.units.Element;
+import com.etheller.warsmash.util.Log;
 import com.etheller.warsmash.util.WarsmashConstants;
 import com.etheller.warsmash.viewer5.handlers.w3x.War3MapViewer;
 import com.etheller.warsmash.viewer5.handlers.w3x.save.SavedGame;
@@ -652,7 +653,7 @@ final class MeleeUIMenus {
 			this.ui.quitMission();
 		}
 		catch (final IOException exc) {
-			exc.printStackTrace();
+			Log.error(exc);
 			this.ui.messages.displayTimedText(0, 0, 10, exc.getMessage());
 		}
 	}

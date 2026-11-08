@@ -8,6 +8,7 @@ import java.util.Map;
 import com.etheller.warsmash.units.DataTable;
 import com.etheller.warsmash.units.GameObject;
 import com.etheller.warsmash.units.ObjectData;
+import com.etheller.warsmash.util.Log;
 import com.etheller.warsmash.util.War3ID;
 import com.etheller.warsmash.util.WarsmashConstants;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CGameplayConstants;
@@ -257,13 +258,13 @@ public class CUpgradeData {
 						upgradeEffects.add(new CUpgradeEffectUltravision());
 						break;
 					default:
-						System.err.println("No such UpgradeEffect: " + effectIdString);
+						Log.warn("No such UpgradeEffect: " + effectIdString);
 						break;
 					}
 				}
 				else {
 					if (!"_".equals(effectIdString)) {
-						System.err.println("Not 4 len: " + effectIdString);
+						Log.warn("Not 4 len: " + effectIdString);
 					}
 				}
 			}

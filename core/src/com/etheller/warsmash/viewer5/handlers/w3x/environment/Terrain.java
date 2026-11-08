@@ -39,7 +39,9 @@ import com.etheller.warsmash.parsers.w3x.w3i.War3MapW3i;
 import com.etheller.warsmash.parsers.w3x.wpm.War3MapWpm;
 import com.etheller.warsmash.units.DataTable;
 import com.etheller.warsmash.units.Element;
+import com.etheller.warsmash.util.DataErrors;
 import com.etheller.warsmash.util.ImageUtils;
+import com.etheller.warsmash.util.Log;
 import com.etheller.warsmash.util.ImageUtils.RgbaImage;
 import com.etheller.warsmash.util.RenderMathUtils;
 import com.etheller.warsmash.util.War3ID;
@@ -281,7 +283,8 @@ public class Terrain {
 			if (cliffInfo == null) {
 				// Corners index the map's cliff list, so an unknown type (HumanX03Interlude's COdt, absent from
 				// 1.29 CliffTypes.slk) must keep its slot or every later type shifts down by one.
-				System.err.println("Missing cliff type: " + cliffTile.asStringValue());
+				DataErrors.report(DataErrors.UNKNOWN_ID, "cliff type " + cliffTile.asStringValue(),
+						"Missing cliff type: " + cliffTile.asStringValue());
 				cliffInfo = fallbackCliffInfo;
 				if (cliffInfo == null) {
 					continue;
@@ -403,7 +406,7 @@ public class Terrain {
 				final RgbaImage image = ImageUtils.getAnyExtensionRgbaImage(dataSource,
 						fileName + (i < 10 ? "0" : "") + Integer.toString(i) + texturesExt, "water texture", false);
 				if ((image.getWidth() != 128) || (image.getHeight() != 128)) {
-					System.err.println(
+					Log.warn(
 							"Odd water texture size detected of " + image.getWidth() + " x " + image.getHeight());
 					waterImageDimension = image.getWidth();
 				}
@@ -682,9 +685,9 @@ public class Terrain {
 	};
 
 	public void logRomp(final int x, final int y) {
-		System.out.println("romp: " + this.corners[x][y].romp);
-		System.out.println("ramp: " + this.corners[x][y].isRamp());
-		System.out.println("cliff: " + this.corners[x][y].cliff);
+		Log.info("romp: " + this.corners[x][y].romp);
+		Log.info("ramp: " + this.corners[x][y].isRamp());
+		Log.info("cliff: " + this.corners[x][y].cliff);
 	}
 
 	public void updateGroundTextures(final Rectangle area) {

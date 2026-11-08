@@ -6,6 +6,8 @@ import java.net.InetAddress;
 import net.warsmash.networking.udp.OrderedUdpClient;
 import net.warsmash.uberserver.GamingNetwork;
 
+import com.etheller.warsmash.util.Log;
+
 public class WarsmashClientTestingUtility implements ServerToClientListener {
 	private final OrderedUdpClient udpClient;
 	private final WarsmashClientWriter writer;
@@ -27,15 +29,15 @@ public class WarsmashClientTestingUtility implements ServerToClientListener {
 
 	@Override
 	public void acceptJoin(final int playerIndex) {
-		System.out.println("WarsmashClientTestingUtility.acceptJoin");
-		System.out.println("playerIndex = " + playerIndex);
+		Log.info("WarsmashClientTestingUtility.acceptJoin");
+		Log.info("playerIndex = " + playerIndex);
 	}
 
 	@Override
 	public void issueTargetOrder(final int playerIndex, final int unitHandleId, final int abilityHandleId,
 			final int orderId, final int targetHandleId, final boolean queue) {
-		System.out.println("WarsmashClientTestingUtility.issueTargetOrder");
-		System.out.println("playerIndex = " + playerIndex + ", unitHandleId = " + unitHandleId + ", abilityHandleId = "
+		Log.info("WarsmashClientTestingUtility.issueTargetOrder");
+		Log.info("playerIndex = " + playerIndex + ", unitHandleId = " + unitHandleId + ", abilityHandleId = "
 				+ abilityHandleId + ", orderId = " + orderId + ", targetHandleId = " + targetHandleId + ", queue = "
 				+ queue);
 	}
@@ -43,16 +45,16 @@ public class WarsmashClientTestingUtility implements ServerToClientListener {
 	@Override
 	public void issuePointOrder(final int playerIndex, final int unitHandleId, final int abilityHandleId,
 			final int orderId, final float x, final float y, final boolean queue) {
-		System.out.println("WarsmashClientTestingUtility.issuePointOrder");
-		System.out.println("playerIndex = " + playerIndex + ", unitHandleId = " + unitHandleId + ", abilityHandleId = "
+		Log.info("WarsmashClientTestingUtility.issuePointOrder");
+		Log.info("playerIndex = " + playerIndex + ", unitHandleId = " + unitHandleId + ", abilityHandleId = "
 				+ abilityHandleId + ", orderId = " + orderId + ", x = " + x + ", y = " + y + ", queue = " + queue);
 	}
 
 	@Override
 	public void issueDropItemAtPointOrder(final int playerIndex, final int unitHandleId, final int abilityHandleId,
 			final int orderId, final int targetHandleId, final float x, final float y, final boolean queue) {
-		System.out.println("WarsmashClientTestingUtility.issueDropItemAtPointOrder");
-		System.out.println("playerIndex = " + playerIndex + ", unitHandleId = " + unitHandleId + ", abilityHandleId = "
+		Log.info("WarsmashClientTestingUtility.issueDropItemAtPointOrder");
+		Log.info("playerIndex = " + playerIndex + ", unitHandleId = " + unitHandleId + ", abilityHandleId = "
 				+ abilityHandleId + ", orderId = " + orderId + ", targetHandleId = " + targetHandleId + ", x = " + x
 				+ ", y = " + y + ", queue = " + queue);
 	}
@@ -60,8 +62,8 @@ public class WarsmashClientTestingUtility implements ServerToClientListener {
 	@Override
 	public void issueDropItemAtTargetOrder(final int playerIndex, final int unitHandleId, final int abilityHandleId,
 			final int orderId, final int targetHandleId, final int targetHeroHandleId, final boolean queue) {
-		System.out.println("WarsmashClientTestingUtility.issueDropItemAtTargetOrder");
-		System.out.println("playerIndex = " + playerIndex + ", unitHandleId = " + unitHandleId + ", abilityHandleId = "
+		Log.info("WarsmashClientTestingUtility.issueDropItemAtTargetOrder");
+		Log.info("playerIndex = " + playerIndex + ", unitHandleId = " + unitHandleId + ", abilityHandleId = "
 				+ abilityHandleId + ", orderId = " + orderId + ", targetHandleId = " + targetHandleId
 				+ ", targetHeroHandleId = " + targetHeroHandleId + ", queue = " + queue);
 	}
@@ -69,40 +71,40 @@ public class WarsmashClientTestingUtility implements ServerToClientListener {
 	@Override
 	public void issueImmediateOrder(final int playerIndex, final int unitHandleId, final int abilityHandleId,
 			final int orderId, final boolean queue) {
-		System.out.println("WarsmashClientTestingUtility.issueImmediateOrder");
-		System.out.println("playerIndex = " + playerIndex + ", unitHandleId = " + unitHandleId + ", abilityHandleId = "
+		Log.info("WarsmashClientTestingUtility.issueImmediateOrder");
+		Log.info("playerIndex = " + playerIndex + ", unitHandleId = " + unitHandleId + ", abilityHandleId = "
 				+ abilityHandleId + ", orderId = " + orderId + ", queue = " + queue);
 	}
 
 	@Override
 	public void unitCancelTrainingItem(final int playerIndex, final int unitHandleId, final int cancelIndex) {
-		System.out.println("WarsmashClientTestingUtility.unitCancelTrainingItem");
-		System.out.println(
+		Log.info("WarsmashClientTestingUtility.unitCancelTrainingItem");
+		Log.info(
 				"playerIndex = " + playerIndex + ", unitHandleId = " + unitHandleId + ", cancelIndex = " + cancelIndex);
 	}
 
 	@Override
 	public void issueGuiPlayerEvent(final int playerIndex, final int eventId) {
-		System.out.println("WarsmashClientTestingUtility.issueGuiPlayerEvent");
-		System.out.println("playerIndex = " + playerIndex + ", eventId = " + eventId);
+		Log.info("WarsmashClientTestingUtility.issueGuiPlayerEvent");
+		Log.info("playerIndex = " + playerIndex + ", eventId = " + eventId);
 	}
 
 	@Override
 	public void issuePlayerCommand(final int playerIndex, final byte[] command) {
-		System.out.println("WarsmashClientTestingUtility.issuePlayerCommand");
-		System.out.println("playerIndex = " + playerIndex + ", bytes = " + command.length);
+		Log.info("WarsmashClientTestingUtility.issuePlayerCommand");
+		Log.info("playerIndex = " + playerIndex + ", bytes = " + command.length);
 	}
 
 	@Override
 	public void startGame() {
-		System.out.println("WarsmashClientTestingUtility.startGame");
-		System.out.println();
+		Log.info("WarsmashClientTestingUtility.startGame");
+		Log.info("");
 	}
 
 	@Override
 	public void finishedTurn(final int gameTurnTick) {
-		System.out.println("WarsmashClientTestingUtility.finishedTurn");
-		System.out.println("gameTurnTick = " + gameTurnTick);
+		Log.info("WarsmashClientTestingUtility.finishedTurn");
+		Log.info("gameTurnTick = " + gameTurnTick);
 
 		while (myTurn <= gameTurnTick) {
 			myTurn++;
@@ -116,8 +118,8 @@ public class WarsmashClientTestingUtility implements ServerToClientListener {
 
 	@Override
 	public void heartbeat() {
-		System.out.println("WarsmashClientTestingUtility.heartbeat");
-		System.out.println();
+		Log.info("WarsmashClientTestingUtility.heartbeat");
+		Log.info("");
 	}
 
 	public static void main(final String[] args) {

@@ -3,6 +3,7 @@ package com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilitybuilder.beh
 import java.util.Map;
 
 import com.etheller.warsmash.parsers.jass.JassTextGenerator;
+import com.etheller.warsmash.util.Log;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CItem;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CSimulation;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CUnit;
@@ -22,7 +23,7 @@ public class ABCallbackArgumentItem extends ABItemCallback {
 		if (cbck != null && cbck instanceof ABItemCallback) {
 			return ((ABItemCallback) cbck).callback(game, caster, localStore, castId);
 		} else {
-			System.err.println("Trying to run ReuseItemCallback, but key is missing or callback was the wrong type: " + keyS);
+			Log.error("Trying to run ReuseItemCallback, but key is missing or callback was the wrong type: " + keyS);
 		}
 		return null;
 	}

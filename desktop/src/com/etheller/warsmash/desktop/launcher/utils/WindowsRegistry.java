@@ -4,6 +4,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.StringWriter;
 
+import com.etheller.warsmash.util.Log;
+
 /**
  * @author Oleg Ryaboy, based on work by Miguel Enriquez
  */
@@ -61,6 +63,7 @@ public class WindowsRegistry {
 				}
 			}
 			catch (final IOException e) {
+				// The process ended; what was read so far is the result.
 			}
 		}
 
@@ -74,6 +77,6 @@ public class WindowsRegistry {
 		// Sample usage
 		final String value = WindowsRegistry.readRegistry(
 				"HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\" + "Explorer\\Shell Folders", "Personal");
-		System.out.println(value);
+		Log.info(value);
 	}
 }

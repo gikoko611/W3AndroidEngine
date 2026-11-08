@@ -8,6 +8,8 @@ import java.nio.channels.SocketChannel;
 import net.warsmash.nio.channels.KeyAttachment;
 import net.warsmash.nio.util.ExceptionListener;
 
+import com.etheller.warsmash.util.Log;
+
 public class ConnectionFinishingKeyAttachment implements KeyAttachment {
 	private final Selector selector;
 	private final SocketChannel channel;
@@ -31,7 +33,7 @@ public class ConnectionFinishingKeyAttachment implements KeyAttachment {
 	public void selected() {
 		try {
 			this.channel.finishConnect();
-			System.out.println("finishConnect()");
+			Log.info("finishConnect()");
 			this.key.cancel();
 //			delegate.setKey(channel.register(selector, SelectionKey.OP_READ | SelectionKey.OP_WRITE, delegate));
 		}

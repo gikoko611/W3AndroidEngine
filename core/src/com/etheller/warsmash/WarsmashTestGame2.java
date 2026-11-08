@@ -9,6 +9,7 @@ import com.badlogic.gdx.ApplicationAdapter;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.GL30;
+import com.etheller.warsmash.util.Log;
 
 public class WarsmashTestGame2 extends ApplicationAdapter {
 	private int VBO;
@@ -36,7 +37,7 @@ public class WarsmashTestGame2 extends ApplicationAdapter {
 //		Gdx.gl30.glEnable(GL20.GL_CULL_FACE);
 
 		final ByteBuffer tempByteBuffer = ByteBuffer.allocateDirect(4);
-		System.out.println(tempByteBuffer.order());
+		Log.info(tempByteBuffer.order());
 		tempByteBuffer.order(ByteOrder.LITTLE_ENDIAN);
 		final IntBuffer temp = tempByteBuffer.asIntBuffer();
 
@@ -64,7 +65,7 @@ public class WarsmashTestGame2 extends ApplicationAdapter {
 		int success = temp.get(0);
 		if (success == 0) {
 			final String infoLog = Gdx.gl30.glGetShaderInfoLog(vertexShader);
-			System.err.println(infoLog);
+			Log.warn(infoLog);
 			throw new IllegalStateException("bad vertex shader");
 		}
 
@@ -77,7 +78,7 @@ public class WarsmashTestGame2 extends ApplicationAdapter {
 		success = temp.get(0);
 		if (success == 0) {
 			final String infoLog = Gdx.gl30.glGetShaderInfoLog(fragmentShader);
-			System.err.println(infoLog);
+			Log.warn(infoLog);
 			throw new IllegalStateException("bad fragment shader");
 		}
 
@@ -92,7 +93,7 @@ public class WarsmashTestGame2 extends ApplicationAdapter {
 		success = temp.get(0);
 		if (success == 0) {
 			final String infoLog = Gdx.gl30.glGetProgramInfoLog(this.shaderProgram);
-			System.err.println(infoLog);
+			Log.warn(infoLog);
 			throw new IllegalStateException("bad program");
 		}
 

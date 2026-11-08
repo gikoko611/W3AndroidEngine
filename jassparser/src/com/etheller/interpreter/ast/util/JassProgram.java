@@ -10,6 +10,7 @@ import com.etheller.interpreter.ast.definition.JassScopeDefinitionBlock;
 import com.etheller.interpreter.ast.function.JassNativeManager;
 import com.etheller.interpreter.ast.scope.DefaultScope;
 import com.etheller.interpreter.ast.scope.GlobalScope;
+import com.etheller.warsmash.util.Log;
 
 public class JassProgram {
 	public final GlobalScope globalScope = new GlobalScope();
@@ -43,7 +44,7 @@ public class JassProgram {
 				}
 			}
 			catch (final JassException exc) {
-				exc.printStackTrace();
+				Log.error(exc);
 			}
 			this.globalScope.resetGlobalInitialization();
 		}

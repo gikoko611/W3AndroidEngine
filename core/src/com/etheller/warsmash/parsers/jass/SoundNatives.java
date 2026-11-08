@@ -8,6 +8,7 @@ import com.etheller.interpreter.ast.value.visitor.IntegerJassValueVisitor;
 import com.etheller.interpreter.ast.value.visitor.ObjectJassValueVisitor;
 import com.etheller.interpreter.ast.value.visitor.StringJassValueVisitor;
 import com.etheller.warsmash.parsers.jass.Jass2.CommonEnvironment;
+import com.etheller.warsmash.util.Log;
 import com.etheller.warsmash.util.War3ID;
 import com.etheller.warsmash.viewer5.handlers.w3x.UnitSound;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CUnit;
@@ -31,10 +32,10 @@ final class SoundNatives extends CommonNatives {
 		jassProgramVisitor.getJassNativeManager().createNative("NewSoundEnvironment",
 				(arguments, globalScope, triggerScope) -> {
 					final String environmentName = arguments.get(0).visit(StringJassValueVisitor.getInstance());
-					System.err.println("#########");
-					System.err.println("# Engine requested sound environment: " + environmentName);
-					System.err.println("# I don't know how to do that on LibGDX, so for now, I do nothing!");
-					System.err.println("#########");
+					Log.warn("#########");
+					Log.warn("# Engine requested sound environment: " + environmentName);
+					Log.warn("# I don't know how to do that on LibGDX, so for now, I do nothing!");
+					Log.warn("#########");
 					return null;
 				});
 		jassProgramVisitor.getJassNativeManager().createNative("CreateMIDISound",

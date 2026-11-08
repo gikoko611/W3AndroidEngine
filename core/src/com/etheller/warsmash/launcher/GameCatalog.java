@@ -342,7 +342,7 @@ public class GameCatalog {
 
 	private DataSource data() {
 		if (this.data == null) {
-			WarsmashConstants.loadConstants(this.ini.get("Emulator"), this.ini);
+			WarsmashConstants.loadDataConstants(this.ini.get("Emulator"), this.ini);
 			this.data = WarsmashGdxMapScreen.parseDataSources(this.ini);
 		}
 		return this.data;

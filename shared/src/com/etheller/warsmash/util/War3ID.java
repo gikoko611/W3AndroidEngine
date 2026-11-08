@@ -14,7 +14,7 @@ public final class War3ID implements Comparable<War3ID> {
 
 	public static War3ID fromString(String idString) {
 		if (idString.length() == 3) {
-			System.err.println(
+			Log.error(
 					"Loaded custom data for the ability CURSE whose MetaData field, 'Crs', is the only 3 letter War3ID in the game. This might cause unexpected errors, so watch your % chance to miss in custom curse abilities carefully.");
 			idString += '\0';
 		}

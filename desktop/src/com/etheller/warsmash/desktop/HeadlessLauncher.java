@@ -41,6 +41,7 @@ import com.etheller.warsmash.WarsmashGdxMenuScreen;
 import com.etheller.warsmash.WarsmashGdxMultiScreenGame;
 import com.etheller.warsmash.units.DataTable;
 import com.etheller.warsmash.units.Element;
+import com.etheller.warsmash.util.Log;
 import com.etheller.warsmash.util.WarsmashConstants;
 import com.etheller.warsmash.viewer5.AudioContext;
 import com.etheller.warsmash.viewer5.AudioContext.Listener;
@@ -122,7 +123,7 @@ public final class HeadlessLauncher {
 			}
 		}
 		if ((fileToLoad == null) && (replayToPlay == null)) {
-			System.err.println("HeadlessLauncher: -loadfile <map> or -replay <file> is needed");
+			Log.warn("HeadlessLauncher: -loadfile <map> or -replay <file> is needed");
 			System.exit(2);
 		}
 		if (!noLogs) {
@@ -134,10 +135,10 @@ public final class HeadlessLauncher {
 						new FileOutputStream(new File("Logs/" + System.currentTimeMillis() + ".err.log"))));
 			}
 			catch (final FileNotFoundException e) {
-				e.printStackTrace();
+				Log.error(e);
 			}
 		}
-		System.out.println("About to run loading file: " + (fileToLoad != null ? fileToLoad : replayToPlay));
+		Log.info("About to run loading file: " + (fileToLoad != null ? fileToLoad : replayToPlay));
 		final HeadlessLauncher launcher = new HeadlessLauncher(System.getProperty("warsmash.prefs"));
 		launcher.frameTime = frameTime;
 		final int status = launcher.run(fileToLoad, replayToPlay, iniPath, computerSlots, steps);
@@ -181,7 +182,7 @@ public final class HeadlessLauncher {
 				if (last == null) {
 					gameStarted = System.nanoTime();
 					firstTick = tick;
-					System.err.println(String.format(Locale.ROOT, "Headless: game loaded in %.1f s",
+					Log.warn(String.format(Locale.ROOT, "Headless: game loaded in %.1f s",
 							(gameStarted - started) / 1e9));
 				}
 				last = simulation;
@@ -203,7 +204,7 @@ public final class HeadlessLauncher {
 		if (last != null) {
 			final double seconds = (System.nanoTime() - gameStarted) / 1e9;
 			final int tick = last.getGameTurnTick();
-			System.err.println(String.format(Locale.ROOT,
+			Log.warn(String.format(Locale.ROOT,
 					"Headless: step %d checksum %08x, %d steps in %.2f s (%.0f steps/s)", tick,
 					SimulationChecksum.compute(last), tick - firstTick, seconds,
 					(tick - firstTick) / Math.max(seconds, 1e-9)));
@@ -213,7 +214,7 @@ public final class HeadlessLauncher {
 			game.dispose();
 		}
 		catch (final RuntimeException e) {
-			e.printStackTrace();
+			Log.error(e);
 		}
 		return 0;
 	}
@@ -334,9 +335,9 @@ public final class HeadlessLauncher {
 					case "log":
 					case "error":
 					case "debug":
-						System.err.println(args[0] + ": " + args[1]);
+						Log.warn(args[0] + ": " + args[1]);
 						if ((args.length > 2) && (args[2] instanceof Throwable)) {
-							((Throwable) args[2]).printStackTrace();
+							Log.error((Throwable) args[2]);
 						}
 						return null;
 					case "getJavaHeap":

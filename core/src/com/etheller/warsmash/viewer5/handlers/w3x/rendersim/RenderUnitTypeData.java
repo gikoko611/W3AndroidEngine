@@ -13,6 +13,7 @@ import com.etheller.warsmash.units.Element;
 import com.etheller.warsmash.units.GameObject;
 import com.etheller.warsmash.units.ObjectData;
 import com.etheller.warsmash.util.ArgbImage;
+import com.etheller.warsmash.util.Log;
 import com.etheller.warsmash.util.War3ID;
 import com.etheller.warsmash.viewer5.handlers.mdx.MdxModel;
 import com.etheller.warsmash.viewer5.handlers.w3x.AnimationTokens.SecondaryTag;
@@ -130,7 +131,7 @@ public class RenderUnitTypeData extends RenderWidgetTypeData<RenderUnitType> {
 				specialArtModel = this.mapViewer.loadModelMdx(unitSpecialArtPath);
 			}
 			catch (final Exception exc) {
-				exc.printStackTrace();
+				Log.error(exc);
 				specialArtModel = null;
 			}
 		}

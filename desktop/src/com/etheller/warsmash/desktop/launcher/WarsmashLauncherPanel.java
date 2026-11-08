@@ -35,6 +35,7 @@ import com.etheller.warsmash.desktop.launcher.emulator.HardcodedStringBundleDefa
 import com.etheller.warsmash.desktop.launcher.emulator.editor.DefaultEmulatorEditorFieldBuilder;
 import com.etheller.warsmash.units.DataTable;
 import com.etheller.warsmash.units.Element;
+import com.etheller.warsmash.util.Log;
 import com.etheller.warsmash.util.StringBundle;
 
 public class WarsmashLauncherPanel extends JPanel {
@@ -89,7 +90,7 @@ public class WarsmashLauncherPanel extends JPanel {
 						warsmashIni.readTXT(warsmashIniInputStream, true);
 					}
 					catch (final Exception e3) {
-						e3.printStackTrace();
+						Log.error(e3);
 						ExceptionPopup.display(e3);
 					}
 					final List<DataSourceDescriptor> dataSourcesList = new ArrayList<>();

@@ -12,6 +12,7 @@ import com.etheller.interpreter.ast.value.JassType;
 import com.etheller.interpreter.ast.value.JassValue;
 import com.etheller.interpreter.ast.value.UnknownEnumHandle;
 import com.etheller.interpreter.ast.value.visitor.JassTypeGettingValueVisitor;
+import com.etheller.warsmash.util.Log;
 
 public class NativeJassFunction {
 	private final List<JassParameter> parameters;
@@ -55,12 +56,12 @@ public class NativeJassFunction {
 			final JassValue argument = arguments.get(i);
 			if (!parameter.matchesType(argument)) {
 				if ((parameter == null) || (argument == null)) {
-					System.err.println(
+					Log.warn(
 							"We called some Jass function with incorrect argument types, and the types were null!!!");
-					System.err.println("This is a temporary hack for tests and showcase programming solutions");
+					Log.warn("This is a temporary hack for tests and showcase programming solutions");
 					return null;
 				}
-				System.err.println(
+				Log.warn(
 						parameter.getType() + " != " + argument.visit(JassTypeGettingValueVisitor.getInstance()));
 				throw new JassException(globalScope,
 						"Invalid type " + argument.visit(JassTypeGettingValueVisitor.getInstance()).getName()
@@ -81,8 +82,8 @@ public class NativeJassFunction {
 			// The original's natives ignore a null handle; one that this engine does not check must not end the
 			// whole script thread (a cinematic would stop halfway).
 			if (this.reportedNullFailure.compareAndSet(false, true)) {
-				System.err.println("Native " + this.name + " failed on a null value; ignored like the original:");
-				e.printStackTrace();
+				Log.error("Native " + this.name + " failed on a null value; ignored like the original:");
+				Log.error(e);
 			}
 			return this.returnType.getNullValue();
 		}
@@ -108,7 +109,7 @@ public class NativeJassFunction {
 
 	private boolean checkNativeExists() {
 		if (this.implementation == null) {
-			System.err.println(
+			Log.warn(
 					"Call to native function that was declared but had no native implementation: " + this.name);
 			return false;
 //			throw new UnsupportedOperationException(

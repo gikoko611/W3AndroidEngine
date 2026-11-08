@@ -10,6 +10,7 @@ import com.badlogic.gdx.ApplicationAdapter;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.glutils.ShaderProgram;
+import com.etheller.warsmash.util.Log;
 
 public class WarsmashTestGame extends ApplicationAdapter {
 	private int arrayBuffer;
@@ -36,7 +37,7 @@ public class WarsmashTestGame extends ApplicationAdapter {
 
 		this.arrayBuffer = Gdx.gl.glGenBuffer();
 		this.elementBuffer = Gdx.gl.glGenBuffer();
-		System.out.println("arrayBuffer: " + this.arrayBuffer + ", elementBuffer: " + this.elementBuffer);
+		Log.info("arrayBuffer: " + this.arrayBuffer + ", elementBuffer: " + this.elementBuffer);
 
 		Gdx.gl.glBindBuffer(GL20.GL_ARRAY_BUFFER, this.arrayBuffer);
 

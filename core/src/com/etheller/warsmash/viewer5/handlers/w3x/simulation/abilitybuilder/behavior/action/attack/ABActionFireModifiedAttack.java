@@ -55,7 +55,7 @@ public class ABActionFireModifiedAttack implements ABAction {
 						settings.setEmptyPreDamageListeners();
 					}
 
-					attack.launch(game, theUnit, theTarget, attack.roll(game.getSeededRandom()),
+					attack.launch(game, theUnit, theTarget, attack.roll(game.getCombatRandom()),
 							CBehaviorAttackListener.DO_NOTHING);
 					return;
 				}

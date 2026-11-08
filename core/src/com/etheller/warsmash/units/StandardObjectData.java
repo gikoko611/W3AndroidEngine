@@ -22,39 +22,31 @@ public class StandardObjectData {
 	/**
 	 * The skin fields a graphics package changes that only change how things look. The simulation keeps the Classic
 	 * values of the others (missile launch and impact heights, variation counts), so a game plays the same with any
-	 * graphics.
+	 * graphics. The icons show the units and spells, so they follow the graphics, not the interface.
 	 */
 	private static final Set<String> GRAPHICS_FIELDS = new HashSet<>(Arrays.asList("file", "fileVerFlags",
 			"portrait", "modelScale", "scale", "legacyScale", "selZ", "walk", "run", "blend", "red", "green", "blue",
 			"unitSound", "defScale", "minScale", "maxScale", "texFile", "texID", "portraitmodel", "lightweight",
 			"selSize", "colorR", "colorG", "colorB", "Casterart", "Targetart", "Specialart", "Effectart",
-			"projectileVisOffsetX", "projectileVisOffsetY"));
-	/** The icons, which follow the interface. */
-	private static final Set<String> INTERFACE_FIELDS = new HashSet<>(Arrays.asList("Art", "Researchart"));
+			"projectileVisOffsetX", "projectileVisOffsetY", "Art", "Researchart"));
 	private WorldEditStrings worldEditStrings;
 	private DataSource source;
 	private final GraphicsSet graphics;
-	private final boolean reforgedInterface;
 
 	public StandardObjectData(final DataSource dataSource) {
-		this(dataSource, GraphicsSet.CLASSIC, false);
+		this(dataSource, GraphicsSet.CLASSIC);
 	}
 
-	public StandardObjectData(final DataSource dataSource, final GraphicsSet graphics,
-			final boolean reforgedInterface) {
+	public StandardObjectData(final DataSource dataSource, final GraphicsSet graphics) {
 		this.source = dataSource;
 		this.worldEditStrings = new WorldEditStrings(dataSource);
 		this.graphics = graphics;
-		this.reforgedInterface = reforgedInterface;
 	}
 
 	private void applyQualities(final DataTable table) {
 		table.applyQualitySuffixes(CLASSIC_QUALITIES, CLASSIC_FALLBACK_QUALITIES);
 		if (this.graphics != GraphicsSet.CLASSIC) {
 			table.applyQualityOverrides(this.graphics.getQualities(), GRAPHICS_FIELDS);
-		}
-		if (this.reforgedInterface) {
-			table.applyQualityOverrides(GraphicsSet.REFORGED.getQualities(), INTERFACE_FIELDS);
 		}
 	}
 
@@ -771,6 +763,5 @@ public class StandardObjectData {
 
 	private StandardObjectData() {
 		this.graphics = GraphicsSet.CLASSIC;
-		this.reforgedInterface = false;
 	}
 }

@@ -21,6 +21,7 @@ import com.etheller.interpreter.ast.scope.trigger.Trigger;
 import com.etheller.interpreter.ast.scope.variableevent.CLimitOp;
 import com.etheller.warsmash.parsers.jass.scope.CommonTriggerExecutionScope;
 import com.etheller.warsmash.util.ArgbImage;
+import com.etheller.warsmash.util.Log;
 import com.etheller.warsmash.util.War3ID;
 import com.etheller.warsmash.util.WarsmashConstants;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.skills.CAbilitySpellBase;
@@ -31,8 +32,10 @@ import com.etheller.warsmash.viewer5.handlers.w3x.environment.PathingGrid.Moveme
 import com.etheller.warsmash.viewer5.handlers.w3x.environment.PathingGrid.PathingFlags;
 import com.etheller.warsmash.viewer5.handlers.w3x.environment.PathingGrid.RemovablePathingMapInstance;
 import com.etheller.warsmash.viewer5.handlers.w3x.environment.PathingGrid;
+import com.etheller.warsmash.viewer5.handlers.w3x.rendersim.OrientationInterpolation;
 import com.etheller.warsmash.viewer5.handlers.w3x.rendersim.RenderUnit;
 import com.etheller.warsmash.viewer5.handlers.w3x.save.SavedComponent;
+import com.etheller.warsmash.viewer5.handlers.w3x.save.SavedDefault;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CUnitStateListener.CUnitStateNotifier;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.CAbility;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.skills.CAbilitySpell;
@@ -162,6 +165,9 @@ import com.etheller.warsmash.viewer5.handlers.w3x.simulation.util.SimulationRend
 
 public class CUnit extends CWidget {
 	private static final int CHEESY_UNIQUE_NUMBER = 1337;
+	private static final double DRAWN_FACING_TICK = 0.03;
+	private static final double DRAWN_FACING_EASE = 0.7;
+	private static final float DRAWN_FACING_REST = 0.8f;
 
 	private static RegionCheckerImpl regionCheckerImpl = new RegionCheckerImpl();
 
@@ -169,6 +175,16 @@ public class CUnit extends CWidget {
 
 	private War3ID typeId;
 	private float facing; // degrees
+	/**
+	 * What GetUnitFacing reads in 1.29: the drawn facing, which follows the heading on a clock of its own, a turn every
+	 * 0.03 s that speeds up to the model's top turn speed (orientInterp), so after a quick turn of the heading it lags
+	 * behind it for a while. NaN in a save from before it was kept: the heading then.
+	 */
+	@SavedDefault("NaN")
+	private float drawnFacing = Float.NaN;
+	/** Radians per drawn facing tick, signed. */
+	private float drawnTurnVelocity;
+	private int drawnFacingTick;
 	private float mana;
 	/**
 	 * What the last unit update regenerated and the values right after it: 1.29 regenerates continuously, so a script
@@ -444,6 +460,8 @@ public class CUnit extends CWidget {
 		this.fakePlayerIndex = playerIndex;
 		this.typeId = typeId;
 		this.facing = facing;
+		this.drawnFacing = this.facing;
+		this.drawnFacingTick = Integer.MIN_VALUE;
 		this.mana = mana;
 		this.baseMaximumLife = maximumLife;
 		this.maximumLife = maximumLife;
@@ -1648,6 +1666,67 @@ public class CUnit extends CWidget {
 		return this.facing;
 	}
 
+	/** The facing GetUnitFacing reads, at the game's time now; see {@link #drawnFacing}. */
+	public float getDrawnFacing(final CSimulation game) {
+		updateDrawnFacing(CTimer.currentTime(game));
+		return this.drawnFacing;
+	}
+
+	/** Turns the drawn facing at once too, as BlzSetUnitFacingEx does. */
+	public void setFacingAndDrawnFacing(final float facing) {
+		setFacing(facing);
+		this.drawnFacing = this.facing;
+		this.drawnTurnVelocity = 0;
+	}
+
+	private void updateDrawnFacing(final double time) {
+		final int tick = (int) StrictMath.floor(((time - WarsmashConstants.SIMULATION_STEP_TIME) / DRAWN_FACING_TICK)
+				+ 1e-6);
+		if (Float.isNaN(this.drawnFacing) || (this.drawnFacingTick == Integer.MIN_VALUE)) {
+			if (Float.isNaN(this.drawnFacing)) {
+				this.drawnFacing = this.facing;
+			}
+			this.drawnFacingTick = tick;
+			return;
+		}
+		if (tick <= this.drawnFacingTick) {
+			return;
+		}
+		int ticks = tick - this.drawnFacingTick;
+		this.drawnFacingTick = tick;
+		final int row = this.unitType.getOrientationInterpolation();
+		final OrientationInterpolation turn = OrientationInterpolation.VALUES[(row < 0)
+				|| (row >= OrientationInterpolation.VALUES.length) ? 0 : row];
+		while ((ticks-- > 0) && ((this.drawnFacing != this.facing) || (this.drawnTurnVelocity != 0))) {
+			float delta = this.facing - this.drawnFacing;
+			if (delta < -180) {
+				delta += 360;
+			}
+			if (delta > 180) {
+				delta -= 360;
+			}
+			final float sign = Math.signum(delta);
+			final float remaining = (float) StrictMath.toRadians(Math.abs(delta));
+			// Measured in 1.29: the turn eases off as a power of the angle left rather than in a straight line, and it
+			// stops a degree or two short once the step would be smaller than DRAWN_FACING_REST.
+			final float slowdown = (float) StrictMath.pow(Math.min(1, remaining / turn.getEndingAccelCutoff()),
+					DRAWN_FACING_EASE);
+			final float speed = Math.max(0, this.drawnTurnVelocity * sign) + turn.getStartingAcceleration();
+			this.drawnTurnVelocity = Math.min(speed, turn.getMaxVelocity() * slowdown) * sign;
+			final float step = (float) StrictMath.toDegrees(this.drawnTurnVelocity);
+			if (Math.abs(delta) <= Math.abs(step)) {
+				this.drawnFacing = this.facing;
+				this.drawnTurnVelocity = 0;
+			}
+			else if (Math.abs(step) < DRAWN_FACING_REST) {
+				this.drawnTurnVelocity = 0;
+			}
+			else {
+				this.drawnFacing = (((this.drawnFacing + step) % 360) + 360) % 360;
+			}
+		}
+	}
+
 	public float getMana() {
 		return this.mana;
 	}
@@ -1844,6 +1923,7 @@ public class CUnit extends CWidget {
 			}
 			this.stateListenersUpdates.clear();
 		}
+		updateDrawnFacing(CTimer.currentTime(game));
 		// Mana regeneration and stat changes write the fields directly; they reach the state events here. Measured: the
 		// original writes a dying unit's life once more a moment after its death.
 		checkStateEvents(false);
@@ -2023,7 +2103,7 @@ public class CUnit extends CWidget {
 								this.queuedUnitFoodPaid = true;
 							} else {
 								this.queuedUnitFoodPaid = true;
-								System.err.println(
+								Log.warn(
 										"Unpaid food for non unit queue item ???? Attempting to correct this by setting paid=true");
 							}
 						}
@@ -4942,7 +5022,8 @@ public class CUnit extends CWidget {
 	 * Measured on 1.29: an idle unit picking a target in its acquisition range takes, before any nearer one, a unit it
 	 * can hit from where it stands, then a hero, then a unit that can hit it from where that one stands (a Rifleman in
 	 * range), then other units; workers and units that cannot fight (paused) come after all of these, whatever their
-	 * reach, and buildings last, a tower that can hit it before other buildings.
+	 * reach, and buildings last, a tower that can hit it before other buildings. A hero under an order (moving,
+	 * attacking, holding position) has no lead over other units: a nearer Footman is taken first.
 	 */
 	private static int acquireRank(final CSimulation game, final CUnit source, final CUnit target) {
 		if (target.isBuilding()) {
@@ -4955,7 +5036,7 @@ public class CUnit extends CWidget {
 		if (source.canAttackFromHere(game, target)) {
 			return 6;
 		}
-		if (target.isHero()) {
+		if (target.isHero() && (target.lastStartedOrder == null)) {
 			return 5;
 		}
 		if (target.canAttackFromHere(game, source)) {
@@ -6650,7 +6731,7 @@ public class CUnit extends CWidget {
 		CUnitAppliedUpgrade upgrade = getAppliedUpgrade(upgradeType.getTypeId());
 		if (upgrade != null) {
 			if (upgrade.getLevel() == level) {
-				System.err.println("Unit already has upgrade? " + upgrade.getLevel() + " (target" + level + ")");
+				Log.warn("Unit already has upgrade? " + upgrade.getLevel() + " (target" + level + ")");
 				return;
 			}
 			unapplyUpgrade(simulation, upgradeType, upgrade);

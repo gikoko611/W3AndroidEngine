@@ -12,6 +12,8 @@ import java.nio.channels.Selector;
 import java.util.Iterator;
 import java.util.Set;
 
+import com.etheller.warsmash.util.Log;
+
 public class UdpServer implements Runnable {
 
 	private final Selector selector;
@@ -36,7 +38,7 @@ public class UdpServer implements Runnable {
 			return ((InetSocketAddress) this.channel.getLocalAddress());
 		}
 		catch (final Exception exc) {
-			exc.printStackTrace();
+			Log.error(exc);
 			return null;
 		}
 	}
@@ -80,8 +82,8 @@ public class UdpServer implements Runnable {
 				}
 			}
 			catch (final IOException e) {
-				System.err.println("Error reading from channel:");
-				e.printStackTrace();
+				Log.error("Error reading from channel:");
+				Log.error(e);
 			}
 		}
 	}

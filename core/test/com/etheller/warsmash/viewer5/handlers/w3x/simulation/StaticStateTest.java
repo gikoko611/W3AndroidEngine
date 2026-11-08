@@ -46,6 +46,8 @@ class StaticStateTest {
 			"simulation.SimulationChecksum#enabled", "simulation.SimulationChecksum#fileName",
 			"simulation.SimulationChecksum#detailTicks", "simulation.SimulationChecksum#writer",
 			"simulation.SimulationChecksum#current", "simulation.SimulationChecksum#games",
+			"simulation.SimulationChecksum#startedFile", "simulation.SimulationChecksum#shutdownHook",
+			"simulation.SimulationChecksum#ended",
 			// What the checksum keeps hashed of seldom changing objects, by weak key; the game never reads it.
 			"simulation.SimulationChecksum#SCOPE_LINES", "simulation.SimulationChecksum#DESTRUCTABLE_LINES",
 			// The player profile: its files, campaign progress and game caches as saved on disk.

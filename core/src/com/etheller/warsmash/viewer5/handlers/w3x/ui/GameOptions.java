@@ -6,6 +6,7 @@ import java.util.Map;
 import com.badlogic.gdx.Application;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.files.FileHandle;
+import com.etheller.warsmash.util.Log;
 import com.etheller.warsmash.util.WarsmashConstants;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.campaign.CSaveStorage;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.sound.CSoundMixer;
@@ -83,7 +84,7 @@ public final class GameOptions {
 			catch (final RuntimeException e) {
 				// Some desktop drivers refuse the swap interval, and LWJGL reads the GL error flag here, so an error
 				// an earlier GL call left behind surfaces here too; the map still runs.
-				e.printStackTrace();
+				Log.error(e);
 			}
 		}
 	}

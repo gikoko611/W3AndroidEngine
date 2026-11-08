@@ -7,6 +7,7 @@ import java.util.List;
 import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.glutils.ShaderProgram;
 import com.badlogic.gdx.math.Vector3;
+import com.etheller.warsmash.util.Log;
 import com.etheller.warsmash.util.WarsmashConstants;
 import com.etheller.warsmash.viewer5.Camera;
 import com.etheller.warsmash.viewer5.ModelViewer;
@@ -340,7 +341,7 @@ public class GeometryEmitterFuncs {
 			final IVec3 normal = object.normal;
 
 			if (floatView.limit() < (p0Offset + 11)) {
-				System.err.println(
+				Log.warn(
 						"FloatView has a limit of " + floatView.limit() + " which is not large enough. Aborting");
 				continue;
 			}

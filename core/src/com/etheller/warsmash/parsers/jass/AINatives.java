@@ -16,6 +16,7 @@ import com.etheller.interpreter.ast.value.visitor.ObjectJassValueVisitor;
 import com.etheller.interpreter.ast.value.visitor.RealJassValueVisitor;
 import com.etheller.interpreter.ast.value.visitor.StringJassValueVisitor;
 import com.etheller.warsmash.parsers.jass.Jass2.CommonEnvironment;
+import com.etheller.warsmash.util.Log;
 import com.etheller.warsmash.util.War3ID;
 import com.etheller.warsmash.viewer5.handlers.w3x.War3MapViewer;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CSimulation;
@@ -122,7 +123,7 @@ final class AINatives extends CommonNatives {
 				final String str = nullable(arguments, 0, StringJassValueVisitor.getInstance());
 				final String value = "DebugS: " + str;
 				meleeUI.displayTimedText(0, 0, 20, value);
-				System.err.println(value);
+				Log.warn(value);
 				return null;
 			}
 		});
@@ -135,7 +136,7 @@ final class AINatives extends CommonNatives {
 
 				final String value = "DebugFI: " + String.format(str, val);
 				meleeUI.displayTimedText(0, 0, 20, value);
-				System.err.println(value);
+				Log.warn(value);
 				return null;
 			}
 		});
@@ -149,7 +150,7 @@ final class AINatives extends CommonNatives {
 
 				final String value = "DebugUnitID: " + String.format(str, valId);
 				meleeUI.displayTimedText(0, 0, 20, value);
-				System.err.println(value);
+				Log.warn(value);
 				return null;
 			}
 		});
@@ -163,7 +164,7 @@ final class AINatives extends CommonNatives {
 				if (war3MapViewer.getLocalPlayerIndex() == p) {
 					meleeUI.displayTimedText(0, 0, 20, str);
 				}
-				System.err.println(p + ": " + str);
+				Log.warn(p + ": " + str);
 				return null;
 			}
 		});
@@ -178,7 +179,7 @@ final class AINatives extends CommonNatives {
 				if (war3MapViewer.getLocalPlayerIndex() == p) {
 					meleeUI.displayTimedText(0, 0, 20, value);
 				}
-				System.err.println(p + ": " + value);
+				Log.warn(p + ": " + value);
 				return null;
 			}
 		});
@@ -194,7 +195,7 @@ final class AINatives extends CommonNatives {
 				if (war3MapViewer.getLocalPlayerIndex() == p) {
 					meleeUI.displayTimedText(0, 0, 20, value);
 				}
-				System.err.println(p + ": " + value);
+				Log.warn(p + ": " + value);
 				return null;
 			}
 		});
@@ -211,7 +212,7 @@ final class AINatives extends CommonNatives {
 				if (war3MapViewer.getLocalPlayerIndex() == p) {
 					meleeUI.displayTimedText(0, 0, 20, value);
 				}
-				System.err.println(p + ": " + value);
+				Log.warn(p + ": " + value);
 				return null;
 			}
 		});

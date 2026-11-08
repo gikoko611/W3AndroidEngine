@@ -21,6 +21,7 @@ import com.etheller.interpreter.ast.value.visitor.IntegerJassValueVisitor;
 import com.etheller.interpreter.ast.value.visitor.ObjectJassValueVisitor;
 import com.etheller.interpreter.ast.value.visitor.RealJassValueVisitor;
 import com.etheller.interpreter.ast.value.visitor.StringJassValueVisitor;
+import com.etheller.warsmash.util.Log;
 
 import net.warsmash.parsers.jass.SmashJassParser;
 
@@ -39,7 +40,7 @@ public class SmashJassRunner {
 
 	public static void main(final String[] args) {
 		if (args.length < 1) {
-			System.err.println("Usage: <JassFiles> [<AdditionaFile>...]");
+			Log.warn("Usage: <JassFiles> [<AdditionaFile>...]");
 			return;
 		}
 		final long start = System.currentTimeMillis();
@@ -67,7 +68,7 @@ public class SmashJassRunner {
 			public JassValue call(final List<JassValue> arguments, final GlobalScope globalScope,
 					final TriggerExecutionScope triggerScope) {
 				for (final JassValue argument : arguments) {
-					System.out.println(argument.visit(StringJassValueVisitor.getInstance()));
+					Log.info(argument.visit(StringJassValueVisitor.getInstance()));
 				}
 				return null;
 			}
@@ -77,7 +78,7 @@ public class SmashJassRunner {
 			public JassValue call(final List<JassValue> arguments, final GlobalScope globalScope,
 					final TriggerExecutionScope triggerScope) {
 				for (final JassValue argument : arguments) {
-					System.out.println(argument.visit(StringJassValueVisitor.getInstance()));
+					Log.info(argument.visit(StringJassValueVisitor.getInstance()));
 				}
 				return null;
 			}
@@ -128,7 +129,7 @@ public class SmashJassRunner {
 				}
 			}
 			catch (final Exception e) {
-				e.printStackTrace();
+				Log.error(e);
 			}
 		}
 		jassProgram.initialize();
@@ -151,7 +152,7 @@ public class SmashJassRunner {
 		while (!done);
 
 		final long end = System.currentTimeMillis();
-		System.out.println("Jass executed in: " + (end - start));
+		Log.info("Jass executed in: " + (end - start));
 	}
 
 }

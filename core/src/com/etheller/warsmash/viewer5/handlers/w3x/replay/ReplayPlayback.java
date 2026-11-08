@@ -6,6 +6,7 @@ import java.util.Locale;
 import com.badlogic.gdx.files.FileHandle;
 
 import com.etheller.warsmash.networking.GameTurnManager;
+import com.etheller.warsmash.util.Log;
 import com.etheller.warsmash.viewer5.handlers.w3x.War3MapViewer;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CSimulation;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.SimulationChecksum;
@@ -35,7 +36,7 @@ public final class ReplayPlayback implements GameTurnManager, ReplaySession {
 		CGameCache.restoreSnapshot(replay.getHeader().getGameCaches());
 		CGameCache.setDisk(this.player.recordedDisk());
 		viewer.setReplaySession(this);
-		System.err.println("Replay: playing " + replay.getHeader().getMapPath() + " to step " + replay.getLastTick()
+		Log.warn("Replay: playing " + replay.getHeader().getMapPath() + " to step " + replay.getLastTick()
 				+ ", " + replay.getCommands().size() + " commands");
 		final int skipTo = Integer.getInteger(GameReplays.SKIP_TO_PROPERTY, -1);
 		if (skipTo > 0) {
@@ -48,7 +49,7 @@ public final class ReplayPlayback implements GameTurnManager, ReplaySession {
 		this.viewer.fastForwardTo(tick, (steps, nanos) -> {
 			final CSimulation game = this.viewer.simulation;
 			final double seconds = nanos / 1e9;
-			System.err.println(String.format(Locale.ROOT,
+			Log.warn(String.format(Locale.ROOT,
 					"Replay: skipped to step %d, %d steps in %.2f s (%.0f steps/s), checksum %08x",
 					game.getGameTurnTick(), steps, seconds, steps / Math.max(seconds, 1e-9),
 					SimulationChecksum.compute(game)));
@@ -146,7 +147,7 @@ public final class ReplayPlayback implements GameTurnManager, ReplaySession {
 		// The replay's caches are not the player's.
 		CGameCache.dropUnsaved();
 		if (!this.ended) {
-			System.err.println("Replay: left at step " + this.viewer.simulation.getGameTurnTick() + ", "
+			Log.warn("Replay: left at step " + this.viewer.simulation.getGameTurnTick() + ", "
 					+ this.player.report());
 		}
 	}

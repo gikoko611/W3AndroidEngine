@@ -14,6 +14,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import com.etheller.warsmash.util.Log;
 import com.etheller.warsmash.util.StringBundle;
 
 public class DataTable implements ObjectData {
@@ -89,7 +90,7 @@ public class DataTable implements ObjectData {
 		final boolean first = true;
 		while ((input = reader.readLine()) != null) {
 			if (DEBUG) {
-				System.out.println(input);
+				Log.info(input);
 			}
 			if (input.startsWith("//")) {
 				continue;
@@ -137,7 +138,7 @@ public class DataTable implements ObjectData {
 				}
 				if (builder.length() > 0) {
 					if (currentUnit == null) {
-						System.out.println("null for " + input);
+						Log.info("null for " + input);
 					}
 					values.add(builder.toString().trim());
 				}
@@ -158,7 +159,7 @@ public class DataTable implements ObjectData {
 		Element currentUnit = null;
 		input = reader.readLine();
 		if (!input.contains("ID")) {
-			System.err.println("Formatting of SLK is unusual.");
+			Log.warn("Formatting of SLK is unusual.");
 		}
 		input = reader.readLine();
 		while (input.startsWith("P;") || input.startsWith("F;")) {
@@ -185,7 +186,7 @@ public class DataTable implements ObjectData {
 		int lastColumn = 0;
 		while ((input = reader.readLine()) != null) {
 			if (DEBUG) {
-				System.out.println(input);
+				Log.info(input);
 			}
 			if (input.startsWith("E")) {
 				break;
@@ -204,7 +205,7 @@ public class DataTable implements ObjectData {
 			if (input.startsWith("F;")) {
 				kInput = reader.readLine();
 				if (DEBUG) {
-					System.out.println(kInput);
+					Log.info(kInput);
 				}
 			}
 			else {

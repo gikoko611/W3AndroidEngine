@@ -53,4 +53,7 @@ public interface CPlayerUnitOrderListener {
 	void setGamePaused(boolean paused);
 
 	void minimapSignal(float x, float y);
+
+	/** The player's pointer came onto a trackable (track) or clicked it (hit). */
+	void trackableEvent(int trackableHandleId, boolean hit);
 }

@@ -64,6 +64,7 @@ import com.etheller.warsmash.datasources.FolderDataSourceDescriptor;
 import com.etheller.warsmash.datasources.MpqDataSourceDescriptor;
 import com.etheller.warsmash.desktop.editor.util.ExceptionPopup;
 import com.etheller.warsmash.desktop.launcher.utils.WindowsRegistry;
+import com.etheller.warsmash.util.Log;
 import com.hiveworkshop.blizzard.casc.io.WarcraftIIICASC;
 import com.hiveworkshop.blizzard.casc.io.WarcraftIIICASC.FileSystem;
 import com.hiveworkshop.nio.ByteBufferInputStream;
@@ -789,7 +790,7 @@ public class DataSourceChooserPanel extends JPanel {
 		}
 		catch (final Exception e1) {
 			ExceptionPopup.display(e1);
-			e1.printStackTrace();
+			Log.error(e1);
 		}
 	}
 
@@ -804,6 +805,7 @@ public class DataSourceChooserPanel extends JPanel {
 			launcherDBLang = Files.readAllLines(installPathPath.resolve("Launcher.db"));
 		}
 		catch (final Exception e1) {
+			// No Launcher.db: the locale is looked for below.
 		}
 		if (launcherDBLang != null) {
 			if (launcherDBLang.size() > 0) {
@@ -958,14 +960,14 @@ public class DataSourceChooserPanel extends JPanel {
 				final List<String> defaultPrefixes;
 				switch (patchFormat) {
 				case PATCH130: {
-					System.out.println("Detected Patch 1.30");
+					Log.info("Detected Patch 1.30");
 					// We used to have this, maybe some people still do?
 					final String[] prefixes = { "war3.mpq", "deprecated.mpq", lowerLocale + "-war3local.mpq" };
 					defaultPrefixes = new ArrayList<>(Arrays.asList(prefixes));
 					break;
 				}
 				case PATCH131: {
-					System.out.println("Detected Patch 1.31");
+					Log.info("Detected Patch 1.31");
 					// This is what I have right now
 					final String[] prefixes = { "war3.w3mod", "war3.w3mod\\_deprecated.w3mod",
 							"war3.w3mod\\_locales\\" + lowerLocale + ".w3mod" };
@@ -973,7 +975,7 @@ public class DataSourceChooserPanel extends JPanel {
 					break;
 				}
 				case PATCH132: {
-					System.out.println("Detected Patch 1.32+");
+					Log.info("Detected Patch 1.32+");
 					// This is what I have right now
 					final String[] prefixes = { "war3.w3mod", "war3.w3mod\\_deprecated.w3mod",
 							"war3.w3mod\\_locales\\" + lowerLocale + ".w3mod" };
@@ -1003,7 +1005,7 @@ public class DataSourceChooserPanel extends JPanel {
 		}
 		catch (final Exception e1) {
 			ExceptionPopup.display(e1);
-			e1.printStackTrace();
+			Log.error(e1);
 		}
 	}
 

@@ -13,6 +13,7 @@ import com.etheller.interpreter.ast.value.visitor.IntegerJassValueVisitor;
 import com.etheller.interpreter.ast.value.visitor.ObjectJassValueVisitor;
 import com.etheller.interpreter.ast.value.visitor.RealJassValueVisitor;
 import com.etheller.warsmash.parsers.jass.Jass2.CommonEnvironment;
+import com.etheller.warsmash.util.Log;
 import com.etheller.warsmash.util.War3ID;
 import com.etheller.warsmash.util.WarsmashConstants;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CUnit;
@@ -157,7 +158,7 @@ final class AbilityNatives extends CommonNatives {
 					final CAbilityType<?> abilityTypeTmp = this.simulation.getAbilityData()
 							.getAbilityType(rawcode);
 					if (abilityTypeTmp == null) {
-						System.err.println(
+						Log.warn(
 								"UnitAddAbility: The requested ability has not been programmed yet: " + rawcode);
 						return BooleanJassValue.FALSE;
 					}

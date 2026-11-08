@@ -2,6 +2,7 @@ package com.etheller.warsmash.viewer5.handlers.w3x.lightning;
 
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.graphics.GL20;
+import com.etheller.warsmash.util.Log;
 import com.etheller.warsmash.util.RenderMathUtils;
 import com.etheller.warsmash.util.War3ID;
 import com.etheller.warsmash.viewer5.*;
@@ -131,7 +132,7 @@ public class LightningEffectModel extends Model<LightningEffectModelHandler> {
 			gl.glBindBuffer(GL20.GL_ELEMENT_ARRAY_BUFFER, elementBuffer);
 		}
 		catch (Exception exc) {
-			exc.printStackTrace();
+			Log.error(exc);
 			this.texture = (Texture) viewer.load("Textures\\white.blp", pathSolver, solverParams);
 		}
 
@@ -139,6 +140,6 @@ public class LightningEffectModel extends Model<LightningEffectModelHandler> {
 
 	@Override
 	protected void error(Exception e) {
-		e.printStackTrace();
+		Log.error(e);
 	}
 }

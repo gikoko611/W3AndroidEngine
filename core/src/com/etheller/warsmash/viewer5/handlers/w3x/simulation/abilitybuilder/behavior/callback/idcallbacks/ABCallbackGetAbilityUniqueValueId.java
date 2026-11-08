@@ -2,6 +2,7 @@ package com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilitybuilder.beh
 
 import java.util.Map;
 
+import com.etheller.warsmash.util.Log;
 import com.etheller.warsmash.util.War3ID;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CSimulation;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CUnit;
@@ -23,7 +24,7 @@ public class ABCallbackGetAbilityUniqueValueId extends ABIDCallback {
 		final String keyS = key.callback(game, caster, localStore, castId);
 		final CAbility theAbility = ability.callback(game, caster, localStore, castId);
 		War3ID theVal = theAbility.getUniqueValue(keyS, War3ID.class);
-		System.err.println("Get Unique ID Val: " + (theVal != null ? theVal.asStringValue() : null));
+		Log.warn("Get Unique ID Val: " + (theVal != null ? theVal.asStringValue() : null));
 		if (theVal != null || (allowNull != null && allowNull.callback(game, caster, localStore, castId))) {
 			return theVal;
 		}

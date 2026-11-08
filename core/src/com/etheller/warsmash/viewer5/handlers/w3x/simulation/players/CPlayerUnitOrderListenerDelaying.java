@@ -136,6 +136,11 @@ public class CPlayerUnitOrderListenerDelaying implements CPlayerUnitOrderListene
 		this.delegate.minimapSignal(x, y);
 	}
 
+	@Override
+	public void trackableEvent(final int trackableHandleId, final boolean hit) {
+		this.delegate.trackableEvent(trackableHandleId, hit);
+	}
+
 	public void publishDelayedActions() {
 		for (final Runnable action : this.actions) {
 			action.run();

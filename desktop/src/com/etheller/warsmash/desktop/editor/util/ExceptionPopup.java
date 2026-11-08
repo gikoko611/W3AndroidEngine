@@ -9,6 +9,8 @@ import javax.swing.JTextPane;
 import javax.swing.text.BadLocationException;
 import javax.swing.text.Document;
 
+import com.etheller.warsmash.util.Log;
+
 public class ExceptionPopup {
 	public static void display(final Throwable e) {
 
@@ -21,7 +23,7 @@ public class ExceptionPopup {
 				}
 				catch (final BadLocationException e) {
 					JOptionPane.showMessageDialog(null, "MDL open error popup failed to create info popup.");
-					e.printStackTrace();
+					Log.error(e);
 				}
 			}
 
@@ -57,7 +59,7 @@ public class ExceptionPopup {
 				}
 				catch (final BadLocationException e) {
 					JOptionPane.showMessageDialog(null, "MDL open error popup failed to create info popup.");
-					e.printStackTrace();
+					Log.error(e);
 				}
 			}
 

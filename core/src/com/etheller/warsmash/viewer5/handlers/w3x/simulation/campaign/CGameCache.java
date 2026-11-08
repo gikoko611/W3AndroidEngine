@@ -10,6 +10,7 @@ import java.util.Locale;
 import java.util.Map;
 
 import com.badlogic.gdx.files.FileHandle;
+import com.etheller.warsmash.util.Log;
 
 /**
  * A game cache handle. Measured on 1.29: every InitGameCache call makes a new handle, handles of one file name share
@@ -53,7 +54,7 @@ public final class CGameCache {
 			bytes = toBytes();
 		}
 		catch (final IOException e) {
-			e.printStackTrace();
+			Log.error(e);
 			return false;
 		}
 		return disk.write(bytes);
@@ -67,7 +68,7 @@ public final class CGameCache {
 				readAll(new DataInputStream(new ByteArrayInputStream(bytes)), saved);
 			}
 			catch (final IOException e) {
-				e.printStackTrace();
+				Log.error(e);
 			}
 		}
 		FILES.clear();
@@ -138,7 +139,7 @@ public final class CGameCache {
 				return file.readBytes();
 			}
 			catch (final RuntimeException e) {
-				e.printStackTrace();
+				Log.error(e);
 				return null;
 			}
 		}

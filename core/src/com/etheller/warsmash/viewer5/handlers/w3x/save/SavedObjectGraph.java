@@ -1,5 +1,6 @@
 package com.etheller.warsmash.viewer5.handlers.w3x.save;
 
+import com.etheller.warsmash.util.Log;
 import com.google.gson.internal.LinkedTreeMap;
 
 import java.io.ByteArrayInputStream;
@@ -158,7 +159,7 @@ public final class SavedObjectGraph {
 			for (final Class<?> type : classes) {
 				if (isAnonymous(type)) {
 					// Its name is its place in the source file, which the next edit there can give another class.
-					System.err.println("Saved game holds the anonymous class " + type.getName());
+					Log.warn("Saved game holds the anonymous class " + type.getName());
 				}
 				out.writeUTF(type.getName());
 				final List<Field> fields = type.isArray() || type.isEnum() ? new ArrayList<>() : fieldsOf(type);
@@ -1213,7 +1214,7 @@ public final class SavedObjectGraph {
 			}
 			if (!this.addedFieldsReported) {
 				this.addedFieldsReported = true;
-				System.err.println("Saved game: " + this.name + " gets defaults for " + this.addedFieldNames);
+				Log.warn("Saved game: " + this.name + " gets defaults for " + this.addedFieldNames);
 			}
 			try {
 				for (final Field field : this.addedFields) {

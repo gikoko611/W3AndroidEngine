@@ -27,6 +27,7 @@ import com.etheller.warsmash.parsers.w3x.w3i.War3MapW3i;
 import com.etheller.warsmash.parsers.w3x.w3i.War3MapW3iFlags;
 import com.etheller.warsmash.units.DataTable;
 import com.etheller.warsmash.units.custom.WTS;
+import com.etheller.warsmash.util.Log;
 import com.etheller.warsmash.util.WarsmashConstants;
 import com.etheller.warsmash.viewer5.handlers.w3x.War3MapViewer;
 import com.etheller.warsmash.viewer5.handlers.w3x.War3MapViewer.MapLoader;
@@ -86,14 +87,14 @@ final class MenuMapStart {
 	 * cannot open.
 	 */
 	private void mapLoadFailed(final String mapFilename, final Exception cause) {
-		System.err.println("Unable to load the map " + mapFilename + ":");
-		cause.printStackTrace();
+		Log.error("Unable to load the map " + mapFilename + ":");
+		Log.error(cause);
 		if (this.loadingMap != null) {
 			try {
 				this.loadingMap.viewer.dispose();
 			}
 			catch (final RuntimeException e) {
-				e.printStackTrace();
+				Log.error(e);
 			}
 			this.loadingMap = null;
 		}
@@ -143,7 +144,7 @@ final class MenuMapStart {
 						this.menu.currentMapConfig, localPlayerIndex);
 			}
 			catch (final IOException | RuntimeException e) {
-				System.err.println("The game is not recorded: " + e);
+				Log.error("The game is not recorded: " + e);
 			}
 		}
 
@@ -223,7 +224,7 @@ final class MenuMapStart {
 
 						try {
 							final InetAddress byAddress = InetAddress.getByAddress(beginGameInformation.hostInetAddress);
-							System.err.println("Connecting to address: " + byAddress);
+							Log.warn("Connecting to address: " + byAddress);
 							warsmashClient = new WarsmashClient(byAddress, beginGameInformation.hostUdpPort,
 									this.loadingMap.viewer, beginGameInformation.sessionToken,
 									beginGameInformation.serverSlotToMapSlot);
@@ -390,9 +391,40 @@ final class MenuMapStart {
 		if (localPlayerIndex != -1) {
 			currentMapConfig.getPlayer(localPlayerIndex).setName(this.menu.profileManager.getCurrentProfile());
 		}
+		else {
+			localPlayerIndex = observerSlot(currentMapConfig);
+			if (localPlayerIndex == -1) {
+				this.menu.beginGameInformation = null;
+				Log.error("No slot is left to watch the game from: " + mapFilename);
+				return false;
+			}
+		}
 		beginGameInformation.localPlayerIndex = localPlayerIndex;
 		this.menu.menuState = MenuState.GOING_TO_MAP;
 		return true;
+	}
+
+	/**
+	 * A game in which only computers play is watched from a slot no one plays, as an observer: the game is the same as
+	 * without a local player, which is what determinism tests and replays of such games need.
+	 *
+	 * @return -1 when every player slot is taken
+	 */
+	static int observerSlot(final War3MapConfig config) {
+		final int playerSlots = WarsmashConstants.MAX_PLAYERS - 4;
+		for (int i = 0; i < playerSlots; i++) {
+			final CBasePlayer player = config.getPlayer(i);
+			if ((player.getSlotState() != CPlayerSlotState.PLAYING) && (player.getController() != CMapControl.USER)
+					&& (player.getController() != CMapControl.COMPUTER)) {
+				return i;
+			}
+		}
+		for (int i = 0; i < playerSlots; i++) {
+			if (config.getPlayer(i).getSlotState() != CPlayerSlotState.PLAYING) {
+				return i;
+			}
+		}
+		return -1;
 	}
 
 	private ReplayRecording startRecording(final War3MapViewer viewer) {
@@ -405,7 +437,7 @@ final class MenuMapStart {
 			return GameReplays.startRecording(viewer, header);
 		}
 		catch (final IOException | RuntimeException e) {
-			System.err.println("The game is not recorded: " + e);
+			Log.error("The game is not recorded: " + e);
 			return null;
 		}
 	}
@@ -448,7 +480,7 @@ final class MenuMapStart {
 			return true;
 		}
 		catch (final IOException exc) {
-			exc.printStackTrace();
+			Log.error(exc);
 			this.menu.singlePlayerMenu.setVisible(true);
 			return false;
 		}
@@ -487,7 +519,7 @@ final class MenuMapStart {
 			return true;
 		}
 		catch (final IOException | RuntimeException e) {
-			e.printStackTrace();
+			Log.error(e);
 			return false;
 		}
 	}

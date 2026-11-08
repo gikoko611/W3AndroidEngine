@@ -16,6 +16,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import com.etheller.warsmash.util.Log;
 import com.etheller.warsmash.util.ParseUtils;
 import com.etheller.warsmash.util.War3ID;
 import com.google.common.io.LittleEndianDataInputStream;
@@ -521,7 +522,7 @@ public final class War3ObjectDataChangeset {
 			if ((ccount == 0) && isOriginal) {
 				// throw new IOException("we seem to have reached the end of the stream and get
 				// zeroes");
-				System.err.println("we seem to have reached the end of the stream and get zeroes");
+				Log.warn("we seem to have reached the end of the stream and get zeroes");
 			}
 			if (isOriginal) {
 				debugprint("StandardUnit \"" + origid + "\" " + ccount + " {");

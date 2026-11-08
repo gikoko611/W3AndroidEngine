@@ -3,6 +3,7 @@ package com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilitybuilder.beh
 import java.util.Map;
 
 import com.etheller.warsmash.parsers.jass.JassTextGenerator;
+import com.etheller.warsmash.util.Log;
 import com.etheller.warsmash.util.War3ID;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CSimulation;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CUnit;
@@ -25,7 +26,7 @@ public class ABActionCreateAbilityFromId implements ABSingleAction {
 			final CAbility ability = type.createAbility(game.getHandleIdAllocator().createId());
 			localStore.put(ABLocalStoreKeys.LASTCREATEDABILITY, ability);
 		} else {
-			System.err.println("Failed to find an ability type definition for ability " + theId.asStringValue());
+			Log.error("Failed to find an ability type definition for ability " + theId.asStringValue());
 		}
 	}
 

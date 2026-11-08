@@ -129,4 +129,10 @@ public class WarsmashClientSendingOrderListener implements CPlayerUnitOrderListe
 		this.encoder.minimapSignal(x, y);
 		sendCommand();
 	}
+
+	@Override
+	public void trackableEvent(final int trackableHandleId, final boolean hit) {
+		this.encoder.trackableEvent(trackableHandleId, hit);
+		sendCommand();
+	}
 }

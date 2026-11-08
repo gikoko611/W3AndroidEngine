@@ -1,6 +1,7 @@
 package com.etheller.warsmash.viewer5.handlers.w3x.simulation.combat;
 
 import com.etheller.interpreter.ast.util.CHandle;
+import com.etheller.warsmash.util.Log;
 
 public enum CDefenseType implements CodeKeyType, CHandle {
 	SMALL,
@@ -37,7 +38,7 @@ public enum CDefenseType implements CodeKeyType, CHandle {
 			return valueOf(upperCaseTypeString);
 		}
 		catch (final Exception exc) {
-			exc.printStackTrace();
+			Log.error(exc);
 			return NONE;
 		}
 	}

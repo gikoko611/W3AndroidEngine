@@ -657,7 +657,7 @@ final class CampaignNatives {
 
 	private void registerWorld() {
 		add("SetRandomSeed", (arguments, globalScope, triggerScope) -> {
-			this.simulation.getSeededRandom().setSeed(integer(arguments, 0));
+			this.simulation.setRandomSeed(integer(arguments, 0));
 			return null;
 		});
 		add("SetSkyModel", (arguments, globalScope, triggerScope) -> {

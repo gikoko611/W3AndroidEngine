@@ -7,6 +7,8 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
+import com.etheller.warsmash.util.Log;
+
 public class OrderIdUtils {
 	private static final Map<Integer, String> orderIdToString = new HashMap<>();
 	private static final Map<String, Integer> stringToOrderId = new HashMap<>();
@@ -26,10 +28,10 @@ public class OrderIdUtils {
 				}
 			}
 			catch (final IllegalArgumentException e) {
-				e.printStackTrace();
+				Log.error(e);
 			}
 			catch (final IllegalAccessException e) {
-				e.printStackTrace();
+				Log.error(e);
 			}
 		}
 	}

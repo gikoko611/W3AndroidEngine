@@ -41,6 +41,7 @@ import com.etheller.warsmash.units.DataTable;
 import com.etheller.warsmash.units.Element;
 import com.etheller.warsmash.units.custom.WTS;
 import com.etheller.warsmash.util.DataSourceFileHandle;
+import com.etheller.warsmash.util.Log;
 import com.etheller.warsmash.util.StringBundle;
 import com.etheller.warsmash.util.WarsmashConstants;
 import com.etheller.warsmash.util.WorldEditStrings;
@@ -176,7 +177,7 @@ public class MenuUI {
 				this.musicSLK.readSLK(miscDataTxtStream);
 			}
 			catch (final IOException e) {
-				e.printStackTrace();
+				Log.error(e);
 			}
 		}
 		final DataTable miscData = new DataTable(this.worldEditStrings);
@@ -184,7 +185,7 @@ public class MenuUI {
 			miscData.readTXT(miscDataTxtStream, true);
 		}
 		catch (final IOException e) {
-			e.printStackTrace();
+			Log.error(e);
 		}
 		final Element zFogElement = miscData.get("MenuZFog");
 		if (zFogElement != null) {
@@ -432,7 +433,7 @@ public class MenuUI {
 			this.mainMenuGlueScreenLoop = this.uiSounds.getSound(glueLoopField);
 		}
 		catch (final Exception exc) {
-			exc.printStackTrace();
+			Log.error(exc);
 			this.mainMenuGlueScreenLoop = new UnitSound(null, 0, 0, 0, 0, 0, 0, false);
 		}
 		this.glueScreenLoop = this.mainMenuGlueScreenLoop;
@@ -1050,7 +1051,7 @@ public class MenuUI {
 			}
 		}
 		catch (final IOException e) {
-			e.printStackTrace();
+			Log.error(e);
 		}
 		this.uiSounds = new KeyedSounds(uiSoundsTable, this.dataSource);
 	}

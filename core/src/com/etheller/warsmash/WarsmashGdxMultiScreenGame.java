@@ -7,6 +7,7 @@ import com.etheller.warsmash.input.touch.TouchInputRouter;
 import com.etheller.warsmash.movie.GdxMoviePlayer;
 import com.etheller.warsmash.movie.Movies;
 import com.etheller.warsmash.util.GraphicsContext;
+import com.etheller.warsmash.util.Log;
 import com.etheller.warsmash.viewer5.CanvasProvider;
 
 public class WarsmashGdxMultiScreenGame extends Game implements CanvasProvider {
@@ -99,7 +100,7 @@ public class WarsmashGdxMultiScreenGame extends Game implements CanvasProvider {
 			}
 		}
 		catch (final RuntimeException e) {
-			e.printStackTrace();
+			Log.error(e);
 		}
 		final WarsmashGdxMenuScreen endedMenu = this.endedMenuScreen;
 		this.endedMenuScreen = null;
@@ -108,7 +109,7 @@ public class WarsmashGdxMultiScreenGame extends Game implements CanvasProvider {
 				endedMenu.dispose();
 			}
 			catch (final RuntimeException e) {
-				e.printStackTrace();
+				Log.error(e);
 			}
 		}
 	}

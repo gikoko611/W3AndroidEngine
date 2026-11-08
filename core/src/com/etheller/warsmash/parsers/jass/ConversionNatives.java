@@ -17,6 +17,8 @@ import com.etheller.interpreter.ast.value.visitor.RealJassValueVisitor;
 import com.etheller.interpreter.ast.value.visitor.StringJassValueVisitor;
 import com.etheller.warsmash.parsers.fdf.GameUI;
 import com.etheller.warsmash.units.custom.WTS;
+import com.etheller.warsmash.util.DataErrors;
+import com.etheller.warsmash.util.Log;
 import com.etheller.warsmash.util.WarsmashConstants;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.ai.AIDifficulty;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.item.CItemTypeJass;
@@ -496,7 +498,7 @@ final class ConversionNatives {
 					// TODO this might be wrong, or a subset of the needed return values
 					final String decoratedString = gameUI.getTemplates().getDecoratedString(key);
 					if (key.equals(decoratedString) && key.matches("[A-Z0-9_]+")) {
-						System.err.println("GetLocalizedString: NOT FOUND: " + key);
+						DataErrors.report(DataErrors.MISSING_STRING, key, "GetLocalizedString: NOT FOUND: " + key);
 					}
 					return new StringJassValue(decoratedString);
 				});

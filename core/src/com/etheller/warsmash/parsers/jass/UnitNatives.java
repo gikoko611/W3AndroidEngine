@@ -21,6 +21,7 @@ import com.etheller.interpreter.ast.value.visitor.StringJassValueVisitor;
 import com.etheller.warsmash.parsers.jass.Jass2.CommonEnvironment;
 import com.etheller.warsmash.parsers.jass.triggers.EnumSetHandle;
 import com.etheller.warsmash.parsers.jass.triggers.LocationJass;
+import com.etheller.warsmash.util.Log;
 import com.etheller.warsmash.util.War3ID;
 import com.etheller.warsmash.viewer5.handlers.w3x.AnimationTokens.PrimaryTag;
 import com.etheller.warsmash.viewer5.handlers.w3x.AnimationTokens.SecondaryTag;
@@ -546,7 +547,7 @@ final class UnitNatives extends CommonNatives {
 						whichUnit.setUnitState(this.simulation, whichUnitState, value);
 					}
 					else {
-						System.err.println("got SetUnitState(null," + whichUnitState + "," + value
+						Log.warn("got SetUnitState(null," + whichUnitState + "," + value
 								+ ")  call (skipping because unit is null)");
 					}
 					return null;
@@ -984,6 +985,9 @@ final class UnitNatives extends CommonNatives {
 					final CUnit whichUnit = arguments.get(0).visit(ObjectJassValueVisitor.getInstance());
 					final double facing = arguments.get(1).visit(RealJassValueVisitor.getInstance());
 					if (whichUnit != null) {
+						// Script timers run before the units in a step: the drawn turn ticks that already passed must
+						// still follow the old heading.
+						whichUnit.getDrawnFacing(simulation);
 						whichUnit.setFacing((float) facing);
 					}
 					return null;
@@ -1114,7 +1118,7 @@ final class UnitNatives extends CommonNatives {
 		jassProgramVisitor.getJassNativeManager().createNative("GetUnitFacing",
 				(arguments, globalScope, triggerScope) -> {
 					final CUnit whichUnit = inGame(nullable(arguments, 0, ObjectJassValueVisitor.<CUnit>getInstance()));
-					return RealJassValue.of(whichUnit != null ? whichUnit.getFacing() : 0.0);
+					return RealJassValue.of(whichUnit != null ? whichUnit.getDrawnFacing(simulation) : 0.0);
 				});
 		jassProgramVisitor.getJassNativeManager().createNative("GetUnitMoveSpeed",
 				(arguments, globalScope, triggerScope) -> {
@@ -1202,7 +1206,7 @@ final class UnitNatives extends CommonNatives {
 					if (whichUnit == null) {
 						return null;
 					}
-					whichUnit.setFacing((float) facing);
+					whichUnit.setFacingAndDrawnFacing((float) facing);
 					final RenderUnit renderPeer = war3MapViewer.getRenderPeer(whichUnit);
 					if (renderPeer != null) {
 						renderPeer.setFacing((float) facing);

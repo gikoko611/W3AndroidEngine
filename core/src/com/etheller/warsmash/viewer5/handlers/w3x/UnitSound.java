@@ -10,6 +10,7 @@ import com.etheller.warsmash.datasources.DataSource;
 import com.etheller.warsmash.units.DataTable;
 import com.etheller.warsmash.units.Element;
 import com.etheller.warsmash.util.DataSourceFileHandle;
+import com.etheller.warsmash.util.Log;
 import com.etheller.warsmash.viewer5.AudioBufferSource;
 import com.etheller.warsmash.viewer5.AudioContext;
 import com.etheller.warsmash.viewer5.AudioPanner;
@@ -77,7 +78,7 @@ public final class UnitSound {
 				sound.durations.add(null);
 			}
 			else if (!fileName.isEmpty()) {
-				System.err.println("Sound file not found: " + resolvedPath);
+				Log.warn("Sound file not found: " + resolvedPath);
 			}
 		}
 		return sound;
@@ -99,7 +100,7 @@ public final class UnitSound {
 						Extensions.audio.newSound(new DataSourceFileHandle(this.dataSource, this.soundPaths.get(index))));
 			}
 			catch (final Exception exc) {
-				exc.printStackTrace();
+				Log.error(exc);
 				return null;
 			}
 			this.sounds.set(index, sound);
@@ -134,11 +135,11 @@ public final class UnitSound {
 						Extensions.audio.newSound(new DataSourceFileHandle(dataSource, resolvedPath)));
 			}
 			catch (final Exception exc) {
-				exc.printStackTrace();
+				Log.error(exc);
 			}
 		}
 		else {
-			System.err.println("Sound file not found: " + resolvedPath);
+			Log.warn("Sound file not found: " + resolvedPath);
 		}
 		return newSound;
 	}

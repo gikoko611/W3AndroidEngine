@@ -8,6 +8,7 @@ import com.etheller.warsmash.util.SessionResources;
 import com.etheller.warsmash.datasources.DataSource;
 import com.etheller.warsmash.units.DataTable;
 import com.etheller.warsmash.util.DataSourceFileHandle;
+import com.etheller.warsmash.util.Log;
 import com.etheller.warsmash.viewer5.gl.Extensions;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.sound.CSoundMixer;
 
@@ -156,7 +157,7 @@ public class MusicPlayerLibGDX implements MusicPlayer {
 						.track(Extensions.audio.newMusic(new DataSourceFileHandle(this.dataSource, path)));
 			}
 			catch (final RuntimeException exc) {
-				exc.printStackTrace();
+				Log.error(exc);
 				return null;
 			}
 			this.currentMusicPath = path;

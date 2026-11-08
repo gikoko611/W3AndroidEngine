@@ -3,6 +3,7 @@ package com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilitybuilder.beh
 import java.util.Map;
 
 import com.etheller.warsmash.parsers.jass.JassTextGenerator;
+import com.etheller.warsmash.util.Log;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CSimulation;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CUnit;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilitybuilder.ability.AbilityBuilderAbility;
@@ -33,10 +34,10 @@ public class ABCallbackReuseIntegerWithArguments extends ABIntegerCallback {
 				
 				return ((ABIntegerCallback) callback).callback(game, caster, localStore, castId);
 			} else {
-				System.err.println("Trying to run ReuseIntegerCallback, but key is missing or callback was the wrong type: " + keyS);
+				Log.error("Trying to run ReuseIntegerCallback, but key is missing or callback was the wrong type: " + keyS);
 			}
 		} else {
-			System.err.println("Trying to run ReuseIntegerCallback, but none defined");
+			Log.warn("Trying to run ReuseIntegerCallback, but none defined");
 		}
 		return null;
 	}

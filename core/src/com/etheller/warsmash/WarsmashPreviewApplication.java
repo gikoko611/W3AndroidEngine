@@ -20,6 +20,7 @@ import com.etheller.warsmash.datasources.CompoundDataSource;
 import com.etheller.warsmash.datasources.DataSource;
 import com.etheller.warsmash.datasources.FolderDataSource;
 import com.etheller.warsmash.units.DataTable;
+import com.etheller.warsmash.util.Log;
 import com.etheller.warsmash.viewer5.CanvasProvider;
 import com.etheller.warsmash.viewer5.ModelViewer;
 import com.etheller.warsmash.viewer5.PathSolver;
@@ -62,7 +63,7 @@ public class WarsmashPreviewApplication extends ApplicationAdapter implements Ca
 		Gdx.gl30.glBindVertexArray(VAO);
 
 		final String renderer = Gdx.gl.glGetString(GL20.GL_RENDERER);
-		System.err.println("Renderer: " + renderer);
+		Log.warn("Renderer: " + renderer);
 
 		this.codebase = WarsmashGdxMapScreen.parseDataSources(this.warsmashIni);
 		this.viewer = new MdxViewer(this.codebase, this, new Vector3(0.3f, 0.3f, -0.25f));
@@ -80,7 +81,7 @@ public class WarsmashPreviewApplication extends ApplicationAdapter implements Ca
 		this.cameraManager.distance = 500;
 		this.cameraManager.horizontalAngle = (float) ((Math.PI) / 2);
 
-		System.out.println("Loaded");
+		Log.info("Loaded");
 		Gdx.gl30.glClearColor(0.5f, 0.5f, 0.5f, 1); // TODO remove white background
 
 		this.font = new BitmapFont();
@@ -109,7 +110,7 @@ public class WarsmashPreviewApplication extends ApplicationAdapter implements Ca
 
 		this.frame++;
 		if ((this.frame % 1000) == 0) {
-			System.out.println(Integer.toString(Gdx.graphics.getFramesPerSecond()));
+			Log.info(Integer.toString(Gdx.graphics.getFramesPerSecond()));
 		}
 
 	}

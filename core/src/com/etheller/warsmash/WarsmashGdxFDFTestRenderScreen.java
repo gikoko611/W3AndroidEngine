@@ -29,6 +29,7 @@ import com.etheller.warsmash.parsers.jass.Jass2.RootFrameListener;
 import com.etheller.warsmash.units.DataTable;
 import com.etheller.warsmash.util.DataSourceFileHandle;
 import com.etheller.warsmash.util.ImageUtils;
+import com.etheller.warsmash.util.Log;
 import com.etheller.warsmash.util.StringBundle;
 import com.etheller.warsmash.util.WarsmashConstants;
 import com.etheller.warsmash.viewer5.Camera;
@@ -98,7 +99,7 @@ public class WarsmashGdxFDFTestRenderScreen implements InputProcessor, Screen, S
 			Gdx.gl30.glBindVertexArray(WarsmashGdxGame.VAO);
 
 			final String renderer = Gdx.gl.glGetString(GL20.GL_RENDERER);
-			System.err.println("Renderer: " + renderer);
+			Log.warn("Renderer: " + renderer);
 
 			this.codebase = WarsmashGdxMapScreen.parseDataSources(this.warsmashIni);
 			this.viewer = new MdxViewer(this.codebase, this.game, Vector3.Zero);
@@ -147,7 +148,7 @@ public class WarsmashGdxFDFTestRenderScreen implements InputProcessor, Screen, S
 			this.cameraManager = new CameraManager();
 			this.cameraManager.setupCamera(this.scene);
 
-			System.out.println("Loaded");
+			Log.info("Loaded");
 			Gdx.gl30.glClearColor(0.0f, 0.0f, 0.0f, 1);
 			final DataTable musicSLK = new DataTable(StringBundle.EMPTY);
 			final String musicSLKPath = "UI\\SoundInfo\\Music.SLK";
@@ -156,7 +157,7 @@ public class WarsmashGdxFDFTestRenderScreen implements InputProcessor, Screen, S
 					musicSLK.readSLK(miscDataTxtStream);
 				}
 				catch (final IOException e) {
-					e.printStackTrace();
+					Log.error(e);
 				}
 			}
 
@@ -889,13 +890,13 @@ public class WarsmashGdxFDFTestRenderScreen implements InputProcessor, Screen, S
 
 	@Override
 	public void alternateModelToBattlenet() {
-		System.err.println(
+		Log.warn(
 				"alternateModelToBattlenet() on background not supported for FDF test render screen... TODO write better code here");
 	}
 
 	@Override
 	public void unAlternateModelBackToNormal() {
-		System.err.println(
+		Log.warn(
 				"alternateModelToBattlenet() on background not supported for FDF test render screen... TODO write better code here");
 	}
 }

@@ -5,6 +5,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import com.etheller.warsmash.util.Log;
+
 /**
  * The non-stacking stat buffs on a unit, by stat and stacking key. Buffs under one key do not stack: the one with the
  * largest magnitude counts, except under {@link NonStackingStatBuff#ALLOW_STACKING_KEY}, where all of them add up.
@@ -80,9 +82,9 @@ public final class NonStackingStatBuffs {
 				buffKeyMap.remove(buff.getStackingKey());
 			}
 		} catch (final Exception e) {
-			System.err.println("Removing a " + type + " buff with key " + buff.getStackingKey() + " that " + owner
+			Log.error("Removing a " + type + " buff with key " + buff.getStackingKey() + " that " + owner
 					+ " did not have");
-			e.printStackTrace();
+			Log.error(e);
 		}
 	}
 

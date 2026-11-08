@@ -55,6 +55,7 @@ import com.etheller.interpreter.ast.value.visitor.ArrayPrimitiveTypeVisitor;
 import com.etheller.interpreter.ast.value.visitor.HandleJassTypeVisitor;
 import com.etheller.interpreter.ast.value.visitor.HandleTypeSuperTypeLoadingVisitor;
 import com.etheller.interpreter.ast.value.visitor.JassTypeGettingValueVisitor;
+import com.etheller.warsmash.util.Log;
 
 public final class GlobalScope {
 	public static final String INIT_GLOBALS_AUTOGEN_FXN_NAME = "{init-globals}";
@@ -533,7 +534,7 @@ public final class GlobalScope {
 				JassType jassType = this.types.get(type);
 				if (jassType == null) {
 					if (JassSettings.CONTINUE_EXECUTING_ON_ERROR) {
-						System.err.println(
+						Log.warn(
 								"Generating stub declaration for type " + type + " because it does not exist natively");
 						jassType = registerHandleType(type);
 					}
@@ -624,10 +625,10 @@ public final class GlobalScope {
 				final JassValue argument = arguments.get(i);
 				if (!parameter.matchesType(argument)) {
 					if ((parameter == null) || (argument == null)) {
-						System.err.println(
+						Log.warn(
 								"We called some Jass function with incorrect argument types, and the types were null!!!");
 					}
-					System.err.println(
+					Log.warn(
 							parameter.getType() + " != " + argument.visit(JassTypeGettingValueVisitor.getInstance()));
 					throw new RuntimeException(
 							"Invalid type " + argument.visit(JassTypeGettingValueVisitor.getInstance()).getName()

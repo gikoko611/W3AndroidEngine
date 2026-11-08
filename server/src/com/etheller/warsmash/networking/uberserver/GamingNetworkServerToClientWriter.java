@@ -9,6 +9,8 @@ import net.warsmash.nio.channels.WritableOutput;
 import net.warsmash.nio.channels.WritableSocketOutput;
 import net.warsmash.uberserver.*;
 
+import com.etheller.warsmash.util.Log;
+
 public class GamingNetworkServerToClientWriter extends AbstractWriter implements GamingNetworkClientConnectionContext {
 	private final String addressString;
 
@@ -18,7 +20,7 @@ public class GamingNetworkServerToClientWriter extends AbstractWriter implements
 		try {
 			remoteAddress = writableOutput.getRemoteAddress();
 		} catch (Exception exc) {
-			exc.printStackTrace();
+			Log.error(exc);
 			remoteAddress = null;
 		}
 		if (remoteAddress != null) {

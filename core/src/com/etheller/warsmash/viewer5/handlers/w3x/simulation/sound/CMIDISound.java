@@ -1,5 +1,7 @@
 package com.etheller.warsmash.viewer5.handlers.w3x.simulation.sound;
 
+import com.etheller.warsmash.util.Log;
+
 public class CMIDISound extends AbstractCSound {
 	private final String soundLabel;
 	private final int fadeInRate;
@@ -19,7 +21,7 @@ public class CMIDISound extends AbstractCSound {
 
 	@Override
 	protected void play() {
-		System.err.println(
+		Log.warn(
 				"Not starting MIDI sound because we don't have a LibGDX API to play those: " + this.soundLabel);
 	}
 

@@ -24,6 +24,7 @@ import com.etheller.interpreter.ast.scope.GlobalScope;
 import com.etheller.interpreter.ast.scope.GlobalScopeAssignable;
 import com.etheller.interpreter.ast.value.CodeJassValue;
 import com.etheller.warsmash.parsers.jass.JassAIEnvironment;
+import com.etheller.warsmash.util.Log;
 import com.etheller.warsmash.util.WarsmashConstants;
 import com.etheller.warsmash.viewer5.handlers.w3x.War3MapViewer;
 import com.etheller.warsmash.viewer5.handlers.w3x.rendersim.RenderEffect;
@@ -289,12 +290,12 @@ public final class SavedGame {
 			try {
 				final String mismatch = scriptsMismatch(header, running);
 				if (mismatch != null) {
-					System.err.println("Saved game " + file.name() + " cannot be loaded: " + mismatch);
+					Log.error("Saved game " + file.name() + " cannot be loaded: " + mismatch);
 					return Loadability.OTHER_SCRIPTS;
 				}
 			}
 			catch (final RuntimeException e) {
-				e.printStackTrace();
+				Log.error(e);
 				return Loadability.DAMAGED;
 			}
 		}
@@ -463,11 +464,11 @@ public final class SavedGame {
 			for (final Map.Entry<String, Integer> dropped : rules.getDroppedReport().entrySet()) {
 				report.append("\n  left out ").append(dropped.getKey()).append(" x").append(dropped.getValue());
 			}
-			System.err.println(report);
+			Log.warn(report);
 			return true;
 		}
 		catch (final Exception exc) {
-			exc.printStackTrace();
+			Log.error(exc);
 			return false;
 		}
 	}

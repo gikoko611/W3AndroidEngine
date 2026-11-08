@@ -26,6 +26,8 @@ import com.etheller.warsmash.util.StringBundle;
  */
 class LayeredDataSourceTest {
 	private static final String FOOTMAN = "units\\human\\footman\\footman.mdx";
+	private static final String BUTTON = "replaceabletextures\\commandbuttons\\btnfootman.blp";
+	private static final String CINEMATIC_BORDER = "ui\\widgets\\escmenu\\human\\human-cinematic-border.blp";
 
 	@Test
 	void classicChoicesReadTheDataItself() {
@@ -69,6 +71,11 @@ class LayeredDataSourceTest {
 				text(hdInterface, "UI\\Console\\Human\\HumanUITile01.blp"));
 		assertEquals("units\\human\\footman\\footman.mdx", text(hdInterface, FOOTMAN));
 		assertTrue(LayeredDataSource.reforgedInterfaceOf(hdInterface));
+		// The icons follow the graphics.
+		assertEquals(BUTTON, text(hdInterface, BUTTON));
+		assertEquals("_hd.w3mod\\" + BUTTON, text(hdGraphics, BUTTON));
+		// The package's cinematic border is the portrait's frame, not the letterbox edge of the same name.
+		assertEquals(CINEMATIC_BORDER, text(hdInterface, CINEMATIC_BORDER));
 		assertEquals(GraphicsSet.CLASSIC, LayeredDataSource.graphicsOf(hdInterface));
 	}
 
@@ -112,7 +119,8 @@ class LayeredDataSourceTest {
 				"_hd.w3mod\\" + FOOTMAN, "_hd.w3mod\\ui\\console\\human\\humanuitile01.blp",
 				"_hd.w3mod\\terrainart\\lordaeron\\grass_diffuse.dds",
 				"_hd.w3mod\\_locales\\enus.w3mod\\sound\\footman.flac", "_de.w3mod\\" + FOOTMAN,
-				"_de.w3mod\\doodads\\tree.mdx");
+				"_de.w3mod\\doodads\\tree.mdx", BUTTON, "_hd.w3mod\\" + BUTTON, CINEMATIC_BORDER,
+				"_hd.w3mod\\" + CINEMATIC_BORDER);
 	}
 
 	private static String text(final DataSource data, final String path) throws Exception {

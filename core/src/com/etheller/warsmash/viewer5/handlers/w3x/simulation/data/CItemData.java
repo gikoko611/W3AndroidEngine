@@ -10,6 +10,7 @@ import java.util.Random;
 import com.etheller.warsmash.units.DataTable;
 import com.etheller.warsmash.units.Element;
 import com.etheller.warsmash.units.GameObject;
+import com.etheller.warsmash.util.Log;
 import com.etheller.warsmash.util.WarsmashConstants;
 import com.etheller.warsmash.units.ObjectData;
 import com.etheller.warsmash.units.StandardObjectData.WarcraftData;
@@ -196,12 +197,12 @@ public class CItemData {
 	public War3ID chooseRandomItem(final CItemTypeJass itemClass, final int level, final Random seededRandom) {
 		final RandomItemSet randomItemSet = this.levelToRandomChoices.get(level);
 		if (randomItemSet == null) {
-			System.err.println("chooseRandomItem: no item set: " + level);
+			Log.warn("chooseRandomItem: no item set: " + level);
 			return null;
 		}
 		final List<War3ID> itemsOfClass = randomItemSet.classificationToItems.get(itemClass);
 		if (itemsOfClass == null) {
-			System.err.println(
+			Log.warn(
 					"chooseRandomItem: no items of class: " + itemsOfClass + " from " + itemClass + " " + level);
 			return null;
 		}

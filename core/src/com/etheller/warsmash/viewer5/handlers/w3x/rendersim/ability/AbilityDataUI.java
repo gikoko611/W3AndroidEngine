@@ -16,6 +16,7 @@ import com.etheller.warsmash.parsers.w3x.objectdata.Warcraft3MapRuntimeObjectDat
 import com.etheller.warsmash.units.Element;
 import com.etheller.warsmash.units.GameObject;
 import com.etheller.warsmash.units.ObjectData;
+import com.etheller.warsmash.util.Log;
 import com.etheller.warsmash.util.War3ID;
 import com.etheller.warsmash.util.WarsmashConstants;
 import com.etheller.warsmash.viewer5.handlers.w3x.War3MapViewer;
@@ -545,11 +546,11 @@ public class AbilityDataUI {
 					resultStr = new String(hotkeyString.getBytes(), "utf-8");
 				}
 				catch (final UnsupportedEncodingException e) {
-					e.printStackTrace();
+					Log.error(e);
 					return '\0';
 				}
 				final char result = resultStr.charAt(0);
-				System.out.println("weird hotkey: " + result);
+				Log.info("weird hotkey: " + result);
 				return result;
 			}
 		}

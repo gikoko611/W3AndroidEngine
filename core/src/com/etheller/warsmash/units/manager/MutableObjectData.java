@@ -15,6 +15,8 @@ import com.etheller.warsmash.units.custom.Change;
 import com.etheller.warsmash.units.custom.ChangeMap;
 import com.etheller.warsmash.units.custom.ObjectDataChangeEntry;
 import com.etheller.warsmash.units.custom.War3ObjectDataChangeset;
+import com.etheller.warsmash.util.DataErrors;
+import com.etheller.warsmash.util.Log;
 import com.etheller.warsmash.util.War3ID;
 import com.etheller.warsmash.util.WorldEditStrings;
 
@@ -101,7 +103,7 @@ public final class MutableObjectData {
 			final War3ID nextDefaultEditorId = /* War3ID.fromString(newId); */getNextDefaultEditorId(
 					War3ID.fromString(entry.getKey().charAt(0) + "000"));
 			;
-			System.out.println("Merging " + nextDefaultEditorId + " for  " + entry.getKey());
+			Log.info("Merging " + nextDefaultEditorId + " for  " + entry.getKey());
 			// createNew API will notifier the changeNotifier
 			final MutableGameObject newObject = createNew(nextDefaultEditorId, entry.getValue().getOldId(), false);
 			for (final Map.Entry<War3ID, List<Change>> changeList : entry.getValue().getChanges()) {
@@ -251,7 +253,7 @@ public final class MutableObjectData {
 			final Set<War3ID> customKeys = new HashSet<>(customUnitKeys);
 			for (final String standardUnitKey : this.sourceSLKData.keySet()) {
 				if (standardUnitKey.length() > 4) {
-					System.err.println("Omitting object data key because it is too long: " + standardUnitKey);
+					Log.warn("Omitting object data key because it is too long: " + standardUnitKey);
 					continue;
 				}
 				customKeys.add(War3ID.fromString(standardUnitKey));
@@ -273,8 +275,9 @@ public final class MutableObjectData {
 				final ObjectDataChangeEntry customUnitData = this.editorData.getCustom().get(id);
 				GameObject parentWC3Object = this.sourceSLKData.get(customUnitData.getOldId().asStringValue());
 				if (parentWC3Object == null) {
-					System.err.println("Error parsing unit data: custom unit inherits from unknown id '"
-							+ customUnitData.getOldId().asStringValue() + "'");
+					DataErrors.report(DataErrors.UNKNOWN_ID, "base " + customUnitData.getOldId().asStringValue(),
+							"Error parsing unit data: custom unit inherits from unknown id '"
+									+ customUnitData.getOldId().asStringValue() + "'");
 					parentWC3Object = GameObject.EMPTY;
 				}
 				mutableGameObject = new MutableGameObject(parentWC3Object, customUnitData);
@@ -284,8 +287,9 @@ public final class MutableObjectData {
 				final ObjectDataChangeEntry customUnitData = this.editorData.getOriginal().get(id);
 				GameObject parentWC3Object = this.sourceSLKData.get(customUnitData.getOldId().asStringValue());
 				if (parentWC3Object == null) {
-					System.err.println("Error parsing unit data: standard unit modifies unknown id '"
-							+ customUnitData.getOldId().asStringValue() + "'");
+					DataErrors.report(DataErrors.UNKNOWN_ID, "base " + customUnitData.getOldId().asStringValue(),
+							"Error parsing unit data: standard unit modifies unknown id '"
+									+ customUnitData.getOldId().asStringValue() + "'");
 					parentWC3Object = GameObject.EMPTY;
 				}
 				mutableGameObject = new MutableGameObject(parentWC3Object, this.editorData.getOriginal().get(id));
@@ -294,7 +298,7 @@ public final class MutableObjectData {
 			else if (this.sourceSLKData.get(id.asStringValue()) != null) {
 				GameObject parentWC3Object = this.sourceSLKData.get(id.asStringValue());
 				if (parentWC3Object == null) {
-					System.err.println("Error parsing unit data: id does not exist: '" + id.asStringValue() + "'");
+					Log.error("Error parsing unit data: id does not exist: '" + id.asStringValue() + "'");
 					parentWC3Object = GameObject.EMPTY;
 				}
 				mutableGameObject = new MutableGameObject(parentWC3Object, null);
@@ -461,7 +465,7 @@ public final class MutableObjectData {
 		public MutableGameObject(final GameObject parentWC3Object, final ObjectDataChangeEntry customUnitData) {
 			this.parentWC3Object = parentWC3Object;
 			if (parentWC3Object == null) {
-				System.err.println(
+				Log.warn(
 						"Parent object is null for " + customUnitData.getNewId() + ":" + customUnitData.getOldId());
 				throw new AssertionError("parentWC3Object cannot be null");
 //				this.parentWC3Object = new Element("", new DataTable());

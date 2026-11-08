@@ -3,6 +3,7 @@ package com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilitybuilder.beh
 import java.util.Map;
 
 import com.etheller.warsmash.parsers.jass.JassTextGenerator;
+import com.etheller.warsmash.util.Log;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CSimulation;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CUnit;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilitybuilder.behavior.callback.floatcallbacks.ABFloatCallback;
@@ -24,7 +25,7 @@ public class ABActionSetAttackProjectileDamage implements ABSingleAction {
 
 		if ((proj != null) && (proj instanceof CAttackProjectile)) {
 			final float dm = this.damage.callback(game, caster, localStore, castId);
-			System.err.println("Setting proj damage from " + ((CAttackProjectile) proj).getDamage() + " to " + dm);
+			Log.warn("Setting proj damage from " + ((CAttackProjectile) proj).getDamage() + " to " + dm);
 			((CAttackProjectile) proj).setDamage(dm);
 		}
 	}

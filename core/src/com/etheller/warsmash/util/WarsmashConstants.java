@@ -110,6 +110,16 @@ public class WarsmashConstants {
 	}
 
 	public static void loadConstants(final GameObject emulatorConstants, final DataTable warsmashIni) {
+		loadDataConstants(emulatorConstants, warsmashIni);
+		SimulationChecksum.configure(emulatorConstants.getField("Checksum"),
+				emulatorConstants.getField("ChecksumDetail"));
+	}
+
+	/**
+	 * The constants the game data is read with, without the switches of a game's run: the launcher reads its data on
+	 * threads of its own, also while a game it started runs, from an ini it read earlier.
+	 */
+	public static void loadDataConstants(final GameObject emulatorConstants, final DataTable warsmashIni) {
 		MAX_PLAYERS = emulatorConstants.getFieldValue(KEY_MAX_PLAYERS);
 		GAME_VERSION = emulatorConstants.getFieldValue(KEY_GAME_VERSION);
 		CATCH_CURSOR = emulatorConstants.getFieldValue(KEY_CATCH_CURSOR) == 1;
@@ -134,8 +144,6 @@ public class WarsmashConstants {
 		PARSE_REIGN_OF_CHAOS_BETA_MODELS_INSTEAD = emulatorConstants
 				.getFieldValue(KEY_PARSE_REIGN_OF_CHAOS_BETA_MODELS_INSTEAD) == 1;
 		USE_NINE_ITEM_INVENTORY = emulatorConstants.getFieldValue(KEY_USE_NINE_ITEM_INVENTORY) == 1;
-		SimulationChecksum.configure(emulatorConstants.getField("Checksum"),
-				emulatorConstants.getField("ChecksumDetail"));
 		final String races = emulatorConstants.getField("Races");
 		RACE_MANAGER = new CRaceManager();
 		if ((races == null) || races.isEmpty()) {

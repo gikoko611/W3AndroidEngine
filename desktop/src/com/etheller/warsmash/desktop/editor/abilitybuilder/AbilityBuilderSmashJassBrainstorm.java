@@ -8,6 +8,7 @@ import java.util.List;
 
 import com.etheller.warsmash.parsers.jass.JassTextGenerator;
 import com.etheller.warsmash.parsers.jass.JassTextGeneratorImpl1;
+import com.etheller.warsmash.util.Log;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.autocast.AutocastType;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilitybuilder.core.ABAction;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilitybuilder.core.AbilityBuilderGsonBuilder;
@@ -26,7 +27,7 @@ public class AbilityBuilderSmashJassBrainstorm {
 		AbilityBuilderParserUtil.loadAbilityBuilderFiles(new AbilityBuilderFileListener() {
 			@Override
 			public void callback(final AbilityBuilderParser behavior) {
-				System.out.println(behavior);
+				Log.info(behavior);
 				convertTheThing(behavior);
 			}
 		});
@@ -35,7 +36,7 @@ public class AbilityBuilderSmashJassBrainstorm {
 	private static void convertTheThing(final AbilityBuilderParser behavior) {
 		if (behavior.getType() == AbilityBuilderType.TEMPLATE) {
 			for (final AbilityBuilderDupe dupe : behavior.getIds()) {
-				System.out.println("//template: " + dupe.getId());
+				Log.info("//template: " + dupe.getId());
 //					idsListModel.addElement(new AbilityBuilderConfiguration(behavior, dupe));
 			}
 		}
@@ -47,7 +48,7 @@ public class AbilityBuilderSmashJassBrainstorm {
 					generateJassForConf(dupe, abilityBuilderConfiguration);
 				}
 				catch (final Throwable exc) {
-					exc.printStackTrace();
+					Log.error(exc);
 				}
 
 //					idsListModel.addElement(new AbilityBuilderConfiguration(behavior, dupe));

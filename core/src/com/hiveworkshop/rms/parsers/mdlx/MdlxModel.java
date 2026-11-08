@@ -4,6 +4,7 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 
+import com.etheller.warsmash.util.Log;
 import com.etheller.warsmash.util.War3ID;
 import com.hiveworkshop.rms.parsers.mdlx.mdl.MdlTokenInputStream;
 import com.hiveworkshop.rms.parsers.mdlx.mdl.MdlTokenOutputStream;
@@ -193,7 +194,7 @@ public class MdlxModel {
 				loadBindPoseChunk(reader, size);
 				break;
 			default:
-				System.err.println("Unknown chunk: " + new War3ID(tag));
+				Log.warn("Unknown chunk: " + new War3ID(tag));
 				this.unknownChunks.add(new MdlxUnknownChunk(reader, size, new War3ID(tag)));
 				break;
 			}

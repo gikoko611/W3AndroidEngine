@@ -8,6 +8,8 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.channels.DatagramChannel;
 
+import com.etheller.warsmash.util.Log;
+
 public class UdpClient implements Runnable {
 	private final DatagramChannel channel;
 	private final ByteBuffer readBuffer;
@@ -42,8 +44,8 @@ public class UdpClient implements Runnable {
 				this.clientListener.parse(this.readBuffer);
 			}
 			catch (final IOException e) {
-				System.err.println("Error reading from channel:");
-				e.printStackTrace();
+				Log.error("Error reading from channel:");
+				Log.error(e);
 			}
 		}
 	}

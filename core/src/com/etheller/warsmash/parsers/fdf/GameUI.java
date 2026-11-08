@@ -69,7 +69,9 @@ import com.etheller.warsmash.parsers.fdf.frames.UIFrame;
 import com.etheller.warsmash.units.DataTable;
 import com.etheller.warsmash.units.Element;
 import com.etheller.warsmash.units.custom.WTS;
+import com.etheller.warsmash.util.DataErrors;
 import com.etheller.warsmash.util.ImageUtils;
+import com.etheller.warsmash.util.Log;
 import com.etheller.warsmash.util.StringBundle;
 import com.etheller.warsmash.util.WarsmashConstants;
 import com.etheller.warsmash.viewer5.Scene;
@@ -254,7 +256,7 @@ public final class GameUI extends AbstractUIFrame implements UIFrame {
 		final DataSourceFDFParserBuilder dataSourceFDFParserBuilder = new DataSourceFDFParserBuilder(this.dataSource);
 		final FrameDefinitionVisitor fdfVisitor = new FrameDefinitionVisitor(this.templates,
 				dataSourceFDFParserBuilder);
-		System.err.println("Loading TOC file: " + tocFilePath);
+		Log.warn("Loading TOC file: " + tocFilePath);
 		try (BufferedReader reader = new BufferedReader(
 				new InputStreamReader(this.dataSource.getResourceAsStream(tocFilePath)))) {
 			String line;
@@ -264,7 +266,7 @@ public final class GameUI extends AbstractUIFrame implements UIFrame {
 				fdfVisitor.visit(firstFileParser.program());
 				tocLines++;
 			}
-			System.out.println("TOC file loaded " + tocLines + " lines");
+			Log.info("TOC file loaded " + tocLines + " lines");
 		}
 	}
 
@@ -1520,7 +1522,7 @@ public final class GameUI extends AbstractUIFrame implements UIFrame {
 				final boolean decorateFileNames = frameDefinition.has("DecorateFileNames") || inDecorateFileNames;
 				String edgeFileString = frameDefinition.getString("BackdropEdgeFile");
 				if (DEBUG_LOG) {
-					System.out.println(frameDefinition.getName() + " wants edge file: " + edgeFileString);
+					Log.info(frameDefinition.getName() + " wants edge file: " + edgeFileString);
 				}
 				if (decorateFileNames && (edgeFileString != null)) {
 					edgeFileString = trySkinField(edgeFileString);
@@ -1531,7 +1533,7 @@ public final class GameUI extends AbstractUIFrame implements UIFrame {
 				final Texture background = backgroundString == null ? null : loadTexture(backgroundString);
 				final Texture edgeFile = edgeFileString == null ? null : loadTexture(edgeFileString);
 				if (DEBUG_LOG) {
-					System.out.println(frameDefinition.getName() + " got edge file: " + edgeFile);
+					Log.info(frameDefinition.getName() + " got edge file: " + edgeFile);
 				}
 
 				final BackdropFrame backdropFrame = new BackdropFrame(frameDefinition.getName(), parent,
@@ -1646,7 +1648,7 @@ public final class GameUI extends AbstractUIFrame implements UIFrame {
 				final UIFrame otherFrameByName = getFrameByName(setPointDefinition.getOther(),
 						0 /* TODO: createContext */);
 				if (otherFrameByName == null) {
-					System.err.println("Failing to pin " + frameDefinition.getName() + " to "
+					Log.error("Failing to pin " + frameDefinition.getName() + " to "
 							+ setPointDefinition.getOther() + " because it was null!");
 					if (PIN_FAIL_IS_FATAL) {
 						throw new IllegalStateException("Failing to pin " + frameDefinition.getName() + " to "
@@ -1751,6 +1753,8 @@ public final class GameUI extends AbstractUIFrame implements UIFrame {
 				this.pathToTexture.put(originalPath, texture);
 			}
 			catch (final Exception exc) {
+				// Callers fall back when there is no texture; the report lists the missing file once.
+				DataErrors.record(DataErrors.MISSING_ASSET, path);
 			}
 		}
 		return texture;

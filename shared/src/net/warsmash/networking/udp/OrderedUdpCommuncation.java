@@ -8,6 +8,8 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Queue;
 
+import com.etheller.warsmash.util.Log;
+
 public abstract class OrderedUdpCommuncation implements UdpClientListener {
 	private static final int MAX_STORED_SENT_DATA_SIZE = 10000;
 
@@ -89,7 +91,7 @@ public abstract class OrderedUdpCommuncation implements UdpClientListener {
 				this.delegate.cantReplay(requestedSeqNo);
 			}
 			else {
-				System.err.println("Replay requested for packet with seqNo=" + requestedSeqNo + ", we will send it!");
+				Log.warn("Replay requested for packet with seqNo=" + requestedSeqNo + ", we will send it!");
 				final int position = replayData.position();
 				trySend(replayData);
 				replayData.position(position);

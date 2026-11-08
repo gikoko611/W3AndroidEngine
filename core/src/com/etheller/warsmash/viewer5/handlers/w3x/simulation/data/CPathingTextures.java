@@ -8,6 +8,7 @@ import java.util.Map;
 import com.etheller.warsmash.datasources.DataSource;
 import com.etheller.warsmash.util.ArgbImage;
 import com.etheller.warsmash.util.ImageUtils;
+import com.etheller.warsmash.util.Log;
 import com.etheller.warsmash.viewer5.handlers.tga.TgaFile;
 
 /**
@@ -42,7 +43,7 @@ public final class CPathingTextures {
 				this.textures.put(key, texture);
 			}
 			catch (final Exception exc) {
-				System.err.println("Failure to get pathing: " + exc.getClass() + ":" + exc.getMessage());
+				Log.error("Failure to get pathing: " + exc.getClass() + ":" + exc.getMessage());
 			}
 		}
 		return texture;

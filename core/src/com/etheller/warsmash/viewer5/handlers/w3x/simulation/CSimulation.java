@@ -1,5 +1,10 @@
 package com.etheller.warsmash.viewer5.handlers.w3x.simulation;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.EnumMap;
@@ -32,6 +37,7 @@ import com.etheller.warsmash.units.DataTable;
 import com.etheller.warsmash.units.GameObject;
 import com.etheller.warsmash.units.ObjectData;
 import com.etheller.warsmash.util.ArgbImage;
+import com.etheller.warsmash.util.Log;
 import com.etheller.warsmash.util.War3ID;
 import com.etheller.warsmash.util.PerfStats;
 import com.etheller.warsmash.util.WarsmashConstants;
@@ -151,6 +157,12 @@ public class CSimulation implements CPlayerAPI, CFogMaskSettings {
 	private final int mapGameVersion;
 	private final CGameplayConstants gameplayConstants;
 	private final Random seededRandom;
+	/**
+	 * Measured on 1.29: attack damage dice and the first swing's wait come from a random stream of their own, which
+	 * SetRandomSeed sets as well, so the script's GetRandomInt calls and critters' wandering do not change them. Null
+	 * in a save from before it was kept.
+	 */
+	private Random combatRandom;
 	private float currentGameDayTimeElapsed;
 	private final Map<Integer, CUnit> handleIdToUnit = new HashMap<>();
 	private final Map<Integer, CDestructable> handleIdToDestructable = new HashMap<>();
@@ -183,6 +195,7 @@ public class CSimulation implements CPlayerAPI, CFogMaskSettings {
 	private final Set<CDestructable> ownedTreeSet = new HashSet<>();
 	private GlobalScope globalScope;
 	private static final int BUILDING_PLACE_SEARCH_RINGS = 32;
+	private static final long COMBAT_SEED_SALT = 0x2545F4914F6CDD1DL;
 	private static final String MISSILE_SPEED = "Missilespeed";
 	private static final double SPELL_MISSILE_AT_ONCE_FLIGHT = 0.0995;
 	private static final String MISSILE_HOMING = "MissileHoming";
@@ -242,6 +255,7 @@ public class CSimulation implements CPlayerAPI, CFogMaskSettings {
 		// Created on first use; all of them share one node grid.
 		this.pathfindingProcessors = new CPathfindingProcessor[WarsmashConstants.MAX_PLAYERS];
 		this.seededRandom = seededRandom;
+		this.combatRandom = new Random(combatSeed(seededRandom));
 		this.players = new ArrayList<>();
 		this.defaultPlayerUnitOrderExecutors = new ArrayList<>();
 		final List<CPlayer> neutralPlayers = new ArrayList<>();
@@ -642,8 +656,8 @@ public class CSimulation implements CPlayerAPI, CFogMaskSettings {
 		final ArgbImage pathingMap = unitType.getBuildingPathingPixelMap();
 		final float offsetX = ((pathingMap.getWidth() / 2) % 2) == 1 ? 32f : 0f;
 		final float offsetY = ((pathingMap.getHeight() / 2) % 2) == 1 ? 32f : 0f;
-		final float baseX = (truncateTowardZero((x - offsetX) / 64f) * 64f) + offsetX;
-		final float baseY = (truncateTowardZero((y - offsetY) / 64f) * 64f) + offsetY;
+		final float baseX = gridPoint(x, offsetX);
+		final float baseY = gridPoint(y, offsetY);
 		final int[] stepX = { 0, 1, 0, -1 };
 		final int[] stepY = { -1, 0, 1, 0 };
 		int cellX = 0;
@@ -671,9 +685,14 @@ public class CSimulation implements CPlayerAPI, CFogMaskSettings {
 		return new Vector2(baseX, baseY);
 	}
 
-	// Measured: the grid point is cut toward zero, not rounded (-34.5 to -34, -63.25 to -63, 15.75 to 15, 51.56 to 51).
-	private static float truncateTowardZero(final float value) {
-		return (int) value;
+	/**
+	 * Measured: the point is cut toward zero onto the 64 grid (-34.5 to -34, -63.25 to -63, 15.75 to 15, 51.56 to 51
+	 * cells), and a building whose centre sits between grid lines is then put half a cell away from zero (a Circle of
+	 * Power asked at -1024, 1616 stands at -1056, 1632; one asked at -976, 1600 at -992, 1632).
+	 */
+	private static float gridPoint(final float value, final float offset) {
+		final float point = ((int) (value / 64f)) * 64f;
+		return value < 0 ? point - offset : point + offset;
 	}
 
 	public CUnit createUnitSimple(final War3ID typeId, final int playerIndex, float x, float y,
@@ -1329,6 +1348,44 @@ public class CSimulation implements CPlayerAPI, CFogMaskSettings {
 		return this.seededRandom;
 	}
 
+	/** See {@link #combatRandom}. */
+	public Random getCombatRandom() {
+		if (this.combatRandom == null) {
+			this.combatRandom = new Random(combatSeed(this.seededRandom));
+		}
+		return this.combatRandom;
+	}
+
+	/** The combat stream as it is, null while a loaded old save has not used it yet. */
+	Random getCombatRandomIfMade() {
+		return this.combatRandom;
+	}
+
+	/** SetRandomSeed: every random stream of the game starts again from the seed. */
+	public void setRandomSeed(final int seed) {
+		this.seededRandom.setSeed(seed);
+		this.combatRandom = new Random(combatSeed(this.seededRandom));
+	}
+
+	/**
+	 * The combat stream's seed follows from the main stream's state without drawing from it: java.util.Random keeps
+	 * its seed private, so a copy made through its serialized form draws instead.
+	 */
+	private static long combatSeed(final Random random) {
+		try {
+			final ByteArrayOutputStream bytes = new ByteArrayOutputStream(128);
+			try (ObjectOutputStream out = new ObjectOutputStream(bytes)) {
+				out.writeObject(random);
+			}
+			try (ObjectInputStream in = new ObjectInputStream(new ByteArrayInputStream(bytes.toByteArray()))) {
+				return ((Random) in.readObject()).nextLong() ^ COMBAT_SEED_SALT;
+			}
+		}
+		catch (final IOException | ClassNotFoundException e) {
+			throw new IllegalStateException(e);
+		}
+	}
+
 	/** Built on first use from this game's data and tileset; a loaded save from before it was kept builds it again. */
 	public RandomTypeHandler getRandomTypes() {
 		if (this.randomTypes == null) {
@@ -1758,7 +1815,7 @@ public class CSimulation implements CPlayerAPI, CFogMaskSettings {
 		if ((gameEvent != JassGameEventsWar3.EVENT_GAME_LOADED) && (gameEvent != JassGameEventsWar3.EVENT_GAME_SAVE)
 				&& (gameEvent != JassGameEventsWar3.EVENT_GAME_SHOW_SKILL)
 				&& (gameEvent != JassGameEventsWar3.EVENT_GAME_BUILD_SUBMENU)) {
-			System.err.println("Game event not yet implemented: " + gameEvent);
+			Log.warn("Game event not yet implemented: " + gameEvent);
 		}
 		triggers.add(trigger);
 		return new GameEventRegistration(trigger, triggers);

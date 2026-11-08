@@ -1,7 +1,9 @@
 package com.etheller.warsmash.parsers.fdf.frames;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.g2d.BitmapFont;
@@ -20,7 +22,7 @@ public class StringFrame extends AbstractRenderableFrame {
 	private Color color;
 	private String text = "Default string";
 	private String displayText = this.text;
-	private final TextJustify justifyH;
+	private TextJustify justifyH;
 	private TextJustify justifyV;
 	private final BitmapFont frameFont;
 	private Color fontShadowColor;
@@ -57,6 +59,10 @@ public class StringFrame extends AbstractRenderableFrame {
 
 	public void setJustifyV(final TextJustify justifyV) {
 		this.justifyV = justifyV;
+	}
+
+	public void setJustifyH(final TextJustify justifyH) {
+		this.justifyH = justifyH;
 	}
 
 	public String getText() {
@@ -167,6 +173,23 @@ public class StringFrame extends AbstractRenderableFrame {
 	@Override
 	protected void innerPositionBounds(final GameUI gameUI, final Viewport viewport) {
 		this.internalFramesContainer.positionBounds(gameUI, viewport);
+	}
+
+	/**
+	 * Centered text centers each of its lines, not only the block of them. A line of several colors is several frames
+	 * at the same height.
+	 */
+	private void centerLines(final float width) {
+		final Map<Float, Float> lineEnds = new HashMap<>();
+		for (final SingleStringFrame internalFrame : this.internalFrames) {
+			lineEnds.merge(internalFrame.getLineY(), internalFrame.getLineX() + internalFrame.getAssignedWidth(),
+					Math::max);
+		}
+		for (final SingleStringFrame internalFrame : this.internalFrames) {
+			final float lineY = internalFrame.getLineY();
+			internalFrame.addAnchor(new AnchorDefinition(FramePoint.TOPLEFT,
+					internalFrame.getLineX() + ((width - lineEnds.get(lineY)) / 2), lineY));
+		}
 	}
 
 	private void createInternalFrames(final GlyphLayout glyphLayout) {
@@ -506,6 +529,9 @@ public class StringFrame extends AbstractRenderableFrame {
 			usedHeight += this.frameFont.getCapHeight();
 		}
 
+		if (this.justifyH == TextJustify.CENTER) {
+			centerLines(usedWidthMax);
+		}
 		this.internalFramesContainer.setWidth(usedWidthMax);
 		this.internalFramesContainer.setHeight(usedHeight);
 		this.predictedViewportHeight = (usedHeight - this.frameFont.getCapHeight()) + this.frameFont.getLineHeight();

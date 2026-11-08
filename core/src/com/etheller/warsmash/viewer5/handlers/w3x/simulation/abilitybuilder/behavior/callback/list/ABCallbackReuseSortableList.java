@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.Map;
 
 import com.etheller.warsmash.parsers.jass.JassTextGenerator;
+import com.etheller.warsmash.util.Log;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CSimulation;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CUnit;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilitybuilder.ability.AbilityBuilderAbility;
@@ -28,10 +29,10 @@ public class ABCallbackReuseSortableList<T extends Comparable<? super T>> extend
 			if (callback != null && callback instanceof ABListCallback) {
 				return ((ABListCallback<T>) callback).callback(game, caster, localStore, castId);
 			} else {
-				System.err.println("Trying to run ReuseLocationCallback, but key is missing or callback was the wrong type: " + keyS);
+				Log.error("Trying to run ReuseLocationCallback, but key is missing or callback was the wrong type: " + keyS);
 			}
 		} else {
-			System.err.println("Trying to run ReuseLocationCallback, but none defined");
+			Log.warn("Trying to run ReuseLocationCallback, but none defined");
 		}
 		return null;
 	}

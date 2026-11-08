@@ -6,6 +6,8 @@ import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.file.StandardOpenOption;
 
+import com.etheller.warsmash.util.Log;
+
 public class NetMapDownloader {
 	private final File mapFilePath;
 	private FileChannel mapDataFileChannel;
@@ -28,7 +30,7 @@ public class NetMapDownloader {
 		try {
 			if ((this.nextSequenceNumber != -1) && (this.nextSequenceNumber != sequenceNumber)) {
 				this.sequenceNumberingOK = false;
-				System.err.println(
+				Log.warn(
 						"Out of sequence map data: Expected " + this.nextSequenceNumber + ", got " + sequenceNumber);
 			}
 			this.mapDataFileChannel.write(data);
@@ -42,7 +44,7 @@ public class NetMapDownloader {
 	public long finish(int sequenceNumber) {
 		if ((this.nextSequenceNumber != -1) && (this.nextSequenceNumber != sequenceNumber)) {
 			this.sequenceNumberingOK = false;
-			System.err.println(
+			Log.warn(
 					"Out of sequence map data: Expected " + this.nextSequenceNumber + ", got " + sequenceNumber);
 		}
 		try {

@@ -9,6 +9,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 
+import com.etheller.warsmash.util.Log;
 import com.hiveworkshop.blizzard.casc.ConfigurationFile;
 import com.hiveworkshop.blizzard.casc.info.Info;
 import com.hiveworkshop.blizzard.casc.nio.MalformedCASCStructureException;
@@ -55,7 +56,7 @@ public class WarcraftIIICASC implements AutoCloseable {
 				}
 			}
 			if (undecodablePaths > 0) {
-				System.err.println("CASC: skipped " + undecodablePaths + " file paths that are not valid UTF-8");
+				Log.warn("CASC: skipped " + undecodablePaths + " file paths that are not valid UTF-8");
 			}
 
 			return filePathStrings;

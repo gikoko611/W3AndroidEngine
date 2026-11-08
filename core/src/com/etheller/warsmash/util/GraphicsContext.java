@@ -24,7 +24,7 @@ public final class GraphicsContext {
 			disposal.run();
 		}
 		catch (final RuntimeException e) {
-			e.printStackTrace();
+			Log.error(e);
 		}
 	}
 }

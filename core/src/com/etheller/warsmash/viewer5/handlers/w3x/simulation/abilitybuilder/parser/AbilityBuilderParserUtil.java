@@ -9,6 +9,7 @@ import java.util.Arrays;
 
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.files.FileHandle;
+import com.etheller.warsmash.util.Log;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilitybuilder.core.AbilityBuilderGsonBuilder;
 import com.google.gson.Gson;
 import com.google.gson.JsonParseException;
@@ -26,7 +27,7 @@ public class AbilityBuilderParserUtil {
 			loadAbilityBuilderFiles(gson, abilityBehaviorsDir, listener);
 		}
 		catch (final Exception e) {
-			e.printStackTrace();
+			Log.error(e);
 		}
 	}
 
@@ -66,15 +67,15 @@ public class AbilityBuilderParserUtil {
 			}
 		}
 		catch (final JsonParseException e) {
-			System.err.println("Failed to load Ability Builder config file: " + name);
-			e.printStackTrace();
+			Log.error("Failed to load Ability Builder config file: " + name);
+			Log.error(e);
 		}
 		catch (final IllegalArgumentException e) {
-			System.err.println("Failed to load Ability Builder config file: " + name);
-			e.printStackTrace();
+			Log.error("Failed to load Ability Builder config file: " + name);
+			Log.error(e);
 		}
 		catch (final IOException e) {
-			e.printStackTrace();
+			Log.error(e);
 		}
 	}
 

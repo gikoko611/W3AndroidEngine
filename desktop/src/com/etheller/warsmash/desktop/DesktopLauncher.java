@@ -43,6 +43,7 @@ import com.etheller.warsmash.launcher.SkinArt;
 import com.etheller.warsmash.movie.GdxMoviePlayer;
 import com.etheller.warsmash.units.DataTable;
 import com.etheller.warsmash.units.Element;
+import com.etheller.warsmash.util.Log;
 import com.etheller.warsmash.util.StringBundle;
 import com.etheller.warsmash.util.WarsmashConstants;
 import com.etheller.warsmash.viewer5.AudioContext;
@@ -57,7 +58,7 @@ import com.etheller.warsmash.viewer5.handlers.w3x.War3MapViewer;
 
 public class DesktopLauncher {
 	public static void main(final String[] arg) {
-		System.out.println("Warsmash engine is starting...");
+		Log.info("Warsmash engine is starting...");
 		final LwjglApplicationConfiguration config = new LwjglApplicationConfiguration();
 		config.useGL30 = true;
 		config.gles30ContextMajorVersion = 3;
@@ -140,14 +141,14 @@ public class DesktopLauncher {
 						new FileOutputStream(new File("Logs/" + System.currentTimeMillis() + ".out.log"))));
 			}
 			catch (final FileNotFoundException e) {
-				e.printStackTrace();
+				Log.error(e);
 			}
 			try {
 				System.setErr(new PrintStream(
 						new FileOutputStream(new File("Logs/" + System.currentTimeMillis() + ".err.log"))));
 			}
 			catch (final FileNotFoundException e) {
-				e.printStackTrace();
+				Log.error(e);
 			}
 		}
 		loadExtensions();
@@ -156,7 +157,7 @@ public class DesktopLauncher {
 		WarsmashConstants.loadConstants(emulatorConstants, warsmashIni);
 
 		if (fileToLoad != null) {
-			System.out.println("About to run loading file: " + fileToLoad);
+			Log.info("About to run loading file: " + fileToLoad);
 		}
 		// Without a map to load the program opens on its launcher; -glue opens the engine's own menu instead.
 		final boolean showLauncher = !glueMenu && !launcherMode && (fileToLoad == null) && (replayToPlay == null);
@@ -205,7 +206,7 @@ public class DesktopLauncher {
 						menuScreen.setLauncherMode(true);
 						menuScreen.setStartupMap(finalFileToLoad);
 						menuScreen.setGameEndListener((result, mapFile, loadFailure, race) -> {
-							System.err.println("Game ended: " + result + " " + mapFile + " " + loadFailure);
+							Log.error("Game ended: " + result + " " + mapFile + " " + loadFailure);
 							Gdx.app.exit();
 						});
 					}

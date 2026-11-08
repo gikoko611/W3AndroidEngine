@@ -184,6 +184,7 @@ public class OpenALAudioDevice implements AudioDevice {
 				Thread.sleep((long) (1000 * this.secondsPerBuffer));
 			}
 			catch (final InterruptedException ignored) {
+				// Only shortens the wait; the loop checks the buffers again.
 			}
 		}
 

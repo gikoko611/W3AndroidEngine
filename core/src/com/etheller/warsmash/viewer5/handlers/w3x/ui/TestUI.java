@@ -22,6 +22,7 @@ import com.etheller.warsmash.parsers.fdf.frames.UIFrame;
 import com.etheller.warsmash.parsers.jass.Jass2.RootFrameListener;
 import com.etheller.warsmash.units.DataTable;
 import com.etheller.warsmash.units.custom.WTS;
+import com.etheller.warsmash.util.Log;
 import com.etheller.warsmash.util.WarsmashConstants;
 import com.etheller.warsmash.util.WorldEditStrings;
 import com.etheller.warsmash.viewer5.Scene;
@@ -274,7 +275,7 @@ public class TestUI {
 			}
 		}
 		catch (final IOException e) {
-			e.printStackTrace();
+			Log.error(e);
 		}
 		this.uiSounds = new KeyedSounds(this.uiSoundsTable, this.dataSource);
 	}

@@ -13,6 +13,8 @@ import mpq.data.RawArrays;
 import mpq.data.UserDataHeader;
 import mpq.util.Cryption;
 
+import com.etheller.warsmash.util.Log;
+
 public class MPQArchive {	
 	private long archiveOffset;
 	private short blockShift;
@@ -116,7 +118,7 @@ public class MPQArchive {
 		// *** decompress hashtable
 		if( csize < rsize ){
 			buffer = new Compression().blockDecompressAny(buffer, ByteBuffer.allocate(rsize));
-			if( buffer.limit() != buffer.capacity() ) System.err.println("hashtable decompressed size did not match expected size");
+			if( buffer.limit() != buffer.capacity() ) Log.warn("hashtable decompressed size did not match expected size");
 		}
 		
 		// *** deserialize hashtable
@@ -170,7 +172,7 @@ public class MPQArchive {
 			return;
 		// blocktable size clamp
 		}else if( btsize > 1 << 20 || btsize < 0 ){
-			System.err.println("blocktable is stupidly large ( " + btsize + " ) so was clamped to " + (1 << 20));
+			Log.warn("blocktable is stupidly large ( " + btsize + " ) so was clamped to " + (1 << 20));
 			btsize = 1 << 20;
 		}
 		
@@ -189,7 +191,7 @@ public class MPQArchive {
 		// *** decompress blocktable
 		if( csize < rsize ){
 			buffer = new Compression().blockDecompressAny(buffer, ByteBuffer.allocate(rsize));
-			if( buffer.limit() != buffer.capacity() ) System.err.println("blocktable decompressed size did not match expected size");
+			if( buffer.limit() != buffer.capacity() ) Log.warn("blocktable decompressed size did not match expected size");
 		}
 		
 		// *** deserialize blocktable
@@ -220,7 +222,7 @@ public class MPQArchive {
 			// decompress high blocktable
 			if( chsize < rhsize ){
 				buffer = new Compression().blockDecompressAny(buffer, ByteBuffer.allocate(rhsize));
-				if( buffer.limit() != buffer.capacity() ) System.err.println("high blocktable decompressed size did not match expected size");
+				if( buffer.limit() != buffer.capacity() ) Log.warn("high blocktable decompressed size did not match expected size");
 			}
 			
 			// deserialize high blocktable
@@ -247,7 +249,7 @@ public class MPQArchive {
 		// *** deserialize archive components
 		deserializeHashTable(in, archiveheader);
 		deserializeBlockTable(in, archiveheader);
-		if( version >= 2 ) System.err.println("het and bet tables not supported");
+		if( version >= 2 ) Log.warn("het and bet tables not supported");
 	}
 	
 	public MPQArchive(SeekableByteChannel in) throws MPQException, IOException{

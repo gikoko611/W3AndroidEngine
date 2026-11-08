@@ -48,7 +48,9 @@ import com.etheller.warsmash.parsers.jass.Jass2.CommonEnvironment;
 import com.etheller.warsmash.parsers.jass.Jass2.RootFrameListener;
 import com.etheller.warsmash.units.DataTable;
 import com.etheller.warsmash.units.Element;
+import com.etheller.warsmash.util.DataErrors;
 import com.etheller.warsmash.util.ImageUtils;
+import com.etheller.warsmash.util.Log;
 import com.etheller.warsmash.util.PerfStats;
 import com.etheller.warsmash.util.WarsmashConstants;
 import com.etheller.warsmash.util.WarsmashUtils;
@@ -151,7 +153,7 @@ public class WarsmashGdxMapScreen implements InputProcessor, Screen, TouchTarget
 		Gdx.gl30.glBindVertexArray(WarsmashGdxGame.VAO);
 
 		final String renderer = Gdx.gl.glGetString(GL20.GL_RENDERER);
-		System.err.println("Renderer: " + renderer);
+		Log.warn("Renderer: " + renderer);
 
 		final Element cameraData = this.viewer.miscData.get("Camera");
 		Element cameraListenerData = this.viewer.miscData.get("Listener");
@@ -170,7 +172,7 @@ public class WarsmashGdxMapScreen implements InputProcessor, Screen, TouchTarget
 					cameraListenerData.getFieldFloatValue("ListenerAOA", i));
 		}
 
-		System.out.println("Loaded");
+		Log.info("Loaded");
 		Gdx.gl30.glClearColor(0.0f, 0.0f, 0.0f, 1); // TODO remove white background
 		Gdx.gl30.glEnable(GL30.GL_SCISSOR_TEST);
 
@@ -320,20 +322,21 @@ public class WarsmashGdxMapScreen implements InputProcessor, Screen, TouchTarget
 			catch (final IOException e) {
 				// Nothing of the save has been applied yet. Starting the map instead would pass for a load, so the
 				// game goes back to the menu, which tells why.
-				System.err.println("Could not load the saved game " + savedGame.name() + ": " + e.getMessage());
+				Log.error("Could not load the saved game " + savedGame.name() + ": " + e.getMessage());
 				SavedGame.loadFailed(savedGame, e);
 				Gdx.app.postRunnable(this.baseMeleeUI::quitMission);
 			}
 		}
 		else if (this.commonEnv.getScriptError() != null) {
 			// The original game shows an error for a map whose script does not compile and does not play it.
-			System.err.println("The map's script does not compile: " + this.commonEnv.getScriptError().getMessage());
+			Log.error("The map's script does not compile: " + this.commonEnv.getScriptError().getMessage());
 			this.scriptFailed = true;
 			Gdx.app.postRunnable(this.baseMeleeUI::quitMission);
 		}
 		else {
 			this.commonEnv.main();
 		}
+		DataErrors.logReport("map start");
 	}
 
 	public static DataSource parseDataSources(final DataTable warsmashIni) {
@@ -459,6 +462,7 @@ public class WarsmashGdxMapScreen implements InputProcessor, Screen, TouchTarget
 		}
 		this.disposed = true;
 		endSession();
+		DataErrors.logReport("map end");
 		this.meleeUI.dispose();
 		this.batch.dispose();
 		this.shapeRenderer.dispose();
@@ -800,7 +804,7 @@ public class WarsmashGdxMapScreen implements InputProcessor, Screen, TouchTarget
 			return SavedGame.save(this.viewer, file);
 		}
 		catch (final RuntimeException e) {
-			e.printStackTrace();
+			Log.error(e);
 			return false;
 		}
 	}

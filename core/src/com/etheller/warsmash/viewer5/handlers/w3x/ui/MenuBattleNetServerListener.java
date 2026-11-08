@@ -8,6 +8,7 @@ import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.utils.IntIntMap;
 import com.etheller.warsmash.datasources.DataSource;
 import com.etheller.warsmash.parsers.w3x.War3Map;
+import com.etheller.warsmash.util.Log;
 import com.etheller.warsmash.viewer5.handlers.w3x.AnimationTokens.PrimaryTag;
 import com.etheller.warsmash.viewer5.handlers.w3x.SequenceUtils;
 import com.etheller.warsmash.viewer5.handlers.w3x.War3MapViewer;
@@ -61,7 +62,7 @@ final class MenuBattleNetServerListener implements GamingNetworkServerToClientLi
 	@Override
 	public void disconnected() {
 		Gdx.app.postRunnable(() -> {
-			System.err.println("Disconnected from server...");
+			Log.warn("Disconnected from server...");
 			this.battleNet.hideConnectDialog();
 			this.menu.setMainMenuButtonsEnabled(true);
 			this.menu.dialog.showError("ERROR_ID_DISCONNECT", null);
@@ -200,7 +201,7 @@ final class MenuBattleNetServerListener implements GamingNetworkServerToClientLi
 				if (!(mapNameLower.endsWith(".w3m") || mapNameLower.endsWith(".w3x")
 						|| mapNameLower.endsWith(".wsm"))) {
 					// error, not a map file
-					System.err.println("ERROR!!! NOT A MAP FILE: " + mapName);
+					Log.error("ERROR!!! NOT A MAP FILE: " + mapName);
 					this.gamingNetworkConnection.leaveGame(battleNetUI().getGamingNetworkSessionToken());
 					this.currentNetGameMapLookup = null;
 				}
@@ -223,7 +224,7 @@ final class MenuBattleNetServerListener implements GamingNetworkServerToClientLi
 							}
 						}
 						catch (final Exception e) {
-							e.printStackTrace();
+							Log.error(e);
 						}
 						final int dotIndex = mapFileLookupName.lastIndexOf('.');
 						mapLookupFile = new File(mapFileLookupName.substring(0, dotIndex) + "~" + tildeIndex++
@@ -298,7 +299,7 @@ final class MenuBattleNetServerListener implements GamingNetworkServerToClientLi
 
 	@Override
 	public void gameCreationOk() {
-		System.out.println("NOTE: Server says we created a game OK");
+		Log.info("NOTE: Server says we created a game OK");
 		// NOTE: immediately following this the server should tell us we joined a game
 		Gdx.app.postRunnable(() -> this.creatingGame = true);
 	}
@@ -338,7 +339,7 @@ final class MenuBattleNetServerListener implements GamingNetworkServerToClientLi
 		gdxThreadBuffer.put(data);
 		gdxThreadBuffer.flip();
 		Gdx.app.postRunnable(() -> {
-			System.out.println("receiving map: " + sequenceNumber + ", " + gdxThreadBuffer.remaining());
+			Log.info("receiving map: " + sequenceNumber + ", " + gdxThreadBuffer.remaining());
 			this.netMapDownloader.receive(sequenceNumber, gdxThreadBuffer);
 		});
 	}
@@ -346,7 +347,7 @@ final class MenuBattleNetServerListener implements GamingNetworkServerToClientLi
 	@Override
 	public void endSendMap(final int sequenceNumber) {
 		Gdx.app.postRunnable(() -> {
-			System.out.println("receiving map finishing: " + sequenceNumber);
+			Log.info("receiving map finishing: " + sequenceNumber);
 			final long checksum = this.netMapDownloader.finish(sequenceNumber);
 			if (this.currentNetGameMapLookup instanceof CurrentNetGameMapLookupFile) {
 				if ((checksum == this.lastJoinGameChecksum) && this.netMapDownloader.isSequenceNumberingOK()) {
@@ -367,7 +368,7 @@ final class MenuBattleNetServerListener implements GamingNetworkServerToClientLi
 	@Override
 	public void gameLobbySlotSetPlayerType(final int slot, final LobbyPlayerType playerType) {
 		Gdx.app.postRunnable(() -> {
-			System.err.println("gameLobbySlotSetPlayerType " + slot + " " + playerType);
+			Log.warn("gameLobbySlotSetPlayerType " + slot + " " + playerType);
 			battleNetUI().gameLobbySlotSetPlayerType(slot, playerType);
 		});
 	}
@@ -375,7 +376,7 @@ final class MenuBattleNetServerListener implements GamingNetworkServerToClientLi
 	@Override
 	public void gameLobbySlotSetPlayer(final int slot, final String userName) {
 		Gdx.app.postRunnable(() -> {
-			System.err.println("gameLobbySlotSetPlayer " + slot + " " + userName);
+			Log.warn("gameLobbySlotSetPlayer " + slot + " " + userName);
 			battleNetUI().gameLobbySlotSetPlayer(slot, userName);
 		});
 	}
@@ -383,7 +384,7 @@ final class MenuBattleNetServerListener implements GamingNetworkServerToClientLi
 	@Override
 	public void gameLobbySlotSetPlayerRace(final int slot, final int raceItemIndex) {
 		Gdx.app.postRunnable(() -> {
-			System.err.println("gameLobbySlotSetPlayerRace " + slot + " " + raceItemIndex);
+			Log.warn("gameLobbySlotSetPlayerRace " + slot + " " + raceItemIndex);
 			battleNetUI().gameLobbySlotSetPlayerRace(slot, raceItemIndex);
 		});
 	}

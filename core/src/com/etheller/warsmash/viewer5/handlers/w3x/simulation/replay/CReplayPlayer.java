@@ -3,6 +3,7 @@ package com.etheller.warsmash.viewer5.handlers.w3x.simulation.replay;
 import java.util.List;
 import java.util.function.ToIntFunction;
 
+import com.etheller.warsmash.util.Log;
 import com.etheller.warsmash.util.WarsmashConstants;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CSimulation;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.campaign.CGameCache;
@@ -58,7 +59,7 @@ public final class CReplayPlayer {
 				CPlayerCommandCodec.decode(command.bytes(), executor);
 			}
 			catch (final IllegalArgumentException e) {
-				System.err.println("Replay: broken command at step " + command.getTick() + ": " + e.getMessage());
+				Log.error("Replay: broken command at step " + command.getTick() + ": " + e.getMessage());
 			}
 		}
 	}
@@ -78,7 +79,7 @@ public final class CReplayPlayer {
 				this.desyncs++;
 				if (this.desyncTick < 0) {
 					this.desyncTick = tick;
-					System.err.println("Replay desync at step " + tick + ": recorded "
+					Log.warn("Replay desync at step " + tick + ": recorded "
 							+ Integer.toHexString(recorded) + ", played " + Integer.toHexString(now));
 				}
 			}
@@ -92,7 +93,7 @@ public final class CReplayPlayer {
 			public byte[] read() {
 				final List<CReplay.CacheRead> reads = CReplayPlayer.this.replay.getCacheReads();
 				if (CReplayPlayer.this.nextCacheRead >= reads.size()) {
-					System.err.println("Replay: the game reads the game caches more often than recorded");
+					Log.warn("Replay: the game reads the game caches more often than recorded");
 					return null;
 				}
 				return reads.get(CReplayPlayer.this.nextCacheRead++).getBytes();
@@ -114,7 +115,7 @@ public final class CReplayPlayer {
 		if (this.nextLocalValue >= values.size()) {
 			if (!this.localValuesRanOut) {
 				this.localValuesRanOut = true;
-				System.err.println("Replay: the scripts read more local values than recorded, from step "
+				Log.warn("Replay: the scripts read more local values than recorded, from step "
 						+ this.game.getGameTurnTick());
 			}
 			return value;

@@ -6,6 +6,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import com.etheller.warsmash.datasources.DataSource;
+import com.etheller.warsmash.util.Log;
 
 /**
  * The full screen movies: the campaign openings and endings, the logos and the movies a map asks for with
@@ -100,7 +101,7 @@ public final class Movies {
 			return (file != null) && file.isFile() ? file : null;
 		}
 		catch (final IOException | RuntimeException e) {
-			System.err.println("Unable to open the movie file " + path + ": " + e);
+			Log.error("Unable to open the movie file " + path + ": " + e);
 			return null;
 		}
 	}
@@ -110,7 +111,7 @@ public final class Movies {
 		final Player current = player;
 		if (movies.isEmpty() || (current == null)) {
 			if (!movies.isEmpty()) {
-				System.err.println("No movie player on this platform, skipped: " + movies);
+				Log.warn("No movie player on this platform, skipped: " + movies);
 			}
 			done.run();
 			return;

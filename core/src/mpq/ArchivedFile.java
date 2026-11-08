@@ -8,6 +8,8 @@ import java.nio.channels.SeekableByteChannel;
 import mpq.data.RawArrays;
 import mpq.util.Cryption;
 
+import com.etheller.warsmash.util.Log;
+
 public class ArchivedFile implements Serializable {
 	private static final long serialVersionUID = 5033693351138253083L;
 	
@@ -106,7 +108,7 @@ public class ArchivedFile implements Serializable {
 		if( blockOffsets[0] >= 0 && blockOffsets[0] < blockOffsets.length * 4 ||
 				blockOffsets[0] < 0 && blockOffsets[blockOffsets.length - 1] > 0 ) throw new MPQException("block sector intersects sector offset table");
 		else if( blockOffsets[0] < 0 || blockOffsets[0] > blockOffsets.length * 4 ) 
-			System.err.printf("block at %X has detached sectors starting at %X (%d bytes from end of sector table)%n",
+			Log.errorf("block at %X has detached sectors starting at %X (%d bytes from end of sector table)%n",
 					fileOffset, fileOffset + blockOffsets[0], blockOffsets[0] - blockOffsets.length * 4);
 		if( fileOffset + blockOffsets[0] < 0 || fileOffset + blockOffsets[blockOffsets.length - 1] > in.size() )
 			throw new MPQException("block sector located outside channel");
@@ -118,7 +120,7 @@ public class ArchivedFile implements Serializable {
 		
 		// load CRC sector if present
 		if( hasFlag(BlockTable.FLAG_SECTOR_CRC) && blockOffsets[blockOffsets.length - 1] != blockOffsets[blockOffsets.length - 2] ){
-			System.err.println("block sector CRC reading currently not supported");
+			Log.warn("block sector CRC reading currently not supported");
 		}
 		
 		ready = true;

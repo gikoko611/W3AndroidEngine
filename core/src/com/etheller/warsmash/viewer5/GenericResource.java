@@ -4,6 +4,7 @@ import java.io.InputStream;
 
 import com.badlogic.gdx.utils.Disposable;
 import com.etheller.warsmash.common.LoadGenericCallback;
+import com.etheller.warsmash.util.Log;
 
 public final class GenericResource extends Resource {
 
@@ -37,7 +38,7 @@ public final class GenericResource extends Resource {
 
 	@Override
 	protected void error(final Exception e) {
-		e.printStackTrace();
+		Log.error(e);
 	}
 
 }

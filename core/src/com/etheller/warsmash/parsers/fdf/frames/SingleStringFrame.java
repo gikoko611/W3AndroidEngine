@@ -6,6 +6,8 @@ import com.badlogic.gdx.graphics.g2d.GlyphLayout;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.utils.viewport.Viewport;
 import com.etheller.warsmash.parsers.fdf.GameUI;
+import com.etheller.warsmash.parsers.fdf.datamodel.AnchorDefinition;
+import com.etheller.warsmash.parsers.fdf.datamodel.FramePoint;
 import com.etheller.warsmash.parsers.fdf.datamodel.TextJustify;
 
 public class SingleStringFrame extends AbstractRenderableFrame {
@@ -18,6 +20,8 @@ public class SingleStringFrame extends AbstractRenderableFrame {
 	private float fontShadowOffsetX;
 	private float fontShadowOffsetY;
 	private float alpha = 1.0f;
+	private float lineX;
+	private float lineY;
 
 	public SingleStringFrame(final String name, final UIFrame parent, final Color color, final TextJustify justifyH,
 			final TextJustify justifyV, final BitmapFont frameFont) {
@@ -30,6 +34,24 @@ public class SingleStringFrame extends AbstractRenderableFrame {
 		this.justifyV = justifyV;
 		this.frameFont = frameFont;
 		this.text = name;
+	}
+
+	@Override
+	public void addAnchor(final AnchorDefinition anchorDefinition) {
+		super.addAnchor(anchorDefinition);
+		if (anchorDefinition.getMyPoint() == FramePoint.TOPLEFT) {
+			this.lineX = anchorDefinition.getX();
+			this.lineY = anchorDefinition.getY();
+		}
+	}
+
+	/** The place of this piece of a line of text in its string frame, as its top left anchor sets it. */
+	float getLineX() {
+		return this.lineX;
+	}
+
+	float getLineY() {
+		return this.lineY;
 	}
 
 	public void setText(final String text) {

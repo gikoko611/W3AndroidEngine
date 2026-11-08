@@ -32,6 +32,7 @@ import com.badlogic.gdx.utils.Align;
 import com.badlogic.gdx.utils.GdxRuntimeException;
 import com.badlogic.gdx.utils.TimeUtils;
 import com.etheller.warsmash.WarsmashGdxGame;
+import com.etheller.warsmash.util.Log;
 import com.etheller.warsmash.viewer5.handlers.w3x.ui.GameOptions;
 
 /**
@@ -189,7 +190,7 @@ public final class GdxMoviePlayer implements Movies.Player {
 
 	private void skip() {
 		if (this.playing != null) {
-			System.out.println("Movie skipped: " + this.playing.movie.getName());
+			Log.info("Movie skipped: " + this.playing.movie.getName());
 			stopPlaying();
 		}
 	}
@@ -215,15 +216,15 @@ public final class GdxMoviePlayer implements Movies.Player {
 			reader = new AviReader(movie.getVideo());
 			decoder = this.decoders.openVideo(reader.getCodec(), reader.getWidth(), reader.getHeight());
 			if (decoder == null) {
-				System.err.println("No decoder for the movie " + movie + " (" + reader.getCodec() + ")");
+				Log.warn("No decoder for the movie " + movie + " (" + reader.getCodec() + ")");
 				reader.close();
 				return null;
 			}
-			System.out.println("Movie " + movie.getName() + " " + reader.getWidth() + "x" + reader.getHeight());
+			Log.info("Movie " + movie.getName() + " " + reader.getWidth() + "x" + reader.getHeight());
 			return new Playback(movie, reader, decoder, MovieCaptions.read(movie.getCaptions()), openSound(movie));
 		}
 		catch (final IOException | RuntimeException | LinkageError e) {
-			System.err.println("Unable to play the movie " + movie + ": " + e);
+			Log.error("Unable to play the movie " + movie + ": " + e);
 			close(decoder);
 			close(reader);
 			return null;
@@ -245,7 +246,7 @@ public final class GdxMoviePlayer implements Movies.Player {
 			return new Sound(decoder, volume);
 		}
 		catch (final IOException | RuntimeException | LinkageError e) {
-			System.err.println("The movie sound cannot play: " + movie.getAudio() + ": " + e);
+			Log.error("The movie sound cannot play: " + movie.getAudio() + ": " + e);
 			close(decoder);
 			return null;
 		}
@@ -332,7 +333,7 @@ public final class GdxMoviePlayer implements Movies.Player {
 		if (this.pictureShader == null) {
 			this.pictureShader = new ShaderProgram(VERTEX_SHADER, FRAGMENT_SHADER);
 			if (!this.pictureShader.isCompiled()) {
-				System.err.println("The movie shader does not compile: " + this.pictureShader.getLog());
+				Log.warn("The movie shader does not compile: " + this.pictureShader.getLog());
 				this.pictureShader.dispose();
 				this.pictureShader = null;
 				return;
@@ -439,7 +440,7 @@ public final class GdxMoviePlayer implements Movies.Player {
 				this.font = generator.generateFont(parameter);
 			}
 			catch (final GdxRuntimeException e) {
-				System.err.println("Unable to read the caption font " + fontFile + ": " + e);
+				Log.error("Unable to read the caption font " + fontFile + ": " + e);
 			}
 			finally {
 				if (generator != null) {
@@ -519,7 +520,7 @@ public final class GdxMoviePlayer implements Movies.Player {
 				closeable.close();
 			}
 			catch (final IOException | RuntimeException e) {
-				System.err.println("Unable to close the movie: " + e);
+				Log.error("Unable to close the movie: " + e);
 			}
 		}
 	}
@@ -617,7 +618,7 @@ public final class GdxMoviePlayer implements Movies.Player {
 				Thread.currentThread().interrupt();
 			}
 			if (this.dropped > 0) {
-				System.out.println("Movie " + this.movie.getName() + ": " + this.dropped + " late frames not shown");
+				Log.info("Movie " + this.movie.getName() + ": " + this.dropped + " late frames not shown");
 			}
 		}
 
@@ -628,7 +629,7 @@ public final class GdxMoviePlayer implements Movies.Player {
 			}
 			catch (final IOException | RuntimeException e) {
 				if (!this.cancelled) {
-					System.err.println("The movie stopped: " + this.movie + ": " + e);
+					Log.warn("The movie stopped: " + this.movie + ": " + e);
 				}
 			}
 			catch (final InterruptedException e) {
@@ -719,7 +720,7 @@ public final class GdxMoviePlayer implements Movies.Player {
 			}
 			catch (final IOException | RuntimeException e) {
 				if (!this.cancelled) {
-					System.err.println("The movie sound stopped: " + e);
+					Log.warn("The movie sound stopped: " + e);
 				}
 			}
 			catch (final InterruptedException e) {
@@ -750,7 +751,7 @@ public final class GdxMoviePlayer implements Movies.Player {
 				this.device.dispose();
 			}
 			else {
-				System.err.println("The movie sound did not stop in time");
+				Log.warn("The movie sound did not stop in time");
 			}
 		}
 	}

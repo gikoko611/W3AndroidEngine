@@ -25,7 +25,7 @@ Supported game versions: **1.31 and newer, including Reforged**, played with Cla
 
 ## Status
 
-Current version: **v0.2.11**
+Current version: **v0.2.12**
 
 - **Custom games:** work end-to-end.
 - **Campaigns:** Reign of Chaos and The Frozen Throne can be completed to the end. Tweaking required.

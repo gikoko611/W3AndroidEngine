@@ -97,4 +97,8 @@ final class ReplayViewerCommands implements CPlayerUnitOrderListener {
 	@Override
 	public void minimapSignal(final float x, final float y) {
 	}
+
+	@Override
+	public void trackableEvent(final int trackableHandleId, final boolean hit) {
+	}
 }

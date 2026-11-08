@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.function.ToIntFunction;
 
+import com.etheller.warsmash.util.Log;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CSimulation;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.campaign.CGameCache;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.players.CPlayerCommandLog;
@@ -150,7 +151,7 @@ public final class CReplayRecorder {
 	}
 
 	private void fail(final IOException e) {
-		System.err.println("Replay recording stopped: " + e);
+		Log.warn("Replay recording stopped: " + e);
 		this.stopped = true;
 		try {
 			this.writer.close();

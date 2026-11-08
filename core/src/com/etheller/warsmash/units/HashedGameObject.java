@@ -166,7 +166,7 @@ public abstract class HashedGameObject implements GameObject {
 			i = Integer.parseInt(getField(field).trim());
 		}
 		catch (final NumberFormatException e) {
-
+			// Blank and "-" entries are common in the data; they read as 0.
 		}
 		return i;
 	}
@@ -178,7 +178,7 @@ public abstract class HashedGameObject implements GameObject {
 			i = Float.parseFloat(getField(field).trim());
 		}
 		catch (final NumberFormatException e) {
-
+			// Blank and "-" entries are common in the data; they read as 0.
 		}
 		return i;
 	}
@@ -203,7 +203,7 @@ public abstract class HashedGameObject implements GameObject {
 							i = Float.parseFloat(list.get(index).trim());
 						}
 						catch (final NumberFormatException e) {
-
+							// Blank and "-" entries are common in the data; the default stands.
 						}
 					}
 				}
@@ -296,7 +296,7 @@ public abstract class HashedGameObject implements GameObject {
 								i = (int) Float.parseFloat(list.get(index).trim());
 							}
 							catch (final NumberFormatException e2) {
-
+								// Blank and "-" entries are common in the data; the default stands.
 							}
 						}
 					}

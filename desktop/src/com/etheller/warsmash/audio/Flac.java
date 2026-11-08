@@ -27,6 +27,7 @@ import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.utils.GdxRuntimeException;
 import com.badlogic.gdx.utils.StreamUtils;
 import com.etheller.warsmash.audio.Wav.WavInputStream;
+import com.etheller.warsmash.util.Log;
 
 import io.nayuki.flac.common.StreamInfo;
 import io.nayuki.flac.decode.DataFormatException;
@@ -126,7 +127,7 @@ public class Flac {
 		// Check audio MD5 hash
 		final byte[] expectHash = streamInfo.md5Hash;
 		if (Arrays.equals(expectHash, new byte[16])) {
-			System.err.println("Warning: MD5 hash field was blank");
+			Log.warn("Warning: MD5 hash field was blank");
 		}
 		else if (!Arrays.equals(StreamInfo.getMd5Hash(samples, streamInfo.sampleDepth), expectHash)) {
 			throw new DataFormatException("MD5 hash check failed");

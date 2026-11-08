@@ -1408,7 +1408,7 @@ final class MeleeUIInput {
 		if (trackable != this.trackedTrackable) {
 			this.trackedTrackable = trackable;
 			if (trackable != null) {
-				trackable.track(this.ui.war3MapViewer.simulation.getGlobalScope());
+				this.ui.unitOrderListener.trackableEvent(trackable.getHandleId(), false);
 			}
 		}
 	}
@@ -1424,9 +1424,9 @@ final class MeleeUIInput {
 		}
 		if (trackable != this.trackedTrackable) {
 			this.trackedTrackable = trackable;
-			trackable.track(this.ui.war3MapViewer.simulation.getGlobalScope());
+			this.ui.unitOrderListener.trackableEvent(trackable.getHandleId(), false);
 		}
-		trackable.hit(this.ui.war3MapViewer.simulation.getGlobalScope());
+		this.ui.unitOrderListener.trackableEvent(trackable.getHandleId(), true);
 		return true;
 	}
 

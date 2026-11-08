@@ -3,6 +3,8 @@ package com.etheller.warsmash.viewer5;
 import java.util.ArrayList;
 import java.util.List;
 
+import com.etheller.warsmash.util.Log;
+
 public abstract class Emitter<MODEL_INSTANCE extends ModelInstance, EMITTED_OBJECT extends EmittedObject<MODEL_INSTANCE, ? extends Emitter<MODEL_INSTANCE, EMITTED_OBJECT>>>
 		implements UpdatableObject {
 
@@ -58,7 +60,7 @@ public abstract class Emitter<MODEL_INSTANCE extends ModelInstance, EMITTED_OBJE
 
 		final EMITTED_OBJECT otherObject = this.objects.get(this.alive);
 		if (object.index == -1) {
-			System.err.println("bad");
+			Log.error("bad");
 		}
 		this.objects.set(object.index, otherObject);
 		this.objects.set(this.alive, object);

@@ -11,6 +11,7 @@ import javax.imageio.ImageIO;
 import org.apache.commons.io.IOUtils;
 
 import com.etheller.warsmash.util.ImageUtils;
+import com.etheller.warsmash.util.Log;
 import com.etheller.warsmash.viewer5.ModelViewer;
 import com.etheller.warsmash.viewer5.PathSolver;
 import com.etheller.warsmash.viewer5.RawOpenGLTextureResource;
@@ -46,7 +47,7 @@ public class BlpTexture extends RawOpenGLTextureResource {
 				return;
 			}
 			if (!ImageUtils.IMAGE_IO_AVAILABLE) {
-				System.err.println("No decoder for this BLP on this platform, texture left empty");
+				Log.warn("No decoder for this BLP on this platform, texture left empty");
 				return;
 			}
 			img = ImageIO.read(new ByteArrayInputStream(data.array()));

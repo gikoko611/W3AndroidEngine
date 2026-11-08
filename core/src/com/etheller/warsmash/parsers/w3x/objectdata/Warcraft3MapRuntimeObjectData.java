@@ -139,15 +139,13 @@ public final class Warcraft3MapRuntimeObjectData {
 
 	public static Warcraft3MapRuntimeObjectData load(final DataSource dataSource, final boolean inlineWTS,
 			final WTS wts, final WTS campaignWTS) throws IOException {
-		return load(dataSource, inlineWTS, wts, campaignWTS, GraphicsSet.CLASSIC, false);
+		return load(dataSource, inlineWTS, wts, campaignWTS, GraphicsSet.CLASSIC);
 	}
 
 	public static Warcraft3MapRuntimeObjectData load(final DataSource dataSource, final boolean inlineWTS,
-			final WTS wts, final WTS campaignWTS, final GraphicsSet graphics, final boolean reforgedInterface)
-			throws IOException {
+			final WTS wts, final WTS campaignWTS, final GraphicsSet graphics) throws IOException {
 
-		final StandardObjectData standardObjectData = new StandardObjectData(dataSource, graphics,
-				reforgedInterface);
+		final StandardObjectData standardObjectData = new StandardObjectData(dataSource, graphics);
 		final WarcraftData standardUnits = standardObjectData.getStandardUnits();
 		final WarcraftData standardItems = standardObjectData.getStandardItems();
 		final WarcraftData standardDoodads = standardObjectData.getStandardDoodads();

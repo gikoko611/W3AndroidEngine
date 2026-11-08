@@ -1,6 +1,7 @@
 package com.etheller.warsmash.viewer5;
 
 import com.badlogic.gdx.graphics.Texture.TextureWrap;
+import com.etheller.warsmash.util.Log;
 import com.etheller.warsmash.viewer5.handlers.ResourceHandler;
 
 public abstract class GdxTextureResource extends Texture {
@@ -24,7 +25,7 @@ public abstract class GdxTextureResource extends Texture {
 
 	@Override
 	protected void error(final Exception e) {
-		e.printStackTrace();
+		Log.error(e);
 	}
 
 	@Override

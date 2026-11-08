@@ -37,6 +37,7 @@ import com.etheller.warsmash.parsers.fdf.frames.StringFrame;
 import com.etheller.warsmash.parsers.fdf.frames.UIFrame;
 import com.etheller.warsmash.parsers.jass.triggers.UnitGroup;
 import com.etheller.warsmash.units.Element;
+import com.etheller.warsmash.util.Log;
 import com.etheller.warsmash.viewer5.Scene;
 import com.etheller.warsmash.viewer5.handlers.w3x.War3MapViewer;
 import com.etheller.warsmash.viewer5.handlers.w3x.save.SavedGame;
@@ -97,7 +98,7 @@ public class Jass2 {
 			jassProgramVisitor.initialize();
 		}
 		catch (final Exception e) {
-			e.printStackTrace();
+			Log.error(e);
 			JassLog.report(e);
 		}
 		finally {
@@ -120,7 +121,7 @@ public class Jass2 {
 			return null;
 		}
 		catch (final Exception e) {
-			e.printStackTrace();
+			Log.error(e);
 			JassLog.report(e);
 			return e;
 		}
@@ -156,7 +157,7 @@ public class Jass2 {
 							readJassFile(dataSource, jassProgramVisitor, realPath);
 						}
 						catch (final Exception e) {
-							e.printStackTrace();
+							Log.error(e);
 							JassLog.report(e);
 						}
 					}
@@ -170,7 +171,7 @@ public class Jass2 {
 			jassProgramVisitor.initialize();
 		}
 		catch (final Exception e) {
-			e.printStackTrace();
+			Log.error(e);
 			JassLog.report(e);
 		}
 		jassProgramVisitor.getJassNativeManager().checkUnregisteredNatives();
@@ -192,14 +193,14 @@ public class Jass2 {
 				}
 			}
 			catch (final Exception e) {
-				e.printStackTrace();
+				Log.error(e);
 			}
 		}
 		try {
 			jassProgramVisitor.initialize();
 		}
 		catch (final Exception e) {
-			e.printStackTrace();
+			Log.error(e);
 			JassLog.report(e);
 		}
 		jassProgramVisitor.getJassNativeManager().checkUnregisteredNatives();
@@ -230,7 +231,7 @@ public class Jass2 {
 			jassProgramVisitor.getJassNativeManager().createNative("LogError",
 					(arguments, globalScope, triggerScope) -> {
 						final String stringValue = arguments.get(0).visit(StringJassValueVisitor.getInstance());
-						System.err.println(stringValue);
+						Log.warn(stringValue);
 						return null;
 					});
 			jassProgramVisitor.getJassNativeManager().createNative("ConvertFramePointType",
@@ -627,9 +628,8 @@ public class Jass2 {
 					this.jassProgramVisitor.getGlobals().queueThread(abilitiesThread);
 				}
 				catch (final Exception exc) {
-					new JassException(this.jassProgramVisitor.getGlobals(),
-							"Exception on Line " + this.jassProgramVisitor.getGlobals().getLineNumber(), exc)
-							.printStackTrace();
+					Log.error(new JassException(this.jassProgramVisitor.getGlobals(),
+							"Exception on Line " + this.jassProgramVisitor.getGlobals().getLineNumber(), exc));
 				}
 			}
 			try {
@@ -867,7 +867,7 @@ public class Jass2 {
 			jassProgramVisitor.initialize();
 		}
 		catch (final Exception e) {
-			e.printStackTrace();
+			Log.error(e);
 			JassLog.report(e);
 		}
 		final Integer loadedPtr = jassProgramVisitor.getGlobals().getUserFunctionInstructionPtr(mainFunction);
@@ -914,7 +914,7 @@ public class Jass2 {
 		}
 		catch (final Exception e) {
 			// The original runs nothing of an AI script that does not compile, as with the map's own script.
-			e.printStackTrace();
+			Log.error(e);
 			JassLog.report(e);
 			return;
 		}

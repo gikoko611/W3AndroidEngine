@@ -8,6 +8,7 @@ import java.util.Locale;
 import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.GL30;
 import com.etheller.warsmash.util.ArgbImage;
+import com.etheller.warsmash.util.Log;
 import com.etheller.warsmash.viewer5.handlers.ResourceHandler;
 import com.etheller.warsmash.viewer5.handlers.blp.MipLevels;
 
@@ -55,7 +56,7 @@ public abstract class RawOpenGLTextureResource extends Texture {
 
 	@Override
 	protected void error(final Exception e) {
-		e.printStackTrace();
+		Log.error(e);
 	}
 
 	@Override

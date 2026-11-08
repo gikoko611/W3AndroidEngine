@@ -10,6 +10,7 @@ import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.Texture.TextureFilter;
 import com.etheller.warsmash.parsers.fdf.GameUI;
 import com.etheller.warsmash.parsers.fdf.datamodel.FramePoint;
+import com.etheller.warsmash.parsers.fdf.datamodel.TextJustify;
 import com.etheller.warsmash.parsers.fdf.frames.AbstractRenderableFrame;
 import com.etheller.warsmash.parsers.fdf.frames.AbstractUIFrame;
 import com.etheller.warsmash.parsers.fdf.frames.BackdropFrame;
@@ -39,6 +40,12 @@ final class MeleeUICinematics {
 	private static final float REFORGED_CINEMATIC_PORTRAIT_X = 0.028f;
 	private static final float REFORGED_CINEMATIC_PORTRAIT_Y = 0.031f;
 	private static final float REFORGED_CINEMATIC_PORTRAIT_SIZE = 0.1f;
+	/** Without the portrait the Reforged subtitles are centered, the speaker's name this high above the bottom. */
+	private static final float REFORGED_SUBTITLE_Y = 0.111f;
+	private static final float SPEAKER_X = 0.015f;
+	private static final float SPEAKER_Y = -0.035f;
+	private static final float DIALOGUE_GAP = 0.004f;
+	private static final float DIALOGUE_WIDTH = 0.6f;
 	private boolean interfaceShown = true;
 	private float interfaceOpacity = 1f;
 	private float interfaceFadeRate = 0f;
@@ -239,12 +246,46 @@ final class MeleeUICinematics {
 		}
 	}
 
-	/** The portrait as the options ask for it now; the in-game Options can change it between two lines. */
+	/**
+	 * The portrait as the options ask for it now; the in-game Options can change it between two lines. Reforged
+	 * cinematics without the portrait show only the subtitles, centered near the bottom of the screen, with no dark
+	 * gradient behind them.
+	 */
 	private void applyPortraitOption() {
 		final boolean reforged = this.ui.reforgedCinematics;
-		setFrameVisible("CinematicPortraitContainer", !reforged || GameOptions.get().isCinematicPortraits());
+		final boolean portrait = !reforged || GameOptions.get().isCinematicPortraits();
+		setFrameVisible("CinematicPortraitContainer", portrait);
 		setFrameVisible("CinematicPortraitCover", !reforged || !this.reforgedPortraitFrame);
 		setFrameVisible("HDCinematicPortraitCover", reforged && this.reforgedPortraitFrame);
+		if (reforged) {
+			setFrameVisible("HDCinematicBackground", portrait && !this.cinematicPanelsHidden);
+		}
+		anchorSubtitles(portrait);
+	}
+
+	private void anchorSubtitles(final boolean besidePortrait) {
+		final AbstractRenderableFrame speaker = this.cinematicSpeakerText;
+		final AbstractRenderableFrame dialogue = this.cinematicDialogueText;
+		final UIFrame cover = this.ui.rootFrame.getFrameByName("CinematicPortraitCover", 0);
+		final TextJustify justify = besidePortrait ? TextJustify.LEFT : TextJustify.CENTER;
+		this.cinematicSpeakerText.setJustifyH(justify);
+		this.cinematicDialogueText.setJustifyH(justify);
+		speaker.clearFramePointAssignments();
+		dialogue.clearFramePointAssignments();
+		dialogue.setWidth(GameUI.convertX(this.ui.uiViewport, DIALOGUE_WIDTH));
+		final float gap = GameUI.convertY(this.ui.uiViewport, -DIALOGUE_GAP);
+		if (besidePortrait) {
+			speaker.addSetPoint(new SetPoint(FramePoint.TOPLEFT, cover, FramePoint.TOPRIGHT,
+					GameUI.convertX(this.ui.uiViewport, SPEAKER_X), GameUI.convertY(this.ui.uiViewport, SPEAKER_Y)));
+			dialogue.addSetPoint(new SetPoint(FramePoint.TOPLEFT, speaker, FramePoint.BOTTOMLEFT, 0, gap));
+		}
+		else {
+			speaker.addSetPoint(new SetPoint(FramePoint.TOP, this.ui.cinematicPanel, FramePoint.BOTTOM, 0,
+					GameUI.convertY(this.ui.uiViewport, REFORGED_SUBTITLE_Y)));
+			dialogue.addSetPoint(new SetPoint(FramePoint.TOP, speaker, FramePoint.BOTTOM, 0, gap));
+		}
+		speaker.positionBounds(this.ui.rootFrame, this.ui.uiViewport);
+		dialogue.positionBounds(this.ui.rootFrame, this.ui.uiViewport);
 	}
 
 	private void setFrameVisible(final String name, final boolean visible) {

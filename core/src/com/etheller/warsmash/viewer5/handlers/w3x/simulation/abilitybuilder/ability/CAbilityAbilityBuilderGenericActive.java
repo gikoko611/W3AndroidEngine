@@ -7,6 +7,7 @@ import java.util.Map;
 import java.util.Set;
 
 import com.etheller.warsmash.units.GameObject;
+import com.etheller.warsmash.util.Log;
 import com.etheller.warsmash.util.War3ID;
 import com.etheller.warsmash.util.WarsmashConstants;
 import com.etheller.warsmash.viewer5.handlers.mdx.Sequence;
@@ -1176,7 +1177,7 @@ public abstract class CAbilityAbilityBuilderGenericActive extends AbstractGeneri
 	public void activate(final CSimulation game, final CUnit caster) {
 		Boolean failed = (Boolean) this.localStore.get(ABLocalStoreKeys.FAILEDTOCAST + castId);
 		if (failed != null && failed) {
-			System.err.println("Failed to cast!");
+			Log.error("Failed to cast!");
 			return;
 		}
 //		System.err.println("Activating!");
@@ -1196,7 +1197,7 @@ public abstract class CAbilityAbilityBuilderGenericActive extends AbstractGeneri
 	public void deactivate(final CSimulation game, final CUnit caster) {
 		Boolean failed = (Boolean) this.localStore.get(ABLocalStoreKeys.FAILEDTOCAST + castId);
 		if (failed != null && failed) {
-			System.err.println("Failed to cast!");
+			Log.error("Failed to cast!");
 			return;
 		}
 //		System.err.println("Deactivating!");

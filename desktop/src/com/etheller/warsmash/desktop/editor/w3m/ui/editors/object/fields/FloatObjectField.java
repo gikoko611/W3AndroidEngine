@@ -12,6 +12,7 @@ import javax.swing.SpinnerNumberModel;
 import com.etheller.warsmash.units.GameObject;
 import com.etheller.warsmash.units.manager.MutableObjectData.MutableGameObject;
 import com.etheller.warsmash.units.manager.MutableObjectData.WorldEditorDataType;
+import com.etheller.warsmash.util.Log;
 import com.etheller.warsmash.util.War3ID;
 import com.etheller.warsmash.util.WorldEditStrings;
 
@@ -56,7 +57,7 @@ public class FloatObjectField extends AbstractObjectField {
 				String.format(defaultDialogTitle, worldEditStrings.getString("WESTRING_COD_TYPE_REAL")),
 				JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE, spinner);
 		if (result == JOptionPane.OK_OPTION) {
-			System.out.println(spinner.getValue() + " on the outside");
+			Log.info(spinner.getValue() + " on the outside");
 			gameUnit.setField(metaKey, level, ((Number) spinner.getValue()).floatValue());
 			return true;
 		}

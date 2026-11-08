@@ -9,6 +9,8 @@ import net.warsmash.nio.channels.WritableOutput;
 import net.warsmash.nio.channels.tcp.TCPClientParser;
 import net.warsmash.nio.util.ExceptionListener;
 
+import com.etheller.warsmash.util.Log;
+
 public class TCPTestClient {
 	private static final int PORT = 8989;
 
@@ -20,21 +22,21 @@ public class TCPTestClient {
 				.openTCPClientChannel(new InetSocketAddress("localhost", PORT), new TCPClientParser() {
 					@Override
 					public void parse(final ByteBuffer data) {
-						System.out.println("Got " + data.remaining() + " bytes from server!");
+						Log.info("Got " + data.remaining() + " bytes from server!");
 						if (data.hasRemaining()) {
-							System.out.print("[");
-							System.out.print(data.get());
+							Log.infoPart("[");
+							Log.infoPart(data.get());
 							while (data.hasRemaining()) {
-								System.out.print(", ");
-								System.out.print(data.get());
+								Log.infoPart(", ");
+								Log.infoPart(data.get());
 							}
-							System.out.println("]");
+							Log.info("]");
 						}
 					}
 
 					@Override
 					public void disconnected() {
-						System.out.println("TCP disconnected!");
+						Log.info("TCP disconnected!");
 					}
 				}, ExceptionListener.THROW_RUNTIME, 8 * 1024 * 1024, ByteOrder.BIG_ENDIAN);
 

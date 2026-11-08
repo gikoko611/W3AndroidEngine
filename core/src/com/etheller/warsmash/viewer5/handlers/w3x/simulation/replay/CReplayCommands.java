@@ -113,4 +113,9 @@ final class CReplayCommands implements CPlayerUnitOrderListener {
 	public void minimapSignal(final float x, final float y) {
 		this.executor.minimapSignal(x, y);
 	}
+
+	@Override
+	public void trackableEvent(final int trackableHandleId, final boolean hit) {
+		this.executor.trackableEvent(trackableHandleId, hit);
+	}
 }

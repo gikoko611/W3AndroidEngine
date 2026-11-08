@@ -35,6 +35,7 @@ import com.etheller.warsmash.parsers.fdf.GameUI;
 import com.etheller.warsmash.parsers.jass.Jass2.RootFrameListener;
 import com.etheller.warsmash.units.DataTable;
 import com.etheller.warsmash.units.Element;
+import com.etheller.warsmash.util.Log;
 import com.etheller.warsmash.util.SessionResources;
 import com.etheller.warsmash.util.WarsmashConstants;
 import com.etheller.warsmash.util.WarsmashUtils;
@@ -150,7 +151,7 @@ public class WarsmashGdxMenuScreen implements InputProcessor, Screen, SingleMode
 			if (this.startupFrameShown) {
 				final long started = System.currentTimeMillis();
 				runStartupStep(this.startupStep);
-				System.err.println("Startup step " + this.startupStep + ": " + (System.currentTimeMillis() - started)
+				Log.warn("Startup step " + this.startupStep + ": " + (System.currentTimeMillis() - started)
 						+ " ms");
 				this.startupStep++;
 			}
@@ -237,7 +238,7 @@ public class WarsmashGdxMenuScreen implements InputProcessor, Screen, SingleMode
 		Gdx.gl30.glBindVertexArray(WarsmashGdxGame.VAO);
 
 		final String renderer = Gdx.gl.glGetString(GL20.GL_RENDERER);
-		System.err.println("Renderer: " + renderer);
+		Log.warn("Renderer: " + renderer);
 
 		this.ownResources = SessionResources.begin();
 		this.codebase = this.gameData != null ? new BorrowedDataSource(this.gameData)
@@ -325,7 +326,7 @@ public class WarsmashGdxMenuScreen implements InputProcessor, Screen, SingleMode
 //		singleModelScene(scene, "Buildings\\Undead\\Necropolis\\Necropolis.mdx", "birth");
 //		singleModelScene(scene, "Units\\Orc\\KotoBeast\\KotoBeast.mdx", "spell slam");
 
-		System.out.println("Loaded");
+		Log.info("Loaded");
 		Gdx.gl30.glClearColor(0.0f, 0.0f, 0.0f, 1);
 	}
 
@@ -781,7 +782,7 @@ public class WarsmashGdxMenuScreen implements InputProcessor, Screen, SingleMode
 				this.codebase.close();
 			}
 			catch (final IOException e) {
-				System.err.println("Could not close the menu's game data: " + e.getMessage());
+				Log.error("Could not close the menu's game data: " + e.getMessage());
 			}
 			this.codebase = null;
 		}

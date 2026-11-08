@@ -14,6 +14,7 @@ import com.badlogic.gdx.utils.BufferUtils;
 import com.etheller.warsmash.datasources.BorrowedDataSource;
 import com.etheller.warsmash.datasources.DataSource;
 import com.etheller.warsmash.parsers.fdf.GameUI;
+import com.etheller.warsmash.util.Log;
 import com.etheller.warsmash.util.WarsmashConstants;
 import com.etheller.warsmash.viewer5.CanvasProvider;
 import com.etheller.warsmash.viewer5.PathSolver;
@@ -116,7 +117,7 @@ final class LauncherCursor implements CanvasProvider {
 			return true;
 		}
 		catch (final RuntimeException e) {
-			e.printStackTrace();
+			Log.error(e);
 			this.failed = true;
 			return false;
 		}

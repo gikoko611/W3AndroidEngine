@@ -22,6 +22,7 @@ import com.etheller.warsmash.parsers.fdf.frames.GlueTextButtonFrame;
 import com.etheller.warsmash.parsers.fdf.frames.SimpleFrame;
 import com.etheller.warsmash.parsers.fdf.frames.TextAreaFrame;
 import com.etheller.warsmash.parsers.fdf.frames.UIFrame;
+import com.etheller.warsmash.util.Log;
 import com.etheller.warsmash.viewer5.handlers.w3x.ui.command.FocusableFrame;
 
 /** The Save Game, Load Game, Options, Help and Tips parts of the game menu; the rest of it is wired up by {@link MeleeUI}. */
@@ -274,7 +275,7 @@ final class MeleeGameMenu {
 			}
 		}
 		catch (final IOException exc) {
-			exc.printStackTrace();
+			Log.error(exc);
 		}
 		return lines;
 	}

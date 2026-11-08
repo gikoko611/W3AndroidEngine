@@ -31,6 +31,7 @@ import com.etheller.interpreter.ast.value.CodeJassValue;
 import com.etheller.interpreter.ast.value.JassType;
 import com.etheller.warsmash.parsers.jass.JassAIEnvironment;
 import com.etheller.warsmash.parsers.jass.ai.AIController;
+import com.etheller.warsmash.util.Log;
 import com.etheller.warsmash.util.War3ID;
 import com.etheller.warsmash.util.WarsmashConstants;
 import com.etheller.warsmash.viewer5.handlers.w3x.War3MapViewer;
@@ -219,7 +220,7 @@ final class SavedGameRules implements SavedObjectGraph.Rules {
 		}
 		if (rest.startsWith("gn:")) {
 			// A global the scripts no longer have: its saved value is read into a stand-in and dropped.
-			System.err.println("Saved game: the scripts no longer have the global " + rest.substring(3));
+			Log.warn("Saved game: the scripts no longer have the global " + rest.substring(3));
 			return new GlobalScopeAssignable(JassType.INTEGER, scope);
 		}
 		final boolean code = rest.startsWith("code:");

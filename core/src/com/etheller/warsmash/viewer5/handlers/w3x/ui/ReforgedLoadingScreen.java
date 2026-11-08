@@ -24,6 +24,7 @@ import com.badlogic.gdx.graphics.g2d.freetype.FreeTypeFontGenerator.FreeTypeFont
 import com.badlogic.gdx.utils.TimeUtils;
 import com.etheller.warsmash.datasources.DataSource;
 import com.etheller.warsmash.parsers.fdf.FontGeneratorHolder;
+import com.etheller.warsmash.util.Log;
 
 /**
  * The loading screen of a map as Reforged shows it, laid out like its web interface's page in a 1080 pixel high
@@ -378,7 +379,7 @@ final class ReforgedLoadingScreen {
 			return scaled;
 		}
 		catch (final IOException | RuntimeException e) {
-			System.err.println("Unable to load " + path + ": " + e);
+			Log.error("Unable to load " + path + ": " + e);
 			return null;
 		}
 	}

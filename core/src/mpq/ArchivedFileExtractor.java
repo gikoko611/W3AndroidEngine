@@ -7,6 +7,8 @@ import java.nio.channels.SeekableByteChannel;
 import mpq.compression.Compression;
 import mpq.util.Cryption;
 
+import com.etheller.warsmash.util.Log;
+
 public class ArchivedFileExtractor {
 	private Compression decompress = new Compression();
 	
@@ -44,7 +46,7 @@ public class ArchivedFileExtractor {
 		// *** CRC check goes here
 		if( file.blockChecksums != null ){
 			// TODO add support for CRC
-			System.err.println("block sector CRC validation currently not supported");
+			Log.warn("block sector CRC validation currently not supported");
 		}
 				
 		// *** decompress if required

@@ -1,5 +1,6 @@
 package com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilitybuilder.parser.template;
 
+import com.etheller.warsmash.util.Log;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.unit.NonStackingStatBuffType;
 
 public enum StatBuffType {
@@ -100,7 +101,7 @@ public enum StatBuffType {
 			return NonStackingStatBuffType.HPSTEAL;
 		case ATK:
 		default:
-			System.err.println("ERROR: Tried to convert Attack buff type with wrong function");
+			Log.error("ERROR: Tried to convert Attack buff type with wrong function");
 			return null;
 		}
 	}
@@ -125,10 +126,10 @@ public enum StatBuffType {
 					return NonStackingStatBuffType.RNGDATK;
 				}
 			}
-			System.err.println("ERROR: Tried to convert Attack buff with both melee and range set to false");
+			Log.error("ERROR: Tried to convert Attack buff with both melee and range set to false");
 			return null;
 		default:
-			System.err.println("ERROR: Tried to convert non-Attack buff type with wrong function");
+			Log.error("ERROR: Tried to convert non-Attack buff type with wrong function");
 			return null;
 		}
 	}

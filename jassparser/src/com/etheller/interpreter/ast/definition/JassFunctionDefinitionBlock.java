@@ -10,6 +10,7 @@ import com.etheller.interpreter.ast.statement.JassStatement;
 import com.etheller.interpreter.ast.type.JassTypeToken;
 import com.etheller.interpreter.ast.util.JassProgram;
 import com.etheller.interpreter.ast.util.JassSettings;
+import com.etheller.warsmash.util.Log;
 
 public class JassFunctionDefinitionBlock extends JassCodeDefinitionBlock implements JassDefinitionBlock {
 
@@ -23,7 +24,7 @@ public class JassFunctionDefinitionBlock extends JassCodeDefinitionBlock impleme
 	public void define(final Scope scope, final JassProgram jassProgram) {
 		scope.defineFunction(getLineNo(), getSourceFile(), getName(), createCode(scope), scope);
 		if (JassSettings.LOG_FUNCTION_DEFINITIONS) {
-			System.out.println("Defining jass user function: " + this.getName());
+			Log.info("Defining jass user function: " + this.getName());
 		}
 	}
 

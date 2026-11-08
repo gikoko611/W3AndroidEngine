@@ -13,6 +13,7 @@ import com.etheller.interpreter.ast.value.HandleJassType;
 import com.etheller.interpreter.ast.value.HandleJassValue;
 import com.etheller.interpreter.ast.value.JassType;
 import com.etheller.interpreter.ast.value.visitor.IntegerJassValueVisitor;
+import com.etheller.warsmash.util.Log;
 
 public class JassNativeManager {
 	private final Map<String, JassFunction> nameToNativeCode;
@@ -38,7 +39,7 @@ public class JassNativeManager {
 			final List<JassParameterDefinition> parameterDefinitions, final JassTypeToken returnTypeToken,
 			final Scope globals) {
 		if (this.registeredNativeNames.contains(name)) {
-			System.err.println("Native already registered: " + name);
+			Log.warn("Native already registered: " + name);
 			return;
 //			throw new RuntimeException("Native already registered: " + name);
 		}

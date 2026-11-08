@@ -9,6 +9,7 @@ import com.etheller.interpreter.ast.scope.TriggerExecutionScope;
 import com.etheller.interpreter.ast.type.JassTypeToken;
 import com.etheller.interpreter.ast.value.JassValue;
 import com.etheller.interpreter.ast.value.visitor.JassTypeGettingValueVisitor;
+import com.etheller.warsmash.util.Log;
 
 /**
  * Not a native
@@ -38,12 +39,12 @@ public abstract class AbstractJassFunction implements JassFunction {
 			final JassValue argument = arguments.get(i);
 			if (!parameter.matchesType(argument)) {
 				if ((parameter == null) || (argument == null)) {
-					System.err.println(
+					Log.warn(
 							"We called some Jass function with incorrect argument types, and the types were null!!!");
-					System.err.println("This is a temporary hack for tests and showcase programming solutions");
+					Log.warn("This is a temporary hack for tests and showcase programming solutions");
 					return null;
 				}
-				System.err.println(
+				Log.warn(
 						parameter.getType() + " != " + argument.visit(JassTypeGettingValueVisitor.getInstance()));
 				throw new JassException(globalScope,
 						"Invalid type " + argument.visit(JassTypeGettingValueVisitor.getInstance()).getName()

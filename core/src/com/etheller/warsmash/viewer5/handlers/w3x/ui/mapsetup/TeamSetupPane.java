@@ -17,6 +17,7 @@ import com.etheller.warsmash.parsers.fdf.frames.UIFrame;
 import com.etheller.warsmash.parsers.w3x.w3i.Force;
 import com.etheller.warsmash.parsers.w3x.w3i.War3MapW3i;
 import com.etheller.warsmash.parsers.w3x.w3i.War3MapW3iFlags;
+import com.etheller.warsmash.util.Log;
 import com.etheller.warsmash.util.WarsmashConstants;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.config.CBasePlayer;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.config.War3MapConfig;
@@ -134,7 +135,7 @@ public class TeamSetupPane {
 					mapInfo.hasFlag(War3MapW3iFlags.FIXED_PLAYER_SETTINGS_FOR_CUSTOM_FORCES));
 		}
 		else {
-			System.err.println("notifyPlayerDataUpdated: doing nothing because there was no slot: " + mapPlayerSlot);
+			Log.warn("notifyPlayerDataUpdated: doing nothing because there was no slot: " + mapPlayerSlot);
 		}
 	}
 

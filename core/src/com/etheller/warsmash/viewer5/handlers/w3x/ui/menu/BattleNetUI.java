@@ -32,6 +32,7 @@ import com.etheller.warsmash.parsers.w3x.objectdata.Warcraft3MapObjectData;
 import com.etheller.warsmash.parsers.w3x.w3i.War3MapW3i;
 import com.etheller.warsmash.parsers.w3x.w3i.War3MapW3iFlags;
 import com.etheller.warsmash.units.custom.WTS;
+import com.etheller.warsmash.util.Log;
 import com.etheller.warsmash.util.WarsmashConstants;
 import com.etheller.warsmash.viewer5.Scene;
 import com.etheller.warsmash.viewer5.handlers.w3x.War3MapViewer;
@@ -524,7 +525,7 @@ public class BattleNetUI {
 						BattleNetUI.this.customCreateCurrentMap = map;
 					}
 					catch (final Exception exc) {
-						exc.printStackTrace();
+						Log.error(exc);
 						actionListener.showError("NETERROR_MAPLOADERROR");
 					}
 				}
@@ -886,7 +887,7 @@ public class BattleNetUI {
 			setGameChatroomMap(map, mapInfo, war3MapConfig);
 		}
 		catch (final IOException e) {
-			e.printStackTrace();
+			Log.error(e);
 			this.actionListener.showError("NETERROR_MAPFILEREAD");
 		}
 
@@ -941,7 +942,7 @@ public class BattleNetUI {
 		if (this.gameChatroomServerSlotToMapSlot != null) {
 			final int mapSlot = this.gameChatroomServerSlotToMapSlot.get(slot, -1);
 			if (mapSlot != -1) {
-				System.err.println("mapSlot got mapping " + mapSlot + " for " + slot);
+				Log.warn("mapSlot got mapping " + mapSlot + " for " + slot);
 				final CBasePlayer player = this.gameChatroomMapConfig.getPlayer(mapSlot);
 				switch (playerType) {
 				case OPEN:
@@ -979,12 +980,12 @@ public class BattleNetUI {
 						this.gameChatroomMapConfig, this.gameChatroomMapInfo);
 			}
 			else {
-				System.err.println(
+				Log.error(
 						"gameLobbySlotSetPlayerType(" + slot + "," + playerType + ") failed, no such map slot");
 			}
 		}
 		else {
-			System.err.println(
+			Log.error(
 					"gameLobbySlotSetPlayerType(" + slot + "," + playerType + ") failed, no ServerSlotToMapSlot");
 		}
 	}
@@ -993,18 +994,18 @@ public class BattleNetUI {
 		if (this.gameChatroomServerSlotToMapSlot != null) {
 			final int mapSlot = this.gameChatroomServerSlotToMapSlot.get(slot, -1);
 			if (mapSlot != -1) {
-				System.err.println("mapSlot got mapping " + mapSlot + " for " + slot);
+				Log.warn("mapSlot got mapping " + mapSlot + " for " + slot);
 				final CBasePlayer player = this.gameChatroomMapConfig.getPlayer(mapSlot);
 				player.setName(userName);
 				this.gameChatroomTeamSetupPane.notifyPlayerDataUpdated(mapSlot, this.rootFrame, this.uiViewport,
 						this.gameChatroomMapConfig, this.gameChatroomMapInfo);
 			}
 			else {
-				System.err.println("gameLobbySlotSetPlayer(" + slot + "," + userName + ") failed, no such map slot");
+				Log.error("gameLobbySlotSetPlayer(" + slot + "," + userName + ") failed, no such map slot");
 			}
 		}
 		else {
-			System.err.println("gameLobbySlotSetPlayer(" + slot + "," + userName + ") failed, no ServerSlotToMapSlot");
+			Log.error("gameLobbySlotSetPlayer(" + slot + "," + userName + ") failed, no ServerSlotToMapSlot");
 		}
 	}
 
@@ -1012,7 +1013,7 @@ public class BattleNetUI {
 		if (this.gameChatroomServerSlotToMapSlot != null) {
 			final int mapSlot = this.gameChatroomServerSlotToMapSlot.get(slot, -1);
 			if (mapSlot != -1) {
-				System.err.println("mapSlot got mapping " + mapSlot + " for " + slot);
+				Log.warn("mapSlot got mapping " + mapSlot + " for " + slot);
 				final CBasePlayer player = this.gameChatroomMapConfig.getPlayer(mapSlot);
 				if (raceItemIndex == 0) {
 					player.setRacePref(WarsmashConstants.RACE_MANAGER.getRandomRacePreference());
@@ -1027,12 +1028,12 @@ public class BattleNetUI {
 						this.gameChatroomMapConfig, this.gameChatroomMapInfo);
 			}
 			else {
-				System.err.println(
+				Log.error(
 						"gameLobbySlotSetPlayerRace(" + slot + "," + raceItemIndex + ") failed, no such map slot");
 			}
 		}
 		else {
-			System.err.println(
+			Log.error(
 					"gameLobbySlotSetPlayerRace(" + slot + "," + raceItemIndex + ") failed, no ServerSlotToMapSlot");
 		}
 	}

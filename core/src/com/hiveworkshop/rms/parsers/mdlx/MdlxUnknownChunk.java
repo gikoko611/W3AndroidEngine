@@ -1,5 +1,6 @@
 package com.hiveworkshop.rms.parsers.mdlx;
 
+import com.etheller.warsmash.util.Log;
 import com.etheller.warsmash.util.War3ID;
 import com.hiveworkshop.rms.util.BinaryReader;
 import com.hiveworkshop.rms.util.BinaryWriter;
@@ -9,7 +10,7 @@ public class MdlxUnknownChunk implements MdlxChunk {
 	public final War3ID tag;
 
 	public MdlxUnknownChunk(final BinaryReader reader, final long size, final War3ID tag) {
-		System.err.println("Loading unknown chunk: " + tag);
+		Log.warn("Loading unknown chunk: " + tag);
 		this.chunk = reader.readUInt8Array((int) size);
 		this.tag = tag;
 	}

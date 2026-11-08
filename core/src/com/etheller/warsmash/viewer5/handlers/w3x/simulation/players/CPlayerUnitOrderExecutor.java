@@ -9,6 +9,7 @@ import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CReleaseCheats;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CSimulation;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CUnit;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.item.shop.CAbilityNeutralBuilding;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.campaign.CTrackable;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.targeting.AbilityPointTarget;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.behaviors.CBehaviorHoldPosition;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.behaviors.CGroupMove;
@@ -259,6 +260,21 @@ public class CPlayerUnitOrderExecutor implements CPlayerUnitOrderListener {
 	@Override
 	public void minimapSignal(final float x, final float y) {
 		this.game.getPlayerCommandHost().minimapSignal(this.playerIndex, x, y);
+	}
+
+	@Override
+	public void trackableEvent(final int trackableHandleId, final boolean hit) {
+		for (final CTrackable trackable : this.game.getTrackables()) {
+			if (trackable.getHandleId() == trackableHandleId) {
+				if (hit) {
+					trackable.hit(this.game.getGlobalScope());
+				}
+				else {
+					trackable.track(this.game.getGlobalScope());
+				}
+				return;
+			}
+		}
 	}
 
 }

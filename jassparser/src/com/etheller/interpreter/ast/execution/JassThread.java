@@ -3,6 +3,7 @@ package com.etheller.interpreter.ast.execution;
 import com.etheller.interpreter.ast.scope.GlobalScope;
 import com.etheller.interpreter.ast.scope.TriggerExecutionScope;
 import com.etheller.interpreter.ast.util.JassSettings;
+import com.etheller.warsmash.util.Log;
 
 public class JassThread {
 	public JassStackFrame stackFrame;
@@ -45,7 +46,7 @@ public class JassThread {
 	 */
 	public boolean countOps(final int opCost) {
 		if ((this.opCount += opCost) >= JassSettings.OP_LIMIT) {
-			System.err.println("JASS thread stopped: operation limit");
+			Log.warn("JASS thread stopped: operation limit");
 			halt();
 			return false;
 		}

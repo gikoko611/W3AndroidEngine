@@ -20,6 +20,7 @@ import javax.swing.event.ListSelectionEvent;
 import javax.swing.event.ListSelectionListener;
 import javax.swing.filechooser.FileNameExtensionFilter;
 
+import com.etheller.warsmash.util.Log;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilitybuilder.core.AbilityBuilderGsonBuilder;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilitybuilder.parser.AbilityBuilderConfiguration;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilitybuilder.parser.AbilityBuilderDupe;
@@ -92,18 +93,18 @@ public class AbilityBuilderUIPanel extends JPanel {
 					AbilityBuilderParserUtil.loadAbilityBuilderFile(gson, selectedFile, behavior -> {
 						if (behavior.getType() == AbilityBuilderType.TEMPLATE) {
 							for (AbilityBuilderDupe dupe : behavior.getIds()) {
-								System.out.println("template: " + dupe.getId());
+								Log.info("template: " + dupe.getId());
 								idsListModel.addElement(new AbilityBuilderConfiguration(behavior, dupe));
 							}
 						} else {
 							for (AbilityBuilderDupe dupe : behavior.getIds()) {
-								System.out.println("non-template: " + dupe.getId());
+								Log.info("non-template: " + dupe.getId());
 								idsListModel.addElement(new AbilityBuilderConfiguration(behavior, dupe));
 							}
 						}
 					});
 				} catch (Exception exc) {
-					exc.printStackTrace();
+					Log.error(exc);
 				}
 			}
 		}

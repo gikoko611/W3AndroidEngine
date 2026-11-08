@@ -30,6 +30,7 @@ import com.etheller.warsmash.parsers.fdf.frames.TextureFrame;
 import com.etheller.warsmash.parsers.fdf.frames.UIFrame;
 import com.etheller.warsmash.util.ArgbImage;
 import com.etheller.warsmash.util.ImageUtils;
+import com.etheller.warsmash.util.Log;
 import com.etheller.warsmash.util.RenderMathUtils;
 import com.etheller.warsmash.util.War3ID;
 import com.etheller.warsmash.util.WarsmashConstants;
@@ -221,7 +222,7 @@ final class MeleeUICommands {
 					this.ui.rootFrame.getSkinField("ConsoleInventoryNoCapacity"));
 		}
 		catch (final Exception exc) {
-			exc.printStackTrace();
+			Log.error(exc);
 		}
  this.ui.inventoryCover = this.ui.rootFrame.createSimpleFrame("SmashConsoleInventoryCover", this.ui.rootFrame, 0);
 	}

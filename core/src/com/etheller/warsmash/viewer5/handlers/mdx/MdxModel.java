@@ -9,6 +9,7 @@ import java.util.List;
 import org.apache.commons.io.IOUtils;
 
 import com.badlogic.gdx.graphics.GL20;
+import com.etheller.warsmash.util.Log;
 import com.etheller.warsmash.viewer5.ModelInstance;
 import com.etheller.warsmash.viewer5.ModelViewer;
 import com.etheller.warsmash.viewer5.PathSolver;
@@ -103,7 +104,7 @@ public class MdxModel extends com.etheller.warsmash.viewer5.Model<MdxHandler> {
 		else {
 			if (!reportedStreamConversion) {
 				reportedStreamConversion = true;
-				System.err.println("Wasting memory with conversion from InputStream to buffer in MdxModel (reported once)");
+				Log.warn("Wasting memory with conversion from InputStream to buffer in MdxModel (reported once)");
 			}
 			parser = new MdlxModel(ByteBuffer.wrap(IOUtils.toByteArray((InputStream) bufferOrParser)));
 		}
@@ -314,7 +315,7 @@ public class MdxModel extends com.etheller.warsmash.viewer5.Model<MdxHandler> {
 			setupHierarchy(-1);
 		}
 		catch (final StackOverflowError e) {
-			System.out.println("bah");
+			Log.info("bah");
 		}
 
 		// Keep a sorted array.
@@ -352,7 +353,7 @@ public class MdxModel extends com.etheller.warsmash.viewer5.Model<MdxHandler> {
 
 	@Override
 	protected void error(final Exception e) {
-		e.printStackTrace();
+		Log.error(e);
 	}
 
 	// TODO typing

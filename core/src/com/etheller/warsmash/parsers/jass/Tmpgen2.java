@@ -2,6 +2,8 @@ package com.etheller.warsmash.parsers.jass;
 
 import java.util.Scanner;
 
+import com.etheller.warsmash.util.Log;
+
 public class Tmpgen2 {
 
 	public static void main(final String[] args) {
@@ -12,14 +14,14 @@ public class Tmpgen2 {
 			final String line = scanner.nextLine();
 			final String[] splitLine = line.trim().split("\\s+");
 			if (line.trim().startsWith("//")) {
-				System.out.println(line);
+				Log.info(line);
 			}
 			else {
 				if (splitLine.length > 3) {
-					System.out.println(splitLine[2] + ",");
+					Log.info(splitLine[2] + ",");
 				}
 				else {
-					System.out.println();
+					Log.info("");
 				}
 			}
 		}

@@ -6,6 +6,7 @@ import javax.swing.UIManager;
 import com.etheller.warsmash.desktop.DesktopLauncher;
 import com.etheller.warsmash.desktop.editor.w3m.ui.WorldEditorFrame;
 import com.etheller.warsmash.units.DataTable;
+import com.etheller.warsmash.util.Log;
 import com.etheller.warsmash.viewer5.handlers.mdx.MdxHandler.ShaderEnvironmentType;
 import com.etheller.warsmash.viewer5.handlers.mdx.MdxViewer;
 
@@ -19,6 +20,7 @@ public class WorldEditorMain {
 //			UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
 		}
 		catch (final Exception exc) {
+			Log.warn("System look and feel not available: " + exc);
 		}
 
 		final DataTable warsmashIni = DesktopLauncher.loadWarsmashIni();

@@ -12,6 +12,7 @@ import com.etheller.warsmash.desktop.DesktopLauncher;
 import com.etheller.warsmash.parsers.w3x.War3Map;
 import com.etheller.warsmash.parsers.w3x.w3e.War3MapW3e;
 import com.etheller.warsmash.units.DataTable;
+import com.etheller.warsmash.util.Log;
 
 public class TerrainView {
 	public static void main(final String[] args) {
@@ -30,7 +31,7 @@ public class TerrainView {
 			frame.setVisible(true);
 		}
 		catch (final IOException e) {
-			e.printStackTrace();
+			Log.error(e);
 		}
 	}
 }

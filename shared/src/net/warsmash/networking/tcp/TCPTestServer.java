@@ -11,6 +11,8 @@ import net.warsmash.nio.channels.WritableSocketOutput;
 import net.warsmash.nio.channels.tcp.TCPClientParser;
 import net.warsmash.nio.util.ExceptionListener;
 
+import com.etheller.warsmash.util.Log;
+
 public class TCPTestServer {
 	private static final int PORT = 8989;
 
@@ -20,26 +22,26 @@ public class TCPTestServer {
 			@Override
 			public TCPClientParser onConnect(final WritableSocketOutput writableOpenedChannel,
 					final SocketAddress remoteAddress) {
-				System.out.println("Received connection from " + remoteAddress);
+				Log.info("Received connection from " + remoteAddress);
 				return new TCPClientParser() {
 					@Override
 					public void parse(final ByteBuffer data) {
-						System.out.println("Got " + data.remaining() + " bytes from " + remoteAddress);
+						Log.info("Got " + data.remaining() + " bytes from " + remoteAddress);
 						if (data.hasRemaining()) {
-							System.out.print("[");
-							System.out.print(data.get());
+							Log.infoPart("[");
+							Log.infoPart(data.get());
 							while (data.hasRemaining()) {
-								System.out.print(", ");
-								System.out.print(data.get());
+								Log.infoPart(", ");
+								Log.infoPart(data.get());
 							}
-							System.out.println("]");
+							Log.info("]");
 						}
 						writableOpenedChannel.write(ByteBuffer.wrap("reply".getBytes()));
 					}
 
 					@Override
 					public void disconnected() {
-						System.out.println("Disconnected from " + remoteAddress);
+						Log.info("Disconnected from " + remoteAddress);
 					}
 				};
 			}

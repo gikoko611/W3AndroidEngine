@@ -7,6 +7,7 @@ import java.util.Map;
 
 import com.etheller.warsmash.units.GameObject;
 import com.etheller.warsmash.units.ObjectData;
+import com.etheller.warsmash.util.Log;
 import com.etheller.warsmash.util.War3ID;
 import com.etheller.warsmash.util.WarsmashConstants;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CSimulation;
@@ -569,9 +570,9 @@ public class CAbilityData {
 		this.codeToAbilityTypeDefinition.put(War3ID.fromString("Awan"),
 				new CAbilityTypeDefinitionSpellBase((handleId, alias) -> new CAbilityWander(handleId, alias)));
 
-		System.err.println("========================================================================");
-		System.err.println("Starting to load ability builder");
-		System.err.println("========================================================================");
+		Log.warn("========================================================================");
+		Log.warn("Starting to load ability builder");
+		Log.warn("========================================================================");
 
 
 		try {
@@ -606,7 +607,7 @@ public class CAbilityData {
 				
 				if (prevIter == 0) {
 					for (AbilityBuilderParser parser : iter) {
-						System.err.println("Couldn't parse INHERIT ability due to no parent ability definition: " + parser.getIds().get(0).getId());
+						Log.error("Couldn't parse INHERIT ability due to no parent ability definition: " + parser.getIds().get(0).getId());
 					}
 					break;
 				}
@@ -614,7 +615,7 @@ public class CAbilityData {
 				
 				for (AbilityBuilderParser parser : iter) {
 					if (parser.getParentId() == null) {
-						System.err.println("Couldn't parse INHERIT ability due to missing parent ID: " + parser.getIds().get(0).getId());
+						Log.error("Couldn't parse INHERIT ability due to missing parent ID: " + parser.getIds().get(0).getId());
 						continue;
 					}
 					AbilityBuilderParser parent = previousAbilityParsers.get(parser.getParentId());
@@ -668,7 +669,7 @@ public class CAbilityData {
 					
 					if (prevIter == 0) {
 						for (AbilityBuilderParser parser : iter) {
-							System.err.println("Couldn't parse INHERIT ability due to no parent ability definition: " + parser.getIds().get(0).getId());
+							Log.error("Couldn't parse INHERIT ability due to no parent ability definition: " + parser.getIds().get(0).getId());
 						}
 						break;
 					}
@@ -676,7 +677,7 @@ public class CAbilityData {
 					
 					for (AbilityBuilderParser parser : iter) {
 						if (parser.getParentId() == null) {
-							System.err.println("Couldn't parse INHERIT ability due to missing parent ID: " + parser.getIds().get(0).getId());
+							Log.error("Couldn't parse INHERIT ability due to missing parent ID: " + parser.getIds().get(0).getId());
 							continue;
 						}
 						AbilityBuilderParser parent = previousAbilityParsers.get(parser.getParentId());
@@ -698,12 +699,12 @@ public class CAbilityData {
 				}
 			}
 		} catch (Exception e) {
-			e.printStackTrace();
+			Log.error(e);
 		}
 
-		System.err.println("========================================================================");
-		System.err.println("registered abilities");
-		System.err.println("========================================================================");
+		Log.warn("========================================================================");
+		Log.warn("registered abilities");
+		Log.warn("========================================================================");
 
 	}
 

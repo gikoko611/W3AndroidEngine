@@ -22,6 +22,7 @@ import com.etheller.warsmash.networking.WarsmashServer;
 import com.etheller.warsmash.networking.uberserver.users.PasswordAuthentication;
 import com.etheller.warsmash.networking.uberserver.users.User;
 import com.etheller.warsmash.networking.uberserver.users.UserManager;
+import com.etheller.warsmash.util.Log;
 
 import net.warsmash.map.NetMapDownloader;
 import net.warsmash.uberserver.*;
@@ -125,8 +126,8 @@ public class GamingNetworkServerBusinessLogicImpl {
 			tracker.killedSession(addressString, currentSession.getUser());
 		}
 		catch (final Exception exc) {
-			System.err.println("Exception while killing session for user: " + exc);
-			exc.printStackTrace();
+			Log.error("Exception while killing session for user: " + exc);
+			Log.error(exc);
 		}
 	}
 
@@ -263,13 +264,13 @@ public class GamingNetworkServerBusinessLogicImpl {
 				final HostedGame hostedGame = this.nameLowerCaseToGame.get(session.currentGameName);
 				if (hostedGame.isMapFullyLoaded()) {
 					// easy case: send map
-					System.err.println(session.getUser().getUsername() + " - sending map");
+					Log.warn(session.getUser().getUsername() + " - sending map");
 					hostedGame.sendMap(connectionContext);
 					hostedGame.resendLobby(connectionContext);
 					tracker.sentMap(connectionContext.getAddressString(), session.getUser());
 				}
 				else {
-					System.err.println(
+					Log.warn(
 							session.getUser().getUsername() + " - waiting for map because server wasn't ready");
 					hostedGame.addPlayerAwaitingMap(session);
 					tracker.subscribedForMap(connectionContext.getAddressString(), session.getUser());
@@ -658,7 +659,7 @@ public class GamingNetworkServerBusinessLogicImpl {
 					session.mostRecentConnectionContext.channelMessage(sourceUserName, message);
 				}
 				catch (final Exception exc) {
-					exc.printStackTrace();
+					Log.error(exc);
 				}
 			}
 		}
@@ -669,7 +670,7 @@ public class GamingNetworkServerBusinessLogicImpl {
 					session.mostRecentConnectionContext.channelEmote(sourceUserName, message);
 				}
 				catch (final Exception exc) {
-					exc.printStackTrace();
+					Log.error(exc);
 				}
 			}
 		}
@@ -852,7 +853,7 @@ public class GamingNetworkServerBusinessLogicImpl {
 						session.mostRecentConnectionContext.channelMessage(sourceUserName, message);
 					}
 					catch (final Exception exc) {
-						exc.printStackTrace();
+						Log.error(exc);
 					}
 				}
 			}
@@ -866,7 +867,7 @@ public class GamingNetworkServerBusinessLogicImpl {
 						session.mostRecentConnectionContext.channelEmote(sourceUserName, message);
 					}
 					catch (final Exception exc) {
-						exc.printStackTrace();
+						Log.error(exc);
 					}
 				}
 			}
@@ -880,7 +881,7 @@ public class GamingNetworkServerBusinessLogicImpl {
 						session.mostRecentConnectionContext.channelServerMessage(sourceUserName, message);
 					}
 					catch (final Exception exc) {
-						exc.printStackTrace();
+						Log.error(exc);
 					}
 				}
 			}
@@ -975,7 +976,7 @@ public class GamingNetworkServerBusinessLogicImpl {
 				this.warsmashGameServer = new WarsmashServer(0, sessionTokenToSlot);
 			}
 			catch (final IOException e) {
-				e.printStackTrace();
+				Log.error(e);
 			}
 			if (this.warsmashGameServer != null) {
 				this.warsmashGameServer.startThread();
@@ -986,11 +987,11 @@ public class GamingNetworkServerBusinessLogicImpl {
 						localHost = getLocalHost();
 					}
 					catch (final SocketException e) {
-						e.printStackTrace();
+						Log.error(e);
 						return;
 					}
 					if(localHost == null) {
-						System.err.println("Unable to find local host address in GamingNetworkServerBusinessLogicImpl!!!");
+						Log.error("Unable to find local host address in GamingNetworkServerBusinessLogicImpl!!!");
 						return;
 					}
 					final byte[] bytes = localHost.getAddress();
@@ -1002,7 +1003,7 @@ public class GamingNetworkServerBusinessLogicImpl {
 								session.mostRecentConnectionContext.gameLobbyStartGame(bytes, port, i);
 							}
 							catch (final Exception exc) {
-								exc.printStackTrace();
+								Log.error(exc);
 							}
 						}
 					}

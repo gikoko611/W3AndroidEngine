@@ -18,6 +18,7 @@ import com.etheller.warsmash.datasources.DataSource;
 import com.etheller.warsmash.parsers.fdf.GameUI;
 import com.etheller.warsmash.parsers.jass.Jass2.CommonEnvironment;
 import com.etheller.warsmash.parsers.jass.triggers.TriggerEventHandle;
+import com.etheller.warsmash.util.Log;
 import com.etheller.warsmash.util.WarsmashConstants;
 import com.etheller.warsmash.viewer5.Scene;
 import com.etheller.warsmash.viewer5.handlers.w3x.War3MapViewer;
@@ -81,7 +82,7 @@ abstract class CommonNatives {
 	// Campaign scripts call these natives tens of thousands of times per map.
 	static void reportMissingDestructorOnce(final String nativeName) {
 		if (REPORTED_MISSING_DESTRUCTORS.add(nativeName)) {
-			System.err.println(nativeName
+			Log.warn(nativeName
 					+ " called but in Java we don't have a destructor, so we need to unregister later when that is implemented (reported once)");
 		}
 	}

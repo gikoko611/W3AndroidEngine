@@ -16,6 +16,7 @@ import java.util.Set;
 import com.etheller.warsmash.units.GameObject;
 import com.etheller.warsmash.units.ObjectData;
 import com.etheller.warsmash.util.ArgbImage;
+import com.etheller.warsmash.util.Log;
 import com.etheller.warsmash.util.War3ID;
 import com.etheller.warsmash.util.WarsmashConstants;
 import com.etheller.warsmash.viewer5.handlers.w3x.AnimationTokens.SecondaryTag;
@@ -83,6 +84,7 @@ public class CUnitData {
 	private static final String MOVEMENT_SPEED_MIN = "minSpd";
 	private static final String PROPULSION_WINDOW = "propWin"; // replaced from 'uprw'
 	private static final String TURN_RATE = "turnRate"; // replaced from 'umvr'
+	private static final String ORIENTATION_INTERPOLATION = "orientInterp"; // replaced from 'uori'
 	private static final String IS_BLDG = "isbldg"; // replaced from 'ubdg'
 	private static final String UNIT_SHADOW = "unitShadow"; // replaced from 'ushu'
 	private static final String UBER_SPLAT = "uberSplat"; // replaced from 'uubs'
@@ -687,7 +689,7 @@ public class CUnitData {
 						range, rangeMotionBuffer, showUI, targetsAllowed, weaponSound, weaponType, SequenceUtils.ONE));
 			}
 			catch (final Exception exc) {
-				System.err.println("Attack 1 failed to parse with: " + exc.getClass() + ":" + exc.getMessage());
+				Log.error("Attack 1 failed to parse with: " + exc.getClass() + ":" + exc.getMessage());
 			}
 			try {
 				// attack two
@@ -751,7 +753,7 @@ public class CUnitData {
 						range, rangeMotionBuffer, showUI, targetsAllowed, weaponSound, weaponType, SequenceUtils.TWO));
 			}
 			catch (final Exception exc) {
-				System.err.println("Attack 2 failed to parse with: " + exc.getClass() + ":" + exc.getMessage());
+				Log.error("Attack 2 failed to parse with: " + exc.getClass() + ":" + exc.getMessage());
 			}
 			final List<CUnitAttack> enabledAttacks = getEnabledAttacks(attacks, attacksEnabled);
 			final int deathType = unitType.getFieldAsInteger(DEATH_TYPE, 0);
@@ -873,6 +875,7 @@ public class CUnitData {
 					goldBountyAwardedSides, lumberBountyAwardedBase, lumberBountyAwardedDice, lumberBountyAwardedSides,
 					neutralBuildingShowMinimapIcon, tilesets, special);
 			unitTypeInstance.setCanSleep(unitType.getFieldAsBoolean(CAN_SLEEP, 0));
+			unitTypeInstance.setOrientationInterpolation(unitType.getFieldAsInteger(ORIENTATION_INTERPOLATION, 0));
 			unitTypeInstance.setStock(unitType.getFieldAsInteger(STOCK_MAX, 0),
 					unitType.getFieldAsInteger(STOCK_REPLENISH_INTERVAL, 0),
 					unitType.getFieldAsInteger(STOCK_START_DELAY, 0), unitType.getFieldAsInteger(STOCK_INITIAL, 0));
@@ -1238,7 +1241,7 @@ public class CUnitData {
 		if (typeId == null) {
 			// VERY inefficient, but this is a crazy system anyway, they should not be using
 			// this!
-			System.err.println(
+			Log.warn(
 					"We are doing a highly inefficient lookup for a non-cached unit type based on its legacy string ID that I am pretty sure is not used by modding community: "
 							+ jassLegacyName);
 			for (final String key : this.unitData.keySet()) {
@@ -1372,7 +1375,7 @@ public class CUnitData {
 						range, rangeMotionBuffer, showUI, targetsAllowed, weaponSound, weaponType, SequenceUtils.ONE));
 			}
 			catch (final Exception exc) {
-				System.err.println("Attack 1 failed to parse with: " + exc.getClass() + ":" + exc.getMessage());
+				Log.error("Attack 1 failed to parse with: " + exc.getClass() + ":" + exc.getMessage());
 			}
 			try {
 				// attack two
@@ -1436,7 +1439,7 @@ public class CUnitData {
 						range, rangeMotionBuffer, showUI, targetsAllowed, weaponSound, weaponType, SequenceUtils.TWO));
 			}
 			catch (final Exception exc) {
-				System.err.println("Attack 2 failed to parse with: " + exc.getClass() + ":" + exc.getMessage());
+				Log.error("Attack 2 failed to parse with: " + exc.getClass() + ":" + exc.getMessage());
 			}
 			final List<CUnitAttack> enabledAttacks = getEnabledAttacks(attacks, attacksEnabled);
 			final int deathType = unitType.getFieldAsInteger(DEATH_TYPE, 0);
@@ -1558,6 +1561,7 @@ public class CUnitData {
 					lumberBountyAwardedBase, lumberBountyAwardedDice, lumberBountyAwardedSides,
 					neutralBuildingShowMinimapIcon, tilesets, special);
 			unitTypeInstance.setCanSleep(unitType.getFieldAsBoolean(CAN_SLEEP, 0));
+			unitTypeInstance.setOrientationInterpolation(unitType.getFieldAsInteger(ORIENTATION_INTERPOLATION, 0));
 			unitTypeInstance.setStock(unitType.getFieldAsInteger(STOCK_MAX, 0),
 					unitType.getFieldAsInteger(STOCK_REPLENISH_INTERVAL, 0),
 					unitType.getFieldAsInteger(STOCK_START_DELAY, 0), unitType.getFieldAsInteger(STOCK_INITIAL, 0));

@@ -50,6 +50,7 @@ import com.etheller.warsmash.parsers.fdf.frames.UIFrame;
 import com.etheller.warsmash.parsers.jass.Jass2.RootFrameListener;
 import com.etheller.warsmash.units.DataTable;
 import com.etheller.warsmash.util.ImageUtils;
+import com.etheller.warsmash.util.Log;
 import com.etheller.warsmash.util.StringBundle;
 import com.etheller.warsmash.util.War3ID;
 import com.etheller.warsmash.util.WarsmashConstants;
@@ -371,7 +372,7 @@ public class MeleeUI implements CUnitStateListener, CommandButtonListener, Comma
 				this.musicSLK.readSLK(miscDataTxtStream);
 			}
 			catch (final IOException e) {
-				e.printStackTrace();
+				Log.error(e);
 			}
 		}
 

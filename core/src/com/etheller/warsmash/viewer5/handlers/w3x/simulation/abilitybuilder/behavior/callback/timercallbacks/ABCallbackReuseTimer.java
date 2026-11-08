@@ -3,6 +3,7 @@ package com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilitybuilder.beh
 import java.util.Map;
 
 import com.etheller.warsmash.parsers.jass.JassTextGenerator;
+import com.etheller.warsmash.util.Log;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CSimulation;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CUnit;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilitybuilder.ability.AbilityBuilderAbility;
@@ -27,10 +28,10 @@ public class ABCallbackReuseTimer extends ABTimerCallback {
 			if (callback != null && callback instanceof ABTimerCallback) {
 				return ((ABTimerCallback) callback).callback(game, caster, localStore, castId);
 			} else {
-				System.err.println("Trying to run ReuseTimerCallback, but key is missing or callback was the wrong type: " + keyS);
+				Log.error("Trying to run ReuseTimerCallback, but key is missing or callback was the wrong type: " + keyS);
 			}
 		} else {
-			System.err.println("Trying to run ReuseTimerCallback, but none defined");
+			Log.warn("Trying to run ReuseTimerCallback, but none defined");
 		}
 		return null;
 	}

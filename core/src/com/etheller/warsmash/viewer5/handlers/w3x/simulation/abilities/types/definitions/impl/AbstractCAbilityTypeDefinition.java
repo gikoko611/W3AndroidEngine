@@ -58,6 +58,7 @@ public abstract class AbstractCAbilityTypeDefinition<TYPE_LEVEL_DATA extends CAb
 			buffId = War3ID.fromString(buffIdString);
 		}
 		catch (final Exception exc) {
+			// Most abilities leave this field blank: no buff.
 		}
 		return buffId;
 	}

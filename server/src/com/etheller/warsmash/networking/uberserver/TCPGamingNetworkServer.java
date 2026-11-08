@@ -13,6 +13,8 @@ import net.warsmash.nio.channels.tcp.TCPClientParser;
 import net.warsmash.nio.util.ExceptionListener;
 import net.warsmash.uberserver.GamingNetwork;
 
+import com.etheller.warsmash.util.Log;
+
 public class TCPGamingNetworkServer {
 	private final ChannelOpener channelOpener;
 	private final GamingNetworkServerClientBuilder gamingNetworkServerClientBuilder;
@@ -28,7 +30,7 @@ public class TCPGamingNetworkServer {
 			@Override
 			public TCPClientParser onConnect(final WritableSocketOutput writableOpenedChannel,
 					final SocketAddress remoteAddress) {
-				System.out.println("Received connection from " + remoteAddress);
+				Log.info("Received connection from " + remoteAddress);
 				return new TCPGamingNetworkServerClientParser(
 						TCPGamingNetworkServer.this.gamingNetworkServerClientBuilder
 								.createClient(writableOpenedChannel));
@@ -36,7 +38,7 @@ public class TCPGamingNetworkServer {
 		}, new ExceptionListener() {
 			@Override
 			public void caught(final Exception e) {
-				e.printStackTrace();
+				Log.error(e);
 			}
 		}, 8 * 1024 * 1024, ByteOrder.LITTLE_ENDIAN);
 
@@ -49,7 +51,7 @@ public class TCPGamingNetworkServer {
 
 			@Override
 			public void caught(Exception e) {
-				e.printStackTrace();
+				Log.error(e);
 			}
 		}, 8 * 1024 * 1024, ByteOrder.LITTLE_ENDIAN);
 	}

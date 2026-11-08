@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.Map;
 
 import com.etheller.warsmash.parsers.jass.JassTextGenerator;
+import com.etheller.warsmash.util.Log;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CSimulation;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CUnit;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilitybuilder.behavior.callback.stringcallbacks.ABStringCallback;
@@ -23,7 +24,7 @@ public class ABCallbackArgumentList extends ABListCallback<Object> {
 		if (cbck != null && cbck instanceof ABListCallback) {
 			return ((ABListCallback<Object>) cbck).callback(game, caster, localStore, castId);
 		} else {
-			System.err.println("Trying to run ArgumentLocationCallback, but key is missing or callback was the wrong type: " + keyS);
+			Log.error("Trying to run ArgumentLocationCallback, but key is missing or callback was the wrong type: " + keyS);
 		}
 		return null;
 	}

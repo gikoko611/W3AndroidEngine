@@ -13,6 +13,7 @@ import com.badlogic.gdx.math.Matrix4;
 import com.badlogic.gdx.math.Quaternion;
 import com.badlogic.gdx.math.Vector3;
 import com.badlogic.gdx.math.collision.Ray;
+import com.etheller.warsmash.util.Log;
 import com.etheller.warsmash.util.WarsmashConstants;
 import com.etheller.warsmash.viewer5.Bounds;
 import com.etheller.warsmash.viewer5.GenericNode;
@@ -919,8 +920,8 @@ public class MdxComplexInstance extends ModelInstance {
 		}
 		else {
 			if (((MdxModel) this.model).sequences.isEmpty()) {
-				System.err.println("Printing diagnostics for corrupted state MdxComplexInstance (about to crash)");
-				System.err.println("Model name: " + ((MdxModel) this.model).name);
+				Log.error("Printing diagnostics for corrupted state MdxComplexInstance (about to crash)");
+				Log.warn("Model name: " + ((MdxModel) this.model).name);
 			}
 			final Bounds sequenceBounds = ((MdxModel) this.model).sequences.get(this.sequence).getBounds();
 			if (sequenceBounds.r == 0) {

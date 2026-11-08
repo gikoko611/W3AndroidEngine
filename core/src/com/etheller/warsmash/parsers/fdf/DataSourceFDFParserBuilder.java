@@ -12,6 +12,7 @@ import com.etheller.warsmash.datasources.DataSource;
 import com.etheller.warsmash.fdfparser.FDFLexer;
 import com.etheller.warsmash.fdfparser.FDFParser;
 import com.etheller.warsmash.fdfparser.FDFParserBuilder;
+import com.etheller.warsmash.util.Log;
 
 public class DataSourceFDFParserBuilder implements FDFParserBuilder {
 	private final DataSource dataSource;
@@ -39,7 +40,7 @@ public class DataSourceFDFParserBuilder implements FDFParserBuilder {
 					sourceName = String.format("%s:%d:%d: ", sourceName, line, charPositionInLine);
 				}
 
-				System.err.println(sourceName + "line " + line + ":" + charPositionInLine + " " + msg);
+				Log.warn(sourceName + "line " + line + ":" + charPositionInLine + " " + msg);
 			}
 		};
 		fdfParser.addErrorListener(errorListener);

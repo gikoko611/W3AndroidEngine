@@ -3,6 +3,8 @@ package mpq.compression.pkware;
 import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
 
+import com.etheller.warsmash.util.Log;
+
 public class PKExploder {
 	private static final byte CMP_BINARY = 0;
 	private static final byte CMP_ASCII = 1;
@@ -155,7 +157,7 @@ public class PKExploder {
 					break;
 				case CMP_ASCII:
 					// TODO add ASCII decompression stuff here
-					System.err.println("pkware ascii compression not supported");
+					Log.warn("pkware ascii compression not supported");
 					return;
 				default: throw new PKException("invalid compression mode");
 				}
@@ -184,7 +186,7 @@ public class PKExploder {
 		case CMP_BINARY: break;
 		case CMP_ASCII:
 			// TODO add ASCII decompression stuff here
-			System.err.println("pkware ascii compression not supported");
+			Log.warn("pkware ascii compression not supported");
 			return;
 		default: throw new PKException("invalid compression mode");
 		}

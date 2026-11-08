@@ -55,7 +55,7 @@ public final class ImageUtils {
 				return getTexture(blpImage.getWidth(), blpImage.getHeight(), blpImage.getRgba());
 			}
 			if (!IMAGE_IO_AVAILABLE && path.toLowerCase().endsWith(".blp") && dataSource.has(path)) {
-				System.err.println("No decoder for " + path + " on this platform");
+				Log.warn("No decoder for " + path + " on this platform");
 				return null;
 			}
 			final AnyExtensionImage imageInfo = getAnyExtensionImageFixRGB(dataSource, path, "texture");

@@ -10,6 +10,7 @@ import java.util.Queue;
 
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.utils.IntIntMap;
+import com.etheller.warsmash.util.Log;
 import com.etheller.warsmash.util.WarsmashConstants;
 import com.etheller.warsmash.viewer5.handlers.w3x.War3MapViewer;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.players.CPlayerCommandCodec;
@@ -54,7 +55,7 @@ public class WarsmashClient implements ServerToClientListener, GameTurnManager {
 
 	@Override
 	public void acceptJoin(final int playerIndex) {
-		System.err.println("acceptJoin " + playerIndex);
+		Log.warn("acceptJoin " + playerIndex);
 		this.game.setLocalPlayerServerSlot(playerIndex);
 	}
 
@@ -78,7 +79,7 @@ public class WarsmashClient implements ServerToClientListener, GameTurnManager {
 					executor.issueTargetOrder(unitHandleId, abilityHandleId, orderId, targetHandleId, queue);
 				}
 				else {
-					System.err.println("Turn tick system mismatch: " + currentServerTurnInProgress + " < "
+					Log.warn("Turn tick system mismatch: " + currentServerTurnInProgress + " < "
 							+ WarsmashClient.this.latestLocallyRequestedTurn);
 				}
 			}
@@ -106,7 +107,7 @@ public class WarsmashClient implements ServerToClientListener, GameTurnManager {
 					;
 				}
 				else {
-					System.err.println("Turn tick system mismatch: " + currentServerTurnInProgress + " < "
+					Log.warn("Turn tick system mismatch: " + currentServerTurnInProgress + " < "
 							+ WarsmashClient.this.latestLocallyRequestedTurn);
 				}
 			}
@@ -136,7 +137,7 @@ public class WarsmashClient implements ServerToClientListener, GameTurnManager {
 							queue);
 				}
 				else {
-					System.err.println("Turn tick system mismatch: " + currentServerTurnInProgress + " < "
+					Log.warn("Turn tick system mismatch: " + currentServerTurnInProgress + " < "
 							+ WarsmashClient.this.latestLocallyRequestedTurn);
 				}
 			}
@@ -165,7 +166,7 @@ public class WarsmashClient implements ServerToClientListener, GameTurnManager {
 							targetHeroHandleId, queue);
 				}
 				else {
-					System.err.println("Turn tick system mismatch: " + currentServerTurnInProgress + " < "
+					Log.warn("Turn tick system mismatch: " + currentServerTurnInProgress + " < "
 							+ WarsmashClient.this.latestLocallyRequestedTurn);
 				}
 			}
@@ -192,7 +193,7 @@ public class WarsmashClient implements ServerToClientListener, GameTurnManager {
 					executor.issueImmediateOrder(unitHandleId, abilityHandleId, orderId, queue);
 				}
 				else {
-					System.err.println("Turn tick system mismatch: " + currentServerTurnInProgress + " < "
+					Log.warn("Turn tick system mismatch: " + currentServerTurnInProgress + " < "
 							+ WarsmashClient.this.latestLocallyRequestedTurn);
 				}
 			}
@@ -218,7 +219,7 @@ public class WarsmashClient implements ServerToClientListener, GameTurnManager {
 					executor.unitCancelTrainingItem(unitHandleId, cancelIndex);
 				}
 				else {
-					System.err.println("Turn tick system mismatch: " + currentServerTurnInProgress + " < "
+					Log.warn("Turn tick system mismatch: " + currentServerTurnInProgress + " < "
 							+ WarsmashClient.this.latestLocallyRequestedTurn);
 				}
 			}
@@ -244,7 +245,7 @@ public class WarsmashClient implements ServerToClientListener, GameTurnManager {
 					executor.issueGuiPlayerEvent(eventId);
 				}
 				else {
-					System.err.println("Turn tick system mismatch: " + currentServerTurnInProgress + " < "
+					Log.warn("Turn tick system mismatch: " + currentServerTurnInProgress + " < "
 							+ WarsmashClient.this.latestLocallyRequestedTurn);
 				}
 			}
@@ -270,7 +271,7 @@ public class WarsmashClient implements ServerToClientListener, GameTurnManager {
 					CPlayerCommandCodec.decode(command, executor);
 				}
 				else {
-					System.err.println("Turn tick system mismatch: " + currentServerTurnInProgress + " < "
+					Log.warn("Turn tick system mismatch: " + currentServerTurnInProgress + " < "
 							+ WarsmashClient.this.latestLocallyRequestedTurn);
 				}
 			}
@@ -280,7 +281,7 @@ public class WarsmashClient implements ServerToClientListener, GameTurnManager {
 	@Override
 	public void finishedTurn(final int gameTurnTick) {
 		if (WarsmashConstants.VERBOSE_LOGGING) {
-			System.out.println("finishedTurn " + gameTurnTick);
+			Log.info("finishedTurn " + gameTurnTick);
 		}
 		Gdx.app.postRunnable(new Runnable() {
 			@Override
@@ -293,7 +294,7 @@ public class WarsmashClient implements ServerToClientListener, GameTurnManager {
 	@Override
 	public void turnCompleted(final int gameTurnTick) {
 		if (WarsmashConstants.VERBOSE_LOGGING) {
-			System.out.println("turnCompleted " + gameTurnTick);
+			Log.info("turnCompleted " + gameTurnTick);
 		}
 		this.writer.finishedTurn(gameTurnTick);
 		this.writer.send();
@@ -303,7 +304,7 @@ public class WarsmashClient implements ServerToClientListener, GameTurnManager {
 			this.queuedMessages.poll().run();
 		}
 		if (!this.queuedMessages.isEmpty()) {
-			System.out.println("stopped with " + this.queuedMessages.peek().messageTurnTick + " != "
+			Log.info("stopped with " + this.queuedMessages.peek().messageTurnTick + " != "
 					+ this.latestLocallyRequestedTurn);
 		}
 	}
@@ -331,7 +332,7 @@ public class WarsmashClient implements ServerToClientListener, GameTurnManager {
 		// will let the middle layer UDP system know to re-request any lost packets
 		// based
 		// on the heartbeat seq no. But at app layer, here, we can ignore it.
-		System.out.println("got heartbeat() from server");
+		Log.info("got heartbeat() from server");
 	}
 
 	@Override

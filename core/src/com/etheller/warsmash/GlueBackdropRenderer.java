@@ -18,6 +18,7 @@ import com.etheller.warsmash.parsers.fdf.GameUI;
 import com.etheller.warsmash.units.DataTable;
 import com.etheller.warsmash.units.Element;
 import com.etheller.warsmash.util.GraphicsContext;
+import com.etheller.warsmash.util.Log;
 import com.etheller.warsmash.util.StringBundle;
 import com.etheller.warsmash.util.WarsmashConstants;
 import com.etheller.warsmash.viewer5.CanvasProvider;
@@ -173,7 +174,7 @@ public class GlueBackdropRenderer implements ApplicationListener, CanvasProvider
 		this.dataRequested = true;
 		final Thread thread = new Thread(() -> {
 			try {
-				WarsmashConstants.loadConstants(this.warsmashIni.get("Emulator"), this.warsmashIni);
+				WarsmashConstants.loadDataConstants(this.warsmashIni.get("Emulator"), this.warsmashIni);
 				final DataSource data = this.gameData != null ? new BorrowedDataSource(this.gameData)
 						: WarsmashGdxMapScreen.parseDataSources(this.warsmashIni);
 				this.skin = GameUI.loadSkin(data, WarsmashConstants.GAME_VERSION).getSkin();
@@ -185,7 +186,7 @@ public class GlueBackdropRenderer implements ApplicationListener, CanvasProvider
 				this.dataSource = data;
 			}
 			catch (final Exception | LinkageError e) {
-				e.printStackTrace();
+				Log.error(e);
 				this.dataFailed = true;
 			}
 		}, "GlueBackdropData");
@@ -353,7 +354,7 @@ public class GlueBackdropRenderer implements ApplicationListener, CanvasProvider
 			place(layer);
 		}
 		catch (final RuntimeException e) {
-			e.printStackTrace();
+			Log.error(e);
 			fail(index);
 		}
 	}
@@ -435,7 +436,7 @@ public class GlueBackdropRenderer implements ApplicationListener, CanvasProvider
 				data.close();
 			}
 			catch (final Exception e) {
-				e.printStackTrace();
+				Log.error(e);
 			}
 		}
 	}

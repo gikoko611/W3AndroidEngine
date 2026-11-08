@@ -22,6 +22,7 @@ import com.etheller.warsmash.parsers.fdf.frames.TextureFrame;
 import com.etheller.warsmash.parsers.fdf.frames.UIFrame;
 import com.etheller.warsmash.units.Element;
 import com.etheller.warsmash.util.ImageUtils;
+import com.etheller.warsmash.util.Log;
 import com.etheller.warsmash.util.WarsmashConstants;
 import com.etheller.warsmash.viewer5.handlers.mdx.ReplaceableIds;
 import com.etheller.warsmash.viewer5.handlers.tga.TgaFile;
@@ -92,8 +93,8 @@ final class MeleeUIMinimapPanel {
 						war3MapViewer.dataSource.getResourceAsStream("war3mapMap.tga")));
 			}
 			catch (final IOException e) {
-				System.err.println("Could not load minimap TGA file");
-				e.printStackTrace();
+				Log.error("Could not load minimap TGA file");
+				Log.error(e);
 			}
 		}
 		else if (war3MapViewer.dataSource.has("war3mapMap.blp")) {

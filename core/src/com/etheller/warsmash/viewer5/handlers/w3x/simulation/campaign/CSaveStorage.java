@@ -16,6 +16,7 @@ import java.util.concurrent.TimeUnit;
 
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.files.FileHandle;
+import com.etheller.warsmash.util.Log;
 import com.etheller.warsmash.viewer5.handlers.w3x.ui.GameOptions;
 
 /**
@@ -127,7 +128,7 @@ public final class CSaveStorage {
 			return true;
 		}
 		catch (final Exception exc) {
-			exc.printStackTrace();
+			Log.error(exc);
 			if (temporary.exists()) {
 				temporary.delete();
 			}
@@ -161,7 +162,7 @@ public final class CSaveStorage {
 			Thread.currentThread().interrupt();
 		}
 		catch (final ExecutionException exc) {
-			exc.printStackTrace();
+			Log.error(exc);
 		}
 	}
 
@@ -174,7 +175,7 @@ public final class CSaveStorage {
 			return true;
 		}
 		catch (final Exception exc) {
-			exc.printStackTrace();
+			Log.error(exc);
 			return false;
 		}
 	}

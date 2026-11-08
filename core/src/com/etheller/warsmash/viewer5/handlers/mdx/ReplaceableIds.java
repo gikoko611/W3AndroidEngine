@@ -3,6 +3,7 @@ package com.etheller.warsmash.viewer5.handlers.mdx;
 import java.util.HashMap;
 import java.util.Map;
 
+import com.etheller.warsmash.util.Log;
 import com.etheller.warsmash.util.WarsmashConstants;
 
 public class ReplaceableIds {
@@ -28,7 +29,7 @@ public class ReplaceableIds {
 	}
 
 	public static void main(final String[] args) {
-		System.out.println(ID_TO_STR);
+		Log.info(ID_TO_STR);
 	}
 
 	public static String getIdString(final long replaceableId) {

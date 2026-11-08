@@ -5,6 +5,7 @@ import com.etheller.interpreter.ast.expression.ArithmeticSign;
 import com.etheller.interpreter.ast.value.JassValue;
 import com.etheller.interpreter.ast.value.visitor.ArithmeticJassValueVisitor;
 import com.etheller.interpreter.ast.value.visitor.ArithmeticLeftHandNullJassValueVisitor;
+import com.etheller.warsmash.util.Log;
 
 public class ArithmeticInstruction implements JassInstruction {
 	private final ArithmeticSign arithmeticSign;
@@ -37,7 +38,7 @@ public class ArithmeticInstruction implements JassInstruction {
 		}
 		catch (final ArithmeticException exception) {
 			// The original game silently stops a thread that divides by zero; the game and other threads go on.
-			System.err.println("JASS thread stopped: division by zero");
+			Log.error("JASS thread stopped: division by zero");
 			thread.halt();
 			return;
 		}

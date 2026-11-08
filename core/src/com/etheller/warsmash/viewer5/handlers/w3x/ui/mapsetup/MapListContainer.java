@@ -12,6 +12,7 @@ import com.etheller.warsmash.parsers.fdf.frames.ListBoxFrame;
 import com.etheller.warsmash.parsers.fdf.frames.SimpleFrame;
 import com.etheller.warsmash.parsers.fdf.frames.ListBoxFrame.ListBoxSelelectionListener;
 import com.etheller.warsmash.util.ListItemEnum;
+import com.etheller.warsmash.util.Log;
 
 public class MapListContainer {
 	private final SimpleFrame mapListContainer;
@@ -36,7 +37,7 @@ public class MapListContainer {
 				this.mapListBox.addItem(displayItemPath, ListItemEnum.ITEM_MAP, rootFrame, uiViewport);
 			}
 			catch (final RuntimeException e) {
-				System.err.println("Skipping map with unreadable info: " + displayItemPath + " (" + e + ")");
+				Log.error("Skipping map with unreadable info: " + displayItemPath + " (" + e + ")");
 			}
 		}
 		this.mapListBox.sortItems();

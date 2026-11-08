@@ -12,6 +12,8 @@ import net.warsmash.nio.channels.WritableOutput;
 import net.warsmash.nio.channels.tcp.TCPClientParser;
 import net.warsmash.nio.util.ExceptionListener;
 
+import com.etheller.warsmash.util.Log;
+
 public class TestChatClient {
 	private static final int PORT = 8989;
 
@@ -26,12 +28,12 @@ public class TestChatClient {
 						final byte[] bs = new byte[data.remaining()];
 						data.get(bs);
 						final String message = new String(bs);
-						System.out.println(message);
+						Log.info(message);
 					}
 
 					@Override
 					public void disconnected() {
-						System.out.println("TCP disconnected!");
+						Log.info("TCP disconnected!");
 					}
 				}, ExceptionListener.THROW_RUNTIME, 8 * 1024 * 1024, ByteOrder.BIG_ENDIAN);
 

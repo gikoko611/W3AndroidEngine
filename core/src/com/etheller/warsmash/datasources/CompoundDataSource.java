@@ -15,6 +15,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
+import com.etheller.warsmash.util.Log;
+
 public class CompoundDataSource implements DataSource {
 	private final List<DataSource> mpqList = new ArrayList<>();
 
@@ -49,7 +51,7 @@ public class CompoundDataSource implements DataSource {
 			}
 		}
 		catch (final IOException | RuntimeException e) {
-			e.printStackTrace();
+			Log.error(e);
 		}
 	}
 
@@ -107,7 +109,7 @@ public class CompoundDataSource implements DataSource {
 		}
 		catch (final IOException e) {
 			// TODO Auto-generated catch block
-			e.printStackTrace();
+			Log.error(e);
 		}
 		return null;
 	}
@@ -125,7 +127,7 @@ public class CompoundDataSource implements DataSource {
 		}
 		catch (final IOException e) {
 			// TODO Auto-generated catch block
-			e.printStackTrace();
+			Log.error(e);
 		}
 		return null;
 	}
@@ -154,7 +156,7 @@ public class CompoundDataSource implements DataSource {
 		}
 		catch (final IOException e) {
 			// TODO Auto-generated catch block
-			e.printStackTrace();
+			Log.error(e);
 		}
 		return null;
 	}
@@ -190,7 +192,7 @@ public class CompoundDataSource implements DataSource {
 		}
 		catch (final IOException e) {
 			// TODO Auto-generated catch block
-			e.printStackTrace();
+			Log.error(e);
 		}
 		return null;
 	}
@@ -232,10 +234,10 @@ public class CompoundDataSource implements DataSource {
 				dataSource.close();
 			}
 			catch (final NullPointerException e) {
-				e.printStackTrace();
+				Log.error(e);
 			}
 			catch (final IOException e) {
-				e.printStackTrace();
+				Log.error(e);
 			}
 		}
 		this.cache.clear();

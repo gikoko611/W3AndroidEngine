@@ -19,6 +19,7 @@ import com.etheller.warsmash.parsers.w3x.objectdata.Warcraft3MapObjectData;
 import com.etheller.warsmash.parsers.w3x.w3i.War3MapW3i;
 import com.etheller.warsmash.parsers.w3x.w3i.War3MapW3iFlags;
 import com.etheller.warsmash.units.custom.WTS;
+import com.etheller.warsmash.util.Log;
 import com.etheller.warsmash.util.WarsmashConstants;
 import com.etheller.warsmash.viewer5.handlers.w3x.War3MapViewer;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.ai.AIDifficulty;
@@ -108,14 +109,14 @@ final class MenuSkirmish {
 								this.lastMapListMap.close();
 							}
 							catch (final IOException e) {
-								e.printStackTrace();
+								Log.error(e);
 							}
 						}
 						this.lastMapListMap = map;
 						selectMap(map, newSelectedItem, teamSetupPane);
 					}
 					catch (final IOException e) {
-						e.printStackTrace();
+						Log.error(e);
 					}
 				}
 			}

@@ -5,6 +5,8 @@ import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.PrintStream;
 
+import com.etheller.warsmash.util.Log;
+
 public class JassLog {
 	public static PrintStream jassLogWriter;
 
@@ -16,7 +18,7 @@ public class JassLog {
 						new FileOutputStream(new File("Logs/" + System.currentTimeMillis() + ".jass.log")));
 			}
 			catch (final FileNotFoundException e) {
-				e.printStackTrace();
+				Log.error(e);
 				jassLogWriter = System.err;
 			}
 		}

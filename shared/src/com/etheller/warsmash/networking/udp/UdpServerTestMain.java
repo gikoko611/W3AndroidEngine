@@ -8,6 +8,8 @@ import net.warsmash.networking.udp.UdpServer;
 import net.warsmash.networking.udp.UdpServerListener;
 import net.warsmash.uberserver.GamingNetwork;
 
+import com.etheller.warsmash.util.Log;
+
 public class UdpServerTestMain {
 
 	static UdpServer warsmashGameServer;
@@ -20,9 +22,9 @@ public class UdpServerTestMain {
 
 				@Override
 				public void parse(final SocketAddress sourceAddress, final ByteBuffer buffer) {
-					System.out.println("Got packet from: " + sourceAddress);
+					Log.info("Got packet from: " + sourceAddress);
 					while (buffer.hasRemaining()) {
-						System.out.println("Received: " + buffer.get());
+						Log.info("Received: " + buffer.get());
 					}
 					try {
 						this.sendBuffer.clear();
@@ -31,14 +33,14 @@ public class UdpServerTestMain {
 						warsmashGameServer.send(sourceAddress, this.sendBuffer);
 					}
 					catch (final IOException e) {
-						e.printStackTrace();
+						Log.error(e);
 					}
 				}
 			});
 			new Thread(warsmashGameServer).start();
 		}
 		catch (final IOException e) {
-			e.printStackTrace();
+			Log.error(e);
 		}
 	}
 

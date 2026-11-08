@@ -29,7 +29,8 @@ public class CPlayerCommandTest {
 			l -> l.clickDialogButton(2, 1), l -> l.setAlliance(4, CAllianceType.SHARED_VISION.ordinal(), true),
 			l -> l.transferResources(1, 100, 50), l -> l.fireGameEvent(42), l -> l.saveGame("My Save"),
 			l -> l.leaveGame(), l -> l.cheat("greedisgood 500"), l -> l.setGamePaused(true),
-			l -> l.minimapSignal(-1024f, 2048.25f));
+			l -> l.minimapSignal(-1024f, 2048.25f), l -> l.trackableEvent(1048600, true),
+			l -> l.trackableEvent(7, false));
 
 	private static byte[] encode(final Consumer<CPlayerUnitOrderListener> command) {
 		final CPlayerCommandCodec.Encoder encoder = new CPlayerCommandCodec.Encoder();

@@ -14,6 +14,7 @@ import javax.swing.TransferHandler;
 
 import com.etheller.warsmash.units.custom.War3ObjectDataChangeset;
 import com.etheller.warsmash.units.manager.MutableObjectData.WorldEditorDataType;
+import com.etheller.warsmash.util.Log;
 import com.google.common.io.LittleEndianDataInputStream;
 import com.google.common.io.LittleEndianDataOutputStream;
 
@@ -49,13 +50,13 @@ public class EditorFieldTransferHandler extends TransferHandler {
 			}
 		}
 		catch (final UnsupportedFlavorException ufe) {
-			System.out.println("importData: unsupported data flavor");
-			ufe.printStackTrace();
+			Log.info("importData: unsupported data flavor");
+			Log.error(ufe);
 			return false;
 		}
 		catch (final IOException ioe) {
-			System.out.println("importData: I/O exception");
-			ioe.printStackTrace();
+			Log.info("importData: I/O exception");
+			Log.error(ioe);
 			return false;
 		}
 
@@ -85,12 +86,12 @@ public class EditorFieldTransferHandler extends TransferHandler {
 			selectedUnitsAsChangeset.save(blizzardStream, false);
 		}
 		catch (final FileNotFoundException e) {
-			System.out.println("failed to copy");
-			e.printStackTrace();
+			Log.info("failed to copy");
+			Log.error(e);
 		}
 		catch (final IOException e) {
-			System.out.println("failed to copy");
-			e.printStackTrace();
+			Log.info("failed to copy");
+			Log.error(e);
 		}
 		final byte[] byteArray = outputStream.toByteArray();
 		return new Transferable() {

@@ -17,6 +17,8 @@ import com.etheller.warsmash.common.FetchDataTypeName;
 import com.etheller.warsmash.common.LoadGenericCallback;
 import com.etheller.warsmash.datasources.AssetPathFallback;
 import com.etheller.warsmash.datasources.DataSource;
+import com.etheller.warsmash.util.DataErrors;
+import com.etheller.warsmash.util.Log;
 import com.etheller.warsmash.viewer5.gl.ClientBuffer;
 import com.etheller.warsmash.viewer5.gl.WebGL;
 import com.etheller.warsmash.viewer5.handlers.ResourceHandler;
@@ -205,7 +207,7 @@ public abstract class ModelViewer {
 					finalSrc = fallback;
 				}
 				else {
-					System.err.println("Attempting to load non-existant file: " + finalSrc);
+					DataErrors.report(DataErrors.MISSING_ASSET, finalSrc, "Attempting to load non-existant file: " + finalSrc);
 				}
 			}
 			extension = solved.getExtension();
@@ -418,7 +420,7 @@ public abstract class ModelViewer {
 	}
 
 	private void onResourceLoadError() {
-		System.err.println("error, this, InvalidHandler, FailedToLoad");
+		Log.error("error, this, InvalidHandler, FailedToLoad");
 	}
 
 	public abstract SceneLightManager createLightManager(boolean simple);

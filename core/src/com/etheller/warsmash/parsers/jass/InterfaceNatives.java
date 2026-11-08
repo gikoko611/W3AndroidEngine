@@ -14,6 +14,7 @@ import com.etheller.interpreter.ast.value.visitor.ObjectJassValueVisitor;
 import com.etheller.interpreter.ast.value.visitor.RealJassValueVisitor;
 import com.etheller.interpreter.ast.value.visitor.StringJassValueVisitor;
 import com.etheller.warsmash.parsers.jass.Jass2.CommonEnvironment;
+import com.etheller.warsmash.util.Log;
 import com.etheller.warsmash.viewer5.Bounds;
 import com.etheller.warsmash.viewer5.handlers.w3x.TextTag;
 import com.etheller.warsmash.viewer5.handlers.w3x.War3MapViewer;
@@ -264,8 +265,8 @@ final class InterfaceNatives extends CommonNatives {
 								war3MapViewer.solverParams);
 					}
 					catch (final Exception exc) {
-						System.err.println("Preload(\"" + filename + "\") failed!");
-						exc.printStackTrace();
+						Log.error("Preload(\"" + filename + "\") failed!");
+						Log.error(exc);
 					}
 				}
 				return null;
@@ -336,7 +337,7 @@ final class InterfaceNatives extends CommonNatives {
 					final float duration = arguments.get(3).visit(RealJassValueVisitor.getInstance()).floatValue();
 					final String message = this.gameUI
 							.getTrigStr(arguments.get(4).visit(StringJassValueVisitor.getInstance()));
-					System.err.println("DisplayTimedTextToPlayer: " + message.replace("\\n", "\n"));
+					Log.warn("DisplayTimedTextToPlayer: " + message.replace("\\n", "\n"));
 					if (whichPlayer == this.simulation
 							.getPlayer(war3MapViewer.getLocalPlayerIndex())) {
 						meleeUI.displayTimedText(x, y, duration, message);
@@ -353,7 +354,7 @@ final class InterfaceNatives extends CommonNatives {
 							.getTrigStr(arguments.get(4).visit(StringJassValueVisitor.getInstance()));
 					final String message = format.replace("%s",
 							fromPlayer == null ? "" : fromPlayer.getName());
-					System.err.println("DisplayTimedTextFromPlayer: " + message.replace("\\n", "\n"));
+					Log.warn("DisplayTimedTextFromPlayer: " + message.replace("\\n", "\n"));
 					meleeUI.displayTimedText(x, y, duration, message);
 					return null;
 				});
@@ -474,8 +475,8 @@ final class InterfaceNatives extends CommonNatives {
 					"UTF-8");
 		}
 		catch (final Exception exc) {
-			System.err.println("PreloadGenEnd(\"" + filename + "\") failed!");
-			exc.printStackTrace();
+			Log.error("PreloadGenEnd(\"" + filename + "\") failed!");
+			Log.error(exc);
 		}
 	}
 

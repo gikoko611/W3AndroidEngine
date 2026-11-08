@@ -11,6 +11,7 @@ import java.util.ListIterator;
 import java.util.Map;
 
 import com.badlogic.gdx.math.Rectangle;
+import com.etheller.warsmash.util.Log;
 import com.etheller.warsmash.util.PerfStats;
 import com.etheller.warsmash.viewer5.handlers.w3x.environment.PathingGrid;
 import com.etheller.warsmash.viewer5.handlers.w3x.environment.PathingGrid.MovementType;
@@ -992,8 +993,8 @@ public class CPathfindingProcessor {
 			chain.add(node.point);
 			node = node.cameFrom;
 			if (chain.size() > this.pathingGridCellCount) {
-				new IllegalStateException("PATHING SYSTEM ERROR: cycle in the path near " + endNode.point + ", unit "
-						+ CUnit.maybeMeaningfulName(job.ignoreIntersectionsWithThisUnit)).printStackTrace();
+				Log.error(new IllegalStateException("PATHING SYSTEM ERROR: cycle in the path near " + endNode.point
+						+ ", unit " + CUnit.maybeMeaningfulName(job.ignoreIntersectionsWithThisUnit)));
 				return new LinkedList<>();
 			}
 		}

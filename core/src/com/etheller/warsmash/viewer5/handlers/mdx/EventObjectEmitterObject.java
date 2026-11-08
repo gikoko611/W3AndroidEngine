@@ -12,7 +12,9 @@ import com.badlogic.gdx.audio.Sound;
 import com.badlogic.gdx.files.FileHandle;
 import com.etheller.warsmash.common.FetchDataTypeName;
 import com.etheller.warsmash.common.LoadGenericCallback;
+import com.etheller.warsmash.util.DataErrors;
 import com.etheller.warsmash.util.DataSourceFileHandle;
+import com.etheller.warsmash.util.Log;
 import com.etheller.warsmash.util.MappedData;
 import com.etheller.warsmash.util.MappedDataRow;
 import com.etheller.warsmash.viewer5.GenericResource;
@@ -47,7 +49,7 @@ public class EventObjectEmitterObject extends GenericObject implements EmitterOb
 				return Extensions.audio.newSound(temp);
 			}
 			else {
-				System.err.println("Warning: missing sound file: " + this.filename);
+				DataErrors.report(DataErrors.MISSING_SOUND, this.filename, "Warning: missing sound file: " + this.filename);
 				return null;
 			}
 		}
@@ -330,13 +332,14 @@ public class EventObjectEmitterObject extends GenericObject implements EmitterOb
 								final GenericResource genericResource = viewer.loadGeneric(pathString,
 										FetchDataTypeName.ARRAY_BUFFER, new LoadGenericSoundCallback(pathString));
 								if (genericResource == null) {
-									System.err.println("Null sound: " + fileNames[i]);
+									Log.warn("Null sound: " + fileNames[i]);
 								}
 								resources[i] = genericResource;
 							}
 							catch (final Exception exc) {
-								System.err.println("Failed to load sound: " + path);
-								exc.printStackTrace();
+								DataErrors.record(DataErrors.MISSING_SOUND, path);
+								Log.error("Failed to load sound: " + path);
+								Log.error(exc);
 							}
 						}
 
@@ -351,11 +354,11 @@ public class EventObjectEmitterObject extends GenericObject implements EmitterOb
 				}
 			}
 			else {
-				System.err.println("Unknown event object type: " + this.type + this.id);
+				Log.warn("Unknown event object type: " + this.type + this.id);
 			}
 		}
 		else if (!("SPN".equals(this.type) && isSplatCode(tables))) {
-			System.err.println("Unknown event object ID: " + this.type + this.id);
+			Log.warn("Unknown event object ID: " + this.type + this.id);
 		}
 	}
 

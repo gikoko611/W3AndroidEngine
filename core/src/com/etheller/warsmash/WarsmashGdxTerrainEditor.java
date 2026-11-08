@@ -25,6 +25,7 @@ import com.badlogic.gdx.utils.viewport.ExtendViewport;
 import com.etheller.warsmash.units.DataTable;
 import com.etheller.warsmash.units.Element;
 import com.etheller.warsmash.util.ImageUtils;
+import com.etheller.warsmash.util.Log;
 import com.etheller.warsmash.viewer5.Scene;
 import com.etheller.warsmash.viewer5.handlers.w3x.War3MapViewer;
 import com.etheller.warsmash.viewer5.handlers.w3x.camera.CameraPreset;
@@ -84,7 +85,7 @@ public class WarsmashGdxTerrainEditor extends ApplicationAdapter implements Inpu
 
 		this.cameraManager.setupCamera(this.viewer.worldScene);
 
-		System.out.println("Loaded");
+		Log.info("Loaded");
 		this.previewScene = this.viewer.addSimpleScene();
 
 		try {
@@ -107,7 +108,7 @@ public class WarsmashGdxTerrainEditor extends ApplicationAdapter implements Inpu
 		Gdx.gl30.glBindVertexArray(WarsmashGdxGame.VAO);
 
 		final String renderer = Gdx.gl.glGetString(GL20.GL_RENDERER);
-		System.err.println("Renderer: " + renderer);
+		Log.warn("Renderer: " + renderer);
 
 		Gdx.gl30.glClearColor(0.0f, 0.0f, 0.0f, 1); // TODO remove white background
 		Gdx.gl30.glEnable(GL30.GL_SCISSOR_TEST);

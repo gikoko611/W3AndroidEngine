@@ -2,6 +2,8 @@ package com.etheller.warsmash.parsers.jass;
 
 import java.util.Scanner;
 
+import com.etheller.warsmash.util.Log;
+
 public class Tmpgen {
 
 	public static void main(final String[] args) {
@@ -12,7 +14,7 @@ public class Tmpgen {
 			final String line = scanner.nextLine();
 			if (line.startsWith("type ")) {
 				final String[] splitLine = line.split("\\s+");
-				System.out.println("final HandleJassType " + splitLine[1] + "Type = globals.registerHandleType(\""
+				Log.info("final HandleJassType " + splitLine[1] + "Type = globals.registerHandleType(\""
 						+ splitLine[1] + "\");");
 			}
 		}

@@ -1,5 +1,7 @@
 package com.etheller.warsmash.viewer5.handlers.w3x.simulation.combat;
 
+import com.etheller.warsmash.util.Log;
+
 public enum CRegenType {
 	NONE, ALWAYS, BLIGHT, DAY, NIGHT;
 
@@ -11,7 +13,7 @@ public enum CRegenType {
 			return valueOf(typeString.toUpperCase());
 		}
 		catch (final Exception exc) {
-			exc.printStackTrace();
+			Log.error(exc);
 			return NONE;
 		}
 	}

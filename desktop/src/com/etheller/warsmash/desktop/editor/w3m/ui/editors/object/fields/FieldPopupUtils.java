@@ -16,6 +16,8 @@ import javax.swing.event.ChangeEvent;
 import javax.swing.event.ChangeListener;
 import javax.swing.text.JTextComponent;
 
+import com.etheller.warsmash.util.Log;
+
 public enum FieldPopupUtils {
 	;
 
@@ -91,7 +93,7 @@ public enum FieldPopupUtils {
 					catch (final ParseException e1) {
 						JOptionPane.showMessageDialog(parentComponent,
 								"Unable to commit edit because: " + e1.getClass() + ": " + e1.getMessage());
-						e1.printStackTrace();
+						Log.error(e1);
 					}
 				}
 			});

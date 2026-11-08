@@ -13,8 +13,9 @@ import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Game data with graphics packages laid over the Classic files: a path the package has is read from the package, every
- * other path from the Classic data. The interface (the "ui" folder and the command button icons) takes its own
- * packages, so the in-game graphics and the interface can be chosen apart, as the launcher offers them.
+ * other path from the Classic data. The interface (the "ui" folder) takes its own packages, so the in-game graphics
+ * and the interface can be chosen apart, as the launcher offers them. The command button icons show units and
+ * spells, so they follow the in-game graphics.
  * <p>
  * A package keeps the textures of the new materials as .dds, many with a "_diffuse" suffix (the terrain tiles), and
  * the speech of its models in its own locale folder; both are looked for under the names the Classic data asks for.
@@ -22,8 +23,13 @@ import java.util.concurrent.ConcurrentHashMap;
 public final class LayeredDataSource implements DataSource {
 	public static final String HD_PACKAGE = "_hd.w3mod";
 	public static final String DE_PACKAGE = "_de.w3mod";
-	private static final String[] INTERFACE_FOLDERS = { "ui\\", "replaceabletextures\\commandbuttons\\",
-		"replaceabletextures\\commandbuttonsdisabled\\", "replaceabletextures\\passivebuttons\\" };
+	private static final String INTERFACE_FOLDER = "ui\\";
+	/**
+	 * Interface files whose package version is another picture under the same name: the HD cinematic border is the
+	 * stone frame of the portrait, the Classic one the edge strip of the letterbox bars. The Reforged cinematic panel
+	 * asks for the package's file by its packaged path.
+	 */
+	private static final String[] OTHER_PICTURES = { "-cinematic-border." };
 	private static final String DIFFUSE_SUFFIX = "_diffuse";
 	private static final String NOT_LAYERED = "";
 
@@ -107,7 +113,11 @@ public final class LayeredDataSource implements DataSource {
 		if (lower.startsWith(HD_PACKAGE) || lower.startsWith(DE_PACKAGE)) {
 			return null;
 		}
-		final String[] layers = isInterface(lower) ? this.interfaceLayers : this.graphicsLayers;
+		final boolean isInterface = lower.startsWith(INTERFACE_FOLDER);
+		if (isInterface && isOtherPicture(lower)) {
+			return null;
+		}
+		final String[] layers = isInterface ? this.interfaceLayers : this.graphicsLayers;
 		if (layers.length == 0) {
 			return null;
 		}
@@ -125,9 +135,9 @@ public final class LayeredDataSource implements DataSource {
 		return null;
 	}
 
-	private static boolean isInterface(final String lowerPath) {
-		for (final String folder : INTERFACE_FOLDERS) {
-			if (lowerPath.startsWith(folder)) {
+	private static boolean isOtherPicture(final String lowerPath) {
+		for (final String name : OTHER_PICTURES) {
+			if (lowerPath.contains(name)) {
 				return true;
 			}
 		}

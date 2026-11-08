@@ -96,6 +96,7 @@ public class CUnitType {
 	private final int properNamesCount;
 	private final boolean canFlee;
 	private boolean canSleep;
+	private int orientationInterpolation;
 	private int stockMax;
 	private int stockReplenishInterval;
 	private int stockStartDelay;
@@ -537,6 +538,15 @@ public class CUnitType {
 
 	public void setCanSleep(final boolean canSleep) {
 		this.canSleep = canSleep;
+	}
+
+	/** The row of the drawn facing's turn table (orientInterp). */
+	public int getOrientationInterpolation() {
+		return this.orientationInterpolation;
+	}
+
+	public void setOrientationInterpolation(final int orientationInterpolation) {
+		this.orientationInterpolation = orientationInterpolation;
 	}
 
 	public void setStock(final int stockMax, final int stockReplenishInterval, final int stockStartDelay,

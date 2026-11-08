@@ -4,6 +4,8 @@ import java.nio.ByteBuffer;
 
 import net.warsmash.networking.udp.OrderedUdpClientListener;
 
+import com.etheller.warsmash.util.Log;
+
 public class WarsmashClientParser implements OrderedUdpClientListener {
 	private final ServerToClientListener listener;
 
@@ -25,7 +27,7 @@ public class WarsmashClientParser implements OrderedUdpClientListener {
 				if (length > buffer.remaining()) {
 					// this packet is junk to us, so we will skip and continue (drop system will
 					// handle it)
-					System.err.println("Got mismatched protocol length " + length + " > " + buffer.remaining() + "!!");
+					Log.warn("Got mismatched protocol length " + length + " > " + buffer.remaining() + "!!");
 				}
 				final int protocol = buffer.getInt();
 				switch (protocol) {
@@ -125,7 +127,7 @@ public class WarsmashClientParser implements OrderedUdpClientListener {
 				}
 
 				default:
-					System.err.println("Got unknown protocol: " + protocol);
+					Log.warn("Got unknown protocol: " + protocol);
 					break;
 				}
 			}

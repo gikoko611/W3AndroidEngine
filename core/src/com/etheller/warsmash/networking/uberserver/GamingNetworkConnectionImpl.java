@@ -17,6 +17,8 @@ import net.warsmash.uberserver.LobbyGameSpeed;
 import net.warsmash.uberserver.LobbyPlayerType;
 import net.warsmash.uberserver.TCPGamingNetworkServerToClientParser;
 
+import com.etheller.warsmash.util.Log;
+
 public class GamingNetworkConnectionImpl implements GamingNetworkConnection {
 	private WritableOutput tcpChannel = null;
 	private final SelectableChannelOpener selectableChannelOpener;
@@ -61,8 +63,8 @@ public class GamingNetworkConnectionImpl implements GamingNetworkConnection {
 					}
 				}
 				catch (final Exception exc) {
-					System.err.println("GamingNetworkConnectionImpl network thread terminating due to exception:");
-					exc.printStackTrace();
+					Log.error("GamingNetworkConnectionImpl network thread terminating due to exception:");
+					Log.error(exc);
 					stop();
 				}
 			}
@@ -192,7 +194,7 @@ public class GamingNetworkConnectionImpl implements GamingNetworkConnection {
 			return true;
 		}
 		catch (final Exception exc) {
-			exc.printStackTrace();
+			Log.error(exc);
 		}
 		return false;
 	}

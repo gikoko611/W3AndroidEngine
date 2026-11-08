@@ -1,5 +1,6 @@
 package com.etheller.warsmash.viewer5.handlers.mdx;
 
+import com.etheller.warsmash.util.Log;
 import com.etheller.warsmash.viewer5.EmittedObject;
 import com.etheller.warsmash.viewer5.Scene;
 
@@ -39,7 +40,7 @@ public class EventObjectSpn extends EmittedObject<MdxComplexInstance, EventObjec
 
 		// Once the sequence finishes, this event object dies
 		if (model.getSequences().isEmpty()) {
-			System.err.println("NO SEQ FOR " + model.name);
+			Log.warn("NO SEQ FOR " + model.name);
 		}
 		if (instance.frame >= model.getSequences().get(0).getInterval()[1]) {
 			this.health = 0;

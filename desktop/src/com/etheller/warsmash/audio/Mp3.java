@@ -111,6 +111,7 @@ public class Mp3 {
 				this.bitstream.close();
 			}
 			catch (final BitstreamException ignored) {
+				// The stream is dropped either way.
 			}
 			this.bitstream = null;
 		}

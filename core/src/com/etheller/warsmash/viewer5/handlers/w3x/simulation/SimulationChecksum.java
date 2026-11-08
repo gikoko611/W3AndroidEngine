@@ -33,6 +33,7 @@ import com.etheller.interpreter.ast.value.JassValue;
 import com.etheller.interpreter.ast.value.RealJassValue;
 import com.etheller.interpreter.ast.value.StringJassValue;
 import com.etheller.warsmash.parsers.jass.JassAIEnvironment;
+import com.etheller.warsmash.util.Log;
 import com.etheller.warsmash.util.War3ID;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.CAbility;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.generic.CBuff;
@@ -76,6 +77,11 @@ public final class SimulationChecksum {
 	private static Writer writer;
 	private static CSimulation current;
 	private static int games;
+	/** The file this process started; later games are added to it. */
+	private static String startedFile;
+	private static boolean shutdownHook;
+	/** The game that ended in the step being run; its last step gets a line too. */
+	private static CSimulation ended;
 
 	/** Lines per cached block; a block with one changed line is hashed again line by line. */
 	private static final int BLOCK = 64;
@@ -154,24 +160,17 @@ public final class SimulationChecksum {
 
 	private static synchronized void record(final CSimulation simulation) {
 		try {
-			if (writer == null) {
-				final File file = new File(fileName);
-				final File parent = file.getAbsoluteFile().getParentFile();
-				if (parent != null) {
-					parent.mkdirs();
-				}
-				writer = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(file), StandardCharsets.UTF_8));
-				current = null;
-			}
 			final int tick = simulation.getGameTurnTick();
-			if (simulation != current) {
+			if ((simulation != current) || (writer == null)) {
 				// A loaded save is a new simulation object that goes on from its saved step.
-				current = simulation;
-				games++;
-				writer.write("# game " + games + " tick " + tick + "\n");
-				writer.flush();
+				startGame(simulation, tick);
 			}
-			if ((tick % INTERVAL) != 0) {
+			final boolean last = ended == simulation;
+			if (last) {
+				ended = null;
+				writer.write("# end tick " + tick + "\n");
+			}
+			if (((tick % INTERVAL) != 0) && !last) {
 				return;
 			}
 			final SimulationChecksum checksum = new SimulationChecksum();
@@ -193,7 +192,66 @@ public final class SimulationChecksum {
 		}
 		catch (final IOException e) {
 			enabled = false;
-			e.printStackTrace();
+			Log.error(e);
+		}
+	}
+
+	/**
+	 * Each game opens the file again, after the games this process wrote to it before: a file taken away between two
+	 * games of one process (a test tool's, on Android) is made again rather than written past.
+	 */
+	private static void startGame(final CSimulation simulation, final int tick) throws IOException {
+		if (writer != null) {
+			close();
+		}
+		final File file = new File(fileName);
+		final File parent = file.getAbsoluteFile().getParentFile();
+		if (parent != null) {
+			parent.mkdirs();
+		}
+		final boolean append = fileName.equals(startedFile) && file.isFile();
+		if (!append) {
+			games = 0;
+		}
+		writer = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(file, append), StandardCharsets.UTF_8));
+		startedFile = fileName;
+		if (!shutdownHook) {
+			shutdownHook = true;
+			Runtime.getRuntime().addShutdownHook(new Thread(SimulationChecksum::closeAtExit, "checksum close"));
+		}
+		current = simulation;
+		games++;
+		writer.write("# game " + games + " tick " + tick + "\n");
+		writer.flush();
+	}
+
+	/**
+	 * The game ended (EndGame, a quit) in this step: the step's line is written whatever its number, so that the file
+	 * covers the game to its end and two runs that end on different steps differ.
+	 */
+	public static synchronized void gameEnded(final CSimulation simulation) {
+		if (enabled && (writer != null) && (current == simulation)) {
+			ended = simulation;
+		}
+	}
+
+	/** The game is left: its file is closed, whichever way the game ended. */
+	public static synchronized void gameClosed(final CSimulation simulation) {
+		if ((writer != null) && (current == simulation)) {
+			if (ended == simulation) {
+				// The game ended outside a step, so no step wrote its last line.
+				record(simulation);
+			}
+			close();
+		}
+		if (ended == simulation) {
+			ended = null;
+		}
+	}
+
+	private static synchronized void closeAtExit() {
+		if (writer != null) {
+			close();
 		}
 	}
 
@@ -202,7 +260,7 @@ public final class SimulationChecksum {
 			writer.close();
 		}
 		catch (final IOException e) {
-			e.printStackTrace();
+			Log.error(e);
 		}
 		writer = null;
 		current = null;
@@ -497,6 +555,7 @@ public final class SimulationChecksum {
 		this.randomBytes.reset();
 		try (ObjectOutputStream out = new ObjectOutputStream(this.randomBytes)) {
 			out.writeObject(simulation.getSeededRandom());
+			out.writeObject(simulation.getCombatRandomIfMade());
 		}
 		final CRC32 seed = new CRC32();
 		seed.update(this.randomBytes.toByteArray());

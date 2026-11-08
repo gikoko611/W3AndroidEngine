@@ -41,7 +41,6 @@ public class War3Map implements DataSource {
 	private DataSource dataSource;
 	private DataSource internalMpqContentsDataSource;
 	private GraphicsSet graphics = GraphicsSet.CLASSIC;
-	private boolean reforgedInterface;
 
 	public War3Map(final DataSource dataSource, final String mapFileName) {
 		try {
@@ -56,7 +55,6 @@ public class War3Map implements DataSource {
 			this.baseDataSource = new CompoundDataSource(Arrays.asList(dataSource, this.internalMpqContentsDataSource));
 			this.dataSource = this.baseDataSource;
 			this.graphics = LayeredDataSource.graphicsOf(dataSource);
-			this.reforgedInterface = LayeredDataSource.reforgedInterfaceOf(dataSource);
 		}
 		catch (final IOException e) {
 			throw new RuntimeException(e);
@@ -86,7 +84,6 @@ public class War3Map implements DataSource {
 			this.baseDataSource = new CompoundDataSource(Arrays.asList(dataSource, this.internalMpqContentsDataSource));
 			this.dataSource = this.baseDataSource;
 			this.graphics = LayeredDataSource.graphicsOf(dataSource);
-			this.reforgedInterface = LayeredDataSource.reforgedInterfaceOf(dataSource);
 		}
 		catch (final IOException e) {
 			throw new RuntimeException(e);
@@ -167,11 +164,10 @@ public class War3Map implements DataSource {
 		return readModifications(Warcraft3MapRuntimeObjectData.loadWTS(this.dataSource));
 	}
 
-	/** The map's object data over the standard data of the graphics and interface the game data shows. */
+	/** The map's object data over the standard data of the graphics the game data shows. */
 	public Warcraft3MapRuntimeObjectData readModifications(final WTS preloadedWTS) throws IOException {
 		final Warcraft3MapRuntimeObjectData changes = Warcraft3MapRuntimeObjectData.load(this.dataSource, true,
-				preloadedWTS, Warcraft3MapRuntimeObjectData.loadCampaignWTS(this.dataSource), this.graphics,
-				this.reforgedInterface);
+				preloadedWTS, Warcraft3MapRuntimeObjectData.loadCampaignWTS(this.dataSource), this.graphics);
 		return changes;
 	}
 

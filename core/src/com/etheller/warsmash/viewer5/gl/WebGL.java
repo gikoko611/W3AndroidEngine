@@ -10,6 +10,7 @@ import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.glutils.GLVersion;
 import com.badlogic.gdx.graphics.Pixmap;
 import com.badlogic.gdx.graphics.glutils.ShaderProgram;
+import com.etheller.warsmash.util.Log;
 import com.etheller.warsmash.viewer5.Texture;
 import com.etheller.warsmash.viewer5.deprecated.ShaderUnitDeprecated;
 
@@ -96,7 +97,7 @@ public class WebGL {
 			return shaderProgram;
 		}
 		else {
-			System.err.println(shaderProgram.getLog());
+			Log.warn(shaderProgram.getLog());
 			if (true) {
 				throw new IllegalStateException("Bad shader");
 			}

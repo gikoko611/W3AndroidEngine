@@ -41,6 +41,7 @@ import com.etheller.warsmash.units.Element;
 import com.etheller.warsmash.units.StandardObjectData;
 import com.etheller.warsmash.units.custom.WTS;
 import com.etheller.warsmash.util.ImageUtils;
+import com.etheller.warsmash.util.Log;
 import com.etheller.warsmash.util.WarsmashConstants;
 import com.etheller.warsmash.viewer5.handlers.w3x.War3MapViewer;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.ai.AIDifficulty;
@@ -191,7 +192,7 @@ final class MenuLoadingScreen {
 			return true;
 		}
 		catch (final IOException | RuntimeException e) {
-			e.printStackTrace();
+			Log.error(e);
 			return false;
 		}
 	}
@@ -736,7 +737,7 @@ final class MenuLoadingScreen {
 			this.menu.rootFrame.setSpriteFrameModel(frame, model);
 		}
 		catch (final RuntimeException e) {
-			System.err.println("Unable to load the loading screen model " + model + ": " + e);
+			Log.error("Unable to load the loading screen model " + model + ": " + e);
 			frame.setModel(null);
 		}
 		finally {

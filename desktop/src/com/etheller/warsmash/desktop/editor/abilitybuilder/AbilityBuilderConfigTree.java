@@ -9,6 +9,7 @@ import javax.swing.JTree;
 import javax.swing.tree.DefaultMutableTreeNode;
 import javax.swing.tree.DefaultTreeModel;
 
+import com.etheller.warsmash.util.Log;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilitybuilder.core.ABAction;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilitybuilder.core.ABCondition;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilitybuilder.parser.AbilityBuilderConfiguration;
@@ -77,7 +78,7 @@ public class AbilityBuilderConfigTree extends JTree {
 						}
 					}
 				} catch (IllegalAccessException | IllegalArgumentException | InvocationTargetException e) {
-					e.printStackTrace();
+					Log.error(e);
 				}
 			}
 			if (name.startsWith("getExtra")) {
@@ -92,7 +93,7 @@ public class AbilityBuilderConfigTree extends JTree {
 						}
 					}
 				} catch (IllegalAccessException | IllegalArgumentException | InvocationTargetException e) {
-					e.printStackTrace();
+					Log.error(e);
 				}
 			}
 		}
@@ -125,7 +126,7 @@ public class AbilityBuilderConfigTree extends JTree {
 						}
 					}
 				} catch (IllegalArgumentException | IllegalAccessException e) {
-					e.printStackTrace();
+					Log.error(e);
 				}
 			}
 			if (ABAction.class.isAssignableFrom(field.getType())
@@ -138,7 +139,7 @@ public class AbilityBuilderConfigTree extends JTree {
 						generateInto(nodeForField, fieldValue);
 					}
 				} catch (IllegalArgumentException | IllegalAccessException e) {
-					e.printStackTrace();
+					Log.error(e);
 				}
 			}
 		}
@@ -168,6 +169,7 @@ public class AbilityBuilderConfigTree extends JTree {
 				return action.toString();
 			}
 		} catch (NoSuchMethodException | SecurityException e) {
+			// No own toString: described field by field below.
 		}
 		StringBuilder sb = new StringBuilder();
 		sb.append(clazz.getSimpleName());
@@ -191,7 +193,7 @@ public class AbilityBuilderConfigTree extends JTree {
 					Object fieldValue = field.get(action);
 					sb.append(describe(fieldValue));
 				} catch (IllegalArgumentException | IllegalAccessException e) {
-					e.printStackTrace();
+					Log.error(e);
 				}
 				first = false;
 			}

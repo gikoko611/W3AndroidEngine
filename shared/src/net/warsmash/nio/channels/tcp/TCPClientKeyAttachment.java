@@ -14,6 +14,8 @@ import net.warsmash.nio.channels.WritableOutput;
 import net.warsmash.nio.channels.WritableSocketOutput;
 import net.warsmash.nio.util.ExceptionListener;
 
+import com.etheller.warsmash.util.Log;
+
 public class TCPClientKeyAttachment implements KeyAttachment, WritableSocketOutput {
 	private static final int MAX_MAP_SIZE_ROUGHLY = 256 * 1024 * 1024;
 	private TCPClientParser parser;
@@ -89,7 +91,7 @@ public class TCPClientKeyAttachment implements KeyAttachment, WritableSocketOutp
 						final int r = this.writeBuffer.remaining();
 						this.channel.write(this.writeBuffer);
 						final int r2 = this.writeBuffer.remaining();
-						System.err.println("wrote queued " + (r - r2));
+						Log.warn("wrote queued " + (r - r2));
 					}
 					catch (final Exception e) {
 						this.parser.disconnected();
@@ -154,7 +156,7 @@ public class TCPClientKeyAttachment implements KeyAttachment, WritableSocketOutp
 	}
 
 	private void putDataInWriteBuffer(final ByteBuffer data) {
-		System.err.println("queueing write of " + data.remaining());
+		Log.warn("queueing write of " + data.remaining());
 		if (this.writeBuffer.remaining() >= data.remaining()) {
 			this.writeBuffer.put(data);
 		}

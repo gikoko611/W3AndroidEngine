@@ -109,7 +109,7 @@ public class CBehaviorAttack extends CAbstractRangedBehavior {
 				&& (this.unit.distance(this.firstSwingOrderX, this.firstSwingOrderY) < 1);
 		final double now = CTimer.currentTime(game);
 		final double from = readyAtOrder ? this.firstSwingOrderTime : now;
-		final double wait = game.getSeededRandom().nextFloat() * FIRST_SWING_MAX_WAIT;
+		final double wait = game.getCombatRandom().nextFloat() * FIRST_SWING_MAX_WAIT;
 		// a wait that ran out before this update still starts the swing on a unit tick
 		this.firstSwingTime = Math.max(nextUnitTick(from + wait), nextUnitTick(now));
 	}
@@ -214,7 +214,7 @@ public class CBehaviorAttack extends CAbstractRangedBehavior {
 	}
 
 	private void launch(final CSimulation simulation) {
-		final int damage = this.unitAttack.roll(simulation.getSeededRandom());
+		final int damage = this.unitAttack.roll(simulation.getCombatRandom());
 		this.settings.setBaseDamage(damage);
 		final AbilityTarget target = this.target;
 		if ((this.forcedModifier != null)

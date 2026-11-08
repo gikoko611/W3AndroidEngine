@@ -9,6 +9,8 @@ import net.warsmash.networking.udp.UdpClient;
 import net.warsmash.networking.udp.UdpClientListener;
 import net.warsmash.uberserver.GamingNetwork;
 
+import com.etheller.warsmash.util.Log;
+
 public class UdpClientTestMain {
 
 	static UdpClient warsmashUdpClient;
@@ -19,9 +21,9 @@ public class UdpClientTestMain {
 					new UdpClientListener() {
 						@Override
 						public void parse(final ByteBuffer buffer) {
-							System.out.println("got " + buffer.remaining() + " bytes, pos=" + buffer.position()
+							Log.info("got " + buffer.remaining() + " bytes, pos=" + buffer.position()
 									+ ", lim=" + buffer.limit());
-							System.out.println("got from server: " + buffer.getInt());
+							Log.info("got from server: " + buffer.getInt());
 						}
 					});
 			new Thread(warsmashUdpClient).start();
@@ -39,15 +41,15 @@ public class UdpClientTestMain {
 					Thread.sleep(1000);
 				}
 				catch (final InterruptedException e) {
-					e.printStackTrace();
+					Log.error(e);
 				}
 			}
 		}
 		catch (final UnknownHostException e) {
-			e.printStackTrace();
+			Log.error(e);
 		}
 		catch (final IOException e) {
-			e.printStackTrace();
+			Log.error(e);
 		}
 	}
 

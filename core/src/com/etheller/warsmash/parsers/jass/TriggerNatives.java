@@ -27,6 +27,7 @@ import com.etheller.warsmash.parsers.jass.triggers.BoolExprOr;
 import com.etheller.warsmash.parsers.jass.triggers.LocationJass;
 import com.etheller.warsmash.parsers.jass.triggers.TriggerAction;
 import com.etheller.warsmash.parsers.jass.triggers.TriggerCondition;
+import com.etheller.warsmash.util.Log;
 import com.etheller.warsmash.util.War3ID;
 import com.etheller.warsmash.viewer5.handlers.w3x.save.SavedFormerly;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CDestructable;
@@ -817,7 +818,7 @@ final class TriggerNatives extends CommonNatives {
 				(arguments, globalScope, triggerScope) -> {
 					final String funcName = arguments.get(0).visit(StringJassValueVisitor.getInstance());
 					final Integer functionByName = globalScope.getUserFunctionInstructionPtr(funcName);
-					System.out.println("ExecuteFunc (\"" + funcName + "\")");
+					Log.info("ExecuteFunc (\"" + funcName + "\")");
 					if (functionByName != null) {
 						globalScope.runThreadUntilSleep(globalScope.createThread(functionByName, triggerScope));
 					}

@@ -10,6 +10,7 @@ import com.badlogic.gdx.utils.viewport.Viewport;
 import com.etheller.warsmash.parsers.fdf.GameUI;
 import com.etheller.warsmash.parsers.fdf.datamodel.AnchorDefinition;
 import com.etheller.warsmash.parsers.fdf.datamodel.FramePoint;
+import com.etheller.warsmash.util.Log;
 
 public abstract class AbstractRenderableFrame implements UIFrame {
 	private static final FramePoint[] LEFT_ANCHOR_PRIORITY = { FramePoint.LEFT, FramePoint.TOPLEFT,
@@ -321,7 +322,7 @@ public abstract class AbstractRenderableFrame implements UIFrame {
 			}
 		}
 		if (DEBUG_LOG) {
-			System.out.println(getClass().getSimpleName() + ":" + this.name + ":" + hashCode()
+			Log.info(getClass().getSimpleName() + ":" + this.name + ":" + hashCode()
 					+ " finishing position bounds: " + this.renderBounds);
 		}
 		innerPositionBounds(gameUI, viewport);

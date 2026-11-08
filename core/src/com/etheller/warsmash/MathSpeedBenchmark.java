@@ -1,5 +1,7 @@
 package com.etheller.warsmash;
 
+import com.etheller.warsmash.util.Log;
+
 public class MathSpeedBenchmark {
 	private static final int NUMBER_OF_ITERATIONS = 100000000;
 
@@ -36,8 +38,8 @@ public class MathSpeedBenchmark {
 //		}
 		sumCosineTime = clockTime2 - clockTime1;
 		sumSquareRootTime = clockTime3 - clockTime2;
-		System.out.println("Square Root: " + sumCosineTime);
-		System.out.println("Cosine: " + sumSquareRootTime);
+		Log.info("Square Root: " + sumCosineTime);
+		Log.info("Cosine: " + sumSquareRootTime);
 	}
 
 	static float getRandomFloat(final float min, final float max) {

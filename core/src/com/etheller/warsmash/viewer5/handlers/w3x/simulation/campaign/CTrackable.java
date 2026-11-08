@@ -75,12 +75,12 @@ public final class CTrackable extends AllocatedHandle {
 		}
 	}
 
-	/** The local player clicked it. */
+	/** A player clicked it, through that player's commands. */
 	public void hit(final GlobalScope globalScope) {
 		fire(globalScope, this.hitTriggers, JassGameEventsWar3.EVENT_GAME_TRACKABLE_HIT);
 	}
 
-	/** The local player's mouse came onto it. */
+	/** A player's pointer came onto it, through that player's commands. */
 	public void track(final GlobalScope globalScope) {
 		fire(globalScope, this.trackTriggers, JassGameEventsWar3.EVENT_GAME_TRACKABLE_TRACK);
 	}

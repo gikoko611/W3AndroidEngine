@@ -25,6 +25,7 @@ import com.etheller.warsmash.parsers.fdf.frames.StringFrame;
 import com.etheller.warsmash.parsers.fdf.frames.TextureFrame;
 import com.etheller.warsmash.parsers.fdf.frames.UIFrame;
 import com.etheller.warsmash.util.ImageUtils;
+import com.etheller.warsmash.util.Log;
 import com.etheller.warsmash.util.WarsmashConstants;
 import com.etheller.warsmash.viewer5.handlers.w3x.War3MapViewer;
 import com.etheller.warsmash.viewer5.handlers.w3x.camera.GameCameraManager;
@@ -99,7 +100,7 @@ public final class ReplayPanel implements CommandCardCommandListener {
 			final ReplayPlayback playback, final GameCameraManager camera, final CommandCardIcon[][] commandCard,
 			final Host host) {
 		if (rootFrame.getTemplates().getFrame(PANEL) == null) {
-			System.err.println("Replay: the game data has no " + PANEL + ", the replay is shown without its panel");
+			Log.warn("Replay: the game data has no " + PANEL + ", the replay is shown without its panel");
 			return null;
 		}
 		return new ReplayPanel(rootFrame, uiViewport, viewer, playback, camera, commandCard, host);

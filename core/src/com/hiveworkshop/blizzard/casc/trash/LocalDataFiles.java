@@ -17,6 +17,7 @@ import java.util.Map;
 import java.util.zip.DataFormatException;
 import java.util.zip.Inflater;
 
+import com.etheller.warsmash.util.Log;
 import com.hiveworkshop.blizzard.casc.nio.HashMismatchException;
 import com.hiveworkshop.blizzard.casc.nio.MalformedCASCStructureException;
 import com.hiveworkshop.lang.Hex;
@@ -37,7 +38,7 @@ public class LocalDataFiles implements Closeable {
 	public void mountDataFiles(final Path dataPath) throws IOException {
 		try (final DirectoryStream<Path> dataFileIterator = Files.newDirectoryStream(dataPath, "data.*")) {
 			for (final Path dataFile : dataFileIterator) {
-				System.out.println(dataFile);
+				Log.info(dataFile);
 				final String fileName = dataFile.getFileName().toString();
 				final int number = Integer.parseInt(fileName.substring(5, 8));
 				dataFiles.put(number, FileChannel.open(dataFile, StandardOpenOption.READ));

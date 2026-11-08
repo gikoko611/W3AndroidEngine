@@ -4,11 +4,13 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 
+import com.etheller.warsmash.util.Log;
+
 public class CodeCounter {
 
 	public static void main(final String[] args) {
 		final int sourceLines = countFile(new File("src/com/etheller"));
-		System.out.println(sourceLines);
+		Log.info(sourceLines);
 	}
 
 	public static int countFile(final File file) {
@@ -26,7 +28,7 @@ public class CodeCounter {
 				}
 			}
 			catch (final IOException e) {
-				e.printStackTrace();
+				Log.error(e);
 			}
 			return 0;
 		}

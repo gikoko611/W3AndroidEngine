@@ -1,5 +1,7 @@
 package com.etheller.warsmash.networking;
 
+import com.etheller.warsmash.util.Log;
+
 public interface GameTurnManager {
 	int getLatestCompletedTurn();
 
@@ -15,7 +17,7 @@ public interface GameTurnManager {
 
 		@Override
 		public void turnCompleted(final int gameTurnTick) {
-			System.err.println("got turnCompleted(" + gameTurnTick + ") while paused !!");
+			Log.warn("got turnCompleted(" + gameTurnTick + ") while paused !!");
 		}
 
 		@Override

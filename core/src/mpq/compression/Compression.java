@@ -9,6 +9,8 @@ import mpq.compression.huffman.Huffman;
 import mpq.compression.pkware.PKException;
 import mpq.compression.pkware.PKExploder;
 
+import com.etheller.warsmash.util.Log;
+
 public class Compression {	
 	/*static TDecompressTable dcmp_table[] =
 	{
@@ -165,7 +167,7 @@ public class Compression {
 			(flip ? out : in).clear();
 			flip = !flip;
 		}
-		if( (mask & FLAG_SPARSE) != 0 )	System.err.println("sparse compression flag present in mpq version that lacked support");
+		if( (mask & FLAG_SPARSE) != 0 )	Log.warn("sparse compression flag present in mpq version that lacked support");
 		
 		if( flip ){
 			bufferCache[size] = in;
@@ -266,11 +268,11 @@ public class Compression {
 		try {
 			pkexploderDecompress.explode(block, extra);
 		} catch (PKException e) {
-			System.err.println("pkware decompression exception: "+e.getLocalizedMessage());
+			Log.error("pkware decompression exception: "+e.getLocalizedMessage());
 		}
 		
 		if( extra.position() != extra.limit() ){
-			System.err.println("a block failed exploding");
+			Log.error("a block failed exploding");
 		}
 		
 		block.clear();
@@ -285,7 +287,7 @@ public class Compression {
 		byte mask = block.get();
 		
 		if( strict ){
-			System.err.println("strict compression flag mode not supported");
+			Log.warn("strict compression flag mode not supported");
 		}
 		
 		boolean swap = false;

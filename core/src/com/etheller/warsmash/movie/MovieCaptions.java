@@ -12,6 +12,8 @@ import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import com.etheller.warsmash.util.Log;
+
 /** The captions of a movie, from its SubRip (.srt) file. */
 public final class MovieCaptions {
 	private static final Pattern TIMES = Pattern.compile(
@@ -59,7 +61,7 @@ public final class MovieCaptions {
 			captions.add(start, end, text);
 		}
 		catch (final IOException | RuntimeException e) {
-			System.err.println("Unable to read the captions " + file + ": " + e);
+			Log.error("Unable to read the captions " + file + ": " + e);
 		}
 		return captions;
 	}
