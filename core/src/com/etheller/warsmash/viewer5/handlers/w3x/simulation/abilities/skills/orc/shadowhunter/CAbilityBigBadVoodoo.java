@@ -1,14 +1,13 @@
 package com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.skills.orc.shadowhunter;
 
-import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
 
 import com.etheller.warsmash.units.GameObject;
 import com.etheller.warsmash.util.War3ID;
-import com.etheller.warsmash.util.WarsmashConstants;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CSimulation;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CUnit;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.skills.CAbilityNoTargetSpellBase;
@@ -16,6 +15,7 @@ import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.targeting
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.types.definitions.impl.AbilityFields;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.types.definitions.impl.AbstractCAbilityTypeDefinition;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.orders.OrderIds;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.timers.CTimer;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.trigger.enumtypes.CEffectType;
 
 /**
@@ -27,7 +27,7 @@ public class CAbilityBigBadVoodoo extends CAbilityNoTargetSpellBase {
 	private War3ID protectedBuffId;
 	private War3ID casterBuffId;
 	private int channelEndTick;
-	private final Map<CUnit, CBuffBigBadVoodoo> protectedUnits = new HashMap<>();
+	private final Map<CUnit, CBuffBigBadVoodoo> protectedUnits = new LinkedHashMap<>();
 	private CBuffBigBadVoodoo casterBuff;
 
 	public CAbilityBigBadVoodoo(final int handleId, final War3ID alias) {
@@ -49,7 +49,7 @@ public class CAbilityBigBadVoodoo extends CAbilityNoTargetSpellBase {
 	@Override
 	public boolean doEffect(final CSimulation simulation, final CUnit caster, final AbilityTarget target) {
 		this.channelEndTick = simulation.getGameTurnTick()
-				+ (int) StrictMath.ceil(getDuration() / WarsmashConstants.SIMULATION_STEP_TIME);
+				+ CTimer.ceilSteps(getDuration());
 		simulation.createTemporarySpellEffectOnUnit(caster, getAlias(), CEffectType.CASTER);
 		if (this.casterBuffId != null) {
 			this.casterBuff = new CBuffBigBadVoodoo(simulation.getHandleIdAllocator().createId(), this.casterBuffId,
@@ -61,7 +61,7 @@ public class CAbilityBigBadVoodoo extends CAbilityNoTargetSpellBase {
 
 	@Override
 	public boolean doChannelTick(final CSimulation simulation, final CUnit caster, final AbilityTarget target) {
-		final Set<CUnit> inArea = new HashSet<>();
+		final Set<CUnit> inArea = new LinkedHashSet<>();
 		simulation.getWorldCollision().enumUnitsInRange(caster.getX(), caster.getY(), this.areaOfEffect,
 				(enumUnit) -> {
 					if ((enumUnit.getPlayerIndex() == caster.getPlayerIndex()) && (enumUnit.getHeroData() == null)

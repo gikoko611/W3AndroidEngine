@@ -1,5 +1,6 @@
 package com.etheller.warsmash.viewer5.handlers.w3x.rendersim;
 
+import com.etheller.interpreter.ast.util.AllocatedHandle;
 import com.etheller.warsmash.util.War3ID;
 import com.etheller.warsmash.viewer5.handlers.w3x.War3MapViewer;
 import com.etheller.warsmash.viewer5.handlers.w3x.lightning.LightningEffectNode;
@@ -7,7 +8,7 @@ import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CUnit;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CWidget;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.util.SimulationRenderComponentLightningMovable;
 
-public class RenderLightningEffect implements SimulationRenderComponentLightningMovable {
+public class RenderLightningEffect extends AllocatedHandle implements SimulationRenderComponentLightningMovable {
 	private final LightningEffectNode source;
 	private final LightningEffectNode target;
 	private final War3MapViewer viewer; // TODO would be nice not to store viewer, but what is "move()"

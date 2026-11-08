@@ -278,6 +278,10 @@ public abstract class CAbilityAbilityBuilderGenericActive extends AbstractGeneri
 		}
 	}
 
+	public List<War3ID> getBuffIds() {
+		return this.levelData.get(this.getLevel() - 1).getBuffs();
+	}
+
 	protected void setSpellFields(CSimulation game, CUnit unit) {
 		CAbilityTypeAbilityBuilderLevelData levelDataLevel = this.levelData.get(this.getLevel() - 1);
 		this.manaCost = levelDataLevel.getManaCost();
@@ -720,7 +724,7 @@ public abstract class CAbilityAbilityBuilderGenericActive extends AbstractGeneri
 					receiver.activationCheckFailed(CommandStringErrorKeys.NOT_ENOUGH_GOLD);
 				} else if (this.getUILumberCost() > p.getLumber()) {
 					receiver.activationCheckFailed(CommandStringErrorKeys.NOT_ENOUGH_LUMBER);
-				} else if (this.getUIFoodCost() > 0 && this.getUIFoodCost() > p.getFoodCap() - p.getFoodUsed()) {
+				} else if (this.getUIFoodCost() > 0 && this.getUIFoodCost() > p.getFoodCapLimit() - p.getFoodUsed()) {
 					receiver.activationCheckFailed(CommandStringErrorKeys.NOT_ENOUGH_FOOD);
 				} else {
 					innerCheckExtraCastConditions(game, unit, orderId, receiver);

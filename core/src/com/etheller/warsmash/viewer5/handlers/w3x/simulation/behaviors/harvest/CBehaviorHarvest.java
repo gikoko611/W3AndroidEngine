@@ -1,6 +1,5 @@
 package com.etheller.warsmash.viewer5.handlers.w3x.simulation.behaviors.harvest;
 
-import com.etheller.warsmash.util.WarsmashConstants;
 import com.etheller.warsmash.viewer5.handlers.w3x.AnimationTokens.PrimaryTag;
 import com.etheller.warsmash.viewer5.handlers.w3x.AnimationTokens.SecondaryTag;
 import com.etheller.warsmash.viewer5.handlers.w3x.SequenceUtils;
@@ -23,6 +22,7 @@ import com.etheller.warsmash.viewer5.handlers.w3x.simulation.behaviors.CBehavior
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.behaviors.CBehaviorAttackListener;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.behaviors.CBehaviorCategory;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.orders.OrderIds;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.timers.CTimer;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.util.ResourceType;
 
 public class CBehaviorHarvest extends CAbstractRangedBehavior
@@ -103,7 +103,7 @@ public class CBehaviorHarvest extends CAbstractRangedBehavior
 						this.unit.setHidden(true);
 						this.unit.setInvulnerableSource(this.simulation, CUnit.INSIDE_INVULNERABLE, true);
 						this.popoutFromMineTurnTick = this.simulation.getGameTurnTick()
-								+ (int) (abilityGoldMine.getMiningDuration() / WarsmashConstants.SIMULATION_STEP_TIME);
+								+ CTimer.wholeSteps(abilityGoldMine.getMiningDuration());
 					}
 					else {
 						// we are stuck waiting to mine, let's make sure we play stand animation

@@ -27,4 +27,30 @@ public interface CPlayerUnitOrderListener {
 	void unitCancelTrainingItem(int unitHandleId, int cancelIndex);
 
 	void issueGuiPlayerEvent(int eventId);
+
+	/**
+	 * Every other player input that changes the game goes through here too, so a network game or a replay can apply
+	 * it in the same step on every machine.
+	 */
+	void selectUnits(int[] deselectedUnitHandleIds, int[] selectedUnitHandleIds);
+
+	void chatMessage(int recipient, int recipientPlayerIndex, String message);
+
+	void clickDialogButton(int dialogHandleId, int buttonHandleId);
+
+	void setAlliance(int otherPlayerIndex, int allianceType, boolean value);
+
+	void transferResources(int otherPlayerIndex, int gold, int lumber);
+
+	void fireGameEvent(int eventId);
+
+	void saveGame(String saveName);
+
+	void leaveGame();
+
+	void cheat(String cheat);
+
+	void setGamePaused(boolean paused);
+
+	void minimapSignal(float x, float y);
 }

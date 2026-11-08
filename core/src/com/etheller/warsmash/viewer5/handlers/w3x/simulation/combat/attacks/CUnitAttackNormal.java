@@ -17,7 +17,7 @@ import com.etheller.warsmash.viewer5.handlers.w3x.simulation.combat.CWeaponType;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.combat.attacks.listeners.CUnitAttackPreDamageListenerDamageModResult;
 
 public class CUnitAttackNormal extends CUnitAttack {
-	private static CAttackDamageFlags ATTACK_FLAGS = new CAttackDamageFlags(false);
+	private static final CAttackDamageFlags ATTACK_FLAGS = new CAttackDamageFlags(false);
 
 	public CUnitAttackNormal(final float animationBackswingPoint, final float animationDamagePoint,
 			final CAttackType attackType, final float cooldownTime, final int damageBase, final int damageDice,

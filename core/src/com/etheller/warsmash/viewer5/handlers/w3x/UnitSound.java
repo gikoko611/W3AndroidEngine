@@ -16,6 +16,7 @@ import com.etheller.warsmash.viewer5.AudioPanner;
 import com.etheller.warsmash.viewer5.gl.Extensions;
 import com.etheller.warsmash.viewer5.handlers.w3x.rendersim.RenderUnit;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.sound.CSoundMixer;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.sound.SoundFileDuration;
 
 public final class UnitSound {
 	private static final UnitSound SILENT = new UnitSound(null, 0, 0, 0, 0, 0, 0, false);
@@ -25,6 +26,7 @@ public final class UnitSound {
 	private final DataSource dataSource;
 	private final List<String> soundPaths = new ArrayList<>();
 	private final List<Sound> sounds = new ArrayList<>();
+	private final List<Float> durations = new ArrayList<>();
 	private final float volume;
 	private final float pitch;
 	private final float pitchVariance;
@@ -35,6 +37,7 @@ public final class UnitSound {
 	private int channel;
 
 	private Sound lastPlayedSound;
+	private int lastPlayedIndex;
 
 	public static UnitSound create(final DataSource dataSource, final DataTable unitAckSounds, final String soundName,
 			final String soundType) {
@@ -71,6 +74,7 @@ public final class UnitSound {
 			if (dataSource.has(resolvedPath)) {
 				sound.soundPaths.add(resolvedPath);
 				sound.sounds.add(null);
+				sound.durations.add(null);
 			}
 			else if (!fileName.isEmpty()) {
 				System.err.println("Sound file not found: " + resolvedPath);
@@ -103,13 +107,27 @@ public final class UnitSound {
 		return sound;
 	}
 
-	public static Sound createSound(final DataSource dataSource, String filePath) {
+	/**
+	 * @return the file a script's sound path plays, which may have another extension than the path
+	 */
+	public static String resolveFilePath(final DataSource dataSource, String filePath) {
 		final int lastDotIndex = filePath.lastIndexOf('.');
 		if (lastDotIndex != -1) {
 			filePath = filePath.substring(0, lastDotIndex);
 		}
+		return DataSourceFileHandle.resolveSoundPath(dataSource, filePath + ".wav");
+	}
+
+	/**
+	 * @return the length in seconds of the file a script's sound path plays, 0 when there is none
+	 */
+	public static float fileDuration(final DataSource dataSource, final String filePath) {
+		return SoundFileDuration.read(dataSource, resolveFilePath(dataSource, filePath));
+	}
+
+	public static Sound createSound(final DataSource dataSource, final String filePath) {
 		Sound newSound = null;
-		final String resolvedPath = DataSourceFileHandle.resolveSoundPath(dataSource, filePath + ".wav");
+		final String resolvedPath = resolveFilePath(dataSource, filePath);
 		if (dataSource.has(resolvedPath)) {
 			try {
 				newSound = SessionResources.track(
@@ -147,7 +165,7 @@ public final class UnitSound {
 			return false;
 		}
 		if (play(audioContext, unit.location[0], unit.location[1], unit.location[2], index) != -1) {
-			final float duration = Extensions.audio.getDuration(this.lastPlayedSound);
+			final float duration = getDuration(this.lastPlayedIndex);
 			unit.lastUnitResponseEndTimeMillis = millisTime + (long) (1000 * duration);
 			return true;
 		}
@@ -193,7 +211,7 @@ public final class UnitSound {
 
 		// Make a sound.
 		long soundId = -1;
-		final float mixedVolume = this.volume * CSoundMixer.channelScale(this.channel);
+		final float mixedVolume = this.volume * CSoundMixer.audible().channelScale(this.channel);
 		if (loopOverride == null) {
 			soundId = source.start(0, mixedVolume,
 					(this.pitch + ((float) Math.random() * this.pitchVariance * 2)) - this.pitchVariance, this.looping);
@@ -203,10 +221,35 @@ public final class UnitSound {
 					(this.pitch + ((float) Math.random() * this.pitchVariance * 2)) - this.pitchVariance, loopOverride);
 		}
 		this.lastPlayedSound = source.buffer;
+		this.lastPlayedIndex = index;
 		if ((soundId != -1) && (loopOverride == null ? this.looping : loopOverride)) {
-			CSoundMixer.loopStarted(source.buffer, soundId, this.volume, this.channel);
+			CSoundMixer.audible().loopStarted(source.buffer, soundId, this.volume, this.channel);
 		}
 		return soundId;
+	}
+
+	/**
+	 * @return the length in seconds of the label's first file, which scripts wait by; 0 when it has none
+	 */
+	public float getDuration() {
+		return this.soundPaths.isEmpty() ? 0 : getDuration(0);
+	}
+
+	/**
+	 * @return the length in seconds of the file played last, 0 before any
+	 */
+	public float getLastPlayedDuration() {
+		return this.lastPlayedSound == null ? 0 : getDuration(this.lastPlayedIndex);
+	}
+
+	/** @return the length in seconds of the label's file at this index */
+	public float getDuration(final int index) {
+		Float duration = this.durations.get(index);
+		if (duration == null) {
+			duration = SoundFileDuration.read(this.dataSource, this.soundPaths.get(index));
+			this.durations.set(index, duration);
+		}
+		return duration;
 	}
 
 	public int getSoundCount() {

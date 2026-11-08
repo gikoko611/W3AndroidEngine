@@ -14,6 +14,8 @@ import com.etheller.warsmash.viewer5.handlers.w3x.simulation.combat.CSpellDamage
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.combat.projectile.CAbilityProjectileListener;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.combat.projectile.CProjectile;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.orders.OrderIds;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.players.CAllianceType;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.players.CPlayer;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.trigger.enumtypes.CDamageType;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.trigger.enumtypes.CEffectType;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.unit.CUnitTypeJass;
@@ -56,17 +58,25 @@ public class CAbilityDeathCoil extends CAbilityTargetSpellBase {
 		}
 	}
 
+	/**
+	 * Measured on 1.29: living units of anyone but the caster and its spell-sharing allies (Neutral Passive and
+	 * passive-only allies too), and undead units of the caster or of a passive ally that does not share spells.
+	 */
 	private boolean validDeathCoilTarget(final CSimulation game, final CUnit caster, final CWidget target) {
 		final CUnit targetUnit = target.visit(AbilityTargetVisitor.UNIT);
-		if (targetUnit != null) {
-			if (targetUnit.isUnitType(CUnitTypeJass.UNDEAD)) {
-				return targetUnit.isUnitAlly(game.getPlayer(caster.getPlayerIndex()));
-			}
-			else {
-				return !targetUnit.isUnitAlly(game.getPlayer(caster.getPlayerIndex()));
-			}
+		if (targetUnit == null) {
+			return false;
 		}
-		return false;
+		final boolean undead = targetUnit.isUnitType(CUnitTypeJass.UNDEAD);
+		final int targetPlayerIndex = targetUnit.getPlayerIndex();
+		if (targetPlayerIndex == caster.getPlayerIndex()) {
+			return undead;
+		}
+		final CPlayer casterPlayer = game.getPlayer(caster.getPlayerIndex());
+		if (casterPlayer.hasAlliance(targetPlayerIndex, CAllianceType.SHARED_SPELLS)) {
+			return false;
+		}
+		return !undead || casterPlayer.hasAlliance(targetPlayerIndex, CAllianceType.PASSIVE);
 	}
 
 	@Override
@@ -82,6 +92,12 @@ public class CAbilityDeathCoil extends CAbilityTargetSpellBase {
 					public void onHit(final CSimulation game, CProjectile projectile, final AbilityTarget abilTarget) {
 						final CUnit targetUnit = target.visit(AbilityTargetVisitor.UNIT);
 						if (targetUnit != null) {
+							if (targetUnit.getPlayerIndex() != caster.getPlayerIndex()) {
+								// 1.29: a coil reaching another player's unit first hits it for 0 (a damaged
+								// event), also before it heals.
+								targetUnit.damage(simulation, caster, DAMAGE_FLAGS, CAttackType.SPELLS,
+										CDamageType.DEATH, null, 0);
+							}
 							if (!targetUnit.isUnitType(CUnitTypeJass.UNDEAD)) {
 								targetUnit.damage(simulation, caster, DAMAGE_FLAGS, CAttackType.SPELLS, CDamageType.DEATH, null,
 										healAmount * .5f);

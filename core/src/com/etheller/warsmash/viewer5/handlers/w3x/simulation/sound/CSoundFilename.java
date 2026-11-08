@@ -1,14 +1,13 @@
 package com.etheller.warsmash.viewer5.handlers.w3x.simulation.sound;
 
 import com.badlogic.gdx.audio.Sound;
-import com.badlogic.gdx.utils.TimeUtils;
 import com.etheller.warsmash.viewer5.AudioBufferSource;
 import com.etheller.warsmash.viewer5.AudioContext;
 import com.etheller.warsmash.viewer5.AudioPanner;
 import com.etheller.warsmash.viewer5.gl.Extensions;
 import com.etheller.warsmash.viewer5.handlers.w3x.rendersim.RenderUnit;
 
-public class CSoundFilename implements CSound {
+public class CSoundFilename extends AbstractCSound {
 	private final Sound sound;
 	private final boolean looping;
 	private final boolean stopWhenOutOfRange;
@@ -17,14 +16,16 @@ public class CSoundFilename implements CSound {
 	private final AudioContext audioContext;
 	private final CSoundParameters parameters = new CSoundParameters();
 	private final String eaxSetting;
-	private long lastStartTimestamp;
-	private float duration = -1;
 	private long lastSoundId = -1;
-	private boolean started;
-	private boolean killWhenDone;
 
-	public CSoundFilename(final Sound sound, final AudioContext audioContext, final boolean looping,
-			final boolean stopWhenOutOfRange, final int fadeInRate, final int fadeOutRate, final String eaxSetting) {
+	/**
+	 * @param fileDuration the length of the file in seconds (0 when it is missing); the sound may be null when this
+	 *                     computer cannot play it
+	 */
+	public CSoundFilename(final Sound sound, final float fileDuration, final AudioContext audioContext,
+			final boolean looping, final boolean stopWhenOutOfRange, final int fadeInRate, final int fadeOutRate,
+			final String eaxSetting) {
+		super(fileDuration);
 		this.sound = sound;
 		this.audioContext = audioContext;
 		this.looping = looping;
@@ -113,18 +114,13 @@ public class CSoundFilename implements CSound {
 	}
 
 	@Override
-	public void killWhenDone() {
-		this.killWhenDone = true;
+	protected boolean isLooping() {
+		return this.looping;
 	}
 
 	@Override
-	public boolean isKilled() {
-		return this.killWhenDone && !isPlaying();
-	}
-
-	@Override
-	public void start() {
-		if ((this.audioContext == null) || isKilled()) {
+	protected void play() {
+		if ((this.audioContext == null) || (this.sound == null)) {
 			return;
 		}
 		final AudioPanner panner = this.audioContext.createPanner(this.stopWhenOutOfRange);
@@ -151,18 +147,14 @@ public class CSoundFilename implements CSound {
 		// Make a sound.
 		this.lastSoundId = source.start(0, this.parameters.scaledVolume(1.0f, this.audioContext),
 				this.parameters.startPitch(), this.looping);
-		this.started = this.lastSoundId != -1;
-		if (this.started && this.looping) {
-			CSoundMixer.loopStarted(this.sound, this.lastSoundId, this.parameters.unmixedVolume(1.0f, this.audioContext),
+		if ((this.lastSoundId != -1) && this.looping) {
+			CSoundMixer.audible().loopStarted(this.sound, this.lastSoundId, this.parameters.unmixedVolume(1.0f, this.audioContext),
 					this.parameters.channel);
 		}
-
-		this.lastStartTimestamp = TimeUtils.millis();
 	}
 
 	@Override
-	public void stop() {
-		this.started = false;
+	protected void silence() {
 		if (this.sound != null) {
 			// Without an id this would also stop other sounds created from the same file.
 			if (this.lastSoundId != -1) {
@@ -197,35 +189,4 @@ public class CSoundFilename implements CSound {
 	CSoundParameters getParameters() {
 		return this.parameters;
 	}
-
-	@Override
-	public float getPredictedDuration() {
-		if (this.duration >= 0) {
-			return this.duration;
-		}
-		return Extensions.audio.getDuration(this.sound);
-	}
-
-	@Override
-	public void setDuration(final float seconds) {
-		this.duration = seconds;
-	}
-
-	@Override
-	public boolean isPlaying() {
-		return this.started && (this.looping || (getRemainingTimeToPlayOnTheDesyncLocalComputer() > 0));
-	}
-
-	@Override
-	public float getRemainingTimeToPlayOnTheDesyncLocalComputer() {
-		final long currentTime = TimeUtils.millis();
-		final long deltaTime = currentTime - this.lastStartTimestamp;
-		final float deltaTimeSeconds = deltaTime / 1000f;
-		final float predictedDuration = getPredictedDuration();
-		if (deltaTimeSeconds > predictedDuration) {
-			return 0;
-		}
-		return predictedDuration - deltaTimeSeconds;
-	}
-
 }

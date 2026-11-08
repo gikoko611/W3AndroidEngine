@@ -3,7 +3,6 @@ package com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.harvest;
 import java.util.EnumSet;
 
 import com.etheller.warsmash.util.War3ID;
-import com.etheller.warsmash.util.WarsmashConstants;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CDestructable;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CSimulation;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CUnit;
@@ -16,6 +15,7 @@ import com.etheller.warsmash.viewer5.handlers.w3x.simulation.behaviors.CBehavior
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.behaviors.harvest.CBehaviorWispHarvest;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.combat.CTargetType;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.orders.OrderIds;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.timers.CTimer;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.util.AbilityActivationReceiver;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.util.AbilityTargetCheckReceiver;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.util.CommandStringErrorKeys;
@@ -161,7 +161,7 @@ public class CAbilityWispHarvest extends AbstractGenericSingleIconActiveAbility 
 
 	// Measured: with a duration of 7.5 the original game pays lumber every 8 seconds.
 	private static int intervalTicks(final float duration) {
-		return (int) ((duration + 0.5f) / WarsmashConstants.SIMULATION_STEP_TIME);
+		return CTimer.wholeSteps(duration + 0.5f);
 	}
 
 	public float getPeriodicIntervalLength() {

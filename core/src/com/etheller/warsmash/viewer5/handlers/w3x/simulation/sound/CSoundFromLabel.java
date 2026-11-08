@@ -1,14 +1,10 @@
 package com.etheller.warsmash.viewer5.handlers.w3x.simulation.sound;
 
-import com.badlogic.gdx.utils.TimeUtils;
 import com.etheller.warsmash.viewer5.AudioContext;
-import com.etheller.warsmash.viewer5.gl.Extensions;
 import com.etheller.warsmash.viewer5.handlers.w3x.UnitSound;
 import com.etheller.warsmash.viewer5.handlers.w3x.rendersim.RenderUnit;
 
-public class CSoundFromLabel implements CSound {
-	private float duration = -1;
-
+public class CSoundFromLabel extends AbstractCSound {
 	private final UnitSound sound;
 	private final boolean looping;
 	private final boolean is3d;
@@ -16,13 +12,16 @@ public class CSoundFromLabel implements CSound {
 	private final int fadeInRate;
 	private final int fadeOutRate;
 	private final AudioContext audioContext;
-	private long lastStartTimestamp;
 	private final CSoundParameters parameters = new CSoundParameters();
-	private boolean started;
-	private boolean killWhenDone;
+	private int starts;
+	private int variant;
 
+	/**
+	 * @param sound the label's sound, null when the label is unknown
+	 */
 	public CSoundFromLabel(final UnitSound sound, final AudioContext audioContext, final boolean looping,
 			final boolean is3d, final boolean stopWhenOutOfRange, final int fadeInRate, final int fadeOutRate) {
+		super(sound == null ? 0 : sound.getDuration());
 		this.sound = sound;
 		this.audioContext = audioContext;
 		this.looping = looping;
@@ -66,71 +65,47 @@ public class CSoundFromLabel implements CSound {
 	}
 
 	@Override
-	public boolean isPlaying() {
-		return this.started && (this.looping || (getRemainingTimeToPlayOnTheDesyncLocalComputer() > 0));
+	protected boolean isLooping() {
+		return this.looping;
+	}
+
+	/**
+	 * A label with several files plays one of them each start, and scripts wait by that file's length, so the file is
+	 * picked from the game step and the count of starts: the same on every computer, with or without sound.
+	 */
+	@Override
+	protected void starting(final int gameTurnTick) {
+		if ((this.sound == null) || (this.sound.getSoundCount() == 0)) {
+			return;
+		}
+		this.variant = variant(gameTurnTick, this.starts++, this.sound.getSoundCount());
+		setFileDuration(this.sound.getDuration(this.variant));
+	}
+
+	static int variant(final int gameTurnTick, final int starts, final int count) {
+		int hash = (gameTurnTick * 0x9E3779B1) + starts;
+		hash ^= hash >>> 16;
+		hash *= 0x85EBCA6B;
+		hash ^= hash >>> 13;
+		hash *= 0xC2B2AE35;
+		hash ^= hash >>> 16;
+		return Math.floorMod(hash, count);
 	}
 
 	@Override
-	public void killWhenDone() {
-		this.killWhenDone = true;
-	}
-
-	@Override
-	public boolean isKilled() {
-		return this.killWhenDone && !isPlaying();
-	}
-
-	@Override
-	public void start() {
-		if (isKilled()) {
+	protected void play() {
+		if (this.sound == null) {
 			return;
 		}
 		this.parameters.updatePositionFromUnit();
-		final float x = this.parameters.x;
-		final float y = this.parameters.y;
-		final float z = this.parameters.z;
-		final long id;
-		if (this.looping) {
-			id = this.sound.play(this.audioContext, x, y, z, true);
-		}
-		else {
-			id = this.sound.play(this.audioContext, x, y, z);
-		}
-		this.started = id != -1;
-		this.lastStartTimestamp = TimeUtils.millis();
+		this.sound.play(this.audioContext, this.parameters.x, this.parameters.y, this.parameters.z, this.variant,
+				this.looping ? Boolean.TRUE : null);
 	}
 
 	@Override
-	public void stop() {
-		this.started = false;
-		if (this.sound.getLastPlayedSound() != null) {
+	protected void silence() {
+		if ((this.sound != null) && (this.sound.getLastPlayedSound() != null)) {
 			this.sound.getLastPlayedSound().stop();
 		}
 	}
-
-	@Override
-	public float getPredictedDuration() {
-		if (this.duration >= 0) {
-			return this.duration;
-		}
-		return Extensions.audio.getDuration(this.sound.getLastPlayedSound());
-	}
-
-	@Override
-	public void setDuration(final float seconds) {
-		this.duration = seconds;
-	}
-
-	@Override
-	public float getRemainingTimeToPlayOnTheDesyncLocalComputer() {
-		final long currentTime = TimeUtils.millis();
-		final long deltaTime = currentTime - this.lastStartTimestamp;
-		final float deltaTimeSeconds = deltaTime / 1000f;
-		final float predictedDuration = getPredictedDuration();
-		if (deltaTimeSeconds > predictedDuration) {
-			return 0;
-		}
-		return predictedDuration - deltaTimeSeconds;
-	}
-
 }

@@ -13,15 +13,6 @@ import com.etheller.warsmash.viewer5.handlers.w3x.simulation.unit.NonStackingSta
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.util.SimulationRenderComponent;
 
 public class ABBuffSlow extends ABGenericTimedBuff {
-	private static NonStackingStatBuff STANDARD_ATTACK_DEBUFF;
-	private static NonStackingStatBuff STANDARD_MOVE_DEBUFF;
-
-	/** The standard slow follows the map's gameplay constants, so a game does not keep the last game's. */
-	public static void releaseStaticReferences() {
-		STANDARD_ATTACK_DEBUFF = null;
-		STANDARD_MOVE_DEBUFF = null;
-	}
-
 	private NonStackingStatBuff attackSpeedDebuff;
 	private NonStackingStatBuff moveSpeedDebuff;
 
@@ -32,16 +23,10 @@ public class ABBuffSlow extends ABGenericTimedBuff {
 	public ABBuffSlow(final CSimulation game, final int handleId, final War3ID alias, Map<String, Object> localStore,
 			CAbility sourceAbility, CUnit sourceUnit, final float duration, boolean leveled) {
 		super(handleId, alias, localStore, sourceAbility, sourceUnit, duration, false, leveled, false, false);
-		if (STANDARD_ATTACK_DEBUFF == null) {
-			STANDARD_ATTACK_DEBUFF = new NonStackingStatBuff(NonStackingStatBuffType.ATKSPD, "genericSlow",
-					-1 * game.getGameplayConstants().getFrostAttackSpeedDecrease());
-		}
-		if (STANDARD_MOVE_DEBUFF == null) {
-			STANDARD_MOVE_DEBUFF = new NonStackingStatBuff(NonStackingStatBuffType.MVSPDPCT, "genericSlow",
-					-1 * game.getGameplayConstants().getFrostMoveSpeedDecrease());
-		}
-		this.attackSpeedDebuff = STANDARD_ATTACK_DEBUFF;
-		this.moveSpeedDebuff = STANDARD_MOVE_DEBUFF;
+		this.attackSpeedDebuff = new NonStackingStatBuff(NonStackingStatBuffType.ATKSPD, "genericSlow",
+				-1 * game.getGameplayConstants().getFrostAttackSpeedDecrease());
+		this.moveSpeedDebuff = new NonStackingStatBuff(NonStackingStatBuffType.MVSPDPCT, "genericSlow",
+				-1 * game.getGameplayConstants().getFrostMoveSpeedDecrease());
 	}
 
 	public ABBuffSlow(final int handleId, final War3ID alias, Map<String, Object> localStore, CAbility sourceAbility,

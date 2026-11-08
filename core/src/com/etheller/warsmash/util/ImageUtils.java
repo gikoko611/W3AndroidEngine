@@ -6,6 +6,7 @@ import java.awt.image.BufferedImage;
 import java.awt.image.ColorModel;
 import java.awt.image.ComponentColorModel;
 import java.awt.image.DataBuffer;
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.Buffer;
@@ -14,7 +15,7 @@ import java.nio.ByteOrder;
 
 import javax.imageio.ImageIO;
 
-import org.apache.commons.compress.utils.IOUtils;
+import org.apache.commons.io.IOUtils;
 
 import com.badlogic.gdx.graphics.GL30;
 import com.badlogic.gdx.graphics.Pixmap;
@@ -112,15 +113,23 @@ public final class ImageUtils {
 	 */
 	private static DdsDecoder findDdsInsteadOfBlp(final DataSource dataSource, final String path)
 			throws IOException {
-		if (!path.toLowerCase().endsWith(".blp") || dataSource.has(path)) {
+		return findDdsInsteadOfBlp(dataSource, path, 0);
+	}
+
+	private static DdsDecoder findDdsInsteadOfBlp(final DataSource dataSource, final String path, final int maxSize)
+			throws IOException {
+		if (!path.toLowerCase().endsWith(".blp")) {
 			return null;
 		}
 		final String basePath = path.substring(0, path.length() - 4);
-		if (dataSource.has(basePath + ".tga")) {
+		final String ddsPath = basePath + ".dds";
+		// In one data source the order above holds; a later source (an override folder) wins with any of the three.
+		final String found = dataSource.findFirst(path, basePath + ".tga", ddsPath);
+		if ((found != null) && !found.equals(ddsPath)) {
 			return null;
 		}
-		final ByteBuffer ddsData = readFully(dataSource, basePath + ".dds");
-		return ddsData == null ? null : DdsDecoder.decode(ddsData);
+		final ByteBuffer ddsData = readFully(dataSource, ddsPath);
+		return ddsData == null ? null : DdsDecoder.decode(ddsData, maxSize, false);
 	}
 
 	/**
@@ -144,6 +153,11 @@ public final class ImageUtils {
 	}
 
 	private static BlpDecoder findDecodableBlp(final DataSource dataSource, final String path) throws IOException {
+		return findDecodableBlp(dataSource, path, 0);
+	}
+
+	private static BlpDecoder findDecodableBlp(final DataSource dataSource, final String path, final int maxSize)
+			throws IOException {
 		if (!path.toLowerCase().endsWith(".blp")) {
 			return null;
 		}
@@ -151,10 +165,7 @@ public final class ImageUtils {
 		if (blpData == null) {
 			return null;
 		}
-		if (BlpDecoder.isPalettedBlp1(blpData)) {
-			return BlpDecoder.decode(blpData);
-		}
-		return BlpDecoder.isJpegBlp1(blpData) ? BlpDecoder.decodeJpeg(blpData) : null;
+		return BlpDecoder.isBlp(blpData) ? BlpDecoder.decode(blpData, maxSize, false) : null;
 	}
 
 	/**
@@ -174,7 +185,7 @@ public final class ImageUtils {
 	}
 
 	/**
-	 * Like getAnyExtensionImageFixRGB, but returns RGBA bytes and decodes DDS without
+	 * Like getAnyExtensionImageFixRGB, but returns RGBA bytes and decodes DDS and BLP without
 	 * java.awt.
 	 *
 	 * @param sRGBCorrect whether to apply the sRGB correction of
@@ -182,9 +193,24 @@ public final class ImageUtils {
 	 */
 	public static RgbaImage getAnyExtensionRgbaImage(final DataSource dataSource, final String path,
 			final String errorType, final boolean sRGBCorrect) throws IOException {
-		final DdsDecoder ddsImage = findDdsInsteadOfBlp(dataSource, path);
+		return getAnyExtensionRgbaImage(dataSource, path, errorType, sRGBCorrect, 0);
+	}
+
+	/**
+	 * @param maxSize the largest width and height, 0 for no limit: a BLP or DDS larger than that is read from its first
+	 *                stored mip level within it
+	 */
+	public static RgbaImage getAnyExtensionRgbaImage(final DataSource dataSource, final String path,
+			final String errorType, final boolean sRGBCorrect, final int maxSize) throws IOException {
+		final DdsDecoder ddsImage = findDdsInsteadOfBlp(dataSource, path, maxSize);
 		if (ddsImage != null) {
 			return new RgbaImage(ddsImage.getWidth(), ddsImage.getHeight(), ddsImage.getRgba(), false);
+		}
+		final BlpDecoder blpImage = findDecodableBlp(dataSource, path, maxSize);
+		if (blpImage != null) {
+			// The raw colors in a plain RGBA texture match both ImageIO variants: the
+			// sRGB corrected one keeps them, the other is uploaded with an sRGB format.
+			return new RgbaImage(blpImage.getWidth(), blpImage.getHeight(), blpImage.getRgba(), false);
 		}
 		final AnyExtensionImage imageInfo = getAnyExtensionImageFixRGB(dataSource, path, errorType);
 		final BufferedImage image = sRGBCorrect ? imageInfo.getRGBCorrectImageData() : imageInfo.getImageData();
@@ -300,6 +326,35 @@ public final class ImageUtils {
 		pixmap.dispose();
 		texture.setFilter(TextureFilter.Linear, TextureFilter.Linear);
 		return texture;
+	}
+
+	/**
+	 * Reads a data image such as a pathing map. A BLP gives its stored values, as a TGA does; other formats need
+	 * javax.imageio.
+	 */
+	public static ArgbImage getArgbImage(final InputStream stream, final String path) throws IOException {
+		if (stream == null) {
+			throw new IllegalStateException("Missing image: " + path);
+		}
+		final ByteBuffer data = ByteBuffer.wrap(IOUtils.toByteArray(stream));
+		if (BlpDecoder.isBlp(data)) {
+			final BlpDecoder blp = BlpDecoder.decode(data);
+			final ByteBuffer rgba = blp.getRgba();
+			final int[] pixels = new int[blp.getWidth() * blp.getHeight()];
+			for (int i = 0; i < pixels.length; i++) {
+				final int offset = i * 4;
+				pixels[i] = ((rgba.get(offset + 3) & 0xFF) << 24) | ((rgba.get(offset) & 0xFF) << 16)
+						| ((rgba.get(offset + 1) & 0xFF) << 8) | (rgba.get(offset + 2) & 0xFF);
+			}
+			return new ArgbImage(blp.getWidth(), blp.getHeight(), pixels);
+		}
+		if (!IMAGE_IO_AVAILABLE) {
+			throw new IllegalStateException("No decoder for " + path + " on this platform");
+		}
+		final BufferedImage image = ImageIO.read(new ByteArrayInputStream(data.array()));
+		final int[] pixels = new int[image.getWidth() * image.getHeight()];
+		image.getRGB(0, 0, image.getWidth(), image.getHeight(), pixels, 0, image.getWidth());
+		return new ArgbImage(image.getWidth(), image.getHeight(), pixels);
 	}
 
 	public static Texture getTextureNoColorCorrection(final ArgbImage image) {

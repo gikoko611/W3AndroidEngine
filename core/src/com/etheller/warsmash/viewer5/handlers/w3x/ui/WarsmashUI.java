@@ -24,6 +24,9 @@ public interface WarsmashUI extends CommandErrorListener, WarsmashBaseUI {
 
 	void destroyDialog(CScriptDialog dialog);
 
+	/** DialogDisplay: shows or hides the dialog; one shown now is the dialog shown last. */
+	void displayScriptDialog(CScriptDialog dialog, boolean flag);
+
 	CScriptDialogButton createScriptDialogButton(CScriptDialog dialog, String buttonText, char hotkeyInt);
 
 	void quitMission();
@@ -55,8 +58,6 @@ public interface WarsmashUI extends CommandErrorListener, WarsmashBaseUI {
 	void scriptSelectUnit(CUnit unit, boolean select);
 
 	void scriptClearSelection();
-
-	List<CUnit> getSelectedSimulationUnits(int playerIndex);
 
 	boolean isOverClickableUi(int screenX, int screenY);
 
@@ -108,6 +109,8 @@ public interface WarsmashUI extends CommandErrorListener, WarsmashBaseUI {
 	void endCinematicScene();
 
 	void forceCinematicSubtitles(boolean value);
+
+	void hideCinematicPanels(boolean hide);
 
 	void flashQuestDialogButton();
 

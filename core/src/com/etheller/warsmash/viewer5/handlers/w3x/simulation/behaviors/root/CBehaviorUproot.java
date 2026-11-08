@@ -1,6 +1,5 @@
 package com.etheller.warsmash.viewer5.handlers.w3x.simulation.behaviors.root;
 
-import com.etheller.warsmash.util.WarsmashConstants;
 import com.etheller.warsmash.viewer5.handlers.w3x.AnimationTokens.PrimaryTag;
 import com.etheller.warsmash.viewer5.handlers.w3x.AnimationTokens.SecondaryTag;
 import com.etheller.warsmash.viewer5.handlers.w3x.SequenceUtils;
@@ -11,6 +10,7 @@ import com.etheller.warsmash.viewer5.handlers.w3x.simulation.behaviors.CBehavior
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.behaviors.CBehaviorCategory;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.behaviors.CBehaviorVisitor;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.orders.OrderIds;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.timers.CTimer;
 
 public class CBehaviorUproot implements CBehavior {
 	private final CUnit unit;
@@ -31,7 +31,7 @@ public class CBehaviorUproot implements CBehavior {
 	public CBehavior update(final CSimulation game) {
 		final float duration = this.abilityRoot.getOffDuration();
 		if (this.finishTick == -1) {
-			this.finishTick = game.getGameTurnTick() + (int) (duration / WarsmashConstants.SIMULATION_STEP_TIME);
+			this.finishTick = game.getGameTurnTick() + CTimer.wholeSteps(duration);
 			this.unit.getUnitAnimationListener().playAnimationWithDuration(true, PrimaryTag.MORPH, SequenceUtils.EMPTY,
 					duration, true);
 			this.unit.setAcceptingOrders(false);

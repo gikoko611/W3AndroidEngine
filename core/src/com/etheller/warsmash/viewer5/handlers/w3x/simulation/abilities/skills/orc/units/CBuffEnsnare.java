@@ -1,11 +1,11 @@
 package com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.skills.orc.units;
 
 import com.etheller.warsmash.util.War3ID;
-import com.etheller.warsmash.util.WarsmashConstants;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CSimulation;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CUnit;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.CAbility;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.skills.util.CBuffTimed;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.timers.CTimer;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.unit.CUnitTypeJass;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.unit.StateModBuff;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.unit.StateModBuffType;
@@ -46,7 +46,7 @@ public class CBuffEnsnare extends CBuffTimed {
 			final float startHeight = unit.getUnitType().getDefaultFlyingHeight();
 			this.scriptFlyHeight = startHeight;
 			final float targetHeight = Math.min(this.airUnitHeight, startHeight);
-			final int lowerTicks = (int) (this.airUnitLowerDuration / WarsmashConstants.SIMULATION_STEP_TIME);
+			final int lowerTicks = CTimer.wholeSteps(this.airUnitLowerDuration);
 			if (lowerTicks > 0) {
 				// snaring drops the unit to 0 height; it comes down from where it flew instead
 				unit.setFlyHeight(startHeight);

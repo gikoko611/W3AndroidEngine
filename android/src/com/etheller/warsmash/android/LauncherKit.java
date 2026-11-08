@@ -29,19 +29,22 @@ import android.view.MotionEvent;
 import android.view.View;
 import android.widget.TextView;
 
+import com.etheller.warsmash.launcher.GlueText;
+import com.etheller.warsmash.launcher.SkinArt;
+
 /**
  * Drawing pieces of the launcher: game frames, buttons and bars put together from the art that the preparation step
  * cached, each with a plain fallback for art the game data does not have.
  */
 final class LauncherKit {
-	static final int GOLD = Color.rgb(0xFC, 0xD3, 0x12);
-	static final int TEXT = Color.WHITE;
-	static final int TEXT2 = Color.rgb(0xB9, 0xAE, 0x95);
-	static final int CAPTION = Color.rgb(0x8C, 0x85, 0x76);
-	static final int DISABLED = Color.rgb(0x80, 0x80, 0x80);
-	static final int BRONZE = Color.rgb(0x73, 0x59, 0x0A);
-	static final int OK = Color.rgb(0x6F, 0xCF, 0x6F);
-	static final int OFF = Color.rgb(0x55, 0x52, 0x4A);
+	static final int GOLD = SkinArt.Palette.of(false).gold;
+	static final int TEXT = SkinArt.Palette.of(false).text;
+	static final int TEXT2 = SkinArt.Palette.of(false).text2;
+	static final int CAPTION = SkinArt.Palette.CAPTION;
+	static final int DISABLED = SkinArt.Palette.DISABLED;
+	static final int BRONZE = SkinArt.Palette.of(false).line;
+	static final int OK = SkinArt.Palette.OK;
+	static final int OFF = SkinArt.Palette.OFF;
 
 	private LauncherKit() {
 	}
@@ -349,8 +352,7 @@ final class LauncherKit {
 		static final int TONE_PLAIN = 0;
 		static final int TONE_DANGER = 1;
 		static final int TONE_CONFIRM = 2;
-		private static final int REFORGED_TEXT = Color.rgb(0xF6, 0xE7, 0xB8);
-		private static final int DANGER_TEXT = Color.rgb(0xFF, 0x8A, 0x7A);
+		private static final int DANGER_TEXT = SkinArt.Palette.DANGER_TEXT;
 		private final SkinCache.Art art;
 		private final float height;
 		private final float push;
@@ -377,7 +379,7 @@ final class LauncherKit {
 
 		/** The text of a button at rest: gold on the classic button, light parchment on the Reforged one. */
 		static int restText(final SkinCache.Art art) {
-			return art.reforged() ? REFORGED_TEXT : art.gold();
+			return SkinArt.Palette.of(art.reforged()).buttonText;
 		}
 
 		/**
@@ -388,29 +390,29 @@ final class LauncherKit {
 			// The Reforged buttons are whole pictures with a wider rim.
 			final float border = art.reforged() ? Math.max(8, height * 0.3f) : Math.max(4, height * 0.22f);
 			final float tile = height * 0.6f;
-			String normal = SkinCache.BUTTON_BORDER;
-			String normalBackground = SkinCache.BUTTON_BACKGROUND;
+			String normal = SkinArt.BUTTON_BORDER;
+			String normalBackground = SkinArt.BUTTON_BACKGROUND;
 			int normalFallback = Color.rgb(0x14, 0x23, 0x9A);
-			String down = SkinCache.BUTTON_BORDER_DOWN;
+			String down = SkinArt.BUTTON_BORDER_DOWN;
 			if (art.reforged() && (tone != TONE_PLAIN)) {
 				final boolean red = tone == TONE_DANGER;
-				if (art.has(red ? SkinCache.BUTTON_RED : SkinCache.BUTTON_GREEN)) {
-					normal = red ? SkinCache.BUTTON_RED : SkinCache.BUTTON_GREEN;
-					down = red ? SkinCache.BUTTON_RED_DOWN : SkinCache.BUTTON_GREEN_DOWN;
+				if (art.has(red ? SkinArt.BUTTON_RED : SkinArt.BUTTON_GREEN)) {
+					normal = red ? SkinArt.BUTTON_RED : SkinArt.BUTTON_GREEN;
+					down = red ? SkinArt.BUTTON_RED_DOWN : SkinArt.BUTTON_GREEN_DOWN;
 				}
 				normalFallback = red ? Color.rgb(0x8A, 0x1E, 0x14) : Color.rgb(0x3C, 0x8A, 0x2E);
 			}
 			else if (!art.reforged() && (tone == TONE_CONFIRM)) {
-				normal = SkinCache.BUTTON_BORDER_DOWN;
-				normalBackground = SkinCache.BUTTON_BACKGROUND_DOWN;
+				normal = SkinArt.BUTTON_BORDER_DOWN;
+				normalBackground = SkinArt.BUTTON_BACKGROUND_DOWN;
 				normalFallback = Color.rgb(0x00, 0x00, 0x39);
 			}
 			final StateListDrawable states = new StateListDrawable();
-			states.addState(new int[] { -android.R.attr.state_enabled }, button(art, SkinCache.BUTTON_BORDER_DISABLED,
-					SkinCache.BUTTON_BACKGROUND_DISABLED, border, tile, Color.rgb(0x0B, 0x0B, 0x0D)));
+			states.addState(new int[] { -android.R.attr.state_enabled }, button(art, SkinArt.BUTTON_BORDER_DISABLED,
+					SkinArt.BUTTON_BACKGROUND_DISABLED, border, tile, Color.rgb(0x0B, 0x0B, 0x0D)));
 			// A selected button (the page shown, the chosen tab) keeps the pressed look.
 			for (final int state : new int[] { android.R.attr.state_pressed, android.R.attr.state_selected }) {
-				states.addState(new int[] { state }, button(art, down, SkinCache.BUTTON_BACKGROUND_DOWN, border, tile,
+				states.addState(new int[] { state }, button(art, down, SkinArt.BUTTON_BACKGROUND_DOWN, border, tile,
 						Color.rgb(0x00, 0x00, 0x39)));
 			}
 			states.addState(new int[0], button(art, normal, normalBackground, border, tile, normalFallback));
@@ -477,8 +479,8 @@ final class LauncherKit {
 		private boolean checked;
 
 		CheckDrawable(final SkinCache.Art art) {
-			this.background = art.bitmap(SkinCache.CHECKBOX);
-			this.check = art.bitmap(SkinCache.CHECKBOX_CHECK);
+			this.background = art.bitmap(SkinArt.CHECKBOX);
+			this.check = art.bitmap(SkinArt.CHECKBOX_CHECK);
 			this.line = art.line();
 			this.mark = art.gold();
 		}
@@ -551,8 +553,8 @@ final class LauncherKit {
 		private boolean enabled = true;
 
 		RadioDrawable(final SkinCache.Art art) {
-			this.background = art.reforged() ? null : art.bitmap(SkinCache.RADIO);
-			this.button = art.reforged() ? null : art.bitmap(SkinCache.RADIO_BUTTON);
+			this.background = art.reforged() ? null : art.bitmap(SkinArt.RADIO);
+			this.button = art.reforged() ? null : art.bitmap(SkinArt.RADIO_BUTTON);
 			this.line = art.line();
 			this.mark = art.gold();
 		}
@@ -632,11 +634,11 @@ final class LauncherKit {
 
 		Slider(final Context context, final SkinCache.Art art, final float grooveHeight, final float knobSize) {
 			super(context);
-			final Bitmap border = art.reforged() ? null : art.bitmap(SkinCache.SLIDER_BORDER);
+			final Bitmap border = art.reforged() ? null : art.bitmap(SkinArt.SLIDER_BORDER);
 			this.groove = new FrameDrawable(border, Math.max(3, grooveHeight * 0.3f))
-					.tiled(art.reforged() ? null : art.bitmap(SkinCache.SLIDER_BACKGROUND), grooveHeight)
+					.tiled(art.reforged() ? null : art.bitmap(SkinArt.SLIDER_BACKGROUND), grooveHeight)
 					.fallback(Color.rgb(0x0B, 0x0A, 0x09)).line(art.line());
-			this.knob = art.bitmap(SkinCache.KNOB);
+			this.knob = art.bitmap(SkinArt.KNOB);
 			this.knobColor = art.gold();
 			this.grooveHeight = grooveHeight;
 			this.knobSize = knobSize;
@@ -938,39 +940,13 @@ final class LauncherKit {
 	 */
 	static CharSequence glueText(final String value) {
 		final SpannableStringBuilder text = new SpannableStringBuilder();
-		int colour = 0;
-		int start = -1;
-		int i = 0;
-		while (i < value.length()) {
-			final char c = value.charAt(i);
-			if ((c == '|') && ((i + 1) < value.length())) {
-				final char code = Character.toLowerCase(value.charAt(i + 1));
-				if ((code == 'c') && ((i + 10) <= value.length())) {
-					try {
-						colour = (int) Long.parseLong(value.substring(i + 2, i + 10), 16);
-						start = text.length();
-						i += 10;
-						continue;
-					}
-					catch (final NumberFormatException e) {
-						// Not a colour code; kept as text.
-					}
-				}
-				else if (code == 'r') {
-					if (start >= 0) {
-						text.setSpan(new ForegroundColorSpan(colour), start, text.length(),
-								Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
-					}
-					start = -1;
-					i += 2;
-					continue;
-				}
+		for (final GlueText.Run run : GlueText.runs(value)) {
+			final int start = text.length();
+			text.append(run.text);
+			if (run.colour != 0) {
+				text.setSpan(new ForegroundColorSpan(run.colour), start, text.length(),
+						Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
 			}
-			text.append(c);
-			i++;
-		}
-		if (start >= 0) {
-			text.setSpan(new ForegroundColorSpan(colour), start, text.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
 		}
 		return text;
 	}

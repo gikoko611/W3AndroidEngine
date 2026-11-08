@@ -10,12 +10,14 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.zip.Checksum;
 
-import org.apache.commons.compress.utils.IOUtils;
+import org.apache.commons.io.IOUtils;
 import org.apache.commons.compress.utils.SeekableInMemoryByteChannel;
 
 import com.etheller.warsmash.datasources.CompoundDataSource;
 import com.etheller.warsmash.datasources.DataSource;
 import com.etheller.warsmash.datasources.FolderDataSource;
+import com.etheller.warsmash.datasources.GraphicsSet;
+import com.etheller.warsmash.datasources.LayeredDataSource;
 import com.etheller.warsmash.datasources.MpqDataSource;
 import com.etheller.warsmash.parsers.w3x.doo.War3MapDoo;
 import com.etheller.warsmash.parsers.w3x.objectdata.Warcraft3MapRuntimeObjectData;
@@ -38,6 +40,8 @@ public class War3Map implements DataSource {
 	private CompoundDataSource baseDataSource;
 	private DataSource dataSource;
 	private DataSource internalMpqContentsDataSource;
+	private GraphicsSet graphics = GraphicsSet.CLASSIC;
+	private boolean reforgedInterface;
 
 	public War3Map(final DataSource dataSource, final String mapFileName) {
 		try {
@@ -51,6 +55,8 @@ public class War3Map implements DataSource {
 			this.internalMpqContentsDataSource = new MpqDataSource(new MPQArchive(sbc), sbc);
 			this.baseDataSource = new CompoundDataSource(Arrays.asList(dataSource, this.internalMpqContentsDataSource));
 			this.dataSource = this.baseDataSource;
+			this.graphics = LayeredDataSource.graphicsOf(dataSource);
+			this.reforgedInterface = LayeredDataSource.reforgedInterfaceOf(dataSource);
 		}
 		catch (final IOException e) {
 			throw new RuntimeException(e);
@@ -79,6 +85,8 @@ public class War3Map implements DataSource {
 			}
 			this.baseDataSource = new CompoundDataSource(Arrays.asList(dataSource, this.internalMpqContentsDataSource));
 			this.dataSource = this.baseDataSource;
+			this.graphics = LayeredDataSource.graphicsOf(dataSource);
+			this.reforgedInterface = LayeredDataSource.reforgedInterfaceOf(dataSource);
 		}
 		catch (final IOException e) {
 			throw new RuntimeException(e);
@@ -100,6 +108,14 @@ public class War3Map implements DataSource {
 			mapInfo = new War3MapW3i(stream);
 		}
 		return mapInfo;
+	}
+
+	/**
+	 * Whether the map has the JASS script the engine runs, where the script file list looks for it. Maps saved with a
+	 * Lua script (World Editor 1.31 and later) carry war3map.lua instead.
+	 */
+	public boolean hasJassScript() {
+		return has("Scripts\\war3map.j") || has("war3map.j");
 	}
 
 	public War3MapW3e readEnvironment() throws IOException {
@@ -148,13 +164,14 @@ public class War3Map implements DataSource {
 	}
 
 	public Warcraft3MapRuntimeObjectData readModifications() throws IOException {
-		final Warcraft3MapRuntimeObjectData changes = Warcraft3MapRuntimeObjectData.load(this.dataSource, true);
-		return changes;
+		return readModifications(Warcraft3MapRuntimeObjectData.loadWTS(this.dataSource));
 	}
 
+	/** The map's object data over the standard data of the graphics and interface the game data shows. */
 	public Warcraft3MapRuntimeObjectData readModifications(final WTS preloadedWTS) throws IOException {
 		final Warcraft3MapRuntimeObjectData changes = Warcraft3MapRuntimeObjectData.load(this.dataSource, true,
-				preloadedWTS);
+				preloadedWTS, Warcraft3MapRuntimeObjectData.loadCampaignWTS(this.dataSource), this.graphics,
+				this.reforgedInterface);
 		return changes;
 	}
 
@@ -176,6 +193,11 @@ public class War3Map implements DataSource {
 	@Override
 	public boolean has(final String filepath) {
 		return this.dataSource.has(filepath);
+	}
+
+	@Override
+	public String findFirst(final String... filepaths) {
+		return this.dataSource.findFirst(filepaths);
 	}
 
 	@Override

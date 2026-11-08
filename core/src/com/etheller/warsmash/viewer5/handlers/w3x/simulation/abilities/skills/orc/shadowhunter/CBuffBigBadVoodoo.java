@@ -1,11 +1,11 @@
 package com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.skills.orc.shadowhunter;
 
 import com.etheller.warsmash.util.War3ID;
-import com.etheller.warsmash.util.WarsmashConstants;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CSimulation;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CUnit;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.skills.util.CBuffTimed;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilitybuilder.buff.CPausedTickingBuff;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.timers.CTimer;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.unit.StateModBuff;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.unit.StateModBuffType;
 
@@ -16,7 +16,7 @@ import com.etheller.warsmash.viewer5.handlers.w3x.simulation.unit.StateModBuffTy
  * at once.
  */
 public class CBuffBigBadVoodoo extends CBuffTimed implements CPausedTickingBuff {
-	private static final int LINGER_TICKS = (int) (0.8f / WarsmashConstants.SIMULATION_STEP_TIME);
+	private static final int LINGER_TICKS = CTimer.wholeSteps(0.8f);
 	private final StateModBuff invulnerableBuff;
 	private int lingerEndTick;
 

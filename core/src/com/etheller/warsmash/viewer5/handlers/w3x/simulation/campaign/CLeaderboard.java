@@ -4,10 +4,12 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 
+import com.etheller.interpreter.ast.util.AllocatedHandle;
+
 /**
  * Leaderboard contents. LeaderboardGetPlayerIndex and the sort natives are measured against 1.29.
  */
-public final class CLeaderboard {
+public final class CLeaderboard extends AllocatedHandle {
 	private final List<Item> items = new ArrayList<>();
 	private String label = "";
 	private boolean displayed;

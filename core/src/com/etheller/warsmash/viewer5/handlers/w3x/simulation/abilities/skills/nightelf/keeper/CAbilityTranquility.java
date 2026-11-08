@@ -1,8 +1,8 @@
 package com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.skills.nightelf.keeper;
 
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
 
@@ -17,6 +17,7 @@ import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.targeting
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.types.definitions.impl.AbilityFields;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.types.definitions.impl.AbstractCAbilityTypeDefinition;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.orders.OrderIds;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.timers.CTimer;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.trigger.enumtypes.CEffectType;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.util.SimulationRenderComponent;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.util.SimulationRenderComponentModel;
@@ -100,7 +101,7 @@ public class CAbilityTranquility extends CAbilityNoTargetSpellBase {
 	}
 
 	private void healAround(final CSimulation simulation, final CUnit caster, final float heal) {
-		final Set<CUnit> inArea = new HashSet<>();
+		final Set<CUnit> inArea = new LinkedHashSet<>();
 		simulation.getWorldCollision().enumUnitsInRange(caster.getX(), caster.getY(), this.areaOfEffect,
 				(enumUnit) -> {
 					if (enumUnit.isUnitAlly(simulation.getPlayer(caster.getPlayerIndex()))
@@ -141,6 +142,6 @@ public class CAbilityTranquility extends CAbilityNoTargetSpellBase {
 	}
 
 	private static int ticks(final float seconds) {
-		return (int) StrictMath.ceil(seconds / WarsmashConstants.SIMULATION_STEP_TIME);
+		return CTimer.ceilSteps(seconds);
 	}
 }

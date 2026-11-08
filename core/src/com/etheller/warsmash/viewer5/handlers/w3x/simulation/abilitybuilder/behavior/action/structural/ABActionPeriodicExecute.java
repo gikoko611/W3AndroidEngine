@@ -12,6 +12,7 @@ import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilitybuilder.beha
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilitybuilder.core.ABAction;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilitybuilder.core.ABCallback;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilitybuilder.core.ABLocalStoreKeys;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.timers.CTimer;
 
 public class ABActionPeriodicExecute implements ABAction {
 	private final static int HARD_LOOP_CAP = 100;
@@ -25,17 +26,18 @@ public class ABActionPeriodicExecute implements ABAction {
 	@Override
 	public void runAction(final CSimulation game, final CUnit caster, final Map<String, Object> localStore,
 			final int castId) {
-		float nextActiveTick = 0;
+		double nextActiveTick = 0;
 		Object u = null;
 		if (this.unique != null) {
 			u = this.unique.callback(game, caster, localStore, castId);
 			if (localStore.containsKey(ABLocalStoreKeys.PERIODICNEXTTICK + castId + "$" + u)) {
-				nextActiveTick = (float) localStore.get(ABLocalStoreKeys.PERIODICNEXTTICK + castId + "$" + u);
+				nextActiveTick = ((Number) localStore.get(ABLocalStoreKeys.PERIODICNEXTTICK + castId + "$" + u))
+						.doubleValue();
 			}
 		}
 		else {
 			if (localStore.containsKey(ABLocalStoreKeys.PERIODICNEXTTICK + castId)) {
-				nextActiveTick = (float) localStore.get(ABLocalStoreKeys.PERIODICNEXTTICK + castId);
+				nextActiveTick = ((Number) localStore.get(ABLocalStoreKeys.PERIODICNEXTTICK + castId)).doubleValue();
 			}
 		}
 
@@ -54,8 +56,8 @@ public class ABActionPeriodicExecute implements ABAction {
 						}
 					}
 				}
-				nextActiveTick = currentTick + (this.delaySeconds.callback(game, caster, localStore, castId)
-						/ WarsmashConstants.SIMULATION_STEP_TIME);
+				nextActiveTick = currentTick
+						+ periodSteps(this.delaySeconds.callback(game, caster, localStore, castId));
 			}
 			else {
 				for (final ABAction periodicAction : this.periodicActions) {
@@ -66,8 +68,7 @@ public class ABActionPeriodicExecute implements ABAction {
 						break;
 					}
 				}
-				nextActiveTick += (this.delaySeconds.callback(game, caster, localStore, castId)
-						/ WarsmashConstants.SIMULATION_STEP_TIME);
+				nextActiveTick += periodSteps(this.delaySeconds.callback(game, caster, localStore, castId));
 			}
 			iter++;
 		}
@@ -78,6 +79,16 @@ public class ABActionPeriodicExecute implements ABAction {
 		else {
 			localStore.put(ABLocalStoreKeys.PERIODICNEXTTICK + castId, nextActiveTick);
 		}
+	}
+
+	/**
+	 * A period keeps its part of a step, but one that is a whole number of steps (0.65 s is 12.9999995 steps as a
+	 * float) counts as exactly that, so its periods neither come a step early nor drift.
+	 */
+	private static double periodSteps(final float seconds) {
+		final double steps = seconds / (double) WarsmashConstants.SIMULATION_STEP_TIME;
+		final int whole = CTimer.wholeSteps(seconds);
+		return Math.abs(steps - whole) < 1e-3 ? whole : steps;
 	}
 
 	@Override

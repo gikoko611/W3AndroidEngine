@@ -12,6 +12,7 @@ import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.CAbilityR
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.generic.AbstractGenericSingleIconActiveAbility;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.targeting.AbilityPointTarget;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.behaviors.CBehavior;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.behaviors.cargohold.CBehaviorBoard;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.behaviors.cargohold.CBehaviorLoad;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.orders.OrderIds;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.util.AbilityActivationReceiver;
@@ -146,6 +147,35 @@ public class CAbilityLoad extends AbstractGenericSingleIconActiveAbility impleme
 			return Math.min(this.castRange, this.transport.getCargoData().getCastRange());
 		}
 		return this.castRange;
+	}
+
+	/** A transport that moves (ship, zeppelin) meets the unit boarding it; one that cannot is walked up to. */
+	public boolean isMovingTransport() {
+		return (this.transport != null) && !this.transport.isMovementDisabled();
+	}
+
+	/**
+	 * Takes the unit aboard when there is room. Called by the unit's own boarding, which ends it, or by the
+	 * transport, which then ends the unit's boarding too.
+	 */
+	public static boolean loadUnit(final CSimulation game, final CUnit transport, final CUnit passenger,
+			final boolean byPassenger) {
+		final CAbilityCargoHold cargoData = transport.getCargoData();
+		if (!cargoData.hasCapacity(passenger.getUnitType().getCargoCapacity())) {
+			game.getCommandErrorListener().showInterfaceError(transport.getPlayerIndex(),
+					CommandStringErrorKeys.UNABLE_TO_LOAD_TARGET);
+			return false;
+		}
+		final boolean boarding = !byPassenger && CBehaviorBoard.isBoarding(passenger, transport);
+		game.unitSoundEffectEvent(transport, cargoData.getAlias());
+		cargoData.addUnit(transport, passenger);
+		passenger.setHidden(true);
+		if (boarding) {
+			passenger.order(game, OrderIds.stop, null);
+		}
+		passenger.setPaused(true);
+		passenger.fireLoadedEvents(game, transport);
+		return true;
 	}
 
 	public void setCastRange(final float castRange) {

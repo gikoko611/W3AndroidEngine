@@ -76,13 +76,14 @@ public class InstructionAppendingJassStatementVisitor
 		implements JassStatementVisitor<Void>, JassExpressionVisitor<Void> {
 	private static final boolean CHECK_TYPES = JassSettings.CHECK_TYPES;
 	private static final PushLiteralInstruction PUSH_NOTHING = new PushLiteralInstruction(
-			JassReturnNothingStatement.RETURN_NOTHING_NOTICE);
+			JassReturnNothingStatement.RETURN_NOTHING_NOTICE, 0);
 	private final List<JassInstruction> instructions;
 	private final Scope scope;
 	private Map<String, Integer> nameToLocalId = new HashMap<>();
 	private Map<String, JassType> nameToLocalType = new HashMap<>();
 	private int nextLocalId;
 	private final ArrayDeque<LoopImpl> loopStartInstructionPtrs = new ArrayDeque<>();
+	private int localsOpCost;
 	private StructJassType enclosingStructType;
 
 	public InstructionAppendingJassStatementVisitor(final List<JassInstruction> instructions, final Scope scope,
@@ -107,6 +108,13 @@ public class InstructionAppendingJassStatementVisitor
 				}
 			}
 		}
+	}
+
+	/**
+	 * Operations the original game counts for the function's local declarations beyond their values.
+	 */
+	public int getLocalsOpCost() {
+		return this.localsOpCost;
 	}
 
 	public int getLocalId(final String name) {
@@ -209,7 +217,9 @@ public class InstructionAppendingJassStatementVisitor
 			thenStatement.accept(this);
 		}
 		loadLocals(locals);
-		this.instructions.set(branchInstructionPtr, new InvertedConditionalBranchInstruction(this.instructions.size()));
+		// The original game counts an if without else the same whichever way it goes.
+		this.instructions.set(branchInstructionPtr,
+				new InvertedConditionalBranchInstruction(this.instructions.size(), 2, 0));
 		return null;
 	}
 
@@ -218,6 +228,8 @@ public class InstructionAppendingJassStatementVisitor
 		final String identifier = statement.getIdentifier();
 		this.nameToLocalId.put(identifier, this.nextLocalId++);
 		this.nameToLocalType.put(identifier, statement.getType().resolve(this.scope));
+		// Declaring and setting a local: two operations of the original game on top of the value.
+		this.localsOpCost += 2;
 		insertExpressionInstructions(statement.getExpression());
 		if (CHECK_TYPES) {
 			this.instructions.add(new TypeCheckInstruction(statement.getType().resolve(this.scope)));
@@ -301,7 +313,7 @@ public class InstructionAppendingJassStatementVisitor
 	@Override
 	public Void visit(final JassReturnStatement statement) {
 		insertExpressionInstructions(statement.getExpression());
-		this.instructions.add(ReturnInstruction.INSTANCE);
+		this.instructions.add(ReturnInstruction.RETURN_VALUE);
 		return null;
 	}
 
@@ -514,13 +526,14 @@ public class InstructionAppendingJassStatementVisitor
 		insertExpressionInstructions(rightExpression);
 		this.instructions.add(new ArithmeticInstruction(arithmeticSign));
 		if (shortCircuitAllowed) {
+			// Skipping the right side counts as if it had been a single value.
 			if (shortCircuitValue == BooleanJassValue.FALSE) {
 				this.instructions.set(conditionalBranchInstructionPtr,
-						new InvertedConditionalBranchInstruction(this.instructions.size()));
+						new InvertedConditionalBranchInstruction(this.instructions.size(), 1, 2));
 			}
 			else {
 				this.instructions.set(conditionalBranchInstructionPtr,
-						new ConditionalBranchInstruction(this.instructions.size()));
+						new ConditionalBranchInstruction(this.instructions.size(), 2));
 			}
 		}
 		return null;
@@ -694,13 +707,16 @@ public class InstructionAppendingJassStatementVisitor
 
 	public void insertFunctionCallInstructions(final String functionName, final List<JassExpression> arguments) {
 		final Integer userFunctionInstructionPtr = this.scope.getUserFunctionInstructionPtr(functionName);
+		final int argumentCount = arguments.size();
 		if (userFunctionInstructionPtr != null) {
-			insertFuncInstructions(arguments, new BranchInstruction(userFunctionInstructionPtr.intValue()));
+			// The original game pushes each argument and pops them all after the call; the call is the branch.
+			insertFuncInstructions(arguments, new BranchInstruction(userFunctionInstructionPtr.intValue()),
+					(2 * argumentCount) + (argumentCount > 0 ? 1 : 0));
 		}
 		else {
 			final Integer nativeId = this.scope.getNativeId(functionName);
 			if (nativeId != null) {
-				insertFuncInstructions(arguments, new NativeInstruction(nativeId, arguments.size()));
+				insertFuncInstructions(arguments, new NativeInstruction(nativeId, argumentCount), 1 + argumentCount);
 			}
 			else {
 				performParentlessMethodCall(functionName, arguments);
@@ -708,7 +724,8 @@ public class InstructionAppendingJassStatementVisitor
 		}
 	}
 
-	private void insertFuncInstructions(final List<JassExpression> arguments, final JassInstruction branchInstruction) {
+	private void insertFuncInstructions(final List<JassExpression> arguments, final JassInstruction branchInstruction,
+			final int callOpCost) {
 		for (int i = 0; i < arguments.size(); i++) {
 			insertExpressionInstructions(arguments.get(i));
 		}
@@ -716,7 +733,7 @@ public class InstructionAppendingJassStatementVisitor
 		this.instructions.add(null);
 		this.instructions.add(branchInstruction);
 		this.instructions.set(newStackFrameInstructionPtr,
-				new NewStackFrameInstruction(this.instructions.size(), arguments.size()));
+				new NewStackFrameInstruction(this.instructions.size(), arguments.size(), callOpCost));
 	}
 
 	@Override

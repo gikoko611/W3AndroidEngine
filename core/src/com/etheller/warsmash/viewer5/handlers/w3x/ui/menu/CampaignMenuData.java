@@ -96,6 +96,14 @@ public class CampaignMenuData {
 		if ("".equals(element.getField(field, 0))) {
 			return null;
 		}
-		return new CampaignMission(element.getField(field, 0), element.getField(field, 1), element.getField(field, 2));
+		final List<String> values = element.getFieldAsList(field);
+		final List<String> files = new ArrayList<>();
+		for (int i = 2; (values != null) && (i < values.size()); i++) {
+			if (!values.get(i).isEmpty()) {
+				files.add(values.get(i));
+			}
+		}
+		return new CampaignMission(element.getField(field, 0), element.getField(field, 1), element.getField(field, 2),
+				files);
 	}
 }

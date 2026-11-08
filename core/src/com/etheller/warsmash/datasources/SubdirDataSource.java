@@ -43,6 +43,16 @@ public class SubdirDataSource implements DataSource {
 	}
 
 	@Override
+	public String findFirst(final String... filepaths) {
+		final String[] subdirPaths = new String[filepaths.length];
+		for (int i = 0; i < filepaths.length; i++) {
+			subdirPaths[i] = this.subdir + filepaths[i];
+		}
+		final String found = this.dataSource.findFirst(subdirPaths);
+		return found == null ? null : found.substring(this.subdir.length());
+	}
+
+	@Override
 	public Collection<String> getListfile() {
 		final List<String> results = new ArrayList<>();
 		for (final String x : this.dataSource.getListfile()) {

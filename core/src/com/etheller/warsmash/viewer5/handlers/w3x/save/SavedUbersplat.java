@@ -37,6 +37,11 @@ public final class SavedUbersplat implements SimulationRenderComponentUbersplat 
 	}
 
 	@Override
+	public State getState() {
+		return this.state;
+	}
+
+	@Override
 	public void destroy() {
 		this.state.destroyed = true;
 		if (live() != null) {

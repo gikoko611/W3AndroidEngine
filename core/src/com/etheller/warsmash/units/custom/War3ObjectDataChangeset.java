@@ -565,10 +565,8 @@ public final class War3ObjectDataChangeset {
 					newlyReadChange.setStrval(stringBuilder.toString());
 					if (inlineWTS && (newlyReadChange.getStrval().length() > 8)
 							&& "TRIGSTR_".equals(newlyReadChange.getStrval().substring(0, 8))) {
-						final int key = getWTSValue(newlyReadChange);
-						newlyReadChange.setStrval(wts.get(key));
-						if ((newlyReadChange.getStrval() != null)
-								&& (newlyReadChange.getStrval().length() > MAX_STR_LEN)) {
+						newlyReadChange.setStrval(WTS.resolve(wts, newlyReadChange.getStrval()));
+						if (newlyReadChange.getStrval().length() > MAX_STR_LEN) {
 							newlyReadChange.setStrval(newlyReadChange.getStrval().substring(0, MAX_STR_LEN - 1));
 						}
 					}
@@ -631,20 +629,6 @@ public final class War3ObjectDataChangeset {
 		return new War3ID(Integer.reverseBytes(stream.readInt()));
 	}
 
-	private static int getWTSValue(final Change change) {
-		String numberAsText = change.getStrval().substring(8);
-		while ((numberAsText.length() > 0) && (numberAsText.charAt(0) == '0')) {
-			numberAsText = numberAsText.substring(1);
-		}
-		if (numberAsText.length() == 0) {
-			return 0;
-		}
-		while (!Character.isDigit(numberAsText.charAt(numberAsText.length() - 1))) {
-			numberAsText = numberAsText.substring(0, numberAsText.length() - 1);
-		}
-		return Integer.parseInt(numberAsText);
-	}
-
 	public boolean load(final LittleEndianDataInputStream stream, final WTS wts, final boolean inlineWTS)
 			throws IOException {
 		this.detected = false;
@@ -677,8 +661,7 @@ public final class War3ObjectDataChangeset {
 			for (final Map.Entry<War3ID, List<Change>> changes : entry.getValue().getChanges()) {
 				for (final Change change : changes.getValue()) {
 					if ((change.getStrval().length() > 8) && "TRIGSTR_".equals(change.getStrval().substring(0, 8))) {
-						final int key = getWTSValue(change);
-						change.setStrval(wts.get(key));
+						change.setStrval(WTS.resolve(wts, change.getStrval()));
 						if (change.getStrval().length() > MAX_STR_LEN) {
 							change.setStrval(change.getStrval().substring(0, MAX_STR_LEN - 1));
 						}

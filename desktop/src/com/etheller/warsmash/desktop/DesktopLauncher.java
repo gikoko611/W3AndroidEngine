@@ -25,6 +25,7 @@ import org.lwjgl.opengl.GL33;
 import com.badlogic.gdx.Files;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Graphics.DisplayMode;
+import com.badlogic.gdx.Preferences;
 import com.badlogic.gdx.audio.Sound;
 import com.badlogic.gdx.backends.lwjgl.LwjglApplication;
 import com.badlogic.gdx.backends.lwjgl.LwjglApplicationConfiguration;
@@ -33,6 +34,13 @@ import com.etheller.warsmash.WarsmashGdxFDFTestRenderScreen;
 import com.etheller.warsmash.WarsmashGdxMenuScreen;
 import com.etheller.warsmash.WarsmashGdxMultiScreenGame;
 import com.etheller.warsmash.audio.OpenALSound;
+import com.etheller.warsmash.datasources.GraphicsSet;
+import com.etheller.warsmash.datasources.GraphicsSettings;
+import com.etheller.warsmash.desktop.launcher.LauncherScreen;
+import com.etheller.warsmash.desktop.launcher.LauncherWindow;
+import com.etheller.warsmash.launcher.LauncherKeys;
+import com.etheller.warsmash.launcher.SkinArt;
+import com.etheller.warsmash.movie.GdxMoviePlayer;
 import com.etheller.warsmash.units.DataTable;
 import com.etheller.warsmash.units.Element;
 import com.etheller.warsmash.util.StringBundle;
@@ -66,13 +74,30 @@ public class DesktopLauncher {
 		config.width = desktopDisplayMode.width;
 		config.height = desktopDisplayMode.height;
 		config.fullscreen = true;
+		// Another preferences folder (engine profiles, launcher choices) instead of .prefs in the user's home, so
+		// automated runs never change the player's own settings.
+		final String preferencesDirectory = System.getProperty("warsmash.prefs");
+		if ((preferencesDirectory != null) && !preferencesDirectory.isEmpty()) {
+			config.preferencesDirectory = new File(preferencesDirectory).getAbsolutePath();
+			config.preferencesFileType = Files.FileType.Absolute;
+		}
 		String fileToLoad = null;
+		String replayToPlay = null;
 		String iniPath = null;
 		String computerSlots = null;
 		boolean noLogs = false;
+		String skin = null;
+		boolean waitForTap = false;
+		boolean launcherMode = false;
+		boolean glueMenu = false;
+		boolean window = false;
 		for (int argIndex = 0; argIndex < arg.length; argIndex++) {
 			if ("-window".equals(arg[argIndex])) {
 				config.fullscreen = false;
+				window = true;
+			}
+			else if ("-glue".equals(arg[argIndex])) {
+				glueMenu = true;
 			}
 			else if ("-nolog".equals(arg[argIndex])) {
 				noLogs = true;
@@ -80,6 +105,10 @@ public class DesktopLauncher {
 			else if ((arg.length > (argIndex + 1)) && "-loadfile".equals(arg[argIndex])) {
 				argIndex++;
 				fileToLoad = arg[argIndex];
+			}
+			else if ((arg.length > (argIndex + 1)) && "-replay".equals(arg[argIndex])) {
+				argIndex++;
+				replayToPlay = arg[argIndex];
 			}
 			else if ((arg.length > (argIndex + 1)) && "-ini".equals(arg[argIndex])) {
 				argIndex++;
@@ -91,7 +120,17 @@ public class DesktopLauncher {
 			}
 			else if ((arg.length > (argIndex + 1)) && "-speed".equals(arg[argIndex])) {
 				argIndex++;
-				War3MapViewer.timeScale = Float.parseFloat(arg[argIndex]);
+				War3MapViewer.setDefaultTimeScale(Float.parseFloat(arg[argIndex]));
+			}
+			else if ((arg.length > (argIndex + 1)) && "-skin".equals(arg[argIndex])) {
+				argIndex++;
+				skin = arg[argIndex];
+			}
+			else if ("-waitfortap".equals(arg[argIndex])) {
+				waitForTap = true;
+			}
+			else if ("-launcher".equals(arg[argIndex])) {
+				launcherMode = true;
 			}
 		}
 		if (!noLogs) {
@@ -119,22 +158,62 @@ public class DesktopLauncher {
 		if (fileToLoad != null) {
 			System.out.println("About to run loading file: " + fileToLoad);
 		}
+		// Without a map to load the program opens on its launcher; -glue opens the engine's own menu instead.
+		final boolean showLauncher = !glueMenu && !launcherMode && (fileToLoad == null) && (replayToPlay == null);
+		if (showLauncher) {
+			LauncherWindow.configure(config, window);
+		}
 		final WarsmashGdxMultiScreenGame warsmashGdxMultiScreenGame = new WarsmashGdxMultiScreenGame();
+		warsmashGdxMultiScreenGame.setMoviePlayer(new GdxMoviePlayer(new FfmpegMovieDecoders()));
 		new LwjglApplication(warsmashGdxMultiScreenGame, config);
 		final String finalFileToLoad = fileToLoad;
+		final String finalReplayToPlay = replayToPlay;
 		final String finalComputerSlots = computerSlots;
+		final String finalSkin = skin;
+		final boolean finalWaitForTap = waitForTap;
+		final boolean finalLauncherMode = launcherMode;
+		final String finalIniPath = iniPath;
 		Gdx.app.postRunnable(new Runnable() {
 			@Override
 			public void run() {
-				if ((finalFileToLoad != null) && finalFileToLoad.toLowerCase().endsWith(".toc")) {
+				if (showLauncher) {
+					warsmashGdxMultiScreenGame
+							.setScreen(new LauncherScreen(warsmashGdxMultiScreenGame, warsmashIni, finalIniPath));
+				}
+				else if ((finalFileToLoad != null) && finalFileToLoad.toLowerCase().endsWith(".toc")) {
 					warsmashGdxMultiScreenGame.setScreen(new WarsmashGdxFDFTestRenderScreen(warsmashIni,
 							warsmashGdxMultiScreenGame, finalFileToLoad));
 				}
 				else {
 					final WarsmashGdxMenuScreen menuScreen = new WarsmashGdxMenuScreen(warsmashIni,
 							warsmashGdxMultiScreenGame);
+					// Without -skin the loading screens follow the skin the launcher was left on.
+					final String loadingSkin = finalSkin != null ? finalSkin
+							: Gdx.app.getPreferences(LauncherScreen.PREFERENCES).getString(LauncherKeys.KEY_SKIN, null);
+					menuScreen.setReforgedLoadingScreens(SkinArt.REFORGED_SKIN.equalsIgnoreCase(loadingSkin));
+					// So do the in-game graphics, unless the configuration names them.
+					if (warsmashIni.get(GraphicsSettings.SECTION) == null) {
+						final Preferences launcher = Gdx.app.getPreferences(LauncherScreen.PREFERENCES);
+						GraphicsSettings.apply(warsmashIni,
+								GraphicsSet.fromIniName(launcher.getString(LauncherKeys.KEY_GRAPHICS, null)),
+								launcher.getInteger(LauncherKeys.KEY_TEXTURE_SIZE, 0));
+					}
+					menuScreen.setWaitForTap(finalWaitForTap);
+					if (finalLauncherMode) {
+						// As the Android launcher starts a game: no menu around it, and the end of the game closes the
+						// program instead of showing the menu.
+						menuScreen.setLauncherMode(true);
+						menuScreen.setStartupMap(finalFileToLoad);
+						menuScreen.setGameEndListener((result, mapFile, loadFailure, race) -> {
+							System.err.println("Game ended: " + result + " " + mapFile + " " + loadFailure);
+							Gdx.app.exit();
+						});
+					}
 					warsmashGdxMultiScreenGame.setScreen(menuScreen);
-					if (finalFileToLoad != null) {
+					if (finalReplayToPlay != null) {
+						menuScreen.startReplay(Gdx.files.absolute(new File(finalReplayToPlay).getAbsolutePath()));
+					}
+					else if (finalFileToLoad != null) {
 						menuScreen.startMap(finalFileToLoad, finalComputerSlots);
 					}
 				}
@@ -270,14 +349,6 @@ public class DesktopLauncher {
 		Extensions.audio = new AudioExtension() {
 			final FloatBuffer orientation = BufferUtils.createFloatBuffer(6).clear();
 			final FloatBuffer position = BufferUtils.createFloatBuffer(3).clear();
-
-			@Override
-			public float getDuration(final Sound sound) {
-				if (sound == null) {
-					return 1;
-				}
-				return ((OpenALSound) sound).duration();
-			}
 
 			@Override
 			public long play(final Sound buffer, final float volume, final float pitch, final float x, final float y,

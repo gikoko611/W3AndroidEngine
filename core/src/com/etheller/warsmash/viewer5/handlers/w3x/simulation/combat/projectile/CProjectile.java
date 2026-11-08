@@ -5,8 +5,13 @@ import com.etheller.warsmash.util.WarsmashConstants;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CSimulation;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CUnit;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.targeting.AbilityTarget;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.timers.CTimer;
 
 public abstract class CProjectile extends CExtensibleHandleAbstract implements CEffect {
+	private static final double HIT_TIME_EPSILON = 1e-6;
+	/** Measured on 1.29: spell missiles hit on a 5 ms clock of game time. */
+	private static final double MISSILE_TICK = 0.005;
+
 	protected float x;
 	protected float y;
 	private float initialTargetX;
@@ -17,6 +22,9 @@ public abstract class CProjectile extends CExtensibleHandleAbstract implements C
 	protected boolean done;
 	private final CUnit source;
 	private boolean reflected = false;
+	private float launchLead;
+	/** Launch time of a missile on the 1.29 missile clock; NaN for others and in games saved before it. */
+	private double missileClockLaunch = Double.NaN;
 
 	public CProjectile(final float x, final float y, final float speed, final AbilityTarget target,
 			final boolean homingEnabled, final CUnit source) {
@@ -32,6 +40,9 @@ public abstract class CProjectile extends CExtensibleHandleAbstract implements C
 
 	@Override
 	public boolean update(final CSimulation game) {
+		if (this.done) {
+			return true;
+		}
 		final float tx = getTargetX();
 		final float ty = getTargetY();
 		final float sx = this.x;
@@ -43,7 +54,9 @@ public abstract class CProjectile extends CExtensibleHandleAbstract implements C
 		final float d1x = dtsx / c;
 		final float d1y = dtsy / c;
 
-		float travelDistance = Math.min(c, this.speed * WarsmashConstants.SIMULATION_STEP_TIME);
+		final float flightTime = WarsmashConstants.SIMULATION_STEP_TIME + this.launchLead;
+		float travelDistance = Math.min(c, this.speed * flightTime);
+		this.launchLead = 0;
 		final boolean done = c <= travelDistance;
 		if (done) {
 			travelDistance = c;
@@ -57,12 +70,83 @@ public abstract class CProjectile extends CExtensibleHandleAbstract implements C
 
 		if (done && !this.done) {
 			this.done = true;
-			this.onHitTarget(game);
+			hitAtArrival(game, flightTime - (c / this.speed));
 		}
 		return this.done;
 	}
 
+	/**
+	 * The move covers the flight up to the step's end; a missile that arrives before it hits at its exact arrival
+	 * time (1.29: a Death Coil 200 away hits 128 ms after the effect, not on a step).
+	 */
+	private void hitAtArrival(final CSimulation game, final double earlyBy) {
+		final double hitTime = onMissileClock(
+				(CTimer.currentTime(game) + WarsmashConstants.SIMULATION_STEP_TIME) - earlyBy);
+		if (hitTime <= (CTimer.currentTime(game) + HIT_TIME_EPSILON)) {
+			onHitTarget(game);
+			return;
+		}
+		hitLater(game, hitTime);
+	}
+
+	private void hitLater(final CSimulation game, final double hitTime) {
+		final CTimer timer = new CTimer() {
+			@Override
+			protected boolean isExactTiming() {
+				return true;
+			}
+
+			@Override
+			public void onFire(final CSimulation simulation) {
+				onHitTarget(simulation);
+			}
+		};
+		timer.startAt(game, hitTime);
+	}
+
+	/**
+	 * Puts the missile on the 1.29 missile clock: it starts on the first 5 ms tick after its launch and hits on the
+	 * last tick its flight has passed (a Death Coil effect at 0.452 s with 128.6 ms of flight hits at 0.580 s).
+	 */
+	public void startMissileClock(final double launchTime) {
+		this.missileClockLaunch = launchTime;
+	}
+
+	private double firstMissileTick() {
+		return (Math.floor((this.missileClockLaunch / MISSILE_TICK) + HIT_TIME_EPSILON) + 1) * MISSILE_TICK;
+	}
+
+	private double onMissileClock(final double arrivalTime) {
+		if (Double.isNaN(this.missileClockLaunch)) {
+			return arrivalTime;
+		}
+		return firstMissileTick() + (Math.floor(((arrivalTime - this.missileClockLaunch) / MISSILE_TICK)
+				+ HIT_TIME_EPSILON) * MISSILE_TICK);
+	}
+
+	/** Hits where it is launched, at once or on the first tick of the missile clock. */
+	public void hitAtLaunch(final CSimulation game) {
+		if (this.done) {
+			return;
+		}
+		this.done = true;
+		if (Double.isNaN(this.missileClockLaunch)) {
+			onHitTarget(game);
+		}
+		else {
+			hitLater(game, firstMissileTick());
+		}
+	}
+
 	protected abstract void onHitTarget(CSimulation game);
+
+	/**
+	 * A missile launched at an exact time inside a step (a swing's or a cast's point) has flown this long by the step's
+	 * end; its first move covers it.
+	 */
+	public void setLaunchLead(final float seconds) {
+		this.launchLead = seconds;
+	}
 
 	public final float getX() {
 		return this.x;

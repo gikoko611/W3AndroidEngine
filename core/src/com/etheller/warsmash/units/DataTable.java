@@ -364,6 +364,12 @@ public class DataTable implements ObjectData {
 		}
 	}
 
+	public void applyQualityOverrides(final String[] qualities, final Set<String> baseNames) {
+		for (final Element element : this.dataTable.values()) {
+			element.applyQualityOverrides(qualities, baseNames);
+		}
+	}
+
 	@Override
 	public void cloneUnit(final String parentId, final String cloneId) {
 		final Element parentEntry = get(parentId);

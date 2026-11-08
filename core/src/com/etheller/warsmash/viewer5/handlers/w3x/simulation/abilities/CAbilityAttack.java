@@ -99,10 +99,11 @@ public class CAbilityAttack extends AbstractCAbility {
 				receiver.targetOk(target);
 			}
 			else {
-				if ((lastUnavailableAttack != null) && game.isScriptOrder()
+				if ((lastUnavailableAttack != null) && (orderId == OrderIds.attack) && game.isScriptOrder()
 						&& scriptFollowableMismatch(game, unit, target, lastUnavailableAttack)) {
 					// Measured (1.29): a script attack order on a unit or tree no weapon can hit (a Footman on a
-					// flyer, a Warden on a tree) is accepted; the unit follows it.
+					// flyer, a Warden on a tree, a Flying Machine without its bombs on a ground unit or a building) is
+					// accepted; the unit follows it.
 					receiver.targetOk(target);
 				}
 				else if (lastUnavailableAttack != null) {
@@ -119,11 +120,33 @@ public class CAbilityAttack extends AbstractCAbility {
 		}
 	}
 
+	/**
+	 * True, with the reason given to the receiver, when the unit has attacks but none of them can hit this enemy.
+	 */
+	public static boolean isUnhittableEnemy(final CSimulation game, final CUnit unit, final CUnit target,
+			final AbilityTargetCheckReceiver<CWidget> receiver) {
+		if ((target == unit) || unit.getCurrentAttacks().isEmpty() || game.getPlayer(unit.getPlayerIndex())
+				.hasAlliance(target.getPlayerIndex(), CAllianceType.PASSIVE)) {
+			return false;
+		}
+		CUnitAttack lastAttack = null;
+		for (final CUnitAttack attack : unit.getCurrentAttacks()) {
+			if (target.canBeTargetedBy(game, unit, attack.getTargetsAllowed())) {
+				return false;
+			}
+			lastAttack = attack;
+		}
+		target.canBeTargetedBy(game, unit, lastAttack.getTargetsAllowed(), receiver);
+		return true;
+	}
+
 	private static boolean scriptFollowableMismatch(final CSimulation game, final CUnit unit, final CWidget target,
 			final CUnitAttack attack) {
 		target.canBeTargetedBy(game, unit, attack.getTargetsAllowed(), SCRIPT_TARGET_CHECK.reset());
 		final String key = SCRIPT_TARGET_CHECK.getExternStringKey();
 		return CommandStringErrorKeys.UNABLE_TO_TARGET_AIR_UNITS.equals(key)
+				|| CommandStringErrorKeys.UNABLE_TO_TARGET_GROUND_UNITS.equals(key)
+				|| CommandStringErrorKeys.UNABLE_TO_TARGET_BUILDINGS.equals(key)
 				|| CommandStringErrorKeys.UNABLE_TO_TARGET_TREES.equals(key);
 	}
 
@@ -181,6 +204,14 @@ public class CAbilityAttack extends AbstractCAbility {
 	}
 
 	@Override
+	public void onRemoveDisabled(final CSimulation game, final CUnit unit) {
+		// Removed for good (a script removing 'Aatk'): the unit no longer attacks, acquires or attack-moves.
+		unit.releaseBehaviors(game, unit.getAttackBehavior(), unit.getAttackMoveBehavior());
+		unit.setAttackBehavior(null);
+		unit.setAttackMoveBehavior(null);
+	}
+
+	@Override
 	public void onTick(final CSimulation game, final CUnit unit) {
 	}
 
@@ -192,6 +223,7 @@ public class CAbilityAttack extends AbstractCAbility {
 			if (target.canBeTargetedBy(game, caster, attack.getTargetsAllowed())) {
 				behavior = caster.getAttackBehavior().reset(game, OrderIds.attack, attack, target, false,
 						CBehaviorAttackListener.DO_NOTHING);
+				caster.getAttackBehavior().delayFirstSwing(game);
 				break;
 			}
 		}
@@ -210,13 +242,14 @@ public class CAbilityAttack extends AbstractCAbility {
 				return caster.pollNextOrderBehavior(game);
 			}
 			caster.setDefaultBehavior(caster.getAttackMoveBehavior());
-			return caster.getAttackMoveBehavior().reset(point);
+			return caster.getAttackMoveBehavior().reset(game, point);
 		case OrderIds.attackground:
 			CBehavior behavior = null;
 			for (final CUnitAttack attack : caster.getCurrentAttacks()) {
 				if (attack.getWeaponType().isAttackGroundSupported()) {
 					behavior = caster.getAttackBehavior().reset(game, OrderIds.attackground, attack, point, false,
 							CBehaviorAttackListener.DO_NOTHING);
+					caster.getAttackBehavior().delayFirstSwing(game);
 					break;
 				}
 			}

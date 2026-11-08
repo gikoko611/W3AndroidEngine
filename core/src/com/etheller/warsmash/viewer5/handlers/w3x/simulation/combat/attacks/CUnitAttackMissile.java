@@ -19,7 +19,7 @@ import com.etheller.warsmash.viewer5.handlers.w3x.simulation.combat.attacks.list
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.combat.attacks.replacement.CUnitAttackSettings;
 
 public class CUnitAttackMissile extends CUnitAttack {
-	private static CAttackDamageFlags ATTACK_FLAGS = new CAttackDamageFlags(true);
+	private static final CAttackDamageFlags ATTACK_FLAGS = new CAttackDamageFlags(true);
 	private float projectileArc;
 	private String projectileArt;
 	private boolean projectileHomingEnabled;
@@ -89,7 +89,7 @@ public class CUnitAttackMissile extends CUnitAttack {
 	public void launch(final CSimulation simulation, final CUnit unit, final AbilityTarget target, final float damage,
 			final CUnitAttackListener attackListener) {
 		attackListener.onLaunch();
-		simulation.createProjectile(unit, unit.getX(), unit.getY(), (float) Math.toRadians(unit.getFacing()), this,
+		simulation.createProjectile(unit, unit.getX(), unit.getY(), (float) StrictMath.toRadians(unit.getFacing()), this,
 				target, damage, 0, attackListener, this.attackModifier);
 	}
 

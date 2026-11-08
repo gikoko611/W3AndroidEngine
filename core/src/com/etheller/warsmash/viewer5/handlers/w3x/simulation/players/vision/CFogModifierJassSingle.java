@@ -1,8 +1,9 @@
 package com.etheller.warsmash.viewer5.handlers.w3x.simulation.players.vision;
 
+import com.etheller.interpreter.ast.util.AllocatedHandle;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CSimulation;
 
-public class CFogModifierJassSingle implements CFogModifierJass {
+public class CFogModifierJassSingle extends AllocatedHandle implements CFogModifierJass {
 	private final int playerIndex;
 	private final CFogModifier modifier;
 
@@ -19,11 +20,6 @@ public class CFogModifierJassSingle implements CFogModifierJass {
 	@Override
 	public void applyNow(final CSimulation game) {
 		this.modifier.applyNow(game, game.getPlayer(this.playerIndex));
-	}
-
-	@Override
-	public void fogVisibleCells(final CSimulation game) {
-		game.getPlayer(this.playerIndex).getFogOfWar().convertVisibleToFogged();
 	}
 
 	@Override

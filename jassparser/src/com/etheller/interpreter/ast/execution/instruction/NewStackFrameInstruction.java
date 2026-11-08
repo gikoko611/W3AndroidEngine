@@ -6,10 +6,17 @@ import com.etheller.interpreter.ast.execution.JassThread;
 public class NewStackFrameInstruction implements JassInstruction {
 	private final int returnAddressInstructionPtr;
 	private final int argumentCount;
+	private final int opCost;
 
 	public NewStackFrameInstruction(final int returnAddressInstructionPtr, final int argumentCount) {
+		this(returnAddressInstructionPtr, argumentCount, 0);
+	}
+
+	public NewStackFrameInstruction(final int returnAddressInstructionPtr, final int argumentCount,
+			final int opCost) {
 		this.returnAddressInstructionPtr = returnAddressInstructionPtr;
 		this.argumentCount = argumentCount;
+		this.opCost = opCost;
 	}
 
 	@Override
@@ -27,4 +34,8 @@ public class NewStackFrameInstruction implements JassInstruction {
 		thread.stackFrame = jassStackFrame;
 	}
 
+	@Override
+	public int opCost() {
+		return this.opCost;
+	}
 }

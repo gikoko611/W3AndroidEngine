@@ -101,6 +101,15 @@ public class WarsmashClientWriter {
 		this.sendBuffer.putInt(eventId);
 	}
 
+	public void issuePlayerCommand(final byte[] command) {
+		this.sendBuffer.clear();
+		this.sendBuffer.putInt(4 + 8 + 4 + command.length);
+		this.sendBuffer.putInt(ClientToServerProtocol.ISSUE_PLAYER_COMMAND);
+		this.sendBuffer.putLong(this.sessionToken);
+		this.sendBuffer.putInt(command.length);
+		this.sendBuffer.put(command);
+	}
+
 	public void finishedTurn(final int gameTurnTick) {
 		this.sendBuffer.clear();
 		this.sendBuffer.putInt(4 + 8 + 4);

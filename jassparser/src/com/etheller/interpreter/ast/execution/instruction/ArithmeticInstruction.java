@@ -2,16 +2,18 @@ package com.etheller.interpreter.ast.execution.instruction;
 
 import com.etheller.interpreter.ast.execution.JassThread;
 import com.etheller.interpreter.ast.expression.ArithmeticSign;
-import com.etheller.interpreter.ast.value.IntegerJassValue;
 import com.etheller.interpreter.ast.value.JassValue;
 import com.etheller.interpreter.ast.value.visitor.ArithmeticJassValueVisitor;
 import com.etheller.interpreter.ast.value.visitor.ArithmeticLeftHandNullJassValueVisitor;
 
 public class ArithmeticInstruction implements JassInstruction {
 	private final ArithmeticSign arithmeticSign;
+	private final int opCost;
 
 	public ArithmeticInstruction(final ArithmeticSign arithmeticSign) {
 		this.arithmeticSign = arithmeticSign;
+		// The original game's and / or take one operation less than the other binary operators.
+		this.opCost = (arithmeticSign.getShortCircuitValue() != null) ? 1 : 3;
 	}
 
 	@Override
@@ -34,9 +36,16 @@ public class ArithmeticInstruction implements JassInstruction {
 			}
 		}
 		catch (final ArithmeticException exception) {
-			exception.printStackTrace();
-			result = IntegerJassValue.ZERO;
+			// The original game silently stops a thread that divides by zero; the game and other threads go on.
+			System.err.println("JASS thread stopped: division by zero");
+			thread.halt();
+			return;
 		}
 		thread.stackFrame.push(result);
+	}
+
+	@Override
+	public int opCost() {
+		return this.opCost;
 	}
 }

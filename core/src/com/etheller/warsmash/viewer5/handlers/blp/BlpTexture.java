@@ -8,7 +8,7 @@ import java.nio.ByteBuffer;
 
 import javax.imageio.ImageIO;
 
-import org.apache.commons.compress.utils.IOUtils;
+import org.apache.commons.io.IOUtils;
 
 import com.etheller.warsmash.util.ImageUtils;
 import com.etheller.warsmash.viewer5.ModelViewer;
@@ -36,16 +36,13 @@ public class BlpTexture extends RawOpenGLTextureResource {
 			if (DdsDecoder.isDds(data)) {
 				// A missing .blp can resolve to its .dds. Classic data stores the same colors in
 				// both, so the .dds takes the plain RGBA format of the .blp below.
-				final DdsDecoder image = DdsDecoder.decode(data);
-				update(image.getWidth(), image.getHeight(), image.getRgba(), false);
+				update(DdsDecoder.decode(data, this.viewer.getTextureSizeLimit(), true).getLevels(), false);
 				return;
 			}
-			if (BlpDecoder.isPalettedBlp1(data) || BlpDecoder.isJpegBlp1(data)) {
+			if (BlpDecoder.isBlp(data)) {
 				// The ImageIO plugin reads these colors as linear and the sRGB texture format
 				// undoes that, so the raw colors in a plain RGBA texture match it.
-				final BlpDecoder image = BlpDecoder.isJpegBlp1(data) ? BlpDecoder.decodeJpeg(data)
-						: BlpDecoder.decode(data);
-				update(image.getWidth(), image.getHeight(), image.getRgba(), false);
+				update(BlpDecoder.decode(data, this.viewer.getTextureSizeLimit(), true).getLevels(), false);
 				return;
 			}
 			if (!ImageUtils.IMAGE_IO_AVAILABLE) {

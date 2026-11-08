@@ -69,7 +69,7 @@ public final class CAbilityUpgrade extends AbstractCAbility {
 					if ((player.getGold() + relativeOffsetGold) >= unitType.getGoldCost()) {
 						if ((player.getLumber() + relativeOffsetLumber) >= unitType.getLumberCost()) {
 							final int foodNeeded = unitType.getFoodUsed() - existingUnitType.getFoodUsed();
-							if ((foodNeeded == 0) || ((player.getFoodUsed() + foodNeeded) <= player.getFoodCap())) {
+							if ((foodNeeded == 0) || ((player.getFoodUsed() + foodNeeded) <= player.getFoodCapLimit())) {
 								receiver.useOk();
 							}
 							else {

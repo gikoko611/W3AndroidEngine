@@ -4,7 +4,9 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-public class CQuest {
+import com.etheller.interpreter.ast.util.AllocatedHandle;
+
+public class CQuest extends AllocatedHandle {
 	private final CQuestLog log;
 	private final List<CQuestItem> items = new ArrayList<>();
 	private String title = "";

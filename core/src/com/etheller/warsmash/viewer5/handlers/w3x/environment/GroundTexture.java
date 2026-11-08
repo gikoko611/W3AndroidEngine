@@ -16,8 +16,9 @@ public class GroundTexture {
 	private boolean buildable;
 	public boolean extended;
 
-	public GroundTexture(final String path, final Element terrainTileInfo, final DataSource dataSource, final GL30 gl)
-			throws IOException {
+	/** @param maxSize the largest width and height of the tile image, 0 for no limit */
+	public GroundTexture(final String path, final Element terrainTileInfo, final DataSource dataSource, final GL30 gl,
+			final int maxSize) throws IOException {
 		if (terrainTileInfo != null) {
 			this.tileId = terrainTileInfo.getId();
 			final String buildableFieldValue = terrainTileInfo.getField("buildable");
@@ -29,7 +30,7 @@ public class GroundTexture {
 		// 2.0 and later data ship the tiles as .dds only, and the image loader falls back to it.
 		if (dataSource.findFirst(path, path.substring(0, path.length() - 4) + ".dds") != null) {
 			final RgbaImage image = ImageUtils.getAnyExtensionRgbaImage(dataSource, path,
-					"ground texture: " + this.tileId, true);
+					"ground texture: " + this.tileId, true, maxSize);
 			loadImage(gl, image);
 		}
 	}

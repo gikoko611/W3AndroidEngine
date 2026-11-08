@@ -94,11 +94,11 @@ public final class CGroupMove {
 		centerY /= n;
 		float dirX = targetX - centerX;
 		float dirY = targetY - centerY;
-		final float length = (float) Math.hypot(dirX, dirY);
+		final float length = (float) StrictMath.hypot(dirX, dirY);
 		if (length < 1) {
-			final double facing = Math.toRadians(units.get(0).getFacing());
-			dirX = (float) Math.cos(facing);
-			dirY = (float) Math.sin(facing);
+			final double facing = StrictMath.toRadians(units.get(0).getFacing());
+			dirX = (float) StrictMath.cos(facing);
+			dirY = (float) StrictMath.sin(facing);
 		}
 		else {
 			dirX /= length;

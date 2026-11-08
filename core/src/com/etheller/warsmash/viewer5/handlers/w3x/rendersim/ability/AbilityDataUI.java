@@ -8,7 +8,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.graphics.Texture;
+import com.etheller.warsmash.launcher.CustomKeys;
 import com.etheller.warsmash.parsers.fdf.GameUI;
 import com.etheller.warsmash.parsers.w3x.objectdata.Warcraft3MapRuntimeObjectData;
 import com.etheller.warsmash.units.Element;
@@ -127,6 +129,7 @@ public class AbilityDataUI {
 	private final IconUI neutralInteractUI;
 	private final String disabledPrefix;
 	private final Map<COrderButton, OrderButtonUI> buttonToRenderPeer = new HashMap<>();
+	private final CustomKeys customKeys = playerKeys();
 
 	public AbilityDataUI(final Warcraft3MapRuntimeObjectData allObjectData, final GameUI gameUI,
 			final War3MapViewer viewer) {
@@ -147,7 +150,8 @@ public class AbilityDataUI {
 			final String iconTurnOffPath = gameUI.trySkinField(abilityTypeData.getFieldAsString(ICON_TURN_OFF, 0));
 			final char iconHotkey = getHotkey(abilityTypeData, ABILITY_HOTKEY_NORMAL);
 			final char iconTurnOffHotkey = getHotkey(abilityTypeData, ABILITY_HOTKEY_TURNOFF);
-			final String iconResearchTip = abilityTypeData.getFieldAsString(ABILITY_RESEARCH_TIP, 0);
+			final String iconResearchTip = retip(abilityTypeData, ABILITY_HOTKEY_LEARN, 0,
+					abilityTypeData.getFieldAsString(ABILITY_RESEARCH_TIP, 0));
 			final String iconResearchUberTip = parseUbertip(allObjectData,
 					abilityTypeData.getFieldAsString(ABILITY_RESEARCH_UBER_TIP, 0));
 			final char iconResearchHotkey = getHotkey(abilityTypeData, ABILITY_HOTKEY_LEARN);
@@ -168,10 +172,12 @@ public class AbilityDataUI {
 			final List<IconUI> normalIconUIs = new ArrayList<>();
 			final int levels = Math.max(1, abilityTypeData.getFieldAsInteger(AbilityFields.LEVELS, 0));
 			for (int i = 0; i < levels; i++) {
-				final String iconTip = abilityTypeData.getFieldAsString(ABILITY_TIP, i);
+				final String iconTip = retip(abilityTypeData, ABILITY_HOTKEY_NORMAL, 0,
+						abilityTypeData.getFieldAsString(ABILITY_TIP, i));
 				final String iconUberTip = parseUbertip(allObjectData,
 						abilityTypeData.getFieldAsString(ABILITY_UBER_TIP, i));
-				final String iconTurnOffTip = abilityTypeData.getFieldAsString(ABILITY_UN_TIP, i);
+				final String iconTurnOffTip = retip(abilityTypeData, ABILITY_HOTKEY_TURNOFF, 0,
+						abilityTypeData.getFieldAsString(ABILITY_UN_TIP, i));
 				final String iconTurnOffUberTip = parseUbertip(allObjectData,
 						abilityTypeData.getFieldAsString(ABILITY_UN_UBER_TIP, i));
 
@@ -328,7 +334,7 @@ public class AbilityDataUI {
 			final String iconNormalPath = gameUI.trySkinField(abilityTypeData.getFieldAsString(UNIT_ICON_NORMAL, 0));
 			final int iconNormalX = abilityTypeData.getFieldAsInteger(UNIT_ICON_NORMAL_XY, 0);
 			final int iconNormalY = abilityTypeData.getFieldAsInteger(UNIT_ICON_NORMAL_XY, 1);
-			final String iconTip = abilityTypeData.getFieldAsString(UNIT_TIP, 0);
+			final String iconTip = retip(abilityTypeData, UNIT_HOTKEY, 0, abilityTypeData.getFieldAsString(UNIT_TIP, 0));
 			final String reviveTip = abilityTypeData.getFieldAsString(UNIT_REVIVE_TIP, 0);
 			final String awakenTip = abilityTypeData.getFieldAsString(UNIT_AWAKEN_TIP, 0);
 			final String iconUberTip = parseUbertip(allObjectData, abilityTypeData.getFieldAsString(UNIT_UBER_TIP, 0));
@@ -343,7 +349,7 @@ public class AbilityDataUI {
 			final String iconNormalPath = gameUI.trySkinField(abilityTypeData.getFieldAsString(ITEM_ICON_NORMAL, 0));
 			final int iconNormalX = abilityTypeData.getFieldAsInteger(ITEM_ICON_NORMAL_XY, 0);
 			final int iconNormalY = abilityTypeData.getFieldAsInteger(ITEM_ICON_NORMAL_XY, 1);
-			final String iconTip = abilityTypeData.getFieldAsString(ITEM_TIP, 0);
+			final String iconTip = retip(abilityTypeData, ITEM_HOTKEY, 0, abilityTypeData.getFieldAsString(ITEM_TIP, 0));
 			final String iconUberTip = parseUbertip(allObjectData, abilityTypeData.getFieldAsString(ITEM_UBER_TIP, 0));
 			final String iconDescription = abilityTypeData.getFieldAsString(ITEM_DESCRIPTION, 0);
 			final char iconHotkey = getHotkey(abilityTypeData, ITEM_HOTKEY);
@@ -363,7 +369,8 @@ public class AbilityDataUI {
 			final int iconNormalY = upgradeTypeData.getFieldAsInteger(UPGRADE_ICON_NORMAL_XY, 1);
 			final List<IconUI> upgradeIconsByLevel = new ArrayList<>();
 			for (int upgradeLevelValue = 0; upgradeLevelValue < upgradeLevels; upgradeLevelValue++) {
-				final String iconTip = upgradeTypeData.getFieldAsString(UPGRADE_TIP, upgradeLevelValue);
+				final String iconTip = retip(upgradeTypeData, UPGRADE_HOTKEY, upgradeLevelValue,
+						upgradeTypeData.getFieldAsString(UPGRADE_TIP, upgradeLevelValue));
 				final String iconUberTip = parseUbertip(allObjectData,
 						upgradeTypeData.getFieldAsString(UPGRADE_UBER_TIP, upgradeLevelValue));
 				final String iconNormalPath = gameUI
@@ -446,9 +453,37 @@ public class AbilityDataUI {
 	}
 
 	private char getHotkey(final GameObject abilityTypeData, final String abilityHotkeyNormal, final int index) {
-		final String iconHotkeyString = abilityTypeData.getFieldAsString(abilityHotkeyNormal, index);
-		final char itemHotkey = getHotkeyChar(iconHotkeyString);
-		return itemHotkey;
+		return getHotkeyChar(keyString(abilityTypeData, abilityHotkeyNormal, index));
+	}
+
+	/** The key of a command as the player has it: their own keys and layout over the game data's. */
+	private String keyString(final GameObject typeData, final String hotkeyField, final int index) {
+		final String dataKey = typeData.getFieldAsString(hotkeyField, index);
+		final String place = buttonPlaceField(hotkeyField);
+		return this.customKeys.key(typeData.getId(), hotkeyField, dataKey, typeData.getFieldAsInteger(place, 0),
+				typeData.getFieldAsInteger(place, 1));
+	}
+
+	private String retip(final GameObject typeData, final String hotkeyField, final int index, final String tip) {
+		return CustomKeys.retip(tip, typeData.getFieldAsString(hotkeyField, index),
+				keyString(typeData, hotkeyField, index));
+	}
+
+	private static String buttonPlaceField(final String hotkeyField) {
+		return ABILITY_HOTKEY_LEARN.equals(hotkeyField) ? ICON_RESEARCH_XY
+				: ABILITY_HOTKEY_TURNOFF.equals(hotkeyField) ? ICON_TURN_OFF_XY : ICON_NORMAL_XY;
+	}
+
+	/** The player's CustomKeys.txt in the engine's own folder and their hotkey layout; none without a game. */
+	private static CustomKeys playerKeys() {
+		try {
+			final boolean grid = CustomKeys.LAYOUT_GRID
+					.equals(Gdx.app.getPreferences("WarsmashWC3Engine").getString(CustomKeys.KEY_LAYOUT, ""));
+			return CustomKeys.read(CustomKeys.playerFile(), grid);
+		}
+		catch (final RuntimeException e) {
+			return new CustomKeys(false);
+		}
 	}
 
 	private IconUI createBuiltInIconUI(final GameUI gameUI, final String key, final String disabledPrefix) {
@@ -458,9 +493,11 @@ public class AbilityDataUI {
 		final IconTexture iconDisabled = new IconTexture(gameUI, disable(iconPath, disabledPrefix));
 		final int buttonPositionX = builtInAbility.getFieldValue("Buttonpos", 0);
 		final int buttonPositionY = builtInAbility.getFieldValue("Buttonpos", 1);
-		final String tip = builtInAbility.getField("Tip");
+		final String dataHotkey = builtInAbility.getField("Hotkey");
+		final String hotkeyString = this.customKeys.key(key, CustomKeys.HOTKEY, dataHotkey, buttonPositionX,
+				buttonPositionY);
+		final String tip = CustomKeys.retip(builtInAbility.getField("Tip"), dataHotkey, hotkeyString);
 		final String uberTip = builtInAbility.getField("UberTip");
-		final String hotkeyString = builtInAbility.getField("Hotkey");
 		final char hotkey = getHotkeyChar(hotkeyString);
 		return new IconUI(icon, iconDisabled, buttonPositionX, buttonPositionY, tip, uberTip, hotkey);
 	}
@@ -478,9 +515,11 @@ public class AbilityDataUI {
 		final IconTexture iconDisabled = new IconTexture(gameUI, disable(iconPath, disabledPrefix));
 		final int buttonPositionX = builtInAbilityFunc.getFieldValue("Buttonpos", 0);
 		final int buttonPositionY = builtInAbilityFunc.getFieldValue("Buttonpos", 1);
-		final String tip = builtInAbility.getField("Tip");
+		final String dataHotkey = builtInAbility.getField("Hotkey");
+		final String hotkeyString = this.customKeys.key(key, CustomKeys.HOTKEY, dataHotkey, buttonPositionX,
+				buttonPositionY);
+		final String tip = CustomKeys.retip(builtInAbility.getField("Tip"), dataHotkey, hotkeyString);
 		final String uberTip = builtInAbility.getField("UberTip");
-		final String hotkeyString = builtInAbility.getField("Hotkey");
 		final char hotkey = getHotkeyChar(hotkeyString);
 		return new IconUI(icon, iconDisabled, buttonPositionX, buttonPositionY, tip, uberTip, hotkey);
 	}

@@ -151,7 +151,7 @@ public class CGameplayConstants {
 	public CGameplayConstants(final DataTable parsedDataTable) {
 		final Element miscData = parsedDataTable.get("Misc");
 		// TODO use radians for half angle
-		this.attackHalfAngle = (float) Math.toDegrees(miscData.getFieldFloatValue("AttackHalfAngle"));
+		this.attackHalfAngle = (float) StrictMath.toDegrees(miscData.getFieldFloatValue("AttackHalfAngle"));
 		this.maxCollisionRadius = miscData.getFieldFloatValue("MaxCollisionRadius");
 		this.decayTime = miscData.getFieldFloatValue("DecayTime");
 		this.callForHelp = miscData.getFieldFloatValue("CallForHelp");

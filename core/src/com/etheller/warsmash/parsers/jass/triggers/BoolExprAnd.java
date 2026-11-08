@@ -3,8 +3,9 @@ package com.etheller.warsmash.parsers.jass.triggers;
 import com.etheller.interpreter.ast.scope.GlobalScope;
 import com.etheller.interpreter.ast.scope.TriggerExecutionScope;
 import com.etheller.interpreter.ast.scope.trigger.TriggerBooleanExpression;
+import com.etheller.interpreter.ast.util.AllocatedHandle;
 
-public class BoolExprAnd implements TriggerBooleanExpression {
+public class BoolExprAnd extends AllocatedHandle implements TriggerBooleanExpression {
 	private final TriggerBooleanExpression operandA;
 	private final TriggerBooleanExpression operandB;
 

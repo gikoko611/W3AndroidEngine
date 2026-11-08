@@ -75,6 +75,67 @@ public class CPlayerUnitOrderListenerDelaying implements CPlayerUnitOrderListene
 		});
 	}
 
+	// Unit orders and selections wait for the end of the step, as they do in a network game (measured on 1.29: a
+	// script's SelectUnit reaches GroupEnumUnitsSelected and the selection events only after the step). The other
+	// inputs act at once, as they always did here: they come between two steps either way, and a dialog button or a
+	// resume must still work while the game is paused and no step ends.
+	@Override
+	public void selectUnits(final int[] deselectedUnitHandleIds, final int[] selectedUnitHandleIds) {
+		this.actions.add(() -> {
+			this.delegate.selectUnits(deselectedUnitHandleIds, selectedUnitHandleIds);
+		});
+	}
+
+	@Override
+	public void chatMessage(final int recipient, final int recipientPlayerIndex, final String message) {
+		this.delegate.chatMessage(recipient, recipientPlayerIndex, message);
+	}
+
+	@Override
+	public void clickDialogButton(final int dialogHandleId, final int buttonHandleId) {
+		this.delegate.clickDialogButton(dialogHandleId, buttonHandleId);
+	}
+
+	@Override
+	public void setAlliance(final int otherPlayerIndex, final int allianceType, final boolean value) {
+		this.delegate.setAlliance(otherPlayerIndex, allianceType, value);
+	}
+
+	@Override
+	public void transferResources(final int otherPlayerIndex, final int gold, final int lumber) {
+		this.delegate.transferResources(otherPlayerIndex, gold, lumber);
+	}
+
+	@Override
+	public void fireGameEvent(final int eventId) {
+		this.delegate.fireGameEvent(eventId);
+	}
+
+	@Override
+	public void saveGame(final String saveName) {
+		this.delegate.saveGame(saveName);
+	}
+
+	@Override
+	public void leaveGame() {
+		this.delegate.leaveGame();
+	}
+
+	@Override
+	public void cheat(final String cheat) {
+		this.delegate.cheat(cheat);
+	}
+
+	@Override
+	public void setGamePaused(final boolean paused) {
+		this.delegate.setGamePaused(paused);
+	}
+
+	@Override
+	public void minimapSignal(final float x, final float y) {
+		this.delegate.minimapSignal(x, y);
+	}
+
 	public void publishDelayedActions() {
 		for (final Runnable action : this.actions) {
 			action.run();

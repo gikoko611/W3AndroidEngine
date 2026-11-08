@@ -132,6 +132,16 @@
 			}]
 		}
 	},{
+		"ids": [{"id":"Arel"}],
+		"type": "TEMPLATE",
+		"templateFields": {
+			"templateType": "PASSIVE_STATS",
+			"statBuffsFromDataFields": [{
+				"type": "HPGEN",
+				"dataField": "A"
+			}]
+		}
+	},{
 		"ids": [{"id":"AIms"}],
 		"type": "TEMPLATE",
 		"templateFields": {

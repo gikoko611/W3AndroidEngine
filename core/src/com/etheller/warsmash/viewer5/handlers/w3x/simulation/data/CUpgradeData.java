@@ -37,6 +37,7 @@ import com.etheller.warsmash.viewer5.handlers.w3x.simulation.upgrade.CUpgradeEff
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.upgrade.CUpgradeEffectMovementSpeedPcnt;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.upgrade.CUpgradeEffectSpellLevel;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.upgrade.CUpgradeEffectTechMaxAllowed;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.upgrade.CUpgradeEffectSpikedBarricades;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.upgrade.CUpgradeEffectThorns;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.upgrade.CUpgradeEffectUltravision;
 
@@ -69,14 +70,16 @@ public class CUpgradeData {
 	private final CGameplayConstants gameplayConstants;
 	private final ObjectData upgradeData;
 	private final DataTable standardUpgradeEffectMeta;
+	private final int mapGameVersion;
 	private final Map<War3ID, CUpgradeType> idToType = new HashMap<>();
 	private final Map<CUnitRace, Integer> raceToTotalLevels = new HashMap<>();
 
 	public CUpgradeData(final CGameplayConstants gameplayConstants, final ObjectData upgradeData,
-			final DataTable standardUpgradeEffectMeta) {
+			final DataTable standardUpgradeEffectMeta, final int mapGameVersion) {
 		this.gameplayConstants = gameplayConstants;
 		this.upgradeData = upgradeData;
 		this.standardUpgradeEffectMeta = standardUpgradeEffectMeta;
+		this.mapGameVersion = mapGameVersion;
 	}
 
 	/**
@@ -99,12 +102,12 @@ public class CUpgradeData {
 	}
 
 	public boolean isOutOfMapVersion(final War3ID typeId) {
-		return WarsmashConstants.isOutOfMapVersion(this.upgradeData.get(typeId));
+		return WarsmashConstants.isOutOfMapVersion(this.upgradeData.get(typeId), this.mapGameVersion);
 	}
 
 	public CUpgradeType getType(final War3ID typeId) {
 		final GameObject upgradeType = this.upgradeData.get(typeId);
-		if ((upgradeType == null) || WarsmashConstants.isOutOfMapVersion(upgradeType)) {
+		if ((upgradeType == null) || WarsmashConstants.isOutOfMapVersion(upgradeType, this.mapGameVersion)) {
 			return null;
 		}
 		return getUpgradeTypeInstance(typeId, upgradeType);
@@ -206,8 +209,9 @@ public class CUpgradeData {
 						upgradeEffects.add(new CUpgradeEffectDefenseUpgradeBonus());
 						break;
 					case "rspi":
-						upgradeEffects.add(new CUpgradeEffectThorns(upgradeType.getFieldAsFloat(effectBaseMetaKey, 0),
-								upgradeType.getFieldAsFloat(effectModMetaKey, 0), false, typeId.asStringValue()));
+						upgradeEffects.add(
+								new CUpgradeEffectSpikedBarricades(upgradeType.getFieldAsFloat(effectBaseMetaKey, 0),
+										upgradeType.getFieldAsFloat(effectModMetaKey, 0)));
 						break;
 					case "rspp":
 						upgradeEffects.add(new CUpgradeEffectThorns(upgradeType.getFieldAsFloat(effectBaseMetaKey, 0),
@@ -215,7 +219,7 @@ public class CUpgradeData {
 						break;
 					case "rart":
 						upgradeEffects
-								.add(new CUpgradeEffectArmorType(upgradeType.getFieldAsInteger(effectBaseMetaKey, 0)));
+								.add(new CUpgradeEffectArmorType(Math.round(upgradeType.getFieldAsFloat(effectBaseMetaKey, 0))));
 						break;
 					case "renw":
 						upgradeEffects.add(

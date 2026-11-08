@@ -10,4 +10,8 @@ public class NotInstruction implements JassInstruction {
 		thread.stackFrame.push(thread.stackFrame.pop().visit(NotJassValueVisitor.getInstance()));
 	}
 
+	@Override
+	public int opCost() {
+		return 1;
+	}
 }

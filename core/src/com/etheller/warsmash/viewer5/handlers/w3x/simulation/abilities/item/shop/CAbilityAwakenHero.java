@@ -68,7 +68,7 @@ public class CAbilityAwakenHero extends AbstractGenericAliasedAbility {
 			receiver.activationCheckFailed(CommandStringErrorKeys.NOT_ENOUGH_LUMBER);
 		}
 		else if ((heroType.getFoodUsed() != 0)
-				&& ((player.getFoodUsed() + heroType.getFoodUsed()) > player.getFoodCap())) {
+				&& ((player.getFoodUsed() + heroType.getFoodUsed()) > player.getFoodCapLimit())) {
 			receiver.activationCheckFailed(CommandStringErrorKeys.NOT_ENOUGH_FOOD);
 		}
 		else {

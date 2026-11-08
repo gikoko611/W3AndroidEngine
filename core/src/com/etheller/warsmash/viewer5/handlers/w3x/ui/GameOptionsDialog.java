@@ -8,6 +8,13 @@ import com.badlogic.gdx.Input;
 import com.badlogic.gdx.utils.viewport.Viewport;
 import com.etheller.warsmash.input.touch.TouchInputRouter;
 import com.etheller.warsmash.parsers.fdf.GameUI;
+import com.etheller.warsmash.parsers.fdf.datamodel.FrameClass;
+import com.etheller.warsmash.parsers.fdf.datamodel.FrameDefinition;
+import com.etheller.warsmash.parsers.fdf.datamodel.FramePoint;
+import com.etheller.warsmash.parsers.fdf.datamodel.SetPointDefinition;
+import com.etheller.warsmash.parsers.fdf.datamodel.fields.FloatFrameDefinitionField;
+import com.etheller.warsmash.parsers.fdf.datamodel.fields.StringFrameDefinitionField;
+import com.etheller.warsmash.parsers.fdf.frames.AbstractUIFrame;
 import com.etheller.warsmash.parsers.fdf.frames.CheckBoxFrame;
 import com.etheller.warsmash.parsers.fdf.frames.GlueTextButtonFrame;
 import com.etheller.warsmash.parsers.fdf.frames.MenuFrame;
@@ -51,6 +58,7 @@ final class GameOptionsDialog {
 	private ScrollBarFrame keyScroll;
 	private CheckBoxFrame tooltips;
 	private CheckBoxFrame healthBars;
+	private CheckBoxFrame cinematicPortraits;
 
 	private ScrollBarFrame gamma;
 	private CheckBoxFrame vSync;
@@ -202,6 +210,39 @@ final class GameOptionsDialog {
 		disableCheckBox("SubgroupCheckBox");
 		disableCheckBox("FormationToggleCheckBox");
 		hide("CustomKeysLabel", "CustomKeysValue", "DifficultyLabel", "DifficultyValue");
+		// Reforged has this choice in its own options screen; the panel gets it in the place of the hidden lines.
+		this.cinematicPortraits = addCheckBox("CinematicPortraitsCheckBox", "HealthBarsCheckBox",
+				"OPTIONS_SHOW_CINE_PORTRAITS", "Show Portraits in Cinematics");
+	}
+
+	/**
+	 * A check box with its label under another one of the panel, made from the templates of the panel's own boxes;
+	 * null when the data lacks them.
+	 */
+	private CheckBoxFrame addCheckBox(final String name, final String below, final String textKey,
+			final String absentText) {
+		final UIFrame above = frame(below);
+		final FrameDefinition boxTemplate = this.rootFrame.getTemplates().getFrame("EscMenuCheckBoxTemplate");
+		final FrameDefinition labelTemplate = this.rootFrame.getTemplates().getFrame("EscMenuLabelTextTemplate");
+		if ((above == null) || !(above.getParent() instanceof AbstractUIFrame) || (boxTemplate == null)
+				|| (labelTemplate == null)) {
+			return null;
+		}
+		final AbstractUIFrame panel = (AbstractUIFrame) above.getParent();
+		final FrameDefinition box = new FrameDefinition(FrameClass.Frame, "GLUECHECKBOX", name);
+		box.inheritFrom(boxTemplate, true);
+		box.add(new SetPointDefinition(FramePoint.TOPLEFT, below, FramePoint.BOTTOMLEFT, 0, 0));
+		final UIFrame boxFrame = this.rootFrame.inflate(box, panel, null, box.has("DecorateFileNames"));
+		panel.add(boxFrame);
+		final String text = this.rootFrame.getTemplates().getDecoratedString(textKey);
+		final FrameDefinition label = new FrameDefinition(FrameClass.Frame, "TEXT", name + "Label");
+		label.inheritFrom(labelTemplate, false);
+		label.set("Width", new FloatFrameDefinitionField(0.195f));
+		label.set("Height", new FloatFrameDefinitionField(0.024f));
+		label.set("Text", new StringFrameDefinitionField(textKey.equals(text) ? absentText : text));
+		label.add(new SetPointDefinition(FramePoint.LEFT, name, FramePoint.RIGHT, 0.003f, 0));
+		panel.add(this.rootFrame.inflate(label, panel, null, label.has("DecorateFileNames")));
+		return boxFrame instanceof CheckBoxFrame ? (CheckBoxFrame) boxFrame : null;
 	}
 
 	private void createVideoControls() {
@@ -375,6 +416,7 @@ final class GameOptionsDialog {
 		check(this.mouseScrollDisable, options.isMouseScrollDisabled());
 		check(this.tooltips, options.isEnhancedTooltips());
 		check(this.healthBars, options.isAlwaysShowStatusBars());
+		check(this.cinematicPortraits, options.isCinematicPortraits());
 	}
 
 	private void writeGameplay() {
@@ -384,6 +426,7 @@ final class GameOptionsDialog {
 		options.setMouseScrollDisabled(checked(this.mouseScrollDisable, options.isMouseScrollDisabled()));
 		options.setEnhancedTooltips(checked(this.tooltips, options.isEnhancedTooltips()));
 		options.setAlwaysShowStatusBars(checked(this.healthBars, options.isAlwaysShowStatusBars()));
+		options.setCinematicPortraits(checked(this.cinematicPortraits, options.isCinematicPortraits()));
 	}
 
 	private void readVideo() {

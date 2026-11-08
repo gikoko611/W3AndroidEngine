@@ -6,7 +6,7 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 
-import org.apache.commons.compress.utils.IOUtils;
+import org.apache.commons.io.IOUtils;
 
 import com.badlogic.gdx.graphics.GL20;
 import com.etheller.warsmash.viewer5.ModelInstance;
@@ -202,11 +202,12 @@ public class MdxModel extends com.etheller.warsmash.viewer5.Model<MdxHandler> {
 
 			if ((texture.reforged || reforged) && !path.endsWith(".dds")) {
 				final String ddsPath = path.substring(0, path.length() - 4) + ".dds";
-				if (viewer.dataSource.has(ddsPath.replace("\\", "/"))
-						|| viewer.dataSource.has(ddsPath.replace("/", "\\")) || path.endsWith(".tif")) {
+				// The .dds is taken only when no later data source has the path as written: an override folder may
+				// hold the older format.
+				final String found = path.endsWith(".tif") ? ddsPath
+						: viewer.dataSource.findFirst(ddsPath.replace("\\", "/"), ddsPath.replace("/", "\\"), path);
+				if ((found != null) && !found.equals(path)) {
 					path = ddsPath;
-				}
-				else {
 				}
 			}
 			else if ("".equals(path)) {
@@ -381,6 +382,16 @@ public class MdxModel extends com.etheller.warsmash.viewer5.Model<MdxHandler> {
 
 	public List<TextureAnimation> getTextureAnimations() {
 		return this.textureAnimations;
+	}
+
+	/** The geoset at this place in the model file, or null for one of the levels of detail left out. */
+	public Geoset getGeosetOfFile(final int fileIndex) {
+		for (final Geoset geoset : this.geosets) {
+			if (geoset.fileIndex == fileIndex) {
+				return geoset;
+			}
+		}
+		return null;
 	}
 
 	public List<Geoset> getGeosets() {

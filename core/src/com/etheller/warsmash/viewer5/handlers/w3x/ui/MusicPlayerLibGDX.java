@@ -77,7 +77,7 @@ public class MusicPlayerLibGDX implements MusicPlayer {
 	@Override
 	public void optionsChanged() {
 		if (this.currentMusic != null) {
-			this.currentMusic.setVolume(this.volume * CSoundMixer.musicScale());
+			this.currentMusic.setVolume(this.volume * CSoundMixer.audible().musicScale());
 		}
 	}
 
@@ -160,7 +160,7 @@ public class MusicPlayerLibGDX implements MusicPlayer {
 				return null;
 			}
 			this.currentMusicPath = path;
-			this.currentMusic.setVolume(this.volume * CSoundMixer.musicScale());
+			this.currentMusic.setVolume(this.volume * CSoundMixer.audible().musicScale());
 		}
 		this.currentMusic.play();
 		if (fromMSecs != 0) {

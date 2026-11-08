@@ -1,8 +1,12 @@
 [compileJava, compileTestJava]*.options*.encoding = 'UTF-8'
 
-sourceCompatibility = 1.17
+java {
+    sourceCompatibility = JavaVersion.VERSION_17
+    targetCompatibility = JavaVersion.VERSION_17
+}
 
-sourceSets.main.java.srcDirs = [ "src/", "build/generated-src" ]
+sourceSets.main.java.srcDirs = [ "src/" ]
+sourceSets.main.java.srcDir(files("build/generated-src").builtBy("generateGrammarSource"))
 sourceSets.main.antlr.srcDirs = [ "antlr-src/" ]
 
 project.ext.mainClassName = "com.etheller.warsmash.jassparser.Main"
@@ -28,7 +32,7 @@ task debug(dependsOn: classes, type: JavaExec) {
 }
 
 task dist(type: Jar) {
-    duplicatesStrategy(DuplicatesStrategy.EXCLUDE)
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
     manifest {
         attributes 'Main-Class': project.mainClassName
     }
@@ -49,9 +53,9 @@ eclipse.project {
 
 task afterEclipseImport(description: "Post processing after project generation", group: "IDE") {
   doLast {
-    def classpath = new XmlParser().parse(file(".classpath"))
+    def classpath = new groovy.xml.XmlParser().parse(file(".classpath"))
     def writer = new FileWriter(file(".classpath"))
-    def printer = new XmlNodePrinter(new PrintWriter(writer))
+    def printer = new groovy.xml.XmlNodePrinter(new PrintWriter(writer))
     printer.setPreserveWhitespace(true)
     printer.print(classpath)
   }

@@ -223,7 +223,11 @@ public class LightningEffectBatch extends RenderBatch {
 
 			shader.setVertexAttribute(position, 3, GL20.GL_FLOAT, false, LIGHTNING_EFFECT_STRIDE_BYTES, 0);
 			shader.setVertexAttribute(uv, 2, GL20.GL_FLOAT, false, LIGHTNING_EFFECT_STRIDE_BYTES, 12);
-			shader.setVertexAttribute(outwardHeight, 1, GL20.GL_FLOAT, false, LIGHTNING_EFFECT_STRIDE_BYTES, 20);
+			// The shader does not read the outward height, so the driver drops the attribute (location -1), and
+			// pointing at it would leave an invalid value error for the next GL error check.
+			if (outwardHeight >= 0) {
+				shader.setVertexAttribute(outwardHeight, 1, GL20.GL_FLOAT, false, LIGHTNING_EFFECT_STRIDE_BYTES, 20);
+			}
 			shader.setVertexAttribute(color, 4, GL20.GL_FLOAT, false, LIGHTNING_EFFECT_STRIDE_BYTES, 24);
 
 			transposeHeap.set(this.scene.camera.viewProjectionMatrix);

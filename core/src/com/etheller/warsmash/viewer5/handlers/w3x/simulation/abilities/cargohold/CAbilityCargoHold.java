@@ -5,6 +5,9 @@ import java.util.EnumSet;
 import java.util.List;
 
 import com.etheller.warsmash.util.War3ID;
+import com.etheller.warsmash.util.WarsmashConstants;
+import com.etheller.warsmash.viewer5.handlers.w3x.environment.PathingGrid;
+import com.etheller.warsmash.viewer5.handlers.w3x.environment.PathingGrid.MovementType;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CSimulation;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CUnit;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CWidget;
@@ -14,6 +17,7 @@ import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.targeting
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.behaviors.CBehavior;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.combat.CTargetType;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.orders.OrderIds;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.timers.CTimer;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.util.AbilityActivationReceiver;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.util.AbilityTargetCheckReceiver;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.util.CommandStringErrorKeys;
@@ -23,11 +27,19 @@ public class CAbilityCargoHold extends AbstractGenericNoIconAbility {
 	private final List<CUnit> cargoUnits;
 	private float duration;
 	private final float castRange;
+	private float area;
 	private EnumSet<CTargetType> targetsAllowed;
 
 	public CAbilityCargoHold(final int handleId, final War3ID code, final War3ID alias, final int cargoCapacity,
 			final float duration, final float castRange, final EnumSet<CTargetType> targetsAllowed) {
+		this(handleId, code, alias, cargoCapacity, duration, castRange, 0, targetsAllowed);
+	}
+
+	public CAbilityCargoHold(final int handleId, final War3ID code, final War3ID alias, final int cargoCapacity,
+			final float duration, final float castRange, final float area,
+			final EnumSet<CTargetType> targetsAllowed) {
 		super(handleId, code, alias);
+		this.area = area;
 		this.cargoCapacity = cargoCapacity;
 		this.cargoUnits = new ArrayList<>();
 		this.duration = duration;
@@ -55,7 +67,23 @@ public class CAbilityCargoHold extends AbstractGenericNoIconAbility {
 		if (orderId == OrderIds.unload) {
 			final int targetIndex = this.cargoUnits.indexOf(target);
 			if (targetIndex != -1) {
-				dropUnitByIndex(game, caster, targetIndex);
+				// Measured on 1.29: the unit comes off on the next game step, and the transport's order goes on.
+				final CUnit passenger = this.cargoUnits.get(targetIndex);
+				final CTimer dropTimer = new CTimer() {
+					@Override
+					public void onFire(final CSimulation simulation) {
+						final int index = CAbilityCargoHold.this.cargoUnits.indexOf(passenger);
+						if ((index == -1) || caster.isDead()) {
+							return;
+						}
+						final float[] spot = findDropSpot(simulation, caster, passenger, caster.getX(), caster.getY());
+						if (spot != null) {
+							dropUnitByIndex(simulation, caster, index, spot[0], spot[1]);
+						}
+					}
+				};
+				dropTimer.setTimeoutTime(WarsmashConstants.SIMULATION_STEP_TIME);
+				dropTimer.start(game);
 				return false;
 			}
 		}
@@ -69,11 +97,72 @@ public class CAbilityCargoHold extends AbstractGenericNoIconAbility {
 	}
 
 	public void dropUnitByIndex(final CSimulation game, final CUnit caster, final int targetIndex) {
+		dropUnitByIndex(game, caster, targetIndex, caster.getX(), caster.getY());
+	}
+
+	public CUnit dropUnitByIndex(final CSimulation game, final CUnit caster, final int targetIndex, final float x,
+			final float y) {
 		game.unitSoundEffectEvent(caster, getAlias());
 		final CUnit firstUnit = removeUnitAtIndex(caster, targetIndex);
-		firstUnit.setPointAndCheckUnstuck(caster.getX(), caster.getY(), game);
+		firstUnit.setPointAndCheckUnstuck(x, y, game);
 		firstUnit.setHidden(false);
 		firstUnit.setPaused(false);
+		return firstUnit;
+	}
+
+	/**
+	 * Where the unit comes off: ground it can stand on within the cargo hold area of the transport, nearest to
+	 * (towardX, towardY). Measured on 1.29 with a transport ship: unloading one unit puts it on the shore nearest
+	 * to the ship, and a ship with no shore that near refuses the order. A transport standing on such ground drops
+	 * the unit where it stands.
+	 */
+	public float[] findDropSpot(final CSimulation game, final CUnit transport, final CUnit passenger,
+			final float towardX, final float towardY) {
+		final PathingGrid grid = game.getPathingGrid();
+		MovementType movementType = passenger.getMovementType();
+		if (movementType == null) {
+			movementType = MovementType.FOOT;
+		}
+		final float collisionSize = passenger.getUnitType().getCollisionSize();
+		final float transportX = transport.getX();
+		final float transportY = transport.getY();
+		if (grid.isPathable(transportX, transportY, movementType, collisionSize)) {
+			return new float[] { transportX, transportY };
+		}
+		final float radius = getDropRadius();
+		final int minX = Math.max(0, grid.getCellX(transportX - radius));
+		final int maxX = Math.min(grid.getWidth() - 1, grid.getCellX(transportX + radius));
+		final int minY = Math.max(0, grid.getCellY(transportY - radius));
+		final int maxY = Math.min(grid.getHeight() - 1, grid.getCellY(transportY + radius));
+		float[] best = null;
+		double bestDistance = Double.MAX_VALUE;
+		for (int cellY = minY; cellY <= maxY; cellY++) {
+			for (int cellX = minX; cellX <= maxX; cellX++) {
+				final float x = grid.getWorldX(cellX);
+				final float y = grid.getWorldY(cellY);
+				if (StrictMath.hypot(x - transportX, y - transportY) > radius) {
+					continue;
+				}
+				final double distance = StrictMath.hypot(x - towardX, y - towardY);
+				if ((distance < bestDistance) && grid.isPathable(x, y, movementType, collisionSize)) {
+					bestDistance = distance;
+					best = new float[] { x, y };
+				}
+			}
+		}
+		return best;
+	}
+
+	public float getDropRadius() {
+		return this.area > 0 ? this.area : this.castRange;
+	}
+
+	public float getArea() {
+		return this.area;
+	}
+
+	public void setArea(final float area) {
+		this.area = area;
 	}
 
 	@Override
@@ -93,7 +182,12 @@ public class CAbilityCargoHold extends AbstractGenericNoIconAbility {
 			final boolean autoOrder, final CWidget target, final AbilityTargetCheckReceiver<CWidget> receiver) {
 		if (orderId == OrderIds.unload) {
 			if (this.cargoUnits.contains(target)) {
-				receiver.targetOk(target);
+				if (findDropSpot(game, unit, (CUnit) target, unit.getX(), unit.getY()) != null) {
+					receiver.targetOk(target);
+				}
+				else {
+					receiver.targetCheckFailed(CommandStringErrorKeys.UNABLE_TO_TARGET_THERE);
+				}
 			}
 			else {
 				receiver.targetCheckFailed(CommandStringErrorKeys.UNABLE_TO_DROP_THIS_ITEM);

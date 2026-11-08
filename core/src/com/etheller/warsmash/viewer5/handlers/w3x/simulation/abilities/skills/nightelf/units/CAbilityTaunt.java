@@ -6,7 +6,6 @@ import java.util.List;
 
 import com.etheller.warsmash.units.GameObject;
 import com.etheller.warsmash.util.War3ID;
-import com.etheller.warsmash.util.WarsmashConstants;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CSimulation;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CUnit;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.skills.CAbilityNoTargetSpellBase;
@@ -14,6 +13,7 @@ import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.targeting
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.types.definitions.impl.AbilityFields;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.orders.OrderIds;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.players.CAllianceType;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.timers.CTimer;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.trigger.enumtypes.CEffectType;
 
 /**
@@ -72,7 +72,7 @@ public class CAbilityTaunt extends CAbilityNoTargetSpellBase {
 	private void pulse(final CSimulation simulation, final CUnit caster) {
 		this.pulsesLeft--;
 		this.nextPulseTick = simulation.getGameTurnTick()
-				+ (int) (this.pulseInterval / WarsmashConstants.SIMULATION_STEP_TIME);
+				+ CTimer.wholeSteps(this.pulseInterval);
 		simulation.createTemporarySpellEffectOnUnit(caster, getAlias(), CEffectType.CASTER);
 		final List<CUnit> candidates = new ArrayList<>();
 		simulation.getWorldCollision().enumUnitsInRange(caster.getX(), caster.getY(), this.areaOfEffect, (enemy) -> {

@@ -16,6 +16,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import com.hiveworkshop.blizzard.casc.Key;
@@ -42,6 +43,11 @@ public class Storage implements AutoCloseable {
 	 * results.
 	 */
 	private static final int INDEX_COPIES = 2;
+
+	/**
+	 * Size of the header in front of each file's data in a data file.
+	 */
+	private static final int CONTAINER_HEADER_SIZE = 30;
 
 	/**
 	 * File extension used by storage index files.
@@ -90,6 +96,14 @@ public class Storage implements AutoCloseable {
 	 * Index file versions loaded. Possibly useful for debugging.
 	 */
 	private final long[] idxVersions = new long[INDEX_COUNT];
+
+	/**
+	 * Older copies of each index, newest first, read only when the current one
+	 * points at data that cannot be the file.
+	 */
+	private final List<List<Path>> olderIndexPaths = new ArrayList<>();
+
+	private final Map<Path, IndexFile> olderIndexFiles = new HashMap<>();
 
 	/**
 	 * Used to track closed status of the store.
@@ -165,6 +179,11 @@ public class Storage implements AutoCloseable {
 			Collections.sort(bucketList, bucketOrder);
 
 			final IndexFileNameMeta fileMeta = bucketList.get(0);
+			final List<Path> older = new ArrayList<>();
+			for (int copy = 1; copy < bucketList.size(); copy += 1) {
+				older.add(bucketList.get(copy).filePath);
+			}
+			olderIndexPaths.add(older);
 			idxVersions[index] = fileMeta.version;
 			indicies[index] = new IndexFile(loadFileFully(fileMeta.filePath));
 		}
@@ -222,13 +241,96 @@ public class Storage implements AutoCloseable {
 			throw new FileNotFoundException("encoding key not in store indicies");
 		}
 
+		try {
+			return openBanks(index, indexEntry);
+		} catch (final MalformedCASCStructureException e) {
+			// Some installs keep a key in more than one index entry, or in an older index, with only one of them
+			// pointing at the file.
+			for (final IndexFile candidate : candidateIndices(bucketIndex)) {
+				for (final IndexEntry entry : candidate.getEntries(encodingKey)) {
+					if ((candidate == index) && (entry == indexEntry)) {
+						continue;
+					}
+					try {
+						return openBanks(candidate, entry);
+					} catch (final MalformedCASCStructureException | EOFException again) {
+						continue;
+					}
+				}
+			}
+			throw e;
+		}
+	}
+
+	private List<IndexFile> candidateIndices(final int bucketIndex) throws IOException {
+		final List<IndexFile> candidates = new ArrayList<>();
+		candidates.add(indicies[bucketIndex]);
+		for (final Path olderPath : olderIndexPaths.get(bucketIndex)) {
+			candidates.add(loadOlderIndex(olderPath));
+		}
+		return candidates;
+	}
+
+	/**
+	 * Opens the data an index entry points at. Some installs point an entry past
+	 * the file's container header, at its BLTE data or at zeros: the header is then
+	 * looked for 30 bytes earlier, where it counts only with the entry's key, and
+	 * BLTE data without a header counts when its header hashes to the key. Data
+	 * found either way has its banks checked against their hashes.
+	 */
+	private BankStream openBanks(final IndexFile index, final IndexEntry indexEntry) throws IOException {
 		final long dataOffset = indexEntry.getDataOffset();
 		final int storeIndex = index.getStoreIndex(dataOffset);
 		final long storeOffset = index.getStoreOffset(dataOffset);
 
 		final ByteBuffer storageBuffer = getStorageBuffer(storeIndex, storeOffset, indexEntry.getFileSize());
+		final boolean blte = BLTEContent.hasIdentifier(storageBuffer);
+		if (!blte) {
+			try {
+				return new BankStream(storageBuffer, indexEntry.getKey());
+			} catch (final MalformedCASCStructureException e) {
+				final BankStream earlier = withEarlierHeader(storeIndex, storeOffset, indexEntry);
+				if (earlier == null) {
+					throw e;
+				}
+				return earlier;
+			}
+		}
+		final BankStream earlier = withEarlierHeader(storeIndex, storeOffset, indexEntry);
+		if (earlier != null) {
+			return earlier;
+		}
+		final BankStream bare = new BankStream(storageBuffer, indexEntry.getKey());
+		bare.verifyBankHashes();
+		return bare;
+	}
 
-		return new BankStream(storageBuffer, indexEntry.getKey());
+	private BankStream withEarlierHeader(final int storeIndex, final long storeOffset, final IndexEntry indexEntry)
+			throws IOException {
+		if (storeOffset < CONTAINER_HEADER_SIZE) {
+			return null;
+		}
+		try {
+			final ByteBuffer withHeader = getStorageBuffer(storeIndex, storeOffset - CONTAINER_HEADER_SIZE,
+					indexEntry.getFileSize());
+			if (BLTEContent.hasIdentifier(withHeader)) {
+				return null;
+			}
+			final BankStream stream = new BankStream(withHeader, indexEntry.getKey());
+			stream.verifyBankHashes();
+			return stream;
+		} catch (final MalformedCASCStructureException | EOFException e) {
+			return null;
+		}
+	}
+
+	private synchronized IndexFile loadOlderIndex(final Path path) throws IOException {
+		IndexFile older = olderIndexFiles.get(path);
+		if (older == null) {
+			older = new IndexFile(loadFileFully(path));
+			olderIndexFiles.put(path, older);
+		}
+		return older;
 	}
 
 	private synchronized FileChannel getDataFileChannel(final int index) throws IOException {
@@ -237,7 +339,8 @@ public class Storage implements AutoCloseable {
 		}
 
 		FileChannel fileChannel = channelMap.get(index);
-		if (fileChannel == null) {
+		// A thread interrupted while reading closes the channel for every reader of this storage.
+		if ((fileChannel == null) || !fileChannel.isOpen()) {
 			if (index > DATA_FILE_INDEX_MAXIMUM) {
 				throw new MalformedCASCStructureException("storage data file index too large");
 			}

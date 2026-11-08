@@ -27,7 +27,9 @@ public class CUnitAttackVisionFogModifier extends CFogModifier {
 	@Override
 	public void update(final CSimulation game, final CPlayer player, final PathingGrid pathingGrid,
 			final CPlayerFogOfWar fogOfWar) {
-		if (!this.unit.isDead() && !this.unit.isHidden() && ATTACKING_UNIT_VISION_RADIUS > 0) {
+		final float radius = game.getGameplayConstants().getFoggedAttackRevealRadius();
+		if (!this.unit.isDead() && !this.unit.isHidden() && (radius > 0)) {
+			final float radiusSq = gridRadiusSq(radius);
 			final boolean flying = this.unit.getMovementType() == MovementType.FLY;
 			final float myX = this.unit.getX();
 			final float myY = this.unit.getY();
@@ -37,10 +39,10 @@ public class CUnitAttackVisionFogModifier extends CFogModifier {
 
 			int myXi = game.getPathingGrid().getFogOfWarIndexX(myX);
 			int myYi = game.getPathingGrid().getFogOfWarIndexY(myY);
-			int maxXi = game.getPathingGrid().getFogOfWarIndexX(myX + ATTACKING_UNIT_VISION_RADIUS);
-			int maxYi = game.getPathingGrid().getFogOfWarIndexY(myY + ATTACKING_UNIT_VISION_RADIUS);
+			int maxXi = game.getPathingGrid().getFogOfWarIndexX(myX + radius);
+			int maxYi = game.getPathingGrid().getFogOfWarIndexY(myY + radius);
 			for (int a = 1; a <= Math.max(maxYi - myYi, maxXi - myXi); a++) {
-				if (a * a <= ATTACKING_UNIT_VISION_RADIUS_SQ) {
+				if (a * a <= radiusSq) {
 					fogOfWar.checkCardinalVision(game, pathingGrid, flying, myXi, myYi - a, myXi, myYi - a + 1, myX,
 							myY - a * CPlayerFogOfWar.GRID_STEP, myX, myY - (a - 1) * CPlayerFogOfWar.GRID_STEP, myZ);
 					fogOfWar.checkCardinalVision(game, pathingGrid, flying, myXi, myYi + a, myXi, myYi + a - 1, myX,
@@ -56,7 +58,7 @@ public class CUnitAttackVisionFogModifier extends CFogModifier {
 
 			for (int y = 1; y <= maxYi - myYi; y++) {
 				for (int x = 1; x <= maxXi - myXi; x++) {
-					if (x * x + y * y <= ATTACKING_UNIT_VISION_RADIUS_SQ) {
+					if (x * x + y * y <= radiusSq) {
 						int xf = x * CPlayerFogOfWar.GRID_STEP;
 						int yf = y * CPlayerFogOfWar.GRID_STEP;
 

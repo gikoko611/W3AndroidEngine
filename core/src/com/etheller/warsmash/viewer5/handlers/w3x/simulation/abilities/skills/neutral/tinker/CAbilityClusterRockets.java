@@ -8,7 +8,6 @@ import java.util.Random;
 import com.badlogic.gdx.math.Rectangle;
 import com.etheller.warsmash.units.GameObject;
 import com.etheller.warsmash.util.War3ID;
-import com.etheller.warsmash.util.WarsmashConstants;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CSimulation;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CUnit;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CUnitEnumFunction;
@@ -22,8 +21,11 @@ import com.etheller.warsmash.viewer5.handlers.w3x.simulation.combat.CAttackType;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.combat.CSpellDamageFlags;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.combat.projectile.CAbilityProjectileListener;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.orders.OrderIds;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.timers.CTimer;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.trigger.enumtypes.CDamageType;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.trigger.enumtypes.CWeaponSoundTypeJass;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CWidget;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.util.BooleanAbilityTargetCheckReceiver;
 
 public class CAbilityClusterRockets extends CAbilityPointTargetSpellBase {
 	private static final float MISSILE_ARRIVAL_DELAY = 1.0f;
@@ -73,9 +75,8 @@ public class CAbilityClusterRockets extends CAbilityPointTargetSpellBase {
 		final int gameTurnTick = simulation.getGameTurnTick();
 		this.currentWave = 0;
 		this.currentMissile = 0;
-		final int missileTravelTicks = (int) StrictMath
-				.ceil(MISSILE_ARRIVAL_DELAY / WarsmashConstants.SIMULATION_STEP_TIME);
-		int durationTicks = (int) StrictMath.ceil(this.effectDuration / WarsmashConstants.SIMULATION_STEP_TIME);
+		final int missileTravelTicks = CTimer.ceilSteps(MISSILE_ARRIVAL_DELAY);
+		int durationTicks = CTimer.ceilSteps(this.effectDuration);
 		this.nextWaveTick = gameTurnTick + missileTravelTicks;
 		this.nextMissileTick = gameTurnTick;
 		this.effectDurationEndTick = this.nextWaveTick + durationTicks;
@@ -84,7 +85,7 @@ public class CAbilityClusterRockets extends CAbilityPointTargetSpellBase {
 		this.missileLaunchingEndTick = gameTurnTick + durationTicks;
 		if (expectedMissileCount > this.missileCount) {
 			final int shortenedDurationTicks = this.missileCount
-					* (int) StrictMath.ceil(PER_ROCKET_DELAY / WarsmashConstants.SIMULATION_STEP_TIME);
+					* CTimer.ceilSteps(PER_ROCKET_DELAY);
 			this.missileLaunchingEndTick = gameTurnTick + shortenedDurationTicks;
 			durationTicks = shortenedDurationTicks;
 		}
@@ -120,7 +121,7 @@ public class CAbilityClusterRockets extends CAbilityPointTargetSpellBase {
 			simulation.createProjectile(unit, getAlias(), unit.getX(), unit.getY(), (float) angleToLandPoint,
 					(float) speed, false, missileLandPoint, CAbilityProjectileListener.DO_NOTHING);
 			this.nextMissileTick = gameTurnTick
-					+ (int) StrictMath.ceil(PER_ROCKET_DELAY / WarsmashConstants.SIMULATION_STEP_TIME);
+					+ CTimer.ceilSteps(PER_ROCKET_DELAY);
 			this.currentMissile++;
 		}
 		if (gameTurnTick >= this.nextWaveTick) {
@@ -133,7 +134,9 @@ public class CAbilityClusterRockets extends CAbilityPointTargetSpellBase {
 								@Override
 								public boolean call(final CUnit possibleTarget) {
 									if (possibleTarget.canReach(target, CAbilityClusterRockets.this.areaOfEffect)
-											&& possibleTarget.canBeTargetedBy(simulation, unit, getTargetsAllowed())) {
+											&& possibleTarget.canBeTargetedBy(simulation, unit, false,
+													getTargetsAllowed(),
+													BooleanAbilityTargetCheckReceiver.<CWidget>getInstance().reset())) {
 										damageTargets.add(possibleTarget);
 									}
 									return false;
@@ -165,7 +168,7 @@ public class CAbilityClusterRockets extends CAbilityPointTargetSpellBase {
 				}
 			}
 			this.nextWaveTick = gameTurnTick
-					+ (int) StrictMath.ceil(this.damageInterval / WarsmashConstants.SIMULATION_STEP_TIME);
+					+ CTimer.ceilSteps(this.damageInterval);
 		}
 		return gameTurnTick < this.effectDurationEndTick;
 	}

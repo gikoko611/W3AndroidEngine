@@ -47,7 +47,7 @@ public class EventObjectSnd extends EmittedObject<MdxComplexInstance, EventObjec
 			source.connect(panner);
 
 			// Make a sound.
-			source.start(0, emitterObject.volume * CSoundMixer.channelScale(emitterObject.channel),
+			source.start(0, emitterObject.volume * CSoundMixer.audible().channelScale(emitterObject.channel),
 					(emitterObject.pitch + ((float) Math.random() * emitterObject.pitchVariance * 2))
 							- emitterObject.pitchVariance,
 					false);

@@ -2,7 +2,6 @@ package com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.skills.h
 
 import com.etheller.warsmash.units.GameObject;
 import com.etheller.warsmash.util.War3ID;
-import com.etheller.warsmash.util.WarsmashConstants;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CSimulation;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CUnit;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CWidget;
@@ -15,6 +14,7 @@ import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.types.def
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.combat.CAttackType;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.orders.OrderIds;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.players.CAllianceType;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.timers.CTimer;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.trigger.enumtypes.CDamageType;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.trigger.enumtypes.CEffectType;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.util.AbilityTargetCheckReceiver;
@@ -111,11 +111,8 @@ public class CAbilitySiphonMana extends CAbilityTargetSpellBase {
 		this.buffedTarget = targetUnit;
 		if (!friendly) {
 			startBonus(simulation, caster, kind);
-			if (this.lifeDrainedPerSecond > 0) {
-				// Measured on 1.29: Life Drain hits its target for 0 on the effect.
-				targetUnit.damage(simulation, caster, DAMAGE_FLAGS, CAttackType.SPELLS, CDamageType.UNIVERSAL, null,
-						0f);
-			}
+			// Measured on 1.29: Life Drain and Siphon Mana both hit an enemy target for 0 on the effect.
+			targetUnit.damage(simulation, caster, DAMAGE_FLAGS, CAttackType.SPELLS, CDamageType.UNIVERSAL, null, 0f);
 		}
 		removeBeam();
 		// A negative duration keeps the beam until the channel ends instead of the lightning type's own duration.
@@ -190,8 +187,7 @@ public class CAbilitySiphonMana extends CAbilityTargetSpellBase {
 	@Override
 	public boolean doChannelTick(final CSimulation simulation, final CUnit caster, final AbilityTarget target) {
 		final CUnit targetUnit = target.visit(AbilityTargetVisitor.UNIT);
-		if ((targetUnit == null) || targetUnit.isDead() || caster.isDead()
-				|| ((this.breakDistance > 0) && (caster.distance(targetUnit) > this.breakDistance))) {
+		if ((targetUnit == null) || targetUnit.isDead() || caster.isDead()) {
 			return false;
 		}
 		final int tick = simulation.getGameTurnTick();
@@ -231,6 +227,11 @@ public class CAbilitySiphonMana extends CAbilityTargetSpellBase {
 						giveLife(simulation, caster, lifeTaken);
 					}
 				}
+			}
+			// Measured on 1.29: the distance is only checked on a drain, after it, so a target that gets away is
+			// drained once more.
+			if ((this.breakDistance > 0) && (caster.distance(targetUnit) > this.breakDistance)) {
+				return false;
 			}
 		}
 		return tick < this.channelEndTick;
@@ -299,6 +300,6 @@ public class CAbilitySiphonMana extends CAbilityTargetSpellBase {
 	}
 
 	private static int ticks(final float seconds) {
-		return (int) StrictMath.ceil(seconds / WarsmashConstants.SIMULATION_STEP_TIME);
+		return CTimer.ceilSteps(seconds);
 	}
 }

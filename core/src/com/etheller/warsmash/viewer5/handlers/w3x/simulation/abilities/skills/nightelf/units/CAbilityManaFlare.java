@@ -4,7 +4,6 @@ import java.util.EnumSet;
 
 import com.etheller.warsmash.units.GameObject;
 import com.etheller.warsmash.util.War3ID;
-import com.etheller.warsmash.util.WarsmashConstants;
 import com.etheller.warsmash.viewer5.handlers.w3x.AnimationTokens.PrimaryTag;
 import com.etheller.warsmash.viewer5.handlers.w3x.AnimationTokens.SecondaryTag;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CSimulation;
@@ -18,6 +17,7 @@ import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.types.def
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.types.definitions.impl.AbstractCAbilityTypeDefinition;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.combat.CAttackType;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.orders.OrderIds;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.timers.CTimer;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.trigger.enumtypes.CDamageType;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.trigger.enumtypes.CEffectType;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.trigger.enumtypes.CWeaponSoundTypeJass;
@@ -102,8 +102,8 @@ public class CAbilityManaFlare extends CAbilityNoTargetSpellBase implements CUni
 		this.channeling = true;
 		this.caster = caster;
 		this.flareStartTick = simulation.getGameTurnTick()
-				+ (int) (getCastingTime() / WarsmashConstants.SIMULATION_STEP_TIME);
-		this.flareEndTick = this.flareStartTick + (int) (getDuration() / WarsmashConstants.SIMULATION_STEP_TIME);
+				+ CTimer.wholeSteps(getCastingTime());
+		this.flareEndTick = this.flareStartTick + CTimer.wholeSteps(getDuration());
 		return true;
 	}
 

@@ -8,7 +8,6 @@ import java.util.Set;
 
 import com.etheller.warsmash.units.GameObject;
 import com.etheller.warsmash.util.War3ID;
-import com.etheller.warsmash.util.WarsmashConstants;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CSimulation;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CUnit;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.skills.CAbilityTargetSpellBase;
@@ -21,6 +20,7 @@ import com.etheller.warsmash.viewer5.handlers.w3x.simulation.combat.CSpellDamage
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.combat.CTargetType;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.combat.projectile.CEffect;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.orders.OrderIds;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.timers.CTimer;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.trigger.enumtypes.CDamageType;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.trigger.enumtypes.CEffectType;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.trigger.enumtypes.CWeaponSoundTypeJass;
@@ -63,9 +63,9 @@ public class CAbilityChainLightning extends CAbilityTargetSpellBase {
 					targetUnit);
 			simulation.createTemporarySpellEffectOnUnit(targetUnit, getAlias(), CEffectType.TARGET);
 			final int jumpDelayEndTick = simulation.getGameTurnTick()
-					+ (int) StrictMath.ceil(SECONDS_BETWEEN_JUMPS / WarsmashConstants.SIMULATION_STEP_TIME);
+					+ CTimer.ceilSteps(SECONDS_BETWEEN_JUMPS);
 			final int boltLifetimeEndTick = simulation.getGameTurnTick()
-					+ (int) StrictMath.ceil(BOLT_LIFETIME_SECONDS / WarsmashConstants.SIMULATION_STEP_TIME);
+					+ CTimer.ceilSteps(BOLT_LIFETIME_SECONDS);
 			targetUnit.damage(simulation, caster, DAMAGE_FLAGS, CAttackType.SPELLS, CDamageType.LIGHTNING,
 					CWeaponSoundTypeJass.WHOKNOWS.name(), damagePerTarget);
 			final float remainingDamageJumpMultiplier = 1.0f - damageReductionPerTarget;
@@ -137,9 +137,9 @@ public class CAbilityChainLightning extends CAbilityTargetSpellBase {
 							jumpLightningId, nextJumpTarget);
 					game.createTemporarySpellEffectOnUnit(nextJumpTarget, abilityId, CEffectType.TARGET);
 					final int jumpDelayEndTick = gameTurnTick
-							+ (int) StrictMath.ceil(SECONDS_BETWEEN_JUMPS / WarsmashConstants.SIMULATION_STEP_TIME);
+							+ CTimer.ceilSteps(SECONDS_BETWEEN_JUMPS);
 					final int boltLifetimeEndTick = gameTurnTick
-							+ (int) StrictMath.ceil(BOLT_LIFETIME_SECONDS / WarsmashConstants.SIMULATION_STEP_TIME);
+							+ CTimer.ceilSteps(BOLT_LIFETIME_SECONDS);
 					nextJumpTarget.damage(game, caster, DAMAGE_FLAGS, CAttackType.SPELLS, CDamageType.LIGHTNING,
 							CWeaponSoundTypeJass.WHOKNOWS.name(), remainingDamage);
 					previousTargets.add(nextJumpTarget);

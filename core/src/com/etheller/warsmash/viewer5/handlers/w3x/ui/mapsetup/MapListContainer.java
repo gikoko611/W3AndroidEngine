@@ -43,11 +43,33 @@ public class MapListContainer {
 		this.mapListContainer.add(this.mapListBox);
 	}
 
-	/** The maps the custom game list offers: those under Maps and those at the top of a data source. */
+	/**
+	 * Folders of maps built for automated test runs; those maps keep the names of the maps they were built from and
+	 * are not for players.
+	 */
+	private static final String[] TEST_MAP_FOLDERS = { "wc3probes", "probemaps" };
+
+	/**
+	 * The maps the custom game list offers: those under Maps and those at the top of a data source, but no test
+	 * maps.
+	 */
 	public static boolean isListedMap(final String file) {
 		final String lower = file.toLowerCase().replace('/', '\\');
 		return (lower.endsWith(".w3x") || lower.endsWith(".w3m"))
-				&& ((!lower.contains("\\")) || lower.startsWith("maps\\"));
+				&& ((!lower.contains("\\")) || lower.startsWith("maps\\")) && !isTestMap(lower);
+	}
+
+	/** Whether a file lies in a folder of test maps, at any depth. */
+	public static boolean isTestMap(final String file) {
+		final String[] parts = file.toLowerCase().replace('/', '\\').split("\\\\");
+		for (int i = 0; i < (parts.length - 1); i++) {
+			for (final String folder : TEST_MAP_FOLDERS) {
+				if (parts[i].equals(folder)) {
+					return true;
+				}
+			}
+		}
+		return false;
 	}
 
 	/**

@@ -117,6 +117,11 @@ public final class RenderUbersplat implements SimulationRenderComponentUbersplat
 		}
 	}
 
+	@Override
+	public State getState() {
+		return this.state;
+	}
+
 	public State captureState() {
 		if (this.model != null) {
 			this.state.age = gameTime() - this.startGameTime;

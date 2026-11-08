@@ -70,6 +70,11 @@ final class ControlGroupBar {
 		return (interfaceWidth + this.uiViewport.getWorldWidth()) / 2;
 	}
 
+	/** Where frames beside the group buttons end on the right, the gap between them included. */
+	float columnLeft() {
+		return columnRight() - rowHeight() - GameUI.convertX(this.uiViewport, GAP);
+	}
+
 	/** Rows count from the top; Shift always takes the last one. */
 	private float rowBottom(final int row) {
 		final float top = GameUI.convertY(this.uiViewport, COLUMN_TOP);

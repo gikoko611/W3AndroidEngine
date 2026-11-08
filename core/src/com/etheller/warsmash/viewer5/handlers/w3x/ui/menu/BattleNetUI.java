@@ -514,10 +514,7 @@ public class BattleNetUI {
 						final WTS wtsFile = Warcraft3MapObjectData.loadWTS(map);
 						rootFrame.setMapStrings(wtsFile);
 						final War3MapConfig war3MapConfig = new War3MapConfig(WarsmashConstants.MAX_PLAYERS);
-						for (int i = 0; (i < WarsmashConstants.MAX_PLAYERS) && (i < mapInfo.getPlayers().size()); i++) {
-							final CBasePlayer player = war3MapConfig.getPlayer(i);
-							player.setName(rootFrame.getTrigStr(mapInfo.getPlayers().get(i).getName()));
-						}
+						war3MapConfig.applyPlayerNames(mapInfo, rootFrame::getTrigStr);
 						war3MapConfig.setMapName(rootFrame.getTrigStr(mapInfo.getName()));
 						war3MapConfig.setMapDescription(rootFrame.getTrigStr(mapInfo.getDescription()));
 						BattleNetUI.this.customCreateMapInfoPane.setMap(rootFrame, uiViewport, map, mapInfo,
@@ -900,10 +897,7 @@ public class BattleNetUI {
 		this.gameChatroomMap = map;
 		this.gameChatroomMapInfo = mapInfo;
 		this.gameChatroomMapConfig = war3MapConfig;
-		for (int i = 0; (i < WarsmashConstants.MAX_PLAYERS) && (i < mapInfo.getPlayers().size()); i++) {
-			final CBasePlayer player = war3MapConfig.getPlayer(i);
-			player.setName(this.rootFrame.getTrigStr(mapInfo.getPlayers().get(i).getName()));
-		}
+		war3MapConfig.applyPlayerNames(mapInfo, this.rootFrame::getTrigStr);
 		Jass2.loadConfig(map, this.uiViewport, this.uiScene, this.rootFrame, war3MapConfig,
 				WarsmashConstants.JASS_FILE_LIST).config();
 		final IntIntMap serverSlotToMapSlot = new IntIntMap(WarsmashConstants.MAX_PLAYERS);

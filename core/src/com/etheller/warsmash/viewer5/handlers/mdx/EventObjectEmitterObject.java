@@ -114,6 +114,7 @@ public class EventObjectEmitterObject extends GenericObject implements EmitterOb
 	 * The particles will simply be black.
 	 */
 	private boolean ok = false;
+	private boolean soundsByEventCode;
 
 	public EventObjectEmitterObject(final MdxModel model, final MdlxEventObject eventObject, final int index) {
 		super(model, eventObject, index);
@@ -121,7 +122,8 @@ public class EventObjectEmitterObject extends GenericObject implements EmitterOb
 		final ModelViewer viewer = model.viewer;
 		final String name = eventObject.getName();
 		final String type = name.substring(0, 3);
-		final String id = name.substring(4);
+		// The table key is four characters; models number repeated events after it (SNDxDBSP01, FPTxFPR02).
+		final String id = name.substring(4, Math.min(name.length(), 8));
 
 		// Same thing
 		if ("FPT".equals(type)) {
@@ -153,6 +155,8 @@ public class EventObjectEmitterObject extends GenericObject implements EmitterOb
 		if ("SPN".equals(type)) {
 			tables.add(viewer.loadGeneric(pathSolver.solve("Splats\\SpawnData.slk", solverParams).finalSrc,
 					FetchDataTypeName.SLK, mappedDataCallback));
+			tables.add(viewer.loadGeneric(pathSolver.solve("Splats\\SplatData.slk", solverParams).finalSrc,
+					FetchDataTypeName.SLK, mappedDataCallback));
 		}
 		else if ("SPL".equals(type)) {
 			tables.add(viewer.loadGeneric(pathSolver.solve("Splats\\SplatData.slk", solverParams).finalSrc,
@@ -167,9 +171,12 @@ public class EventObjectEmitterObject extends GenericObject implements EmitterOb
 					FetchDataTypeName.SLK, mappedDataCallback));
 		}
 		else if ("SND".equals(type)) {
-			if (!model.reforged) {
-				tables.add(viewer.loadGeneric(pathSolver.solve("UI\\SoundInfo\\AnimLookups.slk", solverParams).finalSrc,
-						FetchDataTypeName.SLK, mappedDataCallback));
+			final String animLookups = pathSolver.solve("UI\\SoundInfo\\AnimLookups.slk", solverParams).finalSrc;
+			// 2.0 and later data have no AnimLookups table; their AnimSounds table is keyed by the event code, whatever
+			// the model's version.
+			this.soundsByEventCode = !viewer.dataSource.has(animLookups);
+			if (!this.soundsByEventCode) {
+				tables.add(viewer.loadGeneric(animLookups, FetchDataTypeName.SLK, mappedDataCallback));
 				tables.add(viewer.loadGeneric(pathSolver.solve("UI\\SoundInfo\\AnimSounds.slk", solverParams).finalSrc,
 						FetchDataTypeName.SLK, mappedDataCallback));
 			}
@@ -285,7 +292,7 @@ public class EventObjectEmitterObject extends GenericObject implements EmitterOb
 				if (viewer.audioEnabled) {
 
 					final MappedDataRow animSoundsRow;
-					if (model.reforged) {
+					if (this.soundsByEventCode) {
 						animSoundsRow = row;
 					}
 					else {
@@ -347,9 +354,18 @@ public class EventObjectEmitterObject extends GenericObject implements EmitterOb
 				System.err.println("Unknown event object type: " + this.type + this.id);
 			}
 		}
-		else {
+		else if (!("SPN".equals(this.type) && isSplatCode(tables))) {
 			System.err.println("Unknown event object ID: " + this.type + this.id);
 		}
+	}
+
+	/**
+	 * Blizzard's own models name a few splat codes as spawns (the Dryad's SPNxEBL0); the spawn table has no such row in
+	 * any version, so nothing is spawned for them, as in the original.
+	 */
+	private boolean isSplatCode(final List<GenericResource> tables) {
+		final MappedData splats = tables.size() > 1 ? (MappedData) tables.get(1).data : null;
+		return (splats != null) && (splats.getRow(this.id.trim()) != null);
 	}
 
 	public int getValue(final long[] out, final MdxComplexInstance instance) {

@@ -1,6 +1,5 @@
 package com.etheller.warsmash.viewer5.handlers.w3x.simulation.behaviors.root;
 
-import com.etheller.warsmash.util.WarsmashConstants;
 import com.etheller.warsmash.viewer5.handlers.w3x.AnimationTokens.PrimaryTag;
 import com.etheller.warsmash.viewer5.handlers.w3x.AnimationTokens.SecondaryTag;
 import com.etheller.warsmash.viewer5.handlers.w3x.SequenceUtils;
@@ -12,6 +11,7 @@ import com.etheller.warsmash.viewer5.handlers.w3x.simulation.behaviors.CAbstract
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.behaviors.CBehavior;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.behaviors.CBehaviorCategory;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.orders.OrderIds;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.timers.CTimer;
 
 public class CBehaviorRoot extends CAbstractRangedBehavior {
 	private final CAbilityRoot abilityRoot;
@@ -60,14 +60,14 @@ public class CBehaviorRoot extends CAbstractRangedBehavior {
 			this.unit.setPoint(this.target.getX(), this.target.getY(), simulation.getWorldCollision(),
 					simulation.getRegionManager());
 			this.rootStartTick = simulation.getGameTurnTick()
-					+ (int) (duration / WarsmashConstants.SIMULATION_STEP_TIME);
+					+ CTimer.wholeSteps(duration);
 		}
 		else if (simulation.getGameTurnTick() >= this.rootStartTick) {
 			if (this.rootFinishTick == -1) {
 				this.unit.setFacing(simulation.getGameplayConstants().getRootAngle());
 				this.abilityRoot.setRooted(true, this.unit, simulation);
 				this.rootFinishTick = simulation.getGameTurnTick()
-						+ (int) (duration / WarsmashConstants.SIMULATION_STEP_TIME);
+						+ CTimer.wholeSteps(duration);
 				this.unit.setAcceptingOrders(false);
 				this.unit.getUnitAnimationListener().playAnimationWithDuration(true, PrimaryTag.MORPH,
 						SequenceUtils.EMPTY, duration, true);

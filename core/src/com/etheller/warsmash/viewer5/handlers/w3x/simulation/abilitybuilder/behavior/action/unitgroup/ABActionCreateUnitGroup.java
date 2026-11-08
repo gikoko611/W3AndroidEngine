@@ -1,6 +1,6 @@
 package com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilitybuilder.behavior.action.unitgroup;
 
-import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
 
@@ -17,7 +17,7 @@ public class ABActionCreateUnitGroup implements ABSingleAction {
 	@Override
 	public void runAction(final CSimulation game, final CUnit caster, final Map<String, Object> localStore,
 			final int castId) {
-		final Set<CUnit> group = new HashSet<>();
+		final Set<CUnit> group = new LinkedHashSet<>();
 		if (this.name != null) {
 			localStore.put("_unitgroup_" + this.name, group);
 		}

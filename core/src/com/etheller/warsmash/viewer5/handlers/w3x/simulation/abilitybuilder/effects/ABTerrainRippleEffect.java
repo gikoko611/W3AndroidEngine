@@ -69,7 +69,7 @@ public class ABTerrainRippleEffect extends ABTerrainEffect {
 				float dsq = (x - cx) * (x - cx) + (y - cy) * (y - cy);
 				if (dsq <= this.terrainRadiusSq) {
 					float d = Math.min(Math.max((float) Math.sqrt(dsq) / this.terrainRadius, 0.0f), 1.0f);
-					dz = (float) ((this.depth * (Math.sin(d * this.spaceWaves + this.timeWaves * timeRatio))) * (1 - timeFactorRepetitions));
+					dz = (float) ((this.depth * (StrictMath.sin(d * this.spaceWaves + this.timeWaves * timeRatio))) * (1 - timeFactorRepetitions));
 					if (this.stopping) {
 						dz *= stopRatio;
 					}

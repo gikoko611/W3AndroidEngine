@@ -36,6 +36,8 @@ public class CAbilityTypeHumanRepair extends CAbilityType<CAbilityTypeHumanRepai
 		heroAbility.setNavalRangeBonus(levelData.getNavalRangeBonus());
 		heroAbility.setRepairCostRatio(levelData.getRepairCostRatio());
 		heroAbility.setRepairTimeRatio(levelData.getRepairTimeRatio());
+		heroAbility.setPowerBuildCostRatio(levelData.getPowerBuildCostRatio());
+		heroAbility.setPowerBuildTimeRatio(levelData.getPowerBuildTimeRatio());
 		heroAbility.setCastRange(levelData.getCastRange());
 
 		heroAbility.setLevel(game, unit, level);

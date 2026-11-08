@@ -459,8 +459,10 @@ public class CWorldCollision {
 
 		@Override
 		public boolean onIntersect(final CUnit intersectingObject) {
+			// A unit with its pathing turned off walks through others, but they still go round it (1.29).
 			if (intersectingObject.isHidden() || intersectingObject.isUnenumerable()
-					|| MovementType.FOOT_NO_COLLISION.equals(intersectingObject.getMovementType())
+					|| (MovementType.FOOT_NO_COLLISION.equals(intersectingObject.getMovementType())
+							&& !intersectingObject.isPathingDisabled())
 					|| (this.forConstruction && intersectingObject.isNoBuildingCollision())
 					|| (!this.forConstruction && intersectingObject.isNoUnitCollision())) {
 				return false;

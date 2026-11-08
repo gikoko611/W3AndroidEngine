@@ -28,6 +28,8 @@ public interface CPlayerJass {
 
 	void setRaceSelectable(boolean selectable);
 
+	void setRaceSkin(CRacePreference raceSkin);
+
 	void setController(CMapControl mapControl);
 
 	void setSlotState(CPlayerSlotState slotState);

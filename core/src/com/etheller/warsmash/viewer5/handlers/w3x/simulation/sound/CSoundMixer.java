@@ -7,67 +7,83 @@ import com.badlogic.gdx.audio.Sound;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.trigger.enumtypes.CSoundVolumeGroup;
 
 /**
- * VolumeGroupSetVolume scales: every sound channel of the game belongs to one volume group.
+ * VolumeGroupSetVolume scales: every sound channel of the game belongs to one volume group. Each game has its own
+ * scales; what the sound device plays is scaled by the game on screen, and by none outside of a game.
  */
 public final class CSoundMixer {
-	private static final float[] GROUP_SCALES = new float[CSoundVolumeGroup.VALUES.length];
 	private static final int MAX_TRACKED_LOOPS = 128;
-	private static final Deque<PlayingLoop> PLAYING_LOOPS = new ArrayDeque<>();
-	private static Runnable musicScaleListener;
+	private static CSoundMixer audible = new CSoundMixer();
 	private static float soundOption = 1f;
 	private static float musicOption = 1f;
 	private static float ambientOption = 1f;
 	private static float movementOption = 1f;
 	private static float unitOption = 1f;
-	static {
+
+	private final float[] groupScales = new float[CSoundVolumeGroup.VALUES.length];
+	private final Deque<PlayingLoop> playingLoops = new ArrayDeque<>();
+	private Runnable musicScaleListener;
+
+	public CSoundMixer() {
 		reset();
 	}
 
-	private CSoundMixer() {
+	/** The mixer of the game the sound device plays. */
+	public static CSoundMixer audible() {
+		return audible;
 	}
 
-	public static void reset() {
-		for (int i = 0; i < GROUP_SCALES.length; i++) {
-			GROUP_SCALES[i] = 1f;
+	/** The sounds and music played from now on are scaled by this game's groups. */
+	public void makeAudible() {
+		audible = this;
+	}
+
+	/** The game is over: its loops are no longer followed, and the device plays unscaled if this game had it. */
+	public void release() {
+		this.playingLoops.clear();
+		this.musicScaleListener = null;
+		if (audible == this) {
+			audible = new CSoundMixer();
+		}
+	}
+
+	public void reset() {
+		for (int i = 0; i < this.groupScales.length; i++) {
+			this.groupScales[i] = 1f;
 		}
 		notifyMusic();
 	}
 
-	public static void setGroupScale(final CSoundVolumeGroup group, final float scale) {
-		GROUP_SCALES[group.ordinal()] = Math.max(0f, Math.min(1f, scale));
+	public void setGroupScale(final CSoundVolumeGroup group, final float scale) {
+		this.groupScales[group.ordinal()] = Math.max(0f, Math.min(1f, scale));
 		if (group == CSoundVolumeGroup.MUSIC) {
 			notifyMusic();
 		}
 	}
 
-	public static float getGroupScale(final CSoundVolumeGroup group) {
-		return GROUP_SCALES[group.ordinal()];
+	public float getGroupScale(final CSoundVolumeGroup group) {
+		return this.groupScales[group.ordinal()];
 	}
 
-	public static void forgetPlayingLoops() {
-		PLAYING_LOOPS.clear();
+	public void setMusicScaleListener(final Runnable listener) {
+		this.musicScaleListener = listener;
 	}
 
-	public static void setMusicScaleListener(final Runnable listener) {
-		musicScaleListener = listener;
-	}
-
-	private static void notifyMusic() {
-		if (musicScaleListener != null) {
-			musicScaleListener.run();
+	private void notifyMusic() {
+		if (this.musicScaleListener != null) {
+			this.musicScaleListener.run();
 		}
 	}
 
-	public static float channelScale(final int channel) {
+	public float channelScale(final int channel) {
 		final CSoundVolumeGroup group = groupOfChannel(channel);
 		if (group == null) {
 			return soundOption;
 		}
-		return GROUP_SCALES[group.ordinal()] * optionScale(group);
+		return this.groupScales[group.ordinal()] * optionScale(group);
 	}
 
-	public static float musicScale() {
-		return GROUP_SCALES[CSoundVolumeGroup.MUSIC.ordinal()] * musicOption;
+	public float musicScale() {
+		return this.groupScales[CSoundVolumeGroup.MUSIC.ordinal()] * musicOption;
 	}
 
 	/** The player's own settings; scripts change only the group scales, so VolumeGroupReset leaves these alone. */
@@ -78,8 +94,9 @@ public final class CSoundMixer {
 		ambientOption = ambient;
 		movementOption = movement;
 		unitOption = unit;
-		for (final PlayingLoop loop : PLAYING_LOOPS) {
-			loop.sound.setVolume(loop.id, loop.volume * channelScale(loop.channel));
+		final CSoundMixer mixer = audible;
+		for (final PlayingLoop loop : mixer.playingLoops) {
+			loop.sound.setVolume(loop.id, loop.volume * mixer.channelScale(loop.channel));
 		}
 	}
 
@@ -91,11 +108,11 @@ public final class CSoundMixer {
 	 * A one shot sound keeps the volume it started with, but a loop has to follow a change of the settings. Stopped
 	 * loops are not reported here; setting the volume of one does nothing, so they simply age out of the list.
 	 */
-	public static void loopStarted(final Sound sound, final long id, final float volume, final int channel) {
-		if (PLAYING_LOOPS.size() >= MAX_TRACKED_LOOPS) {
-			PLAYING_LOOPS.removeFirst();
+	public void loopStarted(final Sound sound, final long id, final float volume, final int channel) {
+		if (this.playingLoops.size() >= MAX_TRACKED_LOOPS) {
+			this.playingLoops.removeFirst();
 		}
-		PLAYING_LOOPS.addLast(new PlayingLoop(sound, id, volume, channel));
+		this.playingLoops.addLast(new PlayingLoop(sound, id, volume, channel));
 	}
 
 	private static float optionScale(final CSoundVolumeGroup group) {

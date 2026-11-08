@@ -1,0 +1,1 @@
+UI\FrameDef\SmashUI\MinimapButtonBar.fdf

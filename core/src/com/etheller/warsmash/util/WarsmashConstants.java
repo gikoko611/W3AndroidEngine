@@ -6,7 +6,9 @@ import java.util.Locale;
 import com.etheller.warsmash.units.DataTable;
 import com.etheller.warsmash.units.Element;
 import com.etheller.warsmash.units.GameObject;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.SimulationChecksum;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.players.CRaceManager;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.timers.CTimer;
 
 import net.warsmash.uberserver.GamingNetwork;
 
@@ -30,13 +32,6 @@ public class WarsmashConstants {
 	 * whatever for custom mods and other stuff
 	 */
 	public static int GAME_VERSION = 1;
-	/**
-	 * The game the current map is played in. Measured on 1.29: Reign of Chaos has no object marked version 1 in its
-	 * data, whatever the files hold, and its campaign is reached only from that game; here every campaign is on one
-	 * menu, so a campaign map saved as .w3m selects it by itself, as does a Reforged map of a Reign of Chaos campaign
-	 * (Campaign/Reforged/ROC, saved as .w3x).
-	 */
-	public static int MAP_GAME_VERSION = 1;
 	public static final int REPLACEABLE_TEXTURE_LIMIT = 64;
 	public static final float SIMULATION_STEP_TIME = 1 / 20f;
 	public static final int PORT_NUMBER = GamingNetwork.UDP_SINGLE_GAME_PORT;
@@ -83,43 +78,40 @@ public class WarsmashConstants {
 			"Scripts\\war3map.j" };
 	public static String[] JASS_FILE_LIST = DEFAULT_JASS_FILE_LIST;
 	public static final float GAME_SPEED_TIME_FACTOR = 1f;
-	public static final int ONGOING_BEHAVIOR_NOTIFICATION_TICKS = (int) (0.5f / SIMULATION_STEP_TIME);
+	public static final int ONGOING_BEHAVIOR_NOTIFICATION_TICKS = CTimer.wholeSteps(0.5f);
 
 	public static final boolean SHOW_FPS = true;
 
 	public static List<String> ABILITY_COMPATIBILITY = null;
 
-	public static void selectMapGameVersion(final String mapFileName) {
-		final String name = mapFileName == null ? "" : mapFileName.toLowerCase(Locale.ROOT).replace('\\', '/');
-		final boolean reignOfChaosCampaign = name.contains("campaign/")
-				&& (name.endsWith(".w3m") || name.contains("/roc/"));
-		MAP_GAME_VERSION = reignOfChaosCampaign ? 0 : GAME_VERSION;
-	}
-
 	/**
+	 * The game a map is played in. Measured on 1.29: Reign of Chaos has no object marked version 1 in its data,
+	 * whatever the files hold, and its campaign is reached only from that game; here every campaign is on one menu, so
+	 * a campaign map saved as .w3m selects it by itself, as does a Reforged map of a Reign of Chaos campaign
+	 * (Campaign/Reforged/ROC, saved as .w3x).
+	 *
 	 * The game data version named in war3map.w3i wins over the file name: the Reforged Reign of Chaos campaign maps
 	 * ask for The Frozen Throne data and place its units (the Human01 Wolf Rider), while their Classic copies ask for
 	 * Reign of Chaos data. A negative version means an older map that does not name one. Other maps keep the rule
 	 * by file name for now.
 	 */
-	public static void selectMapGameVersion(final String mapFileName, final long gameDataVersion) {
+	public static int mapGameVersion(final String mapFileName, final long gameDataVersion) {
 		final String name = mapFileName == null ? "" : mapFileName.toLowerCase(Locale.ROOT).replace('\\', '/');
-		if ((gameDataVersion < 0) || !name.contains("campaign/")) {
-			selectMapGameVersion(mapFileName);
+		if ((gameDataVersion >= 0) && name.contains("campaign/")) {
+			return (int) Math.min(gameDataVersion, GAME_VERSION);
 		}
-		else {
-			MAP_GAME_VERSION = (int) Math.min(gameDataVersion, GAME_VERSION);
-		}
+		final boolean reignOfChaosCampaign = name.contains("campaign/")
+				&& (name.endsWith(".w3m") || name.contains("/roc/"));
+		return reignOfChaosCampaign ? 0 : GAME_VERSION;
 	}
 
-	public static boolean isOutOfMapVersion(final GameObject gameObject) {
-		return (gameObject != null) && (gameObject.getFieldAsInteger("version", 0) > MAP_GAME_VERSION);
+	public static boolean isOutOfMapVersion(final GameObject gameObject, final int mapGameVersion) {
+		return (gameObject != null) && (gameObject.getFieldAsInteger("version", 0) > mapGameVersion);
 	}
 
 	public static void loadConstants(final GameObject emulatorConstants, final DataTable warsmashIni) {
 		MAX_PLAYERS = emulatorConstants.getFieldValue(KEY_MAX_PLAYERS);
 		GAME_VERSION = emulatorConstants.getFieldValue(KEY_GAME_VERSION);
-		MAP_GAME_VERSION = GAME_VERSION;
 		CATCH_CURSOR = emulatorConstants.getFieldValue(KEY_CATCH_CURSOR) == 1;
 		if (!emulatorConstants.getField(KEY_FULL_SCREEN_MENU_BACKDROP).isEmpty()) {
 			FULL_SCREEN_MENU_BACKDROP = emulatorConstants.getFieldValue(KEY_FULL_SCREEN_MENU_BACKDROP) == 1;
@@ -142,6 +134,8 @@ public class WarsmashConstants {
 		PARSE_REIGN_OF_CHAOS_BETA_MODELS_INSTEAD = emulatorConstants
 				.getFieldValue(KEY_PARSE_REIGN_OF_CHAOS_BETA_MODELS_INSTEAD) == 1;
 		USE_NINE_ITEM_INVENTORY = emulatorConstants.getFieldValue(KEY_USE_NINE_ITEM_INVENTORY) == 1;
+		SimulationChecksum.configure(emulatorConstants.getField("Checksum"),
+				emulatorConstants.getField("ChecksumDetail"));
 		final String races = emulatorConstants.getField("Races");
 		RACE_MANAGER = new CRaceManager();
 		if ((races == null) || races.isEmpty()) {

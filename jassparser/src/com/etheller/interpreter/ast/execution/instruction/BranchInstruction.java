@@ -21,4 +21,9 @@ public class BranchInstruction implements JassInstruction {
 	public String toString() {
 		return "BranchInstruction [newInstructionPointer=" + this.newInstructionPointer + "]";
 	}
+
+	@Override
+	public int opCost() {
+		return 1;
+	}
 }

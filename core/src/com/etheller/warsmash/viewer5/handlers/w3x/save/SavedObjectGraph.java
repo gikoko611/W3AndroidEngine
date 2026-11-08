@@ -628,17 +628,25 @@ public final class SavedObjectGraph {
 
 	private static boolean isMapTypeByName(final Class<?> type) {
 		return (type == HashMap.class) || (type == LinkedHashMap.class) || (type == TreeMap.class) || (type == LinkedTreeMap.class)
+				|| (type == IdentityHashMap.class)
 				|| type.getName().startsWith("java.util.Collections$") && Map.class.isAssignableFrom(type);
 	}
 
+	/** The map class rebuilt on loading; an identity map stays one, its keys need not compare equal. */
 	private static String mapName(final Class<?> type) {
-		return (type == LinkedHashMap.class) || (type == TreeMap.class) || (type == LinkedTreeMap.class) ? type.getName() : HashMap.class.getName();
+		return (type == LinkedHashMap.class) || (type == TreeMap.class) || (type == LinkedTreeMap.class)
+				|| (type == IdentityHashMap.class) ? type.getName() : HashMap.class.getName();
 	}
 
 	/**
 	 * Fails when the saved classes cannot be read into this engine's, by the rules above. Changes nothing.
 	 */
 	public static void checkClassesMatch(final byte[] tableBytes) throws IOException {
+		checkClassesMatch(tableBytes, NEWEST_FORMAT);
+	}
+
+	/** The same for a save of the given file format, whose anonymous classes may have been numbered differently. */
+	public static void checkClassesMatch(final byte[] tableBytes, final int formatVersion) throws IOException {
 		final DataInputStream in = new DataInputStream(new ByteArrayInputStream(tableBytes));
 		in.readInt();
 		final int classCount = in.readInt();
@@ -648,8 +656,19 @@ public final class SavedObjectGraph {
 			for (int j = 0; j < fieldKeys.length; j++) {
 				fieldKeys[j] = in.readUTF();
 			}
-			new ClassInfo(name, fieldKeys).fields();
+			newClassInfo(name, fieldKeys, formatVersion).fields();
 		}
+	}
+
+	private static ClassInfo newClassInfo(final String name, final String[] fieldKeys, final int formatVersion) {
+		for (int i = 0; i < fieldKeys.length; i++) {
+			final int end = fieldKeys[i].indexOf('#');
+			if (end > 0) {
+				fieldKeys[i] = classNameInFormat(fieldKeys[i].substring(0, end), formatVersion)
+						+ fieldKeys[i].substring(end);
+			}
+		}
+		return new ClassInfo(classNameInFormat(name, formatVersion), fieldKeys);
 	}
 
 	public static final class Reader {
@@ -663,12 +682,17 @@ public final class SavedObjectGraph {
 		private final List<Runnable> addedFieldHooks = new ArrayList<>();
 
 		public Reader(final Rules rules, final byte[] tableBytes, final DataInputStream bodies) throws IOException {
-			this.rules = rules;
-			this.bodies = bodies;
-			readTable(new DataInputStream(new ByteArrayInputStream(tableBytes)));
+			this(rules, tableBytes, bodies, NEWEST_FORMAT);
 		}
 
-		private void readTable(final DataInputStream in) throws IOException {
+		public Reader(final Rules rules, final byte[] tableBytes, final DataInputStream bodies,
+				final int formatVersion) throws IOException {
+			this.rules = rules;
+			this.bodies = bodies;
+			readTable(new DataInputStream(new ByteArrayInputStream(tableBytes)), formatVersion);
+		}
+
+		private void readTable(final DataInputStream in, final int formatVersion) throws IOException {
 			final int count = in.readInt();
 			this.objects = new Object[count];
 			this.kinds = new byte[count];
@@ -682,7 +706,7 @@ public final class SavedObjectGraph {
 				for (int j = 0; j < fieldCount; j++) {
 					fieldNames[j] = in.readUTF();
 				}
-				this.classes[i] = new ClassInfo(name, fieldNames);
+				this.classes[i] = newClassInfo(name, fieldNames, formatVersion);
 			}
 			for (int id = 1; id < count; id++) {
 				final byte kind = in.readByte();
@@ -908,13 +932,15 @@ public final class SavedObjectGraph {
 			throw new IOException("No fields stored for " + name);
 		}
 
-		private void readFields(final Object object, final ClassInfo info) throws IOException {
+		private void readFields(final Object holder, final ClassInfo info) throws IOException {
 			final Field[] fields = info.fields();
 			final Class<?>[] storedTypes = info.storedTypes();
+			final Field[] components = info.components;
 			try {
 				for (int i = 0; i < fields.length; i++) {
 					final Field field = fields[i];
 					final Class<?> type = storedTypes[i];
+					final Object object = components[i] == null ? holder : component(holder, components[i]);
 					if (type == int.class) {
 						final int value = this.bodies.readInt();
 						if (field != null) {
@@ -973,6 +999,27 @@ public final class SavedObjectGraph {
 			}
 			catch (final IllegalAccessException | IllegalArgumentException exc) {
 				throw new IOException("Reading " + info.name, exc);
+			}
+		}
+
+		/** The holder's part, made with the defaults of an added field when the save is from before the split. */
+		private static Object component(final Object holder, final Field field) throws IOException {
+			try {
+				Object component = field.get(holder);
+				if (component == null) {
+					component = ObjectAllocator.allocate(field.getType());
+					for (final Field partField : fieldsOf(field.getType())) {
+						final Object value = defaultValue(partField);
+						if (value != null) {
+							partField.set(component, value);
+						}
+					}
+					field.set(holder, component);
+				}
+				return component;
+			}
+			catch (final ReflectiveOperationException | IllegalArgumentException exc) {
+				throw new IOException("Making " + field, exc);
 			}
 		}
 
@@ -1046,6 +1093,8 @@ public final class SavedObjectGraph {
 		private Class<?> type;
 		private Field[] fields;
 		private Class<?>[] storedTypes;
+		/** For a saved field that now belongs to a {@link SavedComponent}, the holder's field of that part. */
+		private Field[] components;
 		/** Fields of this engine's class that the save does not have. */
 		private Field[] addedFields;
 		private Set<String> addedFieldNames;
@@ -1086,6 +1135,8 @@ public final class SavedObjectGraph {
 				}
 				final Field[] fields = new Field[this.fieldKeys.length];
 				final Class<?>[] storedTypes = new Class<?>[this.fieldKeys.length];
+				final Field[] components = new Field[this.fieldKeys.length];
+				final Set<Field> movedIntoComponents = new HashSet<>();
 				boolean removed = false;
 				for (int i = 0; i < this.fieldKeys.length; i++) {
 					final String[] parts = this.fieldKeys[i].split("#", 3);
@@ -1096,8 +1147,19 @@ public final class SavedObjectGraph {
 					Field field = current.remove(nameKey);
 					if (field == null) {
 						field = byFormerName.get(nameKey);
-						if ((field != null)
-								&& (current.remove(field.getDeclaringClass().getName() + "#" + field.getName()) == null)) {
+						if (field == null) {
+							field = movedUp(type, currentClassName(parts[0]), parts[1], current);
+						}
+						if (field == null) {
+							components[i] = componentHolding(type, currentClassName(parts[0]), parts[1]);
+							if (components[i] != null) {
+								field = fieldNamed(components[i].getType(), parts[1]);
+								if (!movedIntoComponents.add(field)) {
+									throw new IOException("Two saved fields fill " + field);
+								}
+							}
+						}
+						else if (current.remove(field.getDeclaringClass().getName() + "#" + field.getName()) == null) {
 							throw new IOException("Two saved fields fill " + field);
 						}
 					}
@@ -1125,6 +1187,7 @@ public final class SavedObjectGraph {
 					defaultValue(added);
 				}
 				this.storedTypes = storedTypes;
+				this.components = components;
 				this.fields = fields;
 			}
 			return this.fields;
@@ -1180,8 +1243,8 @@ public final class SavedObjectGraph {
 	 */
 	private static final Map<String, String> FORMER_CLASS_NAMES = new HashMap<>();
 	static {
-		FORMER_CLASS_NAMES.put("com.etheller.warsmash.parsers.jass.Jass2$CommonEnvironment$8",
-				"com.etheller.warsmash.viewer5.handlers.w3x.simulation.timers.CTimerExpireTriggerEvent");
+		FORMER_CLASS_NAMES.put("com.etheller.warsmash.parsers.jass.Jass2$CommonEnvironment$7",
+				"com.etheller.warsmash.parsers.jass.TriggerNatives$TimerEventRegistration");
 		FORMER_CLASS_NAMES.put("com.etheller.warsmash.util.SubscriberSetNotifier$1",
 				"com.etheller.warsmash.util.SubscriberSetNotifier$SubscriberSet");
 		FORMER_CLASS_NAMES.put("com.etheller.warsmash.viewer5.handlers.w3x.War3MapViewer$1",
@@ -1194,6 +1257,38 @@ public final class SavedObjectGraph {
 				"com.etheller.warsmash.viewer5.handlers.w3x.simulation.CSimulation$TimeOfDayEventRegistration");
 	}
 
+	/** For tables that carry no format, as the saves this engine writes. */
+	private static final int NEWEST_FORMAT = Integer.MAX_VALUE;
+	/** The first save format whose engines had named the timer expire event, which renumbered the classes after it. */
+	private static final int FORMAT_TIMER_EVENT_NAMED = 4;
+	private static final String COMMON_ENVIRONMENT = "com.etheller.warsmash.parsers.jass.Jass2$CommonEnvironment$";
+	/**
+	 * Anonymous classes of Jass2's CommonEnvironment whose numbers meant other classes in older saves, by the first
+	 * save format of each meaning.
+	 */
+	private static final Map<String, String> FORMER_CLASS_NAMES_BEFORE_NAMED_TIMER_EVENT = new HashMap<>();
+	private static final Map<String, String> FORMER_CLASS_NAMES_SINCE_NAMED_TIMER_EVENT = new HashMap<>();
+	static {
+		final String observerTimer = "com.etheller.warsmash.parsers.jass.PlayerNatives$ObserverTimer";
+		final String tickEvent = "com.etheller.warsmash.parsers.jass.TriggerNatives$TickEventRegistration";
+		final String unitTickEvent = "com.etheller.warsmash.parsers.jass.TriggerNatives$UnitTickEventRegistration";
+		FORMER_CLASS_NAMES_BEFORE_NAMED_TIMER_EVENT.put(COMMON_ENVIRONMENT + "8",
+				"com.etheller.warsmash.viewer5.handlers.w3x.simulation.timers.CTimerExpireTriggerEvent");
+		FORMER_CLASS_NAMES_BEFORE_NAMED_TIMER_EVENT.put(COMMON_ENVIRONMENT + "9", observerTimer);
+		FORMER_CLASS_NAMES_BEFORE_NAMED_TIMER_EVENT.put(COMMON_ENVIRONMENT + "14", tickEvent);
+		FORMER_CLASS_NAMES_BEFORE_NAMED_TIMER_EVENT.put(COMMON_ENVIRONMENT + "15", unitTickEvent);
+		FORMER_CLASS_NAMES_SINCE_NAMED_TIMER_EVENT.put(COMMON_ENVIRONMENT + "8", observerTimer);
+		FORMER_CLASS_NAMES_SINCE_NAMED_TIMER_EVENT.put(COMMON_ENVIRONMENT + "13", tickEvent);
+		FORMER_CLASS_NAMES_SINCE_NAMED_TIMER_EVENT.put(COMMON_ENVIRONMENT + "14", unitTickEvent);
+	}
+
+	/** A saved class name as the engines of that save format meant it; others are left as they are. */
+	static String classNameInFormat(final String savedName, final int formatVersion) {
+		final String current = (formatVersion < FORMAT_TIMER_EVENT_NAMED ? FORMER_CLASS_NAMES_BEFORE_NAMED_TIMER_EVENT
+				: FORMER_CLASS_NAMES_SINCE_NAMED_TIMER_EVENT).get(savedName);
+		return current != null ? current : savedName;
+	}
+
 	private static String currentClassName(final String savedName) {
 		final String current = FORMER_CLASS_NAMES.get(savedName);
 		return current != null ? current : savedName;
@@ -1204,6 +1299,45 @@ public final class SavedObjectGraph {
 	}
 
 	private static final java.util.regex.Pattern ANONYMOUS_NAME = java.util.regex.Pattern.compile(".*\\$\\d+(\\$.*)?");
+
+	/** A field that moved from the saved class up into one of its superclasses, still unfilled; else null. */
+	private static Field movedUp(final Class<?> type, final String savedClass, final String name,
+			final Map<String, Field> current) {
+		boolean above = false;
+		for (Class<?> declaring = type; declaring != null; declaring = declaring.getSuperclass()) {
+			if (above) {
+				final Field field = current.get(declaring.getName() + "#" + name);
+				if (field != null) {
+					return field;
+				}
+			}
+			else if (declaring.getName().equals(savedClass)) {
+				above = true;
+			}
+		}
+		return null;
+	}
+
+	/** The {@link SavedComponent} field of the saved class whose part now has a field of this name; else null. */
+	private static Field componentHolding(final Class<?> type, final String savedClass, final String name) {
+		for (final Field field : fieldsOf(type)) {
+			if ((field.getAnnotation(SavedComponent.class) != null)
+					&& field.getDeclaringClass().getName().equals(savedClass)
+					&& (fieldNamed(field.getType(), name) != null)) {
+				return field;
+			}
+		}
+		return null;
+	}
+
+	private static Field fieldNamed(final Class<?> type, final String name) {
+		for (final Field field : fieldsOf(type)) {
+			if (field.getName().equals(name)) {
+				return field;
+			}
+		}
+		return null;
+	}
 
 	/** A primitive must stay the same primitive; a reference must still take what the old type held. */
 	private static void checkTypeFits(final Field field, final String savedTypeName, final Class<?> savedPrimitive)

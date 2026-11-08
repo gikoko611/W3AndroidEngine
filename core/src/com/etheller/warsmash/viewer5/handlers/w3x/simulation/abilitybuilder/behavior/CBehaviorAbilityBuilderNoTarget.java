@@ -3,7 +3,6 @@ package com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilitybuilder.beh
 import java.util.EnumSet;
 import java.util.Map;
 
-import com.etheller.warsmash.util.WarsmashConstants;
 import com.etheller.warsmash.viewer5.handlers.w3x.SequenceUtils;
 import com.etheller.warsmash.viewer5.handlers.w3x.AnimationTokens.PrimaryTag;
 import com.etheller.warsmash.viewer5.handlers.w3x.AnimationTokens.SecondaryTag;
@@ -17,6 +16,8 @@ import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilitybuilder.core
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.behaviors.CBehavior;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.behaviors.CBehaviorCategory;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.behaviors.CBehaviorVisitor;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.timers.CExactExpiry;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.timers.CTimer;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.trigger.JassGameEventsWar3;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.util.BooleanAbilityActivationReceiver;
 
@@ -28,6 +29,9 @@ public class CBehaviorAbilityBuilderNoTarget implements ABBehavior {
 	private int castTimeEndTick = 0;
 	private int castPointTicks = 0;
 	private int backswingTicks = 0;
+	private final CExactExpiry castPoint = new CExactExpiry();
+	/** Null in games saved before the backswing ended at its exact time; those end on whole steps. */
+	private CExactExpiry backswing;
 	private boolean doneCastTime = false;
 	private boolean doneEffect = false;
 	private boolean channeling = false;
@@ -84,11 +88,11 @@ public class CBehaviorAbilityBuilderNoTarget implements ABBehavior {
 		this.doneEffect = false;
 		this.castStartTick = 0;
 		this.castTimeEndTick = this.ability.ignoreCastTime() ? 0
-				: (int) (this.ability.getCastTime() / WarsmashConstants.SIMULATION_STEP_TIME);
+				: CTimer.wholeSteps(this.ability.getCastTime());
 		this.castPointTicks = this.castTimeEndTick
-				+ (int) (this.unit.getUnitType().getCastPoint() / WarsmashConstants.SIMULATION_STEP_TIME);
+				+ CTimer.wholeSteps(this.unit.getUnitType().getCastPoint());
 		this.backswingTicks = this.castPointTicks
-				+ (int) (this.unit.getUnitType().getCastBackswingPoint() / WarsmashConstants.SIMULATION_STEP_TIME);
+				+ CTimer.wholeSteps(this.unit.getUnitType().getCastBackswingPoint());
 		this.localStore.put(ABLocalStoreKeys.CHANNELING, false);
 		this.issuingPlayerIndex = this.unit.getPlayerIndex();
 		this.orderId = this.ability.getBaseOrderId();
@@ -106,11 +110,11 @@ public class CBehaviorAbilityBuilderNoTarget implements ABBehavior {
 		this.doneEffect = false;
 		this.castStartTick = 0;
 		this.castTimeEndTick = this.ability.ignoreCastTime() ? 0
-				: (int) (this.ability.getCastTime() / WarsmashConstants.SIMULATION_STEP_TIME);
+				: CTimer.wholeSteps(this.ability.getCastTime());
 		this.castPointTicks = this.castTimeEndTick
-				+ (int) (this.unit.getUnitType().getCastPoint() / WarsmashConstants.SIMULATION_STEP_TIME);
+				+ CTimer.wholeSteps(this.unit.getUnitType().getCastPoint());
 		this.backswingTicks = this.castPointTicks
-				+ (int) (this.unit.getUnitType().getCastBackswingPoint() / WarsmashConstants.SIMULATION_STEP_TIME);
+				+ CTimer.wholeSteps(this.unit.getUnitType().getCastBackswingPoint());
 		this.localStore.put(ABLocalStoreKeys.CHANNELING, false);
 		this.issuingPlayerIndex = issuingPlayerIndex;
 		this.orderId = orderId;
@@ -190,29 +194,80 @@ public class CBehaviorAbilityBuilderNoTarget implements ABBehavior {
 					this.unit.getUnitAnimationListener().queueAnimation(PrimaryTag.STAND, SequenceUtils.EMPTY, true);
 				}
 				this.doneCastTime = true;
+				this.castPoint.start(game, this.unit.getUnitType().getCastPoint());
+				startBackswing(game);
 			}
 			if (this.channeling) {
 				this.unit.getUnitAnimationListener().playAnimation(false, this.ability.getCastingPrimaryTag(),
 						this.channelTags, 1.0f, true);
 			}
-			if ((ticksSinceCast >= castPointTicks)) {
-				CBehavior beh = tryDoEffect(game, wasChanneling);
-				if (beh != null) {
-					cleanupInputs();
-					return beh;
-				}
-				CBehavior newBehavior = (CBehavior) localStore.get(ABLocalStoreKeys.NEWBEHAVIOR);
-				if (newBehavior != null) {
-					localStore.remove(ABLocalStoreKeys.NEWBEHAVIOR);
-					return newBehavior;
+			if (this.doneCastTime
+					&& (this.doneEffect || this.castPoint.check(game, this::effectAtCastPoint))) {
+				final CBehavior next = effectAtPoint(game, wasChanneling);
+				if (next != null) {
+					return next;
 				}
 			}
-			if ((ticksSinceCast >= backswingTicks) && !this.channeling) {
+			if (this.doneEffect && !this.channeling && backswingOver(game, ticksSinceCast)) {
 				cleanupInputs();
 				return this.unit.pollNextOrderBehavior(game);
 			}
 		}
 		return this;
+	}
+
+	/**
+	 * The backswing follows the cast point (1.29: the cast ends castbsw after the effect, at its exact time and not on
+	 * a step).
+	 */
+	private void startBackswing(final CSimulation game) {
+		if (this.backswing == null) {
+			this.backswing = new CExactExpiry();
+		}
+		this.backswing.start(game,
+				this.unit.getUnitType().getCastPoint() + this.unit.getUnitType().getCastBackswingPoint());
+	}
+
+	private boolean backswingOver(final CSimulation game, final int ticksSinceCast) {
+		if (this.backswing == null) {
+			return ticksSinceCast >= this.backswingTicks;
+		}
+		return this.backswing.check(game, this::endBackswingInStep);
+	}
+
+	private void endBackswingInStep(final CSimulation game) {
+		if (!this.doneEffect || this.channeling || (this.unit.getCurrentBehavior() != this) || this.unit.isDead()) {
+			return;
+		}
+		cleanupInputs();
+		this.unit.beginBehavior(game, this.unit.pollNextOrderBehavior(game));
+	}
+
+	/** Past the cast point: the effect, then a channel tick; a behavior to switch to, or null. */
+	private CBehavior effectAtPoint(final CSimulation game, final boolean wasChanneling) {
+		CBehavior beh = tryDoEffect(game, wasChanneling);
+		if (beh != null) {
+			cleanupInputs();
+			return beh;
+		}
+		CBehavior newBehavior = (CBehavior) localStore.get(ABLocalStoreKeys.NEWBEHAVIOR);
+		if (newBehavior != null) {
+			localStore.remove(ABLocalStoreKeys.NEWBEHAVIOR);
+			return newBehavior;
+		}
+		return null;
+	}
+
+	/** A cast point inside a step takes effect at its exact time (1.29), not on a step. */
+	private void effectAtCastPoint(final CSimulation game) {
+		if (!this.doneCastTime || this.doneEffect || (this.unit.getCurrentBehavior() != this)
+				|| this.unit.isDead()) {
+			return;
+		}
+		final CBehavior next = effectAtPoint(game, this.channeling);
+		if ((next != null) && (next != this)) {
+			this.unit.beginBehavior(game, next);
+		}
 	}
 
 	private CBehavior tryDoEffect(CSimulation game, boolean wasChanneling) {
@@ -286,6 +341,9 @@ public class CBehaviorAbilityBuilderNoTarget implements ABBehavior {
 
 	@Override
 	public void end(final CSimulation game, boolean interrupted) {
+		if (this.backswing != null) {
+			this.backswing.cancel(game);
+		}
 		checkEndChannel(game, interrupted);
 		Boolean preventEndEvents = (Boolean) this.localStore.get(ABLocalStoreKeys.PREVENTENDEVENTS + this.castId);
 		if (preventEndEvents == null || !preventEndEvents) {

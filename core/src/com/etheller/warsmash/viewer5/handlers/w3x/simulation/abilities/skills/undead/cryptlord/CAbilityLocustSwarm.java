@@ -10,7 +10,6 @@ import java.util.Random;
 
 import com.etheller.warsmash.units.GameObject;
 import com.etheller.warsmash.util.War3ID;
-import com.etheller.warsmash.util.WarsmashConstants;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CSimulation;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CUnit;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.skills.CAbilityNoTargetSpellBase;
@@ -21,6 +20,7 @@ import com.etheller.warsmash.viewer5.handlers.w3x.simulation.combat.attacks.CUni
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.combat.attacks.listeners.CUnitAttackPostDamageListener;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.combat.attacks.replacement.CUnitPriorityLoopData;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.orders.OrderIds;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.timers.CTimer;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.trigger.enumtypes.CEffectType;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.util.SimulationRenderComponent;
 
@@ -230,7 +230,7 @@ public class CAbilityLocustSwarm extends CAbilityNoTargetSpellBase {
 	}
 
 	private static int ticks(final float seconds) {
-		return (int) StrictMath.ceil(seconds / WarsmashConstants.SIMULATION_STEP_TIME);
+		return CTimer.ceilSteps(seconds);
 	}
 
 	private enum LocustState {

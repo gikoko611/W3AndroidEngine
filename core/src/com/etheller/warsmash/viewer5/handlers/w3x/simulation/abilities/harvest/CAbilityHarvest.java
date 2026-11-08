@@ -25,6 +25,7 @@ import com.etheller.warsmash.viewer5.handlers.w3x.simulation.combat.CWeaponType;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.combat.attacks.CUnitAttack;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.combat.attacks.CUnitAttackNormal;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.orders.OrderIds;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.timers.CTimer;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.unit.NonStackingStatBuff;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.unit.NonStackingStatBuffType;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.util.AbilityActivationReceiver;
@@ -105,7 +106,7 @@ public class CAbilityHarvest extends AbstractGenericSingleIconActiveAbility {
 		if ((this.mineExitTick < 0) && (this.mineSpeedBuff == null)) {
 			return;
 		}
-		final int resetTicks = (int) (MINE_SPEED_IDLE_RESET / WarsmashConstants.SIMULATION_STEP_TIME);
+		final int resetTicks = CTimer.wholeSteps(MINE_SPEED_IDLE_RESET);
 		if (skipped > resetTicks) {
 			resetMineSpeed(game, unit);
 			return;

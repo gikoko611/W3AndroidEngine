@@ -98,6 +98,13 @@ public class WarsmashClientParser implements OrderedUdpClientListener {
 					this.listener.issueGuiPlayerEvent(playerIndex, eventId);
 					break;
 				}
+				case ServerToClientProtocol.ISSUE_PLAYER_COMMAND: {
+					final int playerIndex = buffer.getInt();
+					final byte[] command = new byte[buffer.getInt()];
+					buffer.get(command);
+					this.listener.issuePlayerCommand(playerIndex, command);
+					break;
+				}
 				case ServerToClientProtocol.FINISHED_TURN: {
 					final int gameTurnTick = buffer.getInt();
 					this.listener.finishedTurn(gameTurnTick);

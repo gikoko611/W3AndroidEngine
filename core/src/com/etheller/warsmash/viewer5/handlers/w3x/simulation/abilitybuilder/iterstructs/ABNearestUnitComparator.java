@@ -4,7 +4,7 @@ import java.util.Comparator;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CUnit;
 
 public class ABNearestUnitComparator implements Comparator<CUnit> {
-	public static ABNearestUnitComparator INSTANCE = new ABNearestUnitComparator();
+	public static final ABNearestUnitComparator INSTANCE = new ABNearestUnitComparator();
 
 	@Override
 	public int compare(CUnit o1, CUnit o2) {

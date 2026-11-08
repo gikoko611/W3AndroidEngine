@@ -2,7 +2,6 @@ package com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.skills.o
 
 import com.badlogic.gdx.math.Rectangle;
 import com.etheller.warsmash.util.War3ID;
-import com.etheller.warsmash.util.WarsmashConstants;
 import com.etheller.warsmash.viewer5.handlers.w3x.AnimationTokens.SecondaryTag;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CSimulation;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CUnit;
@@ -14,6 +13,7 @@ import com.etheller.warsmash.viewer5.handlers.w3x.simulation.behaviors.CBehavior
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.combat.CAttackType;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.combat.CDamageFlags;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.combat.CSpellDamageFlags;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.timers.CTimer;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.trigger.enumtypes.CDamageType;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.trigger.enumtypes.CWeaponSoundTypeJass;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.unit.CUnitTypeJass;
@@ -45,7 +45,7 @@ public class CBuffWhirlWindCaster extends CBuffTimed {
 		unit.addStateModBuff(this.disableAttack);
 		// Measured: the first pulse lands one interval after the order; the effect itself runs a tick after it.
 		this.nextDamageTick = (game.getGameTurnTick()
-				+ (int) (this.abilityImmolation.getDamageInterval() / WarsmashConstants.SIMULATION_STEP_TIME)) - 1;
+				+ CTimer.wholeSteps(this.abilityImmolation.getDamageInterval())) - 1;
 	}
 
 	@Override
@@ -61,8 +61,7 @@ public class CBuffWhirlWindCaster extends CBuffTimed {
 		super.onTick(game, caster);
 		final int currentTick = game.getGameTurnTick();
 		if (currentTick >= this.nextDamageTick) {
-			final int delayTicks = (int) (this.abilityImmolation.getDamageInterval()
-					/ WarsmashConstants.SIMULATION_STEP_TIME);
+			final int delayTicks = CTimer.wholeSteps(this.abilityImmolation.getDamageInterval());
 			final float areaOfEffect = CBuffWhirlWindCaster.this.abilityImmolation.getAreaOfEffect();
 			this.nextDamageTick = currentTick + delayTicks;
 			// Measured: a paused unit takes only the first pulse; its buffs do not tick while paused.

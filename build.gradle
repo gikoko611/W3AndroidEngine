@@ -6,12 +6,11 @@ buildscript {
 		}
         mavenCentral()
         gradlePluginPortal()
-        maven { url "https://oss.sonatype.org/content/repositories/snapshots/" }
-        maven { url "https://maven.nikr.net/" }
+        maven { url = "https://maven.nikr.net/" }
         google()
     }
     dependencies {
-        classpath "com.android.tools.build:gradle:8.5.2"
+        classpath "com.android.tools.build:gradle:9.5.1"
     }
 }
 
@@ -22,9 +21,12 @@ allprojects {
     version = '1.0'
     ext {
         appName = "warsmash"
-        gdxVersion = '1.12.1'
-        antlrVersion = '4.7'
-        xstreamVersion = '1.4.19'
+        gdxVersion = '1.14.2'
+        antlrVersion = '4.13.2'
+        xstreamVersion = '1.4.21'
+        guavaVersion = '33.8.0-jre'
+        commonsCompressVersion = '1.28.0'
+        commonsIoVersion = '2.22.0'
     }
 
     repositories {
@@ -32,10 +34,8 @@ allprojects {
         mavenCentral()
         google()
         gradlePluginPortal()
-        maven { url "https://oss.sonatype.org/content/repositories/snapshots/" }
-        maven { url "https://oss.sonatype.org/content/repositories/releases/" }
-        maven { url "https://maven.nikr.net/" }
-        maven { url "https://jitpack.io" }
+        maven { url = "https://maven.nikr.net/" }
+        maven { url = "https://jitpack.io" }
     }
 }
 
@@ -46,7 +46,7 @@ project(":server") {
     dependencies {
         implementation project(":shared")
         api "com.thoughtworks.xstream:xstream:$xstreamVersion"
-        api "commons-codec:commons-codec:1.9"
+        api "commons-codec:commons-codec:1.23.0"
     }
 }
 
@@ -59,9 +59,14 @@ project(":desktop") {
         api "com.badlogicgames.gdx:gdx-platform:$gdxVersion:natives-desktop"
         api "com.badlogicgames.gdx:gdx-box2d-platform:$gdxVersion:natives-desktop"
         api "com.badlogicgames.gdx:gdx-freetype-platform:$gdxVersion:natives-desktop"
-        api "com.google.guava:guava:23.5-jre"
-        api "org.apache.commons:commons-compress:1.20"
+        api "com.google.guava:guava:$guavaVersion"
+        api "org.apache.commons:commons-compress:$commonsCompressVersion"
+        api "commons-io:commons-io:$commonsIoVersion"
         api "net.nikr:dds:1.0.0"
+        implementation "org.bytedeco:ffmpeg:8.1.2-1.5.14"
+        // The decoder's native libraries only for Windows x64; elsewhere the movies are skipped.
+        runtimeOnly "org.bytedeco:ffmpeg:8.1.2-1.5.14:windows-x86_64"
+        runtimeOnly "org.bytedeco:javacpp:1.5.14:windows-x86_64"
     }
 }
 
@@ -75,8 +80,9 @@ project(":core") {
         api "com.badlogicgames.gdx:gdx:$gdxVersion"
         api "com.badlogicgames.gdx:gdx-box2d:$gdxVersion"
         api "com.badlogicgames.gdx:gdx-freetype:$gdxVersion"
-        api "com.google.guava:guava:23.5-jre"
-        api "org.apache.commons:commons-compress:1.20"
+        api "com.google.guava:guava:$guavaVersion"
+        api "org.apache.commons:commons-compress:$commonsCompressVersion"
+        api "commons-io:commons-io:$commonsIoVersion"
         api "net.nikr:dds:1.0.0"
         api files(fileTree(dir:'../jars', includes: ['*.jar']))
     }

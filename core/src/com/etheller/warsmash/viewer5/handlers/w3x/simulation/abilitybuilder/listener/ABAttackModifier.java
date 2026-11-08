@@ -24,6 +24,7 @@ public class ABAttackModifier implements CUnitAttackModifier {
 
 	private Map<String, Object> localStore;
 	private int castId = Integer.MAX_VALUE;
+	private int nextAttackInstanceId = Integer.MAX_VALUE;
 	private boolean useCastId;
 
 	public ABAttackModifier(Map<String, Object> localStore, int castId, ABIntegerCallback priority,
@@ -41,11 +42,26 @@ public class ABAttackModifier implements CUnitAttackModifier {
 		}
 	}
 
-	@Override
-	public int getPriority(CSimulation simulation, CUnit source, AbilityTarget target, CUnitAttack attack) {
-		if (!this.useCastId) {
-			this.castId--;
+	/**
+	 * Without a cast id each attack gets its own instance id, counting down from the top so it never meets the
+	 * ability's cast ids, and keeps it from the swing start to the hit.
+	 */
+	private void selectAttackInstance(final CUnitAttackSettings settings) {
+		if (this.useCastId || (settings == null)) {
+			return;
 		}
+		int id = settings.getInstanceId(this);
+		if (id == 0) {
+			id = this.nextAttackInstanceId--;
+			settings.setInstanceId(this, id);
+		}
+		this.castId = id;
+	}
+
+	@Override
+	public int getPriority(CSimulation simulation, CUnit source, AbilityTarget target, CUnitAttack attack,
+			CUnitAttackSettings settings) {
+		selectAttackInstance(settings);
 		localStore.put(ABLocalStoreKeys.ATTACKINGUNIT + this.castId, source);
 		localStore.put(ABLocalStoreKeys.ATTACKTARGET + this.castId, target);
 		localStore.put(ABLocalStoreKeys.THEATTACK + this.castId, attack);
@@ -58,10 +74,8 @@ public class ABAttackModifier implements CUnitAttackModifier {
 
 	@Override
 	public boolean checkPreLaunchApplication(CSimulation simulation, CUnit source, AbilityTarget target,
-			CUnitAttack attack) {
-		if (!this.useCastId) {
-			this.castId--;
-		}
+			CUnitAttack attack, CUnitAttackSettings settings) {
+		selectAttackInstance(settings);
 		boolean ret = true;
 		if (this.preLaunchCondition != null) {
 			localStore.put(ABLocalStoreKeys.ATTACKINGUNIT + this.castId, source);
@@ -78,6 +92,7 @@ public class ABAttackModifier implements CUnitAttackModifier {
 	@Override
 	public void applyPreLaunchModification(CSimulation simulation, CUnit source, AbilityTarget target,
 			CUnitAttack attack, CUnitAttackSettings settings, CUnitPriorityLoopData loop) {
+		selectAttackInstance(settings);
 		if (this.preLaunchModification != null) {
 			localStore.put(ABLocalStoreKeys.ATTACKINGUNIT + this.castId, source);
 			localStore.put(ABLocalStoreKeys.ATTACKTARGET + this.castId, target);
@@ -97,10 +112,9 @@ public class ABAttackModifier implements CUnitAttackModifier {
 	}
 
 	@Override
-	public boolean checkApplication(CSimulation simulation, CUnit source, AbilityTarget target, CUnitAttack attack) {
-		if (!this.useCastId) {
-			this.castId--;
-		}
+	public boolean checkApplication(CSimulation simulation, CUnit source, AbilityTarget target, CUnitAttack attack,
+			CUnitAttackSettings settings) {
+		selectAttackInstance(settings);
 		boolean ret = true;
 		if (this.condition != null) {
 			localStore.put(ABLocalStoreKeys.ATTACKINGUNIT + this.castId, source);
@@ -117,6 +131,7 @@ public class ABAttackModifier implements CUnitAttackModifier {
 	@Override
 	public void applyModification(CSimulation simulation, CUnit source, AbilityTarget target, CUnitAttack attack,
 			CUnitAttackSettings settings, CUnitPriorityLoopData loop) {
+		selectAttackInstance(settings);
 		if (this.modification != null) {
 			localStore.put(ABLocalStoreKeys.ATTACKINGUNIT + this.castId, source);
 			localStore.put(ABLocalStoreKeys.ATTACKTARGET + this.castId, target);

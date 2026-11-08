@@ -9,8 +9,9 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * Campaign state scripts change as missions end: what the campaign menu shows and which map comes next. It is kept in
- * the player's profile and written as it changes.
+ * Campaign state scripts change as missions end: what the campaign menu shows. It is the player's profile file, kept
+ * in memory and written as it changes, the same for every game of the profile; the map that comes next is the ending
+ * game's own ({@link CGameExit}).
  */
 public final class CCampaignProgress {
 	/**
@@ -60,8 +61,6 @@ public final class CCampaignProgress {
 
 	private static final Map<CampaignList, Progress> PROGRESS = new EnumMap<>(CampaignList.class);
 	private static CampaignList campaignList = CampaignList.COMBINED;
-	private static boolean campaignSelectScreenForced;
-	private static String pendingLevel;
 	private static final String STORE_FILE = "Campaigns.w3v";
 	private static final int STORE_VERSION = 3;
 	private static boolean loaded;
@@ -163,6 +162,10 @@ public final class CCampaignProgress {
 
 		public int getMenuCampaignIndex() {
 			return this.progress.menuCampaignIndex;
+		}
+
+		public boolean isOpeningCinematicAvailable(final int campaign) {
+			return this.progress.openingCinematics.contains(campaign);
 		}
 
 		/** Scripts open a campaign's ending cinematic when its last mission is won. */
@@ -275,41 +278,5 @@ public final class CCampaignProgress {
 
 	public static int getClassicMenuCampaignIndex() {
 		return current().classicMenuCampaignIndex;
-	}
-
-	public static void forceCampaignSelectScreen() {
-		campaignSelectScreenForced = true;
-	}
-
-	public static boolean consumeCampaignSelectScreenForced() {
-		final boolean forced = campaignSelectScreenForced;
-		campaignSelectScreenForced = false;
-		return forced;
-	}
-
-	private static String pendingComputerSlots;
-
-	public static void setPendingLevel(final String levelFile) {
-		pendingLevel = levelFile;
-	}
-
-	public static void setPendingComputerSlots(final String computerSlots) {
-		pendingComputerSlots = computerSlots;
-	}
-
-	public static String consumePendingComputerSlots() {
-		final String slots = pendingComputerSlots;
-		pendingComputerSlots = null;
-		return slots;
-	}
-
-	public static boolean hasPendingLevel() {
-		return pendingLevel != null;
-	}
-
-	public static String consumePendingLevel() {
-		final String level = pendingLevel;
-		pendingLevel = null;
-		return level;
 	}
 }

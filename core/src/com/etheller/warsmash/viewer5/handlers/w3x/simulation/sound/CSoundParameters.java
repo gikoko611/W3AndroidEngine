@@ -46,7 +46,7 @@ final class CSoundParameters {
 	}
 
 	float scaledVolume(final float fallback, final AudioContext audioContext) {
-		return unmixedVolume(fallback, audioContext) * CSoundMixer.channelScale(this.channel);
+		return unmixedVolume(fallback, audioContext) * CSoundMixer.audible().channelScale(this.channel);
 	}
 
 	float unmixedVolume(final float fallback, final AudioContext audioContext) {
@@ -70,7 +70,7 @@ final class CSoundParameters {
 		}
 		final float cosine = ((toListenerX * this.coneX) + (toListenerY * this.coneY) + (toListenerZ * this.coneZ))
 				/ (distance * length);
-		final float angle = (float) Math.toDegrees(Math.acos(Math.max(-1f, Math.min(1f, cosine)))) * 2;
+		final float angle = (float) StrictMath.toDegrees(StrictMath.acos(Math.max(-1f, Math.min(1f, cosine)))) * 2;
 		if (angle <= this.coneInside) {
 			return 1f;
 		}

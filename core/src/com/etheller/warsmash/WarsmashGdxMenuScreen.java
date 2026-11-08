@@ -1,5 +1,6 @@
 package com.etheller.warsmash;
 
+import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
@@ -8,9 +9,11 @@ import java.util.EnumSet;
 import java.util.function.Consumer;
 
 import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.Input;
 import com.badlogic.gdx.InputProcessor;
 import com.badlogic.gdx.Screen;
+import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.GL30;
 import com.badlogic.gdx.graphics.OrthographicCamera;
@@ -20,16 +23,19 @@ import com.badlogic.gdx.math.Matrix4;
 import com.badlogic.gdx.math.Quaternion;
 import com.badlogic.gdx.math.Rectangle;
 import com.badlogic.gdx.math.Vector3;
+import com.badlogic.gdx.utils.BufferUtils;
 import com.badlogic.gdx.utils.viewport.ExtendViewport;
 import com.badlogic.gdx.utils.viewport.FitViewport;
 import com.badlogic.gdx.utils.viewport.Viewport;
 import com.etheller.warsmash.input.touch.SliderHost;
+import com.etheller.warsmash.datasources.BorrowedDataSource;
 import com.etheller.warsmash.datasources.DataSource;
 import com.etheller.warsmash.networking.uberserver.GamingNetworkConnectionImpl;
 import com.etheller.warsmash.parsers.fdf.GameUI;
 import com.etheller.warsmash.parsers.jass.Jass2.RootFrameListener;
 import com.etheller.warsmash.units.DataTable;
 import com.etheller.warsmash.units.Element;
+import com.etheller.warsmash.util.SessionResources;
 import com.etheller.warsmash.util.WarsmashConstants;
 import com.etheller.warsmash.util.WarsmashUtils;
 import com.etheller.warsmash.viewer5.Camera;
@@ -60,6 +66,10 @@ public class WarsmashGdxMenuScreen implements InputProcessor, Screen, SingleMode
 	private static final String MAPS_DOWNLOAD_DEFAULT = "Maps/Download";
 	private static final boolean ENABLE_AUDIO = true;
 	private DataSource codebase;
+	/** Game data the caller opened and closes; the menu and its maps read it instead of opening their own. */
+	private DataSource gameData;
+	/** The menu's own textures and sounds; a map on top of it keeps its own. */
+	private SessionResources.Scope ownResources;
 	private MdxViewer viewer;
 	private MdxModel model;
 	private CameraManager cameraManager;
@@ -87,13 +97,19 @@ public class WarsmashGdxMenuScreen implements InputProcessor, Screen, SingleMode
 	private boolean startupFrameShown;
 	private Consumer<MenuUI> pendingStart;
 	private boolean waitForTap;
+	private boolean reforgedLoadingScreens;
+	private int reforgedPortrait;
 	private GameEndListener gameEndListener;
 	private String startupMap;
 	private String startupSlots;
+	private String startupProfile;
 	private boolean launcherMode;
 	/** The menu shows the startup map's own loading screen while the rest of it is built. */
 	private boolean previewing;
 	private boolean previewTried;
+	private int vao;
+	/** The GL the vertex array was made with, which leaves deletes alone once its context is lost. */
+	private GL30 vaoGl;
 
 	/**
 	 * Told instead of the menu coming back when a game ends, by a launcher that shows its own menu (the menu is still
@@ -101,7 +117,7 @@ public class WarsmashGdxMenuScreen implements InputProcessor, Screen, SingleMode
 	 */
 	public interface GameEndListener {
 		/**
-		 * @param result      victory, defeat, tie or quit
+		 * @param result      victory, defeat, tie or quit; error when the map could not be started
 		 * @param mapFile     the map that was played last
 		 * @param loadFailure why a saved game could not be loaded, or null
 		 * @param race        the race id the local player played (a random race as drawn), 0 when unknown
@@ -213,17 +229,21 @@ public class WarsmashGdxMenuScreen implements InputProcessor, Screen, SingleMode
 		tempByteBuffer.order(ByteOrder.LITTLE_ENDIAN);
 		final IntBuffer temp = tempByteBuffer.asIntBuffer();
 //
-		Gdx.gl30.glGenVertexArrays(1, temp);
-		WarsmashGdxGame.VAO = temp.get(0);
+		this.vaoGl = Gdx.gl30;
+		this.vaoGl.glGenVertexArrays(1, temp);
+		this.vao = temp.get(0);
+		WarsmashGdxGame.VAO = this.vao;
 
 		Gdx.gl30.glBindVertexArray(WarsmashGdxGame.VAO);
 
 		final String renderer = Gdx.gl.glGetString(GL20.GL_RENDERER);
 		System.err.println("Renderer: " + renderer);
 
-		this.codebase = WarsmashGdxMapScreen.parseDataSources(this.warsmashIni);
+		this.ownResources = SessionResources.begin();
+		this.codebase = this.gameData != null ? new BorrowedDataSource(this.gameData)
+				: WarsmashGdxMapScreen.parseDataSources(this.warsmashIni);
 		if (this.startupMap == null) {
-			this.startupView.loadGameTextures(this.codebase);
+			this.startupView.loadGameTextures(this.codebase, this.reforgedLoadingScreens);
 		}
 	}
 
@@ -333,6 +353,13 @@ public class WarsmashGdxMenuScreen implements InputProcessor, Screen, SingleMode
 				}, new GamingNetworkConnectionImpl(server), mapDownloadDir);
 		this.menuUI.setWaitForTap(this.waitForTap);
 		this.menuUI.setLauncherMode(this.launcherMode);
+		if (this.gameData != null) {
+			this.menuUI.setGameData(this.codebase);
+		}
+		this.menuUI.setStartupProfile(this.startupProfile);
+		this.menuUI.setMapLoadFailureListener(this::mapLoadFailed);
+		this.menuUI.setReforgedLoadingScreens(this.reforgedLoadingScreens);
+		this.menuUI.setReforgedPortrait(this.reforgedPortrait);
 		final ModelInstance libgdxContentInstance = new LibGDXContentLayerModel(null, this.viewer, "",
 				PathSolver.DEFAULT, "").addInstance();
 		libgdxContentInstance.setLocation(0f, 0f, 0.5f);
@@ -714,6 +741,10 @@ public class WarsmashGdxMenuScreen implements InputProcessor, Screen, SingleMode
 		return (this.menuUI != null) && this.menuUI.isOverSlider(screenX, screenY);
 	}
 
+	/**
+	 * The end of the menu: launchers make a new one for every game in the same GL context, so its scene, batch and
+	 * textures go with it, and its game data is closed.
+	 */
 	@Override
 	public void dispose() {
 		if (this.startupView != null) {
@@ -722,6 +753,37 @@ public class WarsmashGdxMenuScreen implements InputProcessor, Screen, SingleMode
 		}
 		if (this.menuUI != null) {
 			this.menuUI.dispose();
+			this.menuUI = null;
+		}
+		if (this.viewer != null) {
+			this.viewer.dispose();
+			this.viewer = null;
+		}
+		if (this.batch != null) {
+			this.batch.dispose();
+			this.batch = null;
+		}
+		if (this.ownResources != null) {
+			this.ownResources.dispose();
+			this.ownResources = null;
+		}
+		if (this.vao != 0) {
+			final IntBuffer vaos = BufferUtils.newIntBuffer(1);
+			vaos.put(0, this.vao);
+			this.vaoGl.glDeleteVertexArrays(1, vaos);
+			if (WarsmashGdxGame.VAO == this.vao) {
+				WarsmashGdxGame.VAO = 0;
+			}
+			this.vao = 0;
+		}
+		if (this.codebase != null) {
+			try {
+				this.codebase.close();
+			}
+			catch (final IOException e) {
+				System.err.println("Could not close the menu's game data: " + e.getMessage());
+			}
+			this.codebase = null;
 		}
 	}
 
@@ -865,6 +927,11 @@ public class WarsmashGdxMenuScreen implements InputProcessor, Screen, SingleMode
 
 	public DataSource getCodebase() {
 		return this.codebase;
+	}
+
+	/** Game data already open, read by the menu and its maps and left open when they end; set before it is shown. */
+	public void setGameData(final DataSource gameData) {
+		this.gameData = gameData;
 	}
 
 	@Override
@@ -1072,10 +1139,37 @@ public class WarsmashGdxMenuScreen implements InputProcessor, Screen, SingleMode
 	 *                      played by the computer, or null
 	 */
 	public void startMap(final String finalFileToLoad, final String computerSlots) {
+		startMap(finalFileToLoad, computerSlots, null, false);
+	}
+
+	/**
+	 * @param savedGame a save of this map to put in place of its start, or null
+	 * @param byScript  whether the map's own LoadGame asked for the save
+	 */
+	public void startMap(final String finalFileToLoad, final String computerSlots, final FileHandle savedGame,
+			final boolean byScript) {
 		if (!this.loaded && (this.startupMap == null)) {
 			this.startupMap = finalFileToLoad;
 		}
-		whenLoaded(menu -> menu.startMap(finalFileToLoad, computerSlots));
+		whenLoaded(menu -> {
+			menu.setPendingLoad(savedGame, byScript);
+			// A launcher that shows its own menu gets the screen back instead of the engine's menu.
+			if (!menu.startMap(finalFileToLoad, computerSlots)) {
+				menu.setPendingLoad(null, false);
+				if (!mapLoadFailed(finalFileToLoad)) {
+					menu.showMapLoadError();
+				}
+			}
+		});
+	}
+
+	/** Plays a replay file once the menu is built. */
+	public void startReplay(final FileHandle file) {
+		whenLoaded(menu -> {
+			if (!menu.startReplay(file)) {
+				menu.showMapLoadError();
+			}
+		});
 	}
 
 	/** Runs a start of a game on the menu once the menu is built. */
@@ -1103,9 +1197,24 @@ public class WarsmashGdxMenuScreen implements InputProcessor, Screen, SingleMode
 		this.startupSlots = slots;
 	}
 
+	/** See {@link MenuUI#setStartupProfile(String)}; must be set before the menu is built. */
+	public void setStartupProfile(final String profile) {
+		this.startupProfile = profile;
+	}
+
 	/** See {@link MenuUI#setLauncherMode(boolean)}; must be set before the menu is built. */
 	public void setLauncherMode(final boolean launcherMode) {
 		this.launcherMode = launcherMode;
+	}
+
+	/** See {@link MenuUI#setReforgedLoadingScreens(boolean)}; must be set before the menu is built. */
+	public void setReforgedLoadingScreens(final boolean reforgedLoadingScreens) {
+		this.reforgedLoadingScreens = reforgedLoadingScreens;
+	}
+
+	/** See {@link MenuUI#setReforgedPortrait(int)}; must be set before the menu is built. */
+	public void setReforgedPortrait(final int reforgedPortrait) {
+		this.reforgedPortrait = reforgedPortrait;
 	}
 
 	/** See {@link MenuUI#setWaitForTap(boolean)}; may be set before the menu is built. */
@@ -1124,7 +1233,20 @@ public class WarsmashGdxMenuScreen implements InputProcessor, Screen, SingleMode
 		return this.gameEndListener;
 	}
 
-	public void onReturnFromGame() {
-		this.menuUI.onReturnFromGame();
+	/** A launcher showing its own menu hears of a map that cannot be loaded as of a game that ended in an error. */
+	private boolean mapLoadFailed(final String mapFile) {
+		if (this.gameEndListener == null) {
+			return false;
+		}
+		this.gameEndListener.gameEnded("error", mapFile, null, 0);
+		return true;
+	}
+
+	public void onReturnFromGame(final boolean forceCampaignSelect) {
+		this.menuUI.onReturnFromGame(forceCampaignSelect);
+	}
+
+	public void showMapLoadError() {
+		this.menuUI.showMapLoadError();
 	}
 }

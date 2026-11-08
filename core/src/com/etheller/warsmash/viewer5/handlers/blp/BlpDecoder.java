@@ -5,80 +5,199 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
 /**
- * Decodes the top mip level of a paletted BLP1 image into RGBA bytes, without
- * depending on java.awt or javax.imageio. JPEG content is not handled here.
+ * Decodes a BLP1 or BLP2 image (JPEG, paletted, DXT1/3/5 or plain BGRA content) into RGBA bytes, without depending
+ * on java.awt or javax.imageio: the largest stored mip level within a size limit, and the smaller stored levels below
+ * it when asked.
  */
 public final class BlpDecoder {
 	private static final int MAGIC_BLP1 = 0x31504C42; // "BLP1"
+	private static final int MAGIC_BLP2 = 0x32504C42; // "BLP2"
 	private static final int CONTENT_JPEG = 0;
-	private static final int HEADER_SIZE = 156;
+	private static final int CONTENT_DIRECT = 1;
+	private static final int BLP1_HEADER_SIZE = 156;
+	private static final int BLP2_HEADER_SIZE = 148;
 	private static final int PALETTE_SIZE = 256 * 4;
+	private static final int BLP2_PALETTE = 1;
+	private static final int BLP2_DXT = 2;
+	private static final int BLP2_BGRA = 3;
+	private static final int BLP2_ALPHA_DXT1 = 0;
+	private static final int BLP2_ALPHA_DXT3 = 1;
+	private static final int BLP2_ALPHA_DXT5 = 7;
 
-	private final int width;
-	private final int height;
-	private final ByteBuffer rgba;
+	private static final int MAX_LEVELS = 16;
 
-	private BlpDecoder(final int width, final int height, final ByteBuffer rgba) {
-		this.width = width;
-		this.height = height;
-		this.rgba = rgba;
+	private final MipLevels levels;
+
+	private BlpDecoder(final MipLevels levels) {
+		this.levels = levels;
 	}
 
 	public int getWidth() {
-		return this.width;
+		return this.levels.getWidth(0);
 	}
 
 	public int getHeight() {
-		return this.height;
+		return this.levels.getHeight(0);
 	}
 
 	/**
 	 * @return direct buffer of width * height RGBA pixels, rows from the top
 	 */
 	public ByteBuffer getRgba() {
-		return this.rgba;
+		return this.levels.getRgba(0);
 	}
 
-	public static boolean isPalettedBlp1(final ByteBuffer file) {
-		final ByteBuffer data = file.duplicate().order(ByteOrder.LITTLE_ENDIAN);
-		return (data.remaining() >= HEADER_SIZE) && (data.getInt(0) == MAGIC_BLP1)
-				&& (data.getInt(4) != CONTENT_JPEG);
-	}
-
-	public static boolean isJpegBlp1(final ByteBuffer file) {
-		final ByteBuffer data = file.duplicate().order(ByteOrder.LITTLE_ENDIAN);
-		return (data.remaining() >= HEADER_SIZE + 4) && (data.getInt(0) == MAGIC_BLP1)
-				&& (data.getInt(4) == CONTENT_JPEG);
+	/** The decoded levels, the largest first. */
+	public MipLevels getLevels() {
+		return this.levels;
 	}
 
 	/**
-	 * The top mip level of a JPEG BLP1 is its shared JPEG header followed by the mip
-	 * data; the four JPEG components hold blue, green, red and alpha.
+	 * @return whether decode reads this file: a BLP1, or a BLP2 with JPEG,
+	 *         paletted, DXT1/3/5 or BGRA content
 	 */
-	public static BlpDecoder decodeJpeg(final ByteBuffer file) throws IOException {
-		if (!isJpegBlp1(file)) {
-			throw new IOException("Not a JPEG BLP1 file");
+	public static boolean isBlp(final ByteBuffer file) {
+		final ByteBuffer data = file.duplicate().order(ByteOrder.LITTLE_ENDIAN);
+		final int magic = data.limit() >= 4 ? data.getInt(0) : 0;
+		if (magic == MAGIC_BLP1) {
+			return data.limit() >= BLP1_HEADER_SIZE;
+		}
+		if ((magic != MAGIC_BLP2) || (data.limit() < BLP2_HEADER_SIZE)) {
+			return false;
+		}
+		final int content = data.getInt(4);
+		if (content == CONTENT_JPEG) {
+			return true;
+		}
+		if (content != CONTENT_DIRECT) {
+			return false;
+		}
+		switch (data.get(8)) {
+		case BLP2_PALETTE:
+		case BLP2_BGRA:
+			return true;
+		case BLP2_DXT:
+			return dxtFormat(data.get(10)) != 0;
+		default:
+			return false;
+		}
+	}
+
+	/** The top level only, at its full size. */
+	public static BlpDecoder decode(final ByteBuffer file) throws IOException {
+		return decode(file, 0, false);
+	}
+
+	/**
+	 * @param maxSize the largest width and height to decode, 0 for no limit: the first stored level within it becomes
+	 *                the top level; a file without such a level keeps its smallest one
+	 * @param mips    whether the smaller stored levels are decoded too
+	 */
+	public static BlpDecoder decode(final ByteBuffer file, final int maxSize, final boolean mips) throws IOException {
+		if (!isBlp(file)) {
+			throw new IOException("Not a supported BLP file");
 		}
 		final ByteBuffer data = file.duplicate().order(ByteOrder.LITTLE_ENDIAN);
-		final int alphaBits = data.getInt(8);
+		final boolean blp1 = data.getInt(0) == MAGIC_BLP1;
+		final int headerSize = blp1 ? BLP1_HEADER_SIZE : BLP2_HEADER_SIZE;
 		final int width = data.getInt(12);
 		final int height = data.getInt(16);
-		final int mipOffset = data.getInt(28);
-		final int mipSize = data.getInt(28 + 64);
-		final int jpegHeaderSize = data.getInt(HEADER_SIZE);
-		if (((HEADER_SIZE + 4 + jpegHeaderSize) > data.limit()) || ((mipOffset + mipSize) > data.limit())) {
-			throw new IOException("Truncated JPEG BLP1 file");
+		if ((width <= 0) || (height <= 0) || (((long) width * height) > (1 << 24))) {
+			throw new IOException("Bad BLP dimensions " + width + "x" + height);
+		}
+		final boolean hasMips = blp1 ? data.getInt(24) != 0 : data.get(11) != 0;
+		// Only levels the file holds count: a chain may stop before one pixel, and a level cut short by the end of
+		// the file is used only as the top level.
+		int storedLevels = 1;
+		if (hasMips) {
+			final int fullChain = Math.min(MAX_LEVELS, MipLevels.levelCount(width, height));
+			while ((storedLevels < fullChain) && (mipOffset(data, headerSize, storedLevels) > 0)
+					&& (mipSize(data, headerSize, storedLevels) > 0) && ((mipOffset(data, headerSize, storedLevels)
+							+ (long) mipSize(data, headerSize, storedLevels)) <= data.limit())) {
+				storedLevels++;
+			}
+		}
+		final int first = MipLevels.firstWithin(width, height, maxSize, storedLevels);
+		final MipLevels levels = new MipLevels();
+		for (int level = first; level < (mips ? storedLevels : first + 1); level++) {
+			final int levelWidth = MipLevels.size(width, level);
+			final int levelHeight = MipLevels.size(height, level);
+			levels.add(levelWidth, levelHeight, decodeLevel(data, blp1, headerSize, levelWidth, levelHeight,
+					mipOffset(data, headerSize, level), mipSize(data, headerSize, level)));
+		}
+		return new BlpDecoder(levels);
+	}
+
+	private static int mipOffset(final ByteBuffer data, final int headerSize, final int level) {
+		return data.getInt((headerSize - 128) + (level * 4));
+	}
+
+	private static int mipSize(final ByteBuffer data, final int headerSize, final int level) {
+		return data.getInt((headerSize - 64) + (level * 4));
+	}
+
+	private static ByteBuffer decodeLevel(final ByteBuffer data, final boolean blp1, final int headerSize,
+			final int width, final int height, final int mipOffset, final int mipSize) throws IOException {
+		if (data.getInt(4) == CONTENT_JPEG) {
+			return decodeJpeg(data, headerSize, width, height, mipOffset, mipSize);
+		}
+		if (blp1) {
+			return decodePaletted(data, headerSize, width, height, mipOffset, data.getInt(8));
+		}
+		final int alphaDepth = data.get(9) & 0xFF;
+		switch (data.get(8)) {
+		case BLP2_PALETTE:
+			return decodePaletted(data, headerSize, width, height, mipOffset, alphaDepth);
+		case BLP2_DXT: {
+			final byte[] pixels = DdsDecoder.decodeBlocks(bytes(data, mipOffset, mipSize), width, height,
+					dxtFormat(data.get(10)));
+			if (alphaDepth == 0) {
+				// Without alpha bits the game uploads DXT1 as opaque RGB, where the
+				// transparent black of a three color block is plain black.
+				for (int i = 3; i < pixels.length; i += 4) {
+					pixels[i] = (byte) 0xFF;
+				}
+			}
+			return direct(pixels);
+		}
+		default: {
+			final byte[] pixels = bytes(data, mipOffset, width * height * 4);
+			for (int i = 0; i < pixels.length; i += 4) {
+				final byte blue = pixels[i];
+				pixels[i] = pixels[i + 2];
+				pixels[i + 2] = blue;
+				if (alphaDepth == 0) {
+					pixels[i + 3] = (byte) 0xFF;
+				}
+			}
+			return direct(pixels);
+		}
+		}
+	}
+
+	/**
+	 * A mip level of a JPEG BLP is its shared JPEG header followed by the level's
+	 * data; the four JPEG components hold blue, green, red and alpha. The alpha
+	 * component is used even when the header's alpha bits are 0, as the game does:
+	 * many retail images (the campaign loading screen emblems and markers) say 0
+	 * there and still carry their transparency in it.
+	 */
+	private static ByteBuffer decodeJpeg(final ByteBuffer data, final int headerSize, final int width,
+			final int height, final int mipOffset, final int mipSize) throws IOException {
+		final int jpegHeaderSize = data.getInt(headerSize);
+		if ((jpegHeaderSize < 0) || (mipSize < 0) || ((headerSize + 4 + jpegHeaderSize) > data.limit())
+				|| ((mipOffset + mipSize) > data.limit())) {
+			throw new IOException("Truncated JPEG BLP file");
 		}
 		final byte[] jpeg = new byte[jpegHeaderSize + mipSize];
-		data.position(HEADER_SIZE + 4);
+		data.position(headerSize + 4);
 		data.get(jpeg, 0, jpegHeaderSize);
 		data.position(mipOffset);
 		data.get(jpeg, jpegHeaderSize, mipSize);
 		final JpegDecoder image = JpegDecoder.decode(jpeg);
 		final byte[] components = image.getComponents();
 		final int componentCount = image.getComponentCount();
-		final int pixelCount = width * height;
-		final ByteBuffer rgba = ByteBuffer.allocateDirect(pixelCount * 4).order(ByteOrder.nativeOrder());
+		final ByteBuffer rgba = ByteBuffer.allocateDirect(width * height * 4).order(ByteOrder.nativeOrder());
 		for (int y = 0; y < height; y++) {
 			for (int x = 0; x < width; x++) {
 				if ((x < image.getWidth()) && (y < image.getHeight())) {
@@ -86,7 +205,7 @@ public final class BlpDecoder {
 					rgba.put(components[source + Math.min(2, componentCount - 1)]);
 					rgba.put(components[source + Math.min(1, componentCount - 1)]);
 					rgba.put(components[source]);
-					rgba.put(((componentCount > 3) && (alphaBits != 0)) ? components[source + 3] : (byte) 0xFF);
+					rgba.put(componentCount > 3 ? components[source + 3] : (byte) 0xFF);
 				}
 				else {
 					rgba.putInt(0);
@@ -94,49 +213,73 @@ public final class BlpDecoder {
 			}
 		}
 		rgba.position(0);
-		return new BlpDecoder(width, height, rgba);
+		return rgba;
 	}
 
-	public static BlpDecoder decode(final ByteBuffer file) throws IOException {
-		if (!isPalettedBlp1(file)) {
-			throw new IOException("Not a paletted BLP1 file");
+	private static ByteBuffer decodePaletted(final ByteBuffer data, final int paletteOffset, final int width,
+			final int height, final int mipOffset, final int alphaBits) throws IOException {
+		if ((paletteOffset + PALETTE_SIZE) > data.limit()) {
+			throw new IOException("Truncated BLP palette");
 		}
-		final ByteBuffer data = file.duplicate().order(ByteOrder.LITTLE_ENDIAN);
-		final int alphaBits = data.getInt(8);
-		final int width = data.getInt(12);
-		final int height = data.getInt(16);
-		final int mipOffset = data.getInt(28);
 		final int pixelCount = width * height;
-		if ((HEADER_SIZE + PALETTE_SIZE > data.limit()) || (mipOffset + pixelCount > data.limit())) {
-			throw new IOException("Truncated BLP1 file");
-		}
-
-		final ByteBuffer rgba = ByteBuffer.allocateDirect(pixelCount * 4).order(ByteOrder.nativeOrder());
-		final int alphaOffset = mipOffset + pixelCount;
+		final byte[] indices = bytes(data, mipOffset, pixelCount + (((pixelCount * alphaBits) + 7) / 8));
+		final byte[] pixels = new byte[pixelCount * 4];
 		for (int i = 0; i < pixelCount; i++) {
-			final int paletteEntry = HEADER_SIZE + ((data.get(mipOffset + i) & 0xFF) * 4);
-			rgba.put(data.get(paletteEntry + 2));
-			rgba.put(data.get(paletteEntry + 1));
-			rgba.put(data.get(paletteEntry));
-			rgba.put((byte) alpha(data, alphaOffset, alphaBits, i));
+			final int paletteEntry = paletteOffset + ((indices[i] & 0xFF) * 4);
+			pixels[i * 4] = data.get(paletteEntry + 2);
+			pixels[(i * 4) + 1] = data.get(paletteEntry + 1);
+			pixels[(i * 4) + 2] = data.get(paletteEntry);
+			pixels[(i * 4) + 3] = (byte) alpha(indices, pixelCount, alphaBits, i);
 		}
-		rgba.position(0);
-		return new BlpDecoder(width, height, rgba);
+		return direct(pixels);
 	}
 
-	private static int alpha(final ByteBuffer data, final int alphaOffset, final int alphaBits, final int pixel) {
+	private static int alpha(final byte[] data, final int alphaOffset, final int alphaBits, final int pixel) {
 		switch (alphaBits) {
 		case 8:
-			return data.get(alphaOffset + pixel) & 0xFF;
+			return data[alphaOffset + pixel] & 0xFF;
 		case 4: {
-			final int packed = data.get(alphaOffset + (pixel / 2)) & 0xFF;
+			final int packed = data[alphaOffset + (pixel / 2)] & 0xFF;
 			final int nibble = (pixel % 2) == 0 ? packed & 0xF : packed >>> 4;
 			return (nibble << 4) | nibble;
 		}
 		case 1:
-			return ((data.get(alphaOffset + (pixel / 8)) >>> (pixel % 8)) & 1) == 0 ? 0 : 0xFF;
+			return ((data[alphaOffset + (pixel / 8)] >>> (pixel % 8)) & 1) == 0 ? 0 : 0xFF;
 		default:
 			return 0xFF;
 		}
+	}
+
+	private static int dxtFormat(final int alphaType) {
+		switch (alphaType) {
+		case BLP2_ALPHA_DXT1:
+			return DdsDecoder.FOURCC_DXT1;
+		case BLP2_ALPHA_DXT3:
+			return DdsDecoder.FOURCC_DXT3;
+		case BLP2_ALPHA_DXT5:
+			return DdsDecoder.FOURCC_DXT5;
+		default:
+			return 0;
+		}
+	}
+
+	/**
+	 * A mip level cut short by the end of the file reads as zeros there, as a
+	 * truncated chunk does in the ImageIO plugin.
+	 */
+	private static byte[] bytes(final ByteBuffer data, final int offset, final int length) {
+		final byte[] out = new byte[Math.max(0, length)];
+		if ((offset >= 0) && (offset < data.limit())) {
+			data.position(offset);
+			data.get(out, 0, Math.min(out.length, data.limit() - offset));
+		}
+		return out;
+	}
+
+	private static ByteBuffer direct(final byte[] pixels) {
+		final ByteBuffer rgba = ByteBuffer.allocateDirect(pixels.length).order(ByteOrder.nativeOrder());
+		rgba.put(pixels);
+		rgba.position(0);
+		return rgba;
 	}
 }

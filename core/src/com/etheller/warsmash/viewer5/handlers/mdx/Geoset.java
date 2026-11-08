@@ -10,6 +10,11 @@ import com.hiveworkshop.rms.parsers.mdlx.MdlxGeoset;
 public class Geoset {
 	public MdxModel model;
 	public int index;
+	/**
+	 * The geoset's place in the model file, which geoset animations and bones refer to. The other levels of detail
+	 * of a model are left out, so it differs from the index after the first of them.
+	 */
+	public final int fileIndex;
 	public int positionOffset;
 	public int normalOffset;
 	public int uvOffset;
@@ -29,12 +34,14 @@ public class Geoset {
 	public final boolean unselectable;
 	public final MdlxGeoset mdlxGeoset;
 
-	public Geoset(final MdxModel model, final int index, final int positionOffset, final int normalOffset,
-			final int uvOffset, final int tangentOffset, final int skinOffset, final int faceOffset, final int vertices,
-			final int elements, final int openGLSkinType, final int skinStride, final int boneCountOffsetBytes,
-			final boolean unselectable, final MdlxGeoset mdlxGeoset) {
+	public Geoset(final MdxModel model, final int index, final int fileIndex, final int positionOffset,
+			final int normalOffset, final int uvOffset, final int tangentOffset, final int skinOffset,
+			final int faceOffset, final int vertices, final int elements, final int openGLSkinType,
+			final int skinStride, final int boneCountOffsetBytes, final boolean unselectable,
+			final MdlxGeoset mdlxGeoset) {
 		this.model = model;
 		this.index = index;
+		this.fileIndex = fileIndex;
 		this.positionOffset = positionOffset;
 		this.normalOffset = normalOffset;
 		this.uvOffset = uvOffset;
@@ -50,7 +57,7 @@ public class Geoset {
 		this.mdlxGeoset = mdlxGeoset;
 
 		for (final GeosetAnimation geosetAnimation : model.getGeosetAnimations()) {
-			if (geosetAnimation.geosetId == index) {
+			if (geosetAnimation.geosetId == fileIndex) {
 				this.geosetAnimation = geosetAnimation;
 			}
 		}

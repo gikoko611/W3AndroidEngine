@@ -22,7 +22,7 @@ public class NegateJassValueVisitor implements JassValueVisitor<JassValue> {
 
 	@Override
 	public JassValue accept(final IntegerJassValue value) {
-		return new IntegerJassValue(-value.getValue());
+		return IntegerJassValue.of(-value.getValue());
 	}
 
 	@Override

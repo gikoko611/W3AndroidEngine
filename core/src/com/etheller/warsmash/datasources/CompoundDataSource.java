@@ -1,12 +1,12 @@
 package com.etheller.warsmash.datasources;
 
-import java.io.BufferedInputStream;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -35,18 +35,17 @@ public class CompoundDataSource implements DataSource {
 
 	// Data prepared as a folder has many files only under their alias target, and only CASC resolves aliases itself.
 	// The path as asked wins, so CASC sources behave as before.
-	private final Map<String, String> fileAliases = new HashMap<>();
+	private Map<String, String> fileAliases = Collections.emptyMap();
 
 	private void loadFileAliases() {
-		this.fileAliases.clear();
+		this.fileAliases = Collections.emptyMap();
 		final int index = findSourceIndex("filealiases.json");
 		if (index == MISSING) {
 			return;
 		}
 		try (InputStream stream = this.mpqList.get(index).getResourceAsStream("filealiases.json")) {
 			if (stream != null) {
-				CascDataSource.readFileAliases(stream.markSupported() ? stream : new BufferedInputStream(stream),
-						this.fileAliases);
+				this.fileAliases = CascDataSource.cachedFileAliases(stream);
 			}
 		}
 		catch (final IOException | RuntimeException e) {
@@ -210,11 +209,8 @@ public class CompoundDataSource implements DataSource {
 
 	@Override
 	public String findFirst(final String... filepaths) {
-		for (final String filepath : filepaths) {
-			if (this.cache.containsKey(filepath)) {
-				return filepath;
-			}
-		}
+		// The latest source with any of the paths decides, so a file in an override folder wins over the game data
+		// even when it has another of the names (a .blp beside the game's .dds).
 		for (int i = this.mpqList.size() - 1; i >= 0; i--) {
 			final String found = this.mpqList.get(i).findFirst(filepaths);
 			if (found != null) {

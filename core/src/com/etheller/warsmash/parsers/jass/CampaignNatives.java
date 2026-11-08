@@ -2,6 +2,7 @@ package com.etheller.warsmash.parsers.jass;
 
 import com.badlogic.gdx.files.FileHandle;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
@@ -15,6 +16,7 @@ import com.etheller.interpreter.ast.value.BooleanJassValue;
 import com.etheller.interpreter.ast.value.HandleJassType;
 import com.etheller.interpreter.ast.value.HandleJassValue;
 import com.etheller.interpreter.ast.value.IntegerJassValue;
+import com.etheller.interpreter.ast.value.JassType;
 import com.etheller.interpreter.ast.value.JassValue;
 import com.etheller.interpreter.ast.value.RealJassValue;
 import com.etheller.interpreter.ast.value.StringJassValue;
@@ -23,6 +25,7 @@ import com.etheller.interpreter.ast.value.visitor.IntegerJassValueVisitor;
 import com.etheller.interpreter.ast.value.visitor.ObjectJassValueVisitor;
 import com.etheller.interpreter.ast.value.visitor.RealJassValueVisitor;
 import com.etheller.interpreter.ast.value.visitor.StringJassValueVisitor;
+import com.etheller.warsmash.datasources.DataSource;
 import com.etheller.warsmash.parsers.fdf.GameUI;
 import com.etheller.warsmash.parsers.jass.scope.CommonTriggerExecutionScope;
 import com.etheller.warsmash.units.Element;
@@ -31,6 +34,7 @@ import com.etheller.warsmash.util.WarsmashConstants;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.unit.CUnitTypeJass;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.data.CUnitRace;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.players.CRace;
+import com.etheller.warsmash.viewer5.handlers.w3x.UnitSound;
 import com.etheller.warsmash.viewer5.handlers.w3x.War3MapViewer;
 import com.etheller.warsmash.viewer5.handlers.w3x.camera.GameCameraManager;
 import com.etheller.warsmash.viewer5.handlers.w3x.rendersim.RenderDestructable;
@@ -58,7 +62,6 @@ import com.etheller.warsmash.viewer5.handlers.w3x.simulation.campaign.CStoredUni
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.players.CPlayer;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.players.CPlayerChatEvent;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.sound.CSound;
-import com.etheller.warsmash.viewer5.handlers.w3x.simulation.sound.CSoundMixer;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.trigger.enumtypes.CSoundVolumeGroup;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.unit.CUnitInRangeEvent;
 import com.etheller.warsmash.viewer5.handlers.w3x.ui.MeleeUI;
@@ -118,6 +121,11 @@ final class CampaignNatives {
 	private static String string(final List<JassValue> arguments, final int index) {
 		final JassValue value = arguments.get(index);
 		return value == null ? null : value.visit(StringJassValueVisitor.getInstance());
+	}
+
+	/** A text argument the original shows or keeps as the map's text when it is a map string key. */
+	private String mapString(final List<JassValue> arguments, final int index) {
+		return this.viewer.getGameUI().getTrigStr(string(arguments, index));
 	}
 
 	private static int integer(final List<JassValue> arguments, final int index) {
@@ -302,6 +310,10 @@ final class CampaignNatives {
 			CCampaignProgress.setEndingCinematicAvailable(integer(arguments, 0), bool(arguments, 1));
 			return null;
 		});
+		add("PlayCinematic", (arguments, globalScope, triggerScope) -> {
+			this.simulation.queueCinematic(string(arguments, 0));
+			return null;
+		});
 		add("SetTutorialCleared", (arguments, globalScope, triggerScope) -> {
 			CCampaignProgress.setTutorialCleared(bool(arguments, 0));
 			return null;
@@ -319,14 +331,14 @@ final class CampaignNatives {
 			return null;
 		});
 		add("ForceCampaignSelectScreen", (arguments, globalScope, triggerScope) -> {
-			CCampaignProgress.forceCampaignSelectScreen();
+			this.viewer.getGameExit().forceCampaignSelectScreen();
 			return null;
 		});
 		add("ChangeLevel", (arguments, globalScope, triggerScope) -> {
-			final String level = string(arguments, 0);
+			final String level = campaignEditionLevel(string(arguments, 0));
 			final boolean showScoreScreen = bool(arguments, 1);
 			this.viewer.runAfterPendingSave(() -> {
-				CCampaignProgress.setPendingLevel(level);
+				this.viewer.getGameExit().setNextLevel(level, null);
 				this.ui.endGame(showScoreScreen);
 			});
 			return null;
@@ -373,8 +385,63 @@ final class CampaignNatives {
 			this.viewer.setRestartMissionDisabled(bool(arguments, 0));
 			return null;
 		});
-		// A single player game on this port records no replay.
-		ignored("DoNotSaveReplay");
+		add("DoNotSaveReplay", (arguments, globalScope, triggerScope) -> {
+			this.viewer.doNotSaveReplay();
+			return null;
+		});
+	}
+
+	private static final String CLASSIC_CAMPAIGN_FOLDER = "campaign\\classic\\";
+	private static final String REFORGED_CAMPAIGN_FOLDER = "campaign\\reforged\\";
+
+	/**
+	 * The Classic copy of the last Reign of Chaos Night Elf mission names the Reforged credits map, which the game
+	 * data hold only as the Classic one (1.29 goes on to its own credits map). A campaign level of the other edition is
+	 * played in this map's edition when the data hold it there, and a level the data lack is taken from the other
+	 * edition, so a campaign stays on its own maps.
+	 */
+	private String campaignEditionLevel(final String level) {
+		if (level == null) {
+			return null;
+		}
+		final String levelPath = level.toLowerCase(Locale.ROOT).replace('/', '\\');
+		final boolean levelClassic = levelPath.contains(CLASSIC_CAMPAIGN_FOLDER);
+		if (!levelClassic && !levelPath.contains(REFORGED_CAMPAIGN_FOLDER)) {
+			return level;
+		}
+		final DataSource dataSource = this.viewer.dataSource;
+		final String otherEdition = otherCampaignEditionLevel(dataSource, level, levelPath, levelClassic);
+		if (otherEdition == null) {
+			return level;
+		}
+		final String mapFile = this.viewer.getMapFileName();
+		final String mapPath = mapFile == null ? "" : mapFile.toLowerCase(Locale.ROOT).replace('/', '\\');
+		final boolean mapClassic = mapPath.contains(CLASSIC_CAMPAIGN_FOLDER);
+		final boolean mapReforged = mapPath.contains(REFORGED_CAMPAIGN_FOLDER);
+		if ((mapClassic && !levelClassic) || (mapReforged && levelClassic) || !dataSource.has(level)) {
+			return otherEdition;
+		}
+		return level;
+	}
+
+	/** Classic Reign of Chaos maps are .w3m, The Frozen Throne and Reforged ones .w3x. */
+	private static String otherCampaignEditionLevel(final DataSource dataSource, final String level,
+			final String levelPath, final boolean levelClassic) {
+		final String folder = levelClassic ? CLASSIC_CAMPAIGN_FOLDER : REFORGED_CAMPAIGN_FOLDER;
+		final int folderEnd = levelPath.indexOf(folder) + folder.length();
+		final int extensionStart = level.lastIndexOf('.');
+		if (extensionStart <= folderEnd) {
+			return null;
+		}
+		final String base = level.substring(0, folderEnd - folder.length()) + "Campaign\\"
+				+ (levelClassic ? "Reforged\\" : "Classic\\") + level.substring(folderEnd, extensionStart);
+		final String[] extensions = levelClassic ? new String[] { ".w3x" } : new String[] { ".w3m", ".w3x" };
+		for (final String extension : extensions) {
+			if (dataSource.has(base + extension)) {
+				return base + extension;
+			}
+		}
+		return null;
 	}
 
 	/** The order of the classic campaign screen: Tutorial (RACE_OTHER), Human, Undead, Orc, Night Elf. */
@@ -463,7 +530,12 @@ final class CampaignNatives {
 		});
 		add("GetSoundIsPlaying", (arguments, globalScope, triggerScope) -> {
 			final CSound sound = object(arguments, 0);
-			return BooleanJassValue.of((sound != null) && sound.isPlaying());
+			return BooleanJassValue.of((sound != null) && sound.isPlaying(this.simulation.getGameTurnTick()));
+		});
+		add("GetSoundFileDuration", (arguments, globalScope, triggerScope) -> {
+			final String fileName = string(arguments, 0);
+			return IntegerJassValue.of(fileName == null ? 0
+					: Math.round(UnitSound.fileDuration(this.viewer.mapMpq, fileName) * 1000));
 		});
 		add("SetThematicMusicVolume", (arguments, globalScope, triggerScope) -> {
 			this.ui.setMusicVolume(integer(arguments, 0));
@@ -473,12 +545,12 @@ final class CampaignNatives {
 		add("VolumeGroupSetVolume", (arguments, globalScope, triggerScope) -> {
 			final CSoundVolumeGroup group = object(arguments, 0);
 			if (group != null) {
-				CSoundMixer.setGroupScale(group, real(arguments, 1));
+				this.viewer.getSoundMixer().setGroupScale(group, real(arguments, 1));
 			}
 			return null;
 		});
 		add("VolumeGroupReset", (arguments, globalScope, triggerScope) -> {
-			CSoundMixer.reset();
+			this.viewer.getSoundMixer().reset();
 			return null;
 		});
 		add("ClearMapMusic", (arguments, globalScope, triggerScope) -> {
@@ -540,17 +612,21 @@ final class CampaignNatives {
 			camera().setTargetNoise(real(arguments, 0), real(arguments, 1), bool(arguments, 2));
 			return null;
 		});
+		// The camera is the player's own (the mouse, the screen size move it), so a replay keeps what scripts read.
 		add("GetCameraTargetPositionX",
-				(arguments, globalScope, triggerScope) -> RealJassValue.of(camera().getNoisyTargetX()));
+				(arguments, globalScope, triggerScope) -> RealJassValue.of(local(camera().getNoisyTargetX())));
 		add("GetCameraTargetPositionY",
-				(arguments, globalScope, triggerScope) -> RealJassValue.of(camera().getNoisyTargetY()));
-		add("GetCameraEyePositionX", (arguments, globalScope, triggerScope) -> RealJassValue.of(camera().getEyeX()));
-		add("GetCameraEyePositionY", (arguments, globalScope, triggerScope) -> RealJassValue.of(camera().getEyeY()));
-		add("GetCameraEyePositionZ", (arguments, globalScope, triggerScope) -> RealJassValue.of(camera().getEyeZ()));
+				(arguments, globalScope, triggerScope) -> RealJassValue.of(local(camera().getNoisyTargetY())));
+		add("GetCameraEyePositionX",
+				(arguments, globalScope, triggerScope) -> RealJassValue.of(local(camera().getEyeX())));
+		add("GetCameraEyePositionY",
+				(arguments, globalScope, triggerScope) -> RealJassValue.of(local(camera().getEyeY())));
+		add("GetCameraEyePositionZ",
+				(arguments, globalScope, triggerScope) -> RealJassValue.of(local(camera().getEyeZ())));
 		add("GetCameraTargetPositionLoc", (arguments, globalScope, triggerScope) -> new HandleJassValue(locationType,
-				new AbilityPointTarget(camera().getNoisyTargetX(), camera().getNoisyTargetY())));
+				new AbilityPointTarget(local(camera().getNoisyTargetX()), local(camera().getNoisyTargetY()))));
 		add("GetCameraEyePositionLoc", (arguments, globalScope, triggerScope) -> new HandleJassValue(locationType,
-				new AbilityPointTarget(camera().getEyeX(), camera().getEyeY())));
+				new AbilityPointTarget(local(camera().getEyeX()), local(camera().getEyeY()))));
 		// Measured: a smoothing factor does not change a timed pan (linear with it too). The original applies it to
 		// the free camera, which has no such movement here.
 		ignored("CameraSetSmoothingFactor", "SetCinematicCamera", "CameraSetDepthOfFieldScale",
@@ -573,6 +649,10 @@ final class CampaignNatives {
 
 	private GameCameraManager camera() {
 		return this.ui.getCameraManager();
+	}
+
+	private float local(final float value) {
+		return this.viewer.replayedLocalValue(value);
 	}
 
 	private void registerWorld() {
@@ -622,12 +702,11 @@ final class CampaignNatives {
 		});
 		registerUbersplats();
 		registerTerrainDeformations();
-		// Occlusion and the fog at the map edge have no drawing here yet and there are no multiboards to suppress; HD
-		// water and terrain fog extras do not exist in the classic graphics.
+		// Occlusion and the fog at the map edge have no drawing here yet; HD water and terrain fog extras do not exist
+		// in the classic graphics.
 		ignored("EnableOcclusion", "EnableWorldFogBoundary", "SetHDWaterParamsEx", "BlzSetTerrainFogDrawOverSky",
-				"BlzSetTerrainFogMaxLinearDensity", "SetTerrainFogExV", "SetPlayerRaceSkin", "PreloadRefresh",
-				"PreloadEndEx", "SyncSelections", "SetEnemyStartLocPrio", "SetEnemyStartLocPrioCount",
-				"MultiboardSuppressDisplay", "PlayCinematic", "PlayModelCinematic",
+				"BlzSetTerrainFogMaxLinearDensity", "SetTerrainFogExV", "PreloadRefresh", "PreloadEndEx",
+				"SyncSelections", "PlayModelCinematic",
 				"CreateCommandButtonEffect", "CreateUpgradeCommandButtonEffect", "CreateLearnCommandButtonEffect",
 				"DestroyCommandButtonEffect", "TriggerRegisterCommandEvent", "TriggerRegisterUpgradeCommandEvent",
 				"SetItemColor");
@@ -660,9 +739,22 @@ final class CampaignNatives {
 			state.alpha = integer(arguments, 6);
 			state.forcePaused = bool(arguments, 7);
 			state.noBirthTime = bool(arguments, 8);
+			state.handleId = (state.name != null) && (this.viewer.terrain.uberSplatTable.get(state.name) != null)
+					? this.simulation.getHandleIdAllocator().createUbersplatId()
+					: -1;
+			if (state.handleId != -1) {
+				state.imageId = this.simulation.getHandleIdAllocator().createImageId();
+			}
 			return new HandleJassValue(ubersplatType, this.viewer.createUbersplat(state));
 		});
-		addUbersplatAction("DestroyUbersplat", (splat, arguments) -> splat.destroy());
+		addUbersplatAction("DestroyUbersplat", (splat, arguments) -> {
+			final SimulationRenderComponentUbersplat.State state = splat.getState();
+			if ((state != null) && !state.destroyed) {
+				this.simulation.getHandleIdAllocator().freeUbersplatId(state.handleId);
+				this.simulation.getHandleIdAllocator().freeImageId(state.imageId);
+			}
+			splat.destroy();
+		});
 		addUbersplatAction("ResetUbersplat", (splat, arguments) -> splat.reset());
 		addUbersplatAction("FinishUbersplat", (splat, arguments) -> splat.finish());
 		addUbersplatAction("ShowUbersplat", (splat, arguments) -> splat.show(bool(arguments, 1)));
@@ -890,7 +982,11 @@ final class CampaignNatives {
 		});
 		add("GetHeroProperName", (arguments, globalScope, triggerScope) -> {
 			final CUnit unit = object(arguments, 0);
-			final CAbilityHero hero = (unit == null) || unit.isIllusion() ? null : unit.getHeroData();
+			if ((unit == null) || (unit.getHeroData() == null)) {
+				// Measured on 1.29: null, not an empty string, for a null unit or a unit that is not a hero.
+				return JassType.STRING.getNullValue();
+			}
+			final CAbilityHero hero = unit.isIllusion() ? null : unit.getHeroData();
 			return new StringJassValue(hero == null ? "" : noneIfNull(hero.getProperName()));
 		});
 		add("GetPlayerUnitCount", (arguments, globalScope, triggerScope) -> {
@@ -900,10 +996,20 @@ final class CampaignNatives {
 			}
 			final boolean includeIncomplete = bool(arguments, 1);
 			int count = 0;
+			// Measured on 1.29: structures are not counted (GetPlayerStructureCount has them); a reincarnating unit is.
 			for (final CUnit unit : this.simulation.getUnitsIncludingNew()) {
-				if ((unit.getPlayerIndex() == player.getId()) && !unit.isDead()
-						&& (includeIncomplete || !unit.isConstructing())) {
-					count++;
+				if ((unit.getPlayerIndex() == player.getId()) && (!unit.isDead() || unit.isFalseDeath())
+						&& !unit.isAnimatedCorpse()) {
+					if (!unit.isBuilding() && (includeIncomplete || !unit.isConstructing())) {
+						count++;
+					}
+					if (includeIncomplete) {
+						for (int i = 0; i < WarsmashConstants.BUILD_QUEUE_SIZE; i++) {
+							if (unit.getQueuedTrainingUnitTypeId(i) != null) {
+								count++;
+							}
+						}
+					}
 				}
 			}
 			return IntegerJassValue.of(count);
@@ -998,10 +1104,14 @@ final class CampaignNatives {
 			// 1.29 common.j declares only UnitUseItemPoint; UnitUseItemPointLoc is a Blizzard.j function there.
 			final Integer locId = globalScope.getNativeId("UnitUseItemPointLoc");
 			if (locId != null) {
-				return globalScope.getNativeById(locId).call(locArguments, globalScope, triggerScope);
+				globalScope.getNativeById(locId).call(locArguments, globalScope, triggerScope);
 			}
-			return this.program.getJassNativeManager().getUndeclaredNative("UnitUseItemPointLoc")
-					.call(locArguments, globalScope, triggerScope);
+			else {
+				this.program.getJassNativeManager().getUndeclaredNative("UnitUseItemPointLoc").call(locArguments,
+						globalScope, triggerScope);
+			}
+			// Measured on 1.29: false even when the item is used (instant, walking to the point, or channeling).
+			return BooleanJassValue.FALSE;
 		});
 		add("TriggerRegisterPlayerChatEvent", (arguments, globalScope, triggerScope) -> {
 			final Trigger whichTrigger = object(arguments, 0);
@@ -1010,7 +1120,7 @@ final class CampaignNatives {
 				return new HandleJassValue(eventType, null);
 			}
 			final CPlayerChatEvent event = new CPlayerChatEvent(globalScope, whichPlayer, whichTrigger,
-					string(arguments, 2), bool(arguments, 3));
+					mapString(arguments, 2), bool(arguments, 3));
 			whichPlayer.addEvent(event);
 			return new HandleJassValue(eventType, event);
 		});
@@ -1047,7 +1157,20 @@ final class CampaignNatives {
 		add("UnitSetConstructionProgress", (arguments, globalScope, triggerScope) -> {
 			final CUnit unit = object(arguments, 0);
 			if ((unit != null) && unit.isConstructing()) {
-				unit.setConstructionProgress((unit.getUnitType().getBuildTime() * integer(arguments, 1)) / 100f);
+				final float fraction = integer(arguments, 1) / 100f;
+				unit.setConstructionProgress(unit.getUnitType().getBuildTime() * fraction);
+				// Measured: the life is set to the starting life plus the same fraction of the maximum, so a
+				// building set to 99 % finishes at full life.
+				unit.setLife(this.simulation, Math.min(unit.getMaximumLife(),
+						unit.getMaximumLife() * (WarsmashConstants.BUILDING_CONSTRUCT_START_LIFE + fraction)));
+			}
+			return null;
+		});
+		add("UnitSetUpgradeProgress", (arguments, globalScope, triggerScope) -> {
+			final CUnit unit = object(arguments, 0);
+			if ((unit != null) && unit.isUpgrading()) {
+				final int buildTime = this.simulation.getUnitData().getUnitType(unit.getUpgradeIdType()).getBuildTime();
+				unit.setConstructionProgress((buildTime * integer(arguments, 1)) / 100f);
 			}
 			return null;
 		});
@@ -1108,7 +1231,7 @@ final class CampaignNatives {
 		});
 		add("BlzSetUnitName", (arguments, globalScope, triggerScope) -> {
 			final CUnit unit = object(arguments, 0);
-			final String name = string(arguments, 1);
+			final String name = mapString(arguments, 1);
 			// Measured: an empty name is ignored and the unit keeps the name it had.
 			if ((unit != null) && (name != null) && !name.isEmpty()) {
 				unit.setName(name);
@@ -1177,19 +1300,34 @@ final class CampaignNatives {
 			destructable.setLife(this.simulation, 0);
 			return new HandleJassValue(destructableType, destructable);
 		});
-		for (final String name : new String[] { "BlzCreateDeadDestructableWithSkinPitchRoll",
-				"BlzCreateDeadDestructableWithSkinPitchRollColor", "BlzCreateDeadDestructableZWithSkinPitchRoll" }) {
-			final boolean hasZ = name.contains("DestructableZ");
+		// The 3.0 variants, in the argument order of common.j: object id, x, y, [z], face, [roll, pitch], scale,
+		// variation, [skin id], [color]. As for live destructables, the skin id picks the type that is shown.
+		for (final String name : new String[] { "BlzCreateDeadDestructableWithSkin",
+				"BlzCreateDeadDestructableZWithSkin", "BlzCreateDeadDestructablePitchRoll",
+				"BlzCreateDeadDestructableZPitchRoll", "BlzCreateDeadDestructableWithSkinPitchRoll",
+				"BlzCreateDeadDestructableZWithSkinPitchRoll", "BlzCreateDeadDestructableWithColor",
+				"BlzCreateDeadDestructableZWithColor", "BlzCreateDeadDestructableWithSkinColor",
+				"BlzCreateDeadDestructableZWithSkinColor", "BlzCreateDeadDestructablePitchRollWithColor",
+				"BlzCreateDeadDestructableZPitchRollWithColor", "BlzCreateDeadDestructableWithSkinPitchRollColor",
+				"BlzCreateDeadDestructableZWithSkinPitchRollColor" }) {
+			final boolean hasZ = name.startsWith("BlzCreateDeadDestructableZ");
+			final boolean hasPitchRoll = name.contains("PitchRoll");
+			final boolean hasSkin = name.contains("WithSkin");
 			add(name, (arguments, globalScope, triggerScope) -> {
 				int index = 0;
-				final int rawcode = integer(arguments, index++);
+				int rawcode = integer(arguments, index++);
 				final float x = real(arguments, index++);
 				final float y = real(arguments, index++);
 				final float z = hasZ ? real(arguments, index++) : 0;
-				final float face = real(arguments, index);
-				index += 3;
+				final float face = real(arguments, index++);
+				if (hasPitchRoll) {
+					index += 2;
+				}
 				final float scale = real(arguments, index++);
-				final int variation = integer(arguments, index);
+				final int variation = integer(arguments, index++);
+				if (hasSkin) {
+					rawcode = integer(arguments, index);
+				}
 				final CDestructable destructable = hasZ
 						? this.simulation.createDestructableZ(new War3ID(rawcode), x, y, z, face, scale, variation)
 						: this.simulation.createDestructable(new War3ID(rawcode), x, y, face, scale, variation);
@@ -1260,7 +1398,7 @@ final class CampaignNatives {
 	private void registerLeaderboards() {
 		final HandleJassType leaderboardType = type("leaderboard");
 		add("CreateLeaderboard", (arguments, globalScope, triggerScope) -> new HandleJassValue(leaderboardType,
-				new CLeaderboard()));
+				this.simulation.getHandleIdAllocator().assign(new CLeaderboard())));
 		add("DestroyLeaderboard", (arguments, globalScope, triggerScope) -> {
 			final CLeaderboard board = object(arguments, 0);
 			if (board != null) {
@@ -1268,6 +1406,7 @@ final class CampaignNatives {
 				board.clear();
 				this.playerLeaderboards.values().removeIf(board::equals);
 				this.ui.setLeaderboard(null);
+				this.simulation.getHandleIdAllocator().release(board);
 			}
 			return null;
 		});
@@ -1287,7 +1426,7 @@ final class CampaignNatives {
 				boardSetter((board, arguments) -> board.setSizeByItemCount(integer(arguments, 1))));
 		add("LeaderboardAddItem", boardSetter((board, arguments) -> {
 			final CPlayer player = object(arguments, 3);
-			board.addItem(noneIfNull(string(arguments, 1)), integer(arguments, 2), player == null ? -1 : player.getId());
+			board.addItem(noneIfNull(mapString(arguments, 1)), integer(arguments, 2), player == null ? -1 : player.getId());
 		}));
 		add("LeaderboardRemoveItem", boardSetter((board, arguments) -> board.removeItem(integer(arguments, 1))));
 		add("LeaderboardRemovePlayerItem", boardSetter((board, arguments) -> {
@@ -1310,7 +1449,7 @@ final class CampaignNatives {
 			final CPlayer player = object(arguments, 1);
 			return IntegerJassValue.of((board == null) || (player == null) ? -1 : board.getPlayerIndex(player.getId()));
 		});
-		add("LeaderboardSetLabel", boardSetter((board, arguments) -> board.setLabel(string(arguments, 1))));
+		add("LeaderboardSetLabel", boardSetter((board, arguments) -> board.setLabel(mapString(arguments, 1))));
 		add("LeaderboardGetLabelText", (arguments, globalScope, triggerScope) -> {
 			final CLeaderboard board = object(arguments, 0);
 			return new StringJassValue(board == null ? "" : board.getLabel());
@@ -1340,7 +1479,7 @@ final class CampaignNatives {
 		add("LeaderboardSetItemValue",
 				boardSetter((board, arguments) -> board.setItemValue(integer(arguments, 1), integer(arguments, 2))));
 		add("LeaderboardSetItemLabel", boardSetter(
-				(board, arguments) -> board.setItemLabel(integer(arguments, 1), noneIfNull(string(arguments, 2)))));
+				(board, arguments) -> board.setItemLabel(integer(arguments, 1), noneIfNull(mapString(arguments, 2)))));
 		add("LeaderboardSetItemStyle", boardSetter((board, arguments) -> board.setItemStyle(integer(arguments, 1),
 				bool(arguments, 2), bool(arguments, 3), bool(arguments, 4))));
 		add("LeaderboardSetItemLabelColor", boardSetter(
@@ -1365,6 +1504,7 @@ final class CampaignNatives {
 			if (dialog != null) {
 				dialog.setVisible(false);
 				this.ui.removeTimerDialog(dialog);
+				this.simulation.getHandleIdAllocator().release(dialog);
 			}
 			return null;
 		});

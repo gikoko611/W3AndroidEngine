@@ -14,6 +14,8 @@ import com.etheller.warsmash.viewer5.handlers.w3x.simulation.orders.OrderIds;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.trigger.enumtypes.CDamageType;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.trigger.enumtypes.CEffectType;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.trigger.enumtypes.CWeaponSoundTypeJass;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CWidget;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.util.BooleanAbilityTargetCheckReceiver;
 
 public class CAbilityThunderClap extends CAbilityNoTargetSpellBase {
 
@@ -45,7 +47,8 @@ public class CAbilityThunderClap extends CAbilityNoTargetSpellBase {
 	public boolean doEffect(final CSimulation simulation, final CUnit caster, final AbilityTarget target) {
 		simulation.getWorldCollision().enumUnitsInRange(caster.getX(), caster.getY(), areaOfEffect, (enumUnit) -> {
 			if (!enumUnit.isUnitAlly(simulation.getPlayer(caster.getPlayerIndex()))
-					&& enumUnit.canBeTargetedBy(simulation, caster, getTargetsAllowed())) {
+					&& enumUnit.canBeTargetedBy(simulation, caster, false, getTargetsAllowed(),
+							BooleanAbilityTargetCheckReceiver.<CWidget>getInstance().reset())) {
 				enumUnit.add(simulation,
 						new CBuffSlow(simulation.getHandleIdAllocator().createId(), CAbilityThunderClap.this.buffId,
 								getDurationForTarget(enumUnit), attackSpeedReductionPercent,

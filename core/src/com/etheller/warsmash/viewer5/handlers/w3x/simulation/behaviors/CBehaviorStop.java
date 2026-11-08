@@ -1,7 +1,5 @@
 package com.etheller.warsmash.viewer5.handlers.w3x.simulation.behaviors;
 
-import com.etheller.warsmash.viewer5.handlers.w3x.AnimationTokens.PrimaryTag;
-import com.etheller.warsmash.viewer5.handlers.w3x.SequenceUtils;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CSimulation;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CUnit;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.orders.OrderIds;
@@ -29,10 +27,8 @@ public class CBehaviorStop implements CBehavior {
 
 	@Override
 	public void begin(final CSimulation game) {
-		if (!this.unit.isConstructingOrUpgrading()
-				&& !unit.getUnitAnimationListener().isAnimationQueued(PrimaryTag.STAND)) {
-			this.unit.getUnitAnimationListener().playAnimation(false, PrimaryTag.STAND, SequenceUtils.EMPTY, 1.0f,
-					true);
+		if (!this.unit.isConstructingOrUpgrading()) {
+			this.unit.getUnitAnimationListener().playStopAnimation();
 		}
 	}
 

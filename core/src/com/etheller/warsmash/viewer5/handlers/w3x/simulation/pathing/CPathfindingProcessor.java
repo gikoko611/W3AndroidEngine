@@ -3,8 +3,12 @@ package com.etheller.warsmash.viewer5.handlers.w3x.simulation.pathing;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.IdentityHashMap;
 import java.util.Iterator;
 import java.util.LinkedList;
+import java.util.List;
+import java.util.ListIterator;
+import java.util.Map;
 
 import com.badlogic.gdx.math.Rectangle;
 import com.etheller.warsmash.util.PerfStats;
@@ -21,6 +25,13 @@ public class CPathfindingProcessor {
 	private final PathingGrid pathingGrid;
 	private final CWorldCollision worldCollision;
 	private final LinkedList<PathfindingJob> moveQueue = new LinkedList<>();
+	/**
+	 * Measured on 1.29: a unit waiting for its path among many of its owner's keeps its turn when it gets the same
+	 * order again. Here a new order takes the unit's search out of the queue and its next update asks again, so a
+	 * search asked again within a couple of updates goes back to the place the old one had.
+	 */
+	private final Map<CBehaviorMove, int[]> withdrawnTurns = new IdentityHashMap<>();
+	private int nextTurn = 0;
 	private final SharedGraph graph;
 	// things with modified state per current job:
 	private final Node[][] nodes;
@@ -28,8 +39,16 @@ public class CPathfindingProcessor {
 	private final Node[] goalSet = new Node[9];
 	private int goals = 0;
 	private int pathfindJobId = 0;
-	private static final int NEAREST_PATHABLE_RINGS = 32;
+	/**
+	 * Measured on 1.29: a small unit (collision 16) ordered into a wood walks to the free point nearest the order point
+	 * even when that is round the far side, which rings a whole cell apart often tie and miss; a larger one (a Footman
+	 * in a group, a Paladin onto a Circle of Power) stops where rings a whole cell apart put it.
+	 */
+	private static final float NEAREST_PATHABLE_FINE_STEP = 16f;
+	private static final float NEAREST_PATHABLE_STEP = 32f;
+	private static final float NEAREST_PATHABLE_RADIUS = 1024f;
 	private static final int MIN_SEARCH_ITERATIONS = 4096;
+	private static final int WITHDRAWN_TURN_UPDATES = 2;
 	private static final int DETOUR_ITERATION_FACTOR = 16;
 	private static final double DETOUR_MIN_DISTANCE = 1024;
 	private int totalIterations = 0;
@@ -67,6 +86,7 @@ public class CPathfindingProcessor {
 
 		private Reachability reachability(final PathingGrid pathingGrid, final MovementType movementType,
 				final float collisionSize, final boolean corners) {
+			final MovementType ground = Reachability.ground(movementType);
 			int slot = 0;
 			for (int i = 0; i < this.reachability.length; i++) {
 				final Reachability entry = this.reachability[i];
@@ -74,7 +94,7 @@ public class CPathfindingProcessor {
 					slot = i;
 					break;
 				}
-				if ((entry.movementType == movementType) && (entry.collisionSize == collisionSize)
+				if ((entry.movementType == ground) && (entry.collisionSize == collisionSize)
 						&& (entry.corners == corners)) {
 					entry.lastUse = this.lastJobId;
 					entry.validate(pathingGrid);
@@ -84,14 +104,16 @@ public class CPathfindingProcessor {
 					slot = i;
 				}
 			}
-			final Reachability entry = new Reachability(pathingGrid, movementType, collisionSize, corners);
+			final Reachability entry = new Reachability(pathingGrid, ground, collisionSize, corners);
 			entry.lastUse = this.lastJobId;
 			this.reachability[slot] = entry;
 			return entry;
 		}
 	}
 
-	private static final int REACHABILITY_CACHE = 3;
+	// A melee game asks for four (walking units of four collision sizes); with fewer, entries pushed each other out
+	// and every search rebuilt one over the whole map.
+	private static final int REACHABILITY_CACHE = 5;
 
 	/**
 	 * Which grid points of a search graph a unit can walk between, ignoring other units: the parts of the map apart
@@ -110,6 +132,12 @@ public class CPathfindingProcessor {
 		private final int height;
 		private final byte[] pathable;
 		private final int[] part;
+		/**
+		 * The pathing cells PathingGrid.isPathable samples for the grid points of each column and row (offsets -1, 0
+		 * and +1 collision sizes), -1 off the grid; the same float sums it makes, worked out once.
+		 */
+		private final int[] sampleColumns;
+		private final int[] sampleRows;
 		private int parts;
 		private int version;
 		private int lastUse;
@@ -124,6 +152,55 @@ public class CPathfindingProcessor {
 			this.pathable = new byte[this.width * this.height];
 			this.part = new int[this.width * this.height];
 			this.version = grid.getOverlayVersion();
+			this.sampleColumns = new int[this.width * 3];
+			for (int x = 0; x < this.width; x++) {
+				final float worldX = worldX(grid, x);
+				for (int i = -1; i <= 1; i++) {
+					final int cellX = grid.getCellX(worldX + (i * collisionSize));
+					this.sampleColumns[(x * 3) + i + 1] = (cellX >= 0) && (cellX < grid.getWidth()) ? cellX : -1;
+				}
+			}
+			this.sampleRows = new int[this.height * 3];
+			for (int y = 0; y < this.height; y++) {
+				final float worldY = worldY(grid, y);
+				for (int j = -1; j <= 1; j++) {
+					final int cellY = grid.getCellY(worldY + (j * collisionSize));
+					this.sampleRows[(y * 3) + j + 1] = (cellY >= 0) && (cellY < grid.getHeight()) ? cellY : -1;
+				}
+			}
+		}
+
+		/**
+		 * Movement types that read the same pathing flag (PathingGrid.MovementType) reach the same parts, so they
+		 * share one entry: a melee game's walking units, horses and hovering units then fit in the cache together.
+		 */
+		private static MovementType ground(final MovementType movementType) {
+			switch (movementType) {
+			case FOOT_NO_COLLISION:
+			case HORSE:
+			case HOVER:
+				return MovementType.FOOT;
+			default:
+				return movementType;
+			}
+		}
+
+		/** PathingGrid.isPathable at a grid point, by the sample cells worked out up front. */
+		private boolean samplesPathable(final PathingGrid grid, final int x, final int y) {
+			if ((this.sampleColumns[(x * 3) + 1] < 0) || (this.sampleRows[(y * 3) + 1] < 0)) {
+				return false;
+			}
+			for (int i = 0; i < 3; i++) {
+				final int cellX = this.sampleColumns[(x * 3) + i];
+				for (int j = 0; j < 3; j++) {
+					final int cellY = this.sampleRows[(y * 3) + j];
+					if ((cellX < 0) || (cellY < 0)
+							|| !this.movementType.isPathable(grid.getCellPathing(cellX, cellY))) {
+						return false;
+					}
+				}
+			}
+			return true;
 		}
 
 		private void validate(final PathingGrid grid) {
@@ -150,10 +227,7 @@ public class CPathfindingProcessor {
 			final int index = (y * this.width) + x;
 			byte value = this.pathable[index];
 			if (value == UNKNOWN) {
-				final float worldX = worldX(grid, x);
-				final float worldY = worldY(grid, y);
-				value = grid.contains(worldX, worldY)
-						&& grid.isPathable(worldX, worldY, this.movementType, this.collisionSize) ? OPEN : BLOCKED;
+				value = samplesPathable(grid, x, y) ? OPEN : BLOCKED;
 				this.pathable[index] = value;
 			}
 			return value == OPEN;
@@ -249,8 +323,39 @@ public class CPathfindingProcessor {
 			final CUnit ignoreIntersectionsWithThisSecondUnit, final float startX, final float startY,
 			final CPathPoint goal, final PathingGrid.MovementType movementType, final float collisionSize,
 			final boolean allowSmoothing, final CBehaviorMove queueItem) {
-		this.moveQueue.offer(new PathfindingJob(ignoreIntersectionsWithThisUnit, ignoreIntersectionsWithThisSecondUnit,
-				startX, startY, goal, movementType, collisionSize, allowSmoothing, queueItem));
+		final PathfindingJob job = new PathfindingJob(ignoreIntersectionsWithThisUnit,
+				ignoreIntersectionsWithThisSecondUnit, startX, startY, goal, movementType, collisionSize, allowSmoothing,
+				queueItem);
+		final int[] withdrawn = this.withdrawnTurns.remove(queueItem);
+		if (withdrawn == null) {
+			job.turn = this.nextTurn++;
+			this.moveQueue.offer(job);
+			return;
+		}
+		job.turn = withdrawn[0];
+		final ListIterator<PathfindingJob> iterator = this.moveQueue.listIterator();
+		while (iterator.hasNext()) {
+			final PathfindingJob queued = iterator.next();
+			// a search under way keeps the shared graph's nodes; nothing goes before it
+			if (!queued.jobStarted && (queued.turn > job.turn)) {
+				iterator.previous();
+				break;
+			}
+		}
+		iterator.add(job);
+	}
+
+	/** The searches waiting for their turn, the one running first. */
+	public List<PathfindingJob> getMoveQueue() {
+		return Collections.unmodifiableList(this.moveQueue);
+	}
+
+	public int getNextTurn() {
+		return this.nextTurn;
+	}
+
+	public int getPathfindJobId() {
+		return this.pathfindJobId;
 	}
 
 	public void removeFromPathfindingQueue(final CBehaviorMove behaviorMove) {
@@ -260,6 +365,7 @@ public class CPathfindingProcessor {
 		while (iterator.hasNext()) {
 			final PathfindingJob job = iterator.next();
 			if (job.queueItem == behaviorMove) {
+				this.withdrawnTurns.put(behaviorMove, new int[] { job.turn, WITHDRAWN_TURN_UPDATES });
 				iterator.remove();
 			}
 		}
@@ -492,6 +598,14 @@ public class CPathfindingProcessor {
 
 	public void update(final CSimulation simulation) {
 		this.gameTurnTick = simulation.getGameTurnTick();
+		if (!this.withdrawnTurns.isEmpty()) {
+			final Iterator<int[]> withdrawn = this.withdrawnTurns.values().iterator();
+			while (withdrawn.hasNext()) {
+				if (--withdrawn.next()[1] <= 0) {
+					withdrawn.remove();
+				}
+			}
+		}
 		final SharedGraph graph = this.graph;
 		if ((graph.owner == this) && (this.moveQueue.isEmpty() || !this.moveQueue.peek().jobStarted)) {
 			graph.owner = null;
@@ -951,7 +1065,10 @@ public class CPathfindingProcessor {
 		double bestDistance = Double.MAX_VALUE;
 		double bestStartDistance = Double.MAX_VALUE;
 		int foundRing = -1;
-		for (int ring = 1; ring <= NEAREST_PATHABLE_RINGS; ring++) {
+		final float step = job.collisionSize > NEAREST_PATHABLE_FINE_STEP ? NEAREST_PATHABLE_STEP
+				: NEAREST_PATHABLE_FINE_STEP;
+		final int rings = (int) (NEAREST_PATHABLE_RADIUS / step);
+		for (int ring = 1; ring <= rings; ring++) {
 			// a point on the next ring can still be nearer than the corners of this one
 			if ((foundRing != -1) && (ring > (foundRing + 1))) {
 				break;
@@ -961,9 +1078,9 @@ public class CPathfindingProcessor {
 					if ((Math.abs(i) != ring) && (Math.abs(j) != ring)) {
 						continue;
 					}
-					final float x = job.goalX + (i * 32);
-					final float y = job.goalY + (j * 32);
-					final double distance = StrictMath.hypot(i * 32, j * 32);
+					final float x = job.goalX + (i * step);
+					final float y = job.goalY + (j * step);
+					final double distance = StrictMath.hypot(i * step, j * step);
 					if (distance > bestDistance) {
 						continue;
 					}
@@ -1006,6 +1123,7 @@ public class CPathfindingProcessor {
 		private final boolean allowSmoothing;
 		private final CBehaviorMove queueItem;
 		private boolean jobStarted;
+		private int turn;
 		public float goalY;
 		public float goalX;
 		public float weightForHittingWalls;
@@ -1039,6 +1157,26 @@ public class CPathfindingProcessor {
 			this.allowSmoothing = allowSmoothing;
 			this.queueItem = queueItem;
 			this.jobStarted = false;
+		}
+
+		public CUnit getIgnoreIntersectionsWithThisUnit() {
+			return this.ignoreIntersectionsWithThisUnit;
+		}
+
+		public float getStartX() {
+			return this.startX;
+		}
+
+		public float getStartY() {
+			return this.startY;
+		}
+
+		public int getTurn() {
+			return this.turn;
+		}
+
+		public boolean isJobStarted() {
+			return this.jobStarted;
 		}
 	}
 }

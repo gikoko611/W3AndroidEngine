@@ -29,7 +29,7 @@ import com.etheller.warsmash.viewer5.handlers.w3x.simulation.util.AbilityActivat
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.util.CommandStringErrorKeys;
 
 public abstract class CAbilitySpellBase extends AbstractGenericSingleIconNoSmartActiveAbility implements CAbilitySpell {
-	protected static CSpellDamageFlags DAMAGE_FLAGS = new CSpellDamageFlags();
+	protected static final CSpellDamageFlags DAMAGE_FLAGS = new CSpellDamageFlags();
 	private int manaCost;
 	private float castRange;
 	private float cooldown;

@@ -146,6 +146,16 @@ public class CAbilityInventory extends AbstractGenericNoIconAbility {
 		return super.checkBeforeQueue(game, caster, playerIndex, orderId, autoOrder, target);
 	}
 
+	/**
+	 * Spends a charge of a held item whose ability does it only when its effect happens (Town Portal).
+	 */
+	public void spendItemCharge(final CSimulation game, final CUnit caster, final CItem item) {
+		final int slot = getSlot(item);
+		if (slot >= 0) {
+			consumePerishableCharge(game, caster, slot, item);
+		}
+	}
+
 	private void consumePerishableCharge(final CSimulation game, final CUnit caster, final int slot,
 			final CItem cItem) {
 		if (cItem == null) {
@@ -197,8 +207,10 @@ public class CAbilityInventory extends AbstractGenericNoIconAbility {
 					forwardedOrderId = ((SingleOrderAbility) ability).getBaseOrderId();
 				}
 				final CBehavior behavior = ability.begin(game, caster, playerIndex, forwardedOrderId, false, target);
-				final CItem cItem = this.itemsHeld[slot];
-				consumePerishableCharge(game, caster, slot, cItem);
+				if (!(ability instanceof ItemChargeSpentOnEffect)) {
+					final CItem cItem = this.itemsHeld[slot];
+					consumePerishableCharge(game, caster, slot, cItem);
+				}
 				return behavior;
 			}
 		}
@@ -232,8 +244,10 @@ public class CAbilityInventory extends AbstractGenericNoIconAbility {
 					forwardedOrderId = ((SingleOrderAbility) ability).getBaseOrderId();
 				}
 				final CBehavior behavior = ability.begin(game, caster, playerIndex, forwardedOrderId, false, point);
-				final CItem cItem = this.itemsHeld[slot];
-				consumePerishableCharge(game, caster, slot, cItem);
+				if (!(ability instanceof ItemChargeSpentOnEffect)) {
+					final CItem cItem = this.itemsHeld[slot];
+					consumePerishableCharge(game, caster, slot, cItem);
+				}
 				return behavior;
 			}
 		}

@@ -2,9 +2,10 @@ package com.etheller.warsmash.parsers.jass.triggers;
 
 import com.etheller.interpreter.ast.function.JassFunction;
 import com.etheller.interpreter.ast.scope.trigger.Trigger;
+import com.etheller.interpreter.ast.util.AllocatedHandle;
 import com.etheller.interpreter.ast.value.CodeJassValue;
 
-public class TriggerAction {
+public class TriggerAction extends AllocatedHandle {
 	private final Trigger trigger;
 	private final CodeJassValue actionFunc;
 	private final int actionIndex;

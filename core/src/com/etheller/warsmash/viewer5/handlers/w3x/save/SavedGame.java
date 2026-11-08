@@ -1,5 +1,7 @@
 package com.etheller.warsmash.viewer5.handlers.w3x.save;
 
+import com.etheller.interpreter.ast.util.CAllocatedHandle;
+import com.etheller.warsmash.parsers.jass.triggers.BoolExprCondition;
 import com.etheller.warsmash.viewer5.handlers.w3x.rendersim.RenderWeatherEffect;
 import java.io.BufferedInputStream;
 import java.io.ByteArrayInputStream;
@@ -30,8 +32,11 @@ import com.etheller.warsmash.viewer5.handlers.w3x.rendersim.RenderSpellEffect;
 import com.etheller.warsmash.viewer5.handlers.w3x.rendersim.RenderUbersplat;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CDestructable;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CSimulation;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.HandleIdAllocator;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.campaign.CGameCache;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.campaign.CImage;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.campaign.CSaveStorage;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.campaign.CTrackable;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.players.CMapFlag;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.players.CPlayer;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.trigger.JassGameEventsWar3;
@@ -46,9 +51,13 @@ public final class SavedGame {
 	/**
 	 * Raised only when the file layout itself changes. Classes gaining or losing fields need no new version: the class
 	 * table lets older saves load (see SavedObjectGraph). 3 added the table of script functions to the header, 4 the
-	 * types of the saved globals; 2 is still read, its script positions then need the very same scripts.
+	 * types of the saved globals, 5 the game's random seed, 6 came with the handle table (the map's destructables,
+	 * which are found again by id, are numbered differently); 2 is still read, its script positions then need the very
+	 * same scripts.
 	 */
-	private static final int FORMAT_VERSION = 4;
+	private static final int FORMAT_VERSION = 6;
+	/** Every game used this seed before the seed was saved. */
+	private static final int SEED_BEFORE_FORMAT_5 = 1337;
 	private static final int OLDEST_FORMAT_VERSION = 2;
 
 	private SavedGame() {
@@ -58,6 +67,9 @@ public final class SavedGame {
 		public String mapFile;
 		public int localPlayerIndex;
 		public float gameTime;
+		/** The seed the game started from; its random numbers themselves are in the saved simulation. */
+		public int gameSeed = SEED_BEFORE_FORMAT_5;
+		public int formatVersion = FORMAT_VERSION;
 		public List<AiEntry> aiScripts = new ArrayList<>();
 		/** Script positions are stored by index, so they only mean something on the same scripts and game data. */
 		public List<Integer> scopeSizes = new ArrayList<>();
@@ -73,6 +85,7 @@ public final class SavedGame {
 			out.writeUTF(this.mapFile);
 			out.writeInt(this.localPlayerIndex);
 			out.writeFloat(this.gameTime);
+			out.writeInt(this.gameSeed);
 			out.writeInt(this.scopeSizes.size());
 			for (final int size : this.scopeSizes) {
 				out.writeInt(size);
@@ -105,9 +118,13 @@ public final class SavedGame {
 				throw new IOException("Saved game format " + version + ", this engine reads " + FORMAT_VERSION);
 			}
 			final Header header = new Header();
+			header.formatVersion = version;
 			header.mapFile = in.readUTF();
 			header.localPlayerIndex = in.readInt();
 			header.gameTime = in.readFloat();
+			if (version >= 5) {
+				header.gameSeed = in.readInt();
+			}
 			final int scopeCount = in.readInt();
 			for (int i = 0; i < scopeCount; i++) {
 				header.scopeSizes.add(in.readInt());
@@ -259,7 +276,7 @@ public final class SavedGame {
 			return Loadability.DAMAGED;
 		}
 		try {
-			SavedObjectGraph.checkClassesMatch(table);
+			SavedObjectGraph.checkClassesMatch(table, header.formatVersion);
 		}
 		catch (final IOException | RuntimeException e) {
 			return Loadability.OTHER_VERSION;
@@ -354,6 +371,7 @@ public final class SavedGame {
 		header.mapFile = viewer.getMapFileName();
 		header.localPlayerIndex = viewer.getLocalPlayerIndex();
 		header.gameTime = simulation.getGameTurnTick() * WarsmashConstants.SIMULATION_STEP_TIME;
+		header.gameSeed = viewer.getGameSeed();
 		for (int i = 0; i < WarsmashConstants.MAX_PLAYERS; i++) {
 			final CPlayer player = simulation.getPlayer(i);
 			final JassAIEnvironment aiScript = player.getAiScript();
@@ -501,7 +519,7 @@ public final class SavedGame {
 			table = readFully(gunzip(tableBytes));
 			// A save from another engine build must be refused here, while the map can still start normally.
 			try {
-				SavedObjectGraph.checkClassesMatch(table);
+				SavedObjectGraph.checkClassesMatch(table, header.formatVersion);
 			}
 			catch (final IOException e) {
 				throw new LoadRefused(Loadability.OTHER_VERSION, e.getMessage());
@@ -518,8 +536,11 @@ public final class SavedGame {
 			aiEnvironments.add(simulation.getPlayer(entry.playerIndex).getAiScript());
 		}
 		final Map<Integer, CDestructable> placedDestructables = new HashMap<>();
+		int legacyHandleId = HandleIdAllocator.LEGACY_FIRST_ID;
 		for (final CDestructable destructable : simulation.getDestructables()) {
-			placedDestructables.put(destructable.getHandleId(), destructable);
+			// Before format 6 one counter numbered everything, and the map's destructables came first.
+			placedDestructables.put(header.formatVersion < 6 ? legacyHandleId++ : destructable.getHandleId(),
+					destructable);
 		}
 		for (final War3MapViewer.CreatedDestructable created : header.createdDestructables) {
 			placedDestructables.put(created.savedHandleId, viewer.createDestructableForSavedGame(created));
@@ -548,14 +569,17 @@ public final class SavedGame {
 		}
 		// From here on the map's own state is gone, so everything that can refuse the save comes before this.
 		viewer.clearRenderPeersForSavedGame();
+		viewer.setGameSeedForSavedGame(header.gameSeed);
 		final SavedGameRules rules = new SavedGameRules(viewer, loadedScopes, aiEnvironments);
 		for (final Map.Entry<Integer, CDestructable> destructable : placedDestructables.entrySet()) {
 			rules.nameDestructable(destructable.getValue(), destructable.getKey());
 		}
 		final Root root;
 		try (DataInputStream bodies = gunzip(bodyBytes)) {
-			final SavedObjectGraph.Reader reader = new SavedObjectGraph.Reader(rules, table, bodies);
+			final SavedObjectGraph.Reader reader = new SavedObjectGraph.Reader(rules, table, bodies,
+					header.formatVersion);
 			root = (Root) reader.readRoot();
+			restoreHandleIds(reader, simulation, header.formatVersion);
 			if (mapping != null) {
 				mapping.apply(reader.objectsOf(JassThread.class), reader.objectsOf(CodeJassValue.class), programs,
 						header.scopeSizes);
@@ -589,6 +613,12 @@ public final class SavedGame {
 		for (final SavedUbersplat splat : root.ubersplats) {
 			splat.show(viewer);
 		}
+		for (final CImage image : simulation.getScriptImages()) {
+			viewer.updateImage(image);
+		}
+		for (final CTrackable trackable : simulation.getTrackables()) {
+			viewer.showTrackable(trackable);
+		}
 		simulation.getTerrainDeformations().restore(simulation);
 		viewer.setGamePaused(War3MapViewer.PauseSource.SCRIPT, root.scriptPaused);
 		viewer.setGamePaused(War3MapViewer.PauseSource.PLAYER, root.playerPaused);
@@ -596,18 +626,38 @@ public final class SavedGame {
 		simulation.setSaveBasicFilename(file.nameWithoutExtension());
 		// Zone maps restore their saves from the player's own save folder only on a player's load; a load by the
 		// map's LoadGame (zone travel) is told apart by this flag.
-		viewer.getMapConfig().setMapFlag(CMapFlag.MAP_RELOADED, pendingLoadByScript);
-		pendingLoadByScript = false;
+		viewer.getMapConfig().setMapFlag(CMapFlag.MAP_RELOADED, viewer.isSavedGameLoadedByScript());
 		simulation.fireGameEvent(JassGameEventsWar3.EVENT_GAME_LOADED);
+	}
+
+	/**
+	 * Handles from a save made before they had ids get them now, in the order the save holds them; Condition and
+	 * Filter find their saved handles again. In a newer save an id of 0 is a handle the script never saw, which gets
+	 * its id only when asked, as it would have in the saved game.
+	 */
+	private static void restoreHandleIds(final SavedObjectGraph.Reader reader, final CSimulation simulation,
+			final int formatVersion) {
+		final HandleIdAllocator handleIds = simulation.getHandleIdAllocator();
+		for (final CAllocatedHandle handle : reader.objectsOf(CAllocatedHandle.class)) {
+			if ((formatVersion < 6) && (handle.getHandleId() == 0)) {
+				handle.setHandleId(handle instanceof SavedLightning ? handleIds.createLightningId()
+						: handleIds.createHandleId());
+			}
+		}
+		for (final BoolExprCondition condition : reader.objectsOf(BoolExprCondition.class)) {
+			final GlobalScope scope = condition.getScope();
+			final CodeJassValue function = condition.getFunction();
+			if ((scope != null) && (function != null)
+					&& (scope.getFunctionBoolExpr(function.getUserFunctionInstructionPtr()) == null)) {
+				scope.putFunctionBoolExpr(function.getUserFunctionInstructionPtr(), condition);
+			}
+		}
 	}
 
 	/** Loads a script again without running it: for a player's AI, or for the map's own program at index -1. */
 	public interface AiScriptStarter {
 		void start(AiEntry entry);
 	}
-
-	private static FileHandle pendingLoad;
-	private static boolean pendingLoadByScript;
 
 	private static void checkIntact(final byte[] compressed) throws IOException {
 		try (DataInputStream in = gunzip(compressed)) {
@@ -616,21 +666,6 @@ public final class SavedGame {
 				// Reading to the end makes the gzip stream compare its checksum.
 			}
 		}
-	}
-
-	public static void setPendingLoad(final FileHandle file) {
-		setPendingLoad(file, false);
-	}
-
-	public static void setPendingLoad(final FileHandle file, final boolean byScript) {
-		pendingLoad = file;
-		pendingLoadByScript = byScript;
-	}
-
-	public static FileHandle consumePendingLoad() {
-		final FileHandle file = pendingLoad;
-		pendingLoad = null;
-		return file;
 	}
 
 	private static byte[] bytesOf(final CSaveStorage.Writer writer) throws IOException {

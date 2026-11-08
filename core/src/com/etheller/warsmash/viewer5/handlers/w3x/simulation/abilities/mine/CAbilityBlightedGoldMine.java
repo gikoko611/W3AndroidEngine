@@ -5,7 +5,6 @@ import java.util.List;
 
 import com.badlogic.gdx.math.Vector2;
 import com.etheller.warsmash.util.War3ID;
-import com.etheller.warsmash.util.WarsmashConstants;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CSimulation;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CUnit;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CWidget;
@@ -13,6 +12,7 @@ import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.targeting
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.behaviors.CBehavior;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.behaviors.harvest.CBehaviorAcolyteHarvest;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.players.CPlayer;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.timers.CTimer;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.trigger.enumtypes.CEffectType;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.util.AbilityActivationReceiver;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.util.AbilityTargetCheckReceiver;
@@ -83,7 +83,7 @@ public class CAbilityBlightedGoldMine extends CAbilityOverlayedMine {
 			final float currentInterval = this.intervalDuration
 					* ((float) this.maxNumberOfMiners / this.currentActiveMinerCount);
 			final int nextIncomeTick = this.lastIncomeTick
-					+ (int) (currentInterval / WarsmashConstants.SIMULATION_STEP_TIME);
+					+ CTimer.wholeSteps(currentInterval);
 			final int currentTurnTick = game.getGameTurnTick();
 			final CAbilityGoldMinable parentGoldMineAbility = getParentGoldMineAbility();
 			final int totalGoldAvailable = parentGoldMineAbility.getGold();

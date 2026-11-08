@@ -299,8 +299,9 @@ public class CommandCardIcon extends AbstractRenderableFrame implements Clickabl
 	private static final String HOTKEY_COLOR = "|cffffcc00";
 
 	/**
-	 * Current game data keeps the hotkey apart from the tip and the game appends it as "(A)" in gold; older map data
-	 * marks the letter inside the tip instead. A touch screen has no keyboard, so neither form is shown there.
+	 * Current game data keeps the hotkey apart from the tip and the game shows it as "(A)" in gold after the name,
+	 * before the level; older map data marks the letter inside the tip instead. A touch screen has no keyboard, so
+	 * neither form is shown there.
 	 */
 	static String hotkeyTip(final String tip, final char hotkey, final boolean touch) {
 		if (tip == null) {
@@ -311,12 +312,15 @@ public class CommandCardIcon extends AbstractRenderableFrame implements Clickabl
 			return marked ? tip.replaceAll("\\s*\\((?i:\\|cffffcc00)[^|]*\\|r\\)", "")
 					.replaceAll("(?i:\\|cffffcc00)([^|]*)\\|r", "$1") : tip;
 		}
-		if (marked) {
-			return tip;
-		}
 		final String key = hotkey == 0x7E ? "ESC"
 				: Character.isLetterOrDigit(hotkey) ? String.valueOf(Character.toUpperCase(hotkey)) : null;
-		return key == null ? tip : tip + " (" + HOTKEY_COLOR + key + "|r)";
+		// A gold level, "[|cffffcc00Level 1|r]", is no mark of the key.
+		if ((key == null) || tip.toLowerCase().contains(HOTKEY_COLOR + key.toLowerCase() + "|r")) {
+			return tip;
+		}
+		final int level = tip.indexOf(" - [");
+		final int at = level >= 0 ? level : tip.length();
+		return tip.substring(0, at) + " (" + HOTKEY_COLOR + key + "|r)" + tip.substring(at);
 	}
 
 	@Override

@@ -1,12 +1,12 @@
 package com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.skills.neutral.malganis;
 
 import com.etheller.warsmash.util.War3ID;
-import com.etheller.warsmash.util.WarsmashConstants;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CSimulation;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CUnit;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CUnitType;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.skills.util.CBuffTimed;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.players.CPlayer;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.timers.CTimer;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.trigger.enumtypes.CEffectType;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.unit.StateModBuff;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.unit.StateModBuffType;
@@ -32,7 +32,7 @@ public class CBuffDarkConversion extends CBuffTimed {
 
 	@Override
 	protected void onBuffAdd(final CSimulation game, final CUnit unit) {
-		this.convertTick = game.getGameTurnTick() + (int) (this.duration / WarsmashConstants.SIMULATION_STEP_TIME);
+		this.convertTick = game.getGameTurnTick() + CTimer.wholeSteps(this.duration);
 		unit.addStateModBuff(this.stunBuff);
 		unit.computeUnitState(game, StateModBuffType.STUN);
 	}

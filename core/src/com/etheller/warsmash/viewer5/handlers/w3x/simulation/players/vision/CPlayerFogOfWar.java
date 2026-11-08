@@ -2,6 +2,7 @@ package com.etheller.warsmash.viewer5.handlers.w3x.simulation.players.vision;
 
 import java.nio.ByteBuffer;
 import java.util.Arrays;
+import java.util.List;
 
 import com.badlogic.gdx.math.Rectangle;
 import com.etheller.warsmash.viewer5.handlers.w3x.environment.PathingGrid;
@@ -47,6 +48,22 @@ public class CPlayerFogOfWar {
 
 	public void revealAll() {
 		Arrays.fill(this.fogOfWar, (byte) 0);
+	}
+
+	/**
+	 * Each cell as the player who sees it best has it (visible before fogged before masked): the sight of several
+	 * players together, which only a picture uses.
+	 */
+	public void showMostVisibleOf(final List<CPlayerFogOfWar> sources) {
+		Arrays.fill(this.fogOfWar, (byte) -1);
+		for (final CPlayerFogOfWar source : sources) {
+			final byte[] cells = source.fogOfWar;
+			for (int i = 0, n = Math.min(cells.length, this.fogOfWar.length); i < n; i++) {
+				if ((cells[i] & 0xFF) < (this.fogOfWar[i] & 0xFF)) {
+					this.fogOfWar[i] = cells[i];
+				}
+			}
+		}
 	}
 
 	public int getWidth() {

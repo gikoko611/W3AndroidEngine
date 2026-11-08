@@ -66,10 +66,13 @@ import com.etheller.warsmash.viewer5.handlers.w3x.simulation.combat.attacks.CUni
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.combat.attacks.CUnitAttackNormal;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.pathing.CBuildingPathingType;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.players.CPlayer;
-import com.etheller.warsmash.viewer5.handlers.w3x.simulation.util.SimulationRenderController;
 
 public class CUnitData {
 	private static final String MANA_INITIAL_AMOUNT = "mana0"; // replaced from 'umpi'
+	private static final String PATHING_TEXTURE = "pathTex"; // replaced from 'upat'
+	private static final String TINT_RED = "red"; // replaced from 'uclr'
+	private static final String TINT_GREEN = "green"; // replaced from 'uclg'
+	private static final String TINT_BLUE = "blue"; // replaced from 'uclb'
 	private static final String MANA_MAXIMUM = "manaN"; // replaced from 'umpm'
 	private static final String MANA_REGEN = "regenMana"; // replaced from 'umpr'
 	private static final String HIT_POINT_MAXIMUM = "HP"; // replaced from 'uhpm'
@@ -81,6 +84,8 @@ public class CUnitData {
 	private static final String PROPULSION_WINDOW = "propWin"; // replaced from 'uprw'
 	private static final String TURN_RATE = "turnRate"; // replaced from 'umvr'
 	private static final String IS_BLDG = "isbldg"; // replaced from 'ubdg'
+	private static final String UNIT_SHADOW = "unitShadow"; // replaced from 'ushu'
+	private static final String UBER_SPLAT = "uberSplat"; // replaced from 'uubs'
 	private static final String NAME = "Name"; // replaced from 'unam'
 	private static final String PROPER_NAMES = "Propernames"; // replaced from 'upro'
 	private static final String PROPER_NAMES_COUNT = "nameCount"; // replaced from 'upru'
@@ -252,16 +257,18 @@ public class CUnitData {
 	private final CAbilityData abilityData;
 	private final CUpgradeData upgradeData;
 	private CItemData itemData;
-	private final SimulationRenderController simulationRenderController;
+	private final CPathingTextures pathingTextures;
+	private final int mapGameVersion;
 
 	public CUnitData(final CGameplayConstants gameplayConstants, final ObjectData unitData,
 			final CAbilityData abilityData, final CUpgradeData upgradeData,
-			final SimulationRenderController simulationRenderController) {
+			final CPathingTextures pathingTextures, final int mapGameVersion) {
 		this.gameplayConstants = gameplayConstants;
+		this.mapGameVersion = mapGameVersion;
 		this.unitData = unitData;
 		this.abilityData = abilityData;
 		this.upgradeData = upgradeData;
-		this.simulationRenderController = simulationRenderController;
+		this.pathingTextures = pathingTextures;
 	}
 
 	public CUnit create(final CSimulation simulation, final int playerIndex, final War3ID typeId, final float x,
@@ -269,7 +276,7 @@ public class CUnitData {
 			final HandleIdAllocator handleIdAllocator, final int editorConfigHitPointPercent,
 			final int editorConfigManaAmount) {
 		final GameObject unitType = this.unitData.get(typeId.asStringValue());
-		final int handleId = handleIdAllocator.createId();
+		final int handleId = handleIdAllocator.createHandleId();
 
 		final CUnitType unitTypeInstance = getUnitTypeInstance(typeId, buildingPathingPixelMap, unitType);
 		final float life = editorConfigHitPointPercent > 0
@@ -898,8 +905,8 @@ public class CUnitData {
 
 	private List<War3ID> inMapVersion(final List<String> ids) {
 		final List<War3ID> available = parseIDList(ids);
-		if (WarsmashConstants.MAP_GAME_VERSION < WarsmashConstants.GAME_VERSION) {
-			available.removeIf(id -> WarsmashConstants.isOutOfMapVersion(this.unitData.get(id.asStringValue()))
+		if (this.mapGameVersion < WarsmashConstants.GAME_VERSION) {
+			available.removeIf(id -> WarsmashConstants.isOutOfMapVersion(this.unitData.get(id.asStringValue()), this.mapGameVersion)
 					|| this.upgradeData.isOutOfMapVersion(id)
 					|| ((this.itemData != null) && this.itemData.isOutOfMapVersion(id)));
 		}
@@ -1060,6 +1067,30 @@ public class CUnitData {
 		return this.unitData.get(unitTypeId.asStringValue()).getFieldAsFloat(TURN_RATE, 0);
 	}
 
+	/**
+	 * Image pool numbers the shadow of a living unit of this type takes, measured on 1.29: two for a unit with a shadow
+	 * that is not a building, none for a building.
+	 */
+	public int getShadowImageCount(final War3ID unitTypeId) {
+		final GameObject unitType = this.unitData.get(unitTypeId.asStringValue());
+		if ((unitType == null) || unitType.getFieldAsBoolean(IS_BLDG, 0)
+				|| !isArtSet(unitType.getFieldAsString(UNIT_SHADOW, 0))) {
+			return 0;
+		}
+		return 2;
+	}
+
+	/** A ground texture takes one image and one ubersplat pool number, like a script ubersplat (measured on 1.29). */
+
+	public boolean hasUberSplat(final War3ID unitTypeId) {
+		final GameObject unitType = this.unitData.get(unitTypeId.asStringValue());
+		return (unitType != null) && isArtSet(unitType.getFieldAsString(UBER_SPLAT, 0));
+	}
+
+	private static boolean isArtSet(final String value) {
+		return (value != null) && !value.isEmpty() && !"_".equals(value);
+	}
+
 	public boolean isBuilding(final War3ID unitTypeId) {
 		return this.unitData.get(unitTypeId.asStringValue()).getFieldAsBoolean(IS_BLDG, 0);
 	}
@@ -1175,17 +1206,30 @@ public class CUnitData {
 		}
 	}
 
+	/**
+	 * The vertex color {r, g, b, a} units of the type are drawn with until something changes it: the type's tinting
+	 * color, opaque. White for a type the data does not have.
+	 */
+	public float[] getTintingColor(final War3ID rawcode) {
+		final GameObject unitType = this.unitData.get(rawcode.asStringValue());
+		if (unitType == null) {
+			return new float[] { 1, 1, 1, 1 };
+		}
+		return new float[] { unitType.getFieldAsInteger(TINT_RED, 0) / 255f,
+				unitType.getFieldAsInteger(TINT_GREEN, 0) / 255f, unitType.getFieldAsInteger(TINT_BLUE, 0) / 255f, 1 };
+	}
+
 	public CUnitType getUnitType(final War3ID rawcode) {
 		final CUnitType unitTypeInstance = this.unitIdToUnitType.get(rawcode);
 		if (unitTypeInstance != null) {
 			return unitTypeInstance;
 		}
 		final GameObject unitType = this.unitData.get(rawcode.asStringValue());
-		if ((unitType == null) || WarsmashConstants.isOutOfMapVersion(unitType)) {
+		if ((unitType == null) || WarsmashConstants.isOutOfMapVersion(unitType, this.mapGameVersion)) {
 			return null;
 		}
-		final ArgbImage buildingPathingPixelMap = this.simulationRenderController
-				.getBuildingPathingPixelMap(rawcode);
+		final ArgbImage buildingPathingPixelMap = this.pathingTextures
+				.get(unitType.getFieldAsString(PATHING_TEXTURE, 0));
 		return getUnitTypeInstance(rawcode, buildingPathingPixelMap, unitType);
 	}
 
@@ -1529,7 +1573,7 @@ public class CUnitData {
 			return unitTypeInstance;
 		}
 		final GameObject unitType = this.unitData.get(rawcode.asStringValue());
-		if ((unitType == null) || WarsmashConstants.isOutOfMapVersion(unitType)) {
+		if ((unitType == null) || WarsmashConstants.isOutOfMapVersion(unitType, this.mapGameVersion)) {
 			return null;
 		}
 		return getUnitTypeInstanceLightweight(rawcode, unitType);

@@ -4,7 +4,6 @@ import java.util.EnumSet;
 
 import com.etheller.warsmash.units.GameObject;
 import com.etheller.warsmash.util.War3ID;
-import com.etheller.warsmash.util.WarsmashConstants;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CSimulation;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CUnit;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.skills.CAbilityNoTargetSpellBase;
@@ -16,6 +15,7 @@ import com.etheller.warsmash.viewer5.handlers.w3x.simulation.behaviors.CBehavior
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.combat.CTargetType;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.orders.COrder;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.orders.OrderIds;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.timers.CTimer;
 
 /**
  * Prioritize: a toggle; while it is on the unit engages the kinds of enemies in its targets (Gargoyles: flyers)
@@ -23,7 +23,7 @@ import com.etheller.warsmash.viewer5.handlers.w3x.simulation.orders.OrderIds;
  * ordered to attack.
  */
 public class CAbilityPrioritize extends CAbilityNoTargetSpellBase {
-	private static final int CHECK_TICKS = (int) (0.5f / WarsmashConstants.SIMULATION_STEP_TIME);
+	private static final int CHECK_TICKS = CTimer.wholeSteps(0.5f);
 
 	private boolean initiallyEnabled;
 	private War3ID buffId;

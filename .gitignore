@@ -140,3 +140,8 @@ Thumbs.db
 /core/data
 /core/assets/Logs
 /core/assets/Save
+/core/assets/Replay
+
+## The game data folder chosen in the desktop launcher
+/core/assets/warsmash.user.ini
+/core/assets/CustomKeys.txt

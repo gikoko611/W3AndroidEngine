@@ -67,6 +67,7 @@ public final class GlobalScope {
 	private final List<JassInstruction> instructions = new ArrayList<JassInstruction>();
 	private final Map<String, Integer> globals = new HashMap<>();
 	private final Map<String, GlobalScopeAssignable> fastGlobals = new HashMap<>();
+	private final Map<Integer, TriggerBooleanExpression> functionBoolExprs = new HashMap<>();
 	private final Map<String, UserJassFunction> functionNameToDefinition = new HashMap<>();
 	private final Map<String, Integer> functionNameToInstructionPtr = new HashMap<>();
 	private final Map<String, Integer> functionNameToNativeId = new HashMap<>();
@@ -140,6 +141,15 @@ public final class GlobalScope {
 		this.runningTriggerQueue.addAll((ArrayDeque<QueuedCallback>) runningTriggerQueue);
 		this.currentThread = null;
 		this.yieldedCurrentThread = false;
+	}
+
+	/** The boolexpr Condition or Filter made for the function at this instruction, or null. */
+	public TriggerBooleanExpression getFunctionBoolExpr(final Integer instructionPtr) {
+		return this.functionBoolExprs.get(instructionPtr);
+	}
+
+	public void putFunctionBoolExpr(final Integer instructionPtr, final TriggerBooleanExpression boolExpr) {
+		this.functionBoolExprs.put(instructionPtr, boolExpr);
 	}
 
 	public GlobalScope() {
@@ -297,12 +307,14 @@ public final class GlobalScope {
 		final int instructionPtr = this.instructions.size();
 
 		final List<JassStatement> statements = function.getStatements();
-		this.instructions.add(new BeginFunctionInstruction(lineNo, sourceFile, name));
+		final BeginFunctionInstruction begin = new BeginFunctionInstruction(lineNo, sourceFile, name);
+		this.instructions.add(begin);
 		final InstructionAppendingJassStatementVisitor visitor = new InstructionAppendingJassStatementVisitor(
 				this.instructions, scope, function.getParameters());
 		for (final JassStatement statement : visitor.cleanStatements(statements)) {
 			statement.accept(visitor);
 		}
+		begin.setOpCost(visitor.getLocalsOpCost());
 		this.instructions.add(new PushLiteralInstruction(JassType.NOTHING.getNullValue()));
 		this.instructions.add(new ReturnInstruction());
 
@@ -319,12 +331,14 @@ public final class GlobalScope {
 	private void writeFunctionInstructions(final int lineNo, final String sourceFile, final String name,
 			final UserJassFunction function, final Scope scope) {
 		final List<JassStatement> statements = function.getStatements();
-		this.instructions.add(new BeginFunctionInstruction(lineNo, sourceFile, name));
+		final BeginFunctionInstruction begin = new BeginFunctionInstruction(lineNo, sourceFile, name);
+		this.instructions.add(begin);
 		final InstructionAppendingJassStatementVisitor visitor = new InstructionAppendingJassStatementVisitor(
 				this.instructions, scope, function.getParameters());
 		for (final JassStatement statement : visitor.cleanStatements(statements)) {
 			statement.accept(visitor);
 		}
+		begin.setOpCost(visitor.getLocalsOpCost());
 		this.instructions.add(new PushLiteralInstruction(JassType.NOTHING.getNullValue()));
 		this.instructions.add(new ReturnInstruction());
 	}
@@ -657,7 +671,10 @@ public final class GlobalScope {
 					}
 				}
 				else {
-					this.instructions.get(thread.instructionPtr++).run(thread);
+					final JassInstruction instruction = this.instructions.get(thread.instructionPtr++);
+					if (thread.countOps(instruction.opCost())) {
+						instruction.run(thread);
+					}
 				}
 			}
 		}
@@ -724,7 +741,10 @@ public final class GlobalScope {
 						}
 					}
 					else {
-						this.instructions.get(thread.instructionPtr++).run(thread);
+						final JassInstruction instruction = this.instructions.get(thread.instructionPtr++);
+						if (thread.countOps(instruction.opCost())) {
+							instruction.run(thread);
+						}
 					}
 				}
 				if (thread.isHalted()) {

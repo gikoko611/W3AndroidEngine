@@ -9,8 +9,8 @@ import com.badlogic.gdx.math.Rectangle;
 import com.etheller.interpreter.ast.scope.GlobalScope;
 import com.etheller.interpreter.ast.scope.trigger.RemovableTriggerEvent;
 import com.etheller.interpreter.ast.scope.trigger.Trigger;
+import com.etheller.interpreter.ast.util.CAllocatedHandle;
 import com.etheller.interpreter.ast.util.CExtensibleHandleAbstract;
-import com.etheller.interpreter.ast.util.CHandle;
 import com.etheller.warsmash.parsers.jass.scope.CommonTriggerExecutionScope;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.targeting.AbilityTarget;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.combat.CAttackType;
@@ -22,9 +22,18 @@ import com.etheller.warsmash.viewer5.handlers.w3x.simulation.unit.CWidgetEvent;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.util.AbilityTargetCheckReceiver;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.util.BooleanAbilityTargetCheckReceiver;
 
-public abstract class CWidget extends CExtensibleHandleAbstract implements AbilityTarget, CHandle {
+/**
+ * As in 1.29, the id of a removed widget waits while a script variable or hashtable entry still points at it, and a
+ * local that pointed at it when its function returned keeps it for good (measured).
+ */
+public abstract class CWidget extends CExtensibleHandleAbstract implements AbilityTarget, CAllocatedHandle {
 	protected static final Rectangle tempRect = new Rectangle();
 	private final int handleId;
+	private boolean handleReleased;
+	private boolean handleIdKept;
+	private int referenceCount;
+	private int[] poolImageIds;
+	private int[] poolUbersplatIds;
 	private float x;
 	private float y;
 	protected float life;
@@ -41,6 +50,74 @@ public abstract class CWidget extends CExtensibleHandleAbstract implements Abili
 	@Override
 	public int getHandleId() {
 		return this.handleId;
+	}
+
+	/** Widgets are numbered when they are made. */
+	@Override
+	public void setHandleId(final int handleId) {
+	}
+
+	@Override
+	public boolean releaseHandle() {
+		if (this.handleReleased) {
+			return false;
+		}
+		this.handleReleased = true;
+		return true;
+	}
+
+	@Override
+	public void keepHandleId() {
+		this.handleIdKept = true;
+	}
+
+	@Override
+	public boolean isHandleIdKept() {
+		return this.handleIdKept;
+	}
+
+	@Override
+	public int changeReferenceCount(final int delta) {
+		this.referenceCount += delta;
+		return this.referenceCount;
+	}
+
+	@Override
+	public int getReferenceCount() {
+		return this.referenceCount;
+	}
+
+	/** Image pool numbers of its shadow while it lives. */
+	public void setShadowPoolIds(final int[] imageIds) {
+		this.poolImageIds = imageIds;
+	}
+
+	public boolean hasShadowPoolIds() {
+		return this.poolImageIds != null;
+	}
+
+	/** Image and ubersplat pool numbers of its ground texture while it exists. */
+	public void setUbersplatPoolIds(final int imageId, final int ubersplatId) {
+		this.poolUbersplatIds = new int[] { imageId, ubersplatId };
+	}
+
+	/** The first number taken comes back last, so the next image takes it first (measured on 1.29). */
+	public void freeShadowPoolIds(final HandleIdAllocator allocator) {
+		if (this.poolImageIds != null) {
+			for (int i = this.poolImageIds.length - 1; i >= 0; i--) {
+				allocator.freeImageId(this.poolImageIds[i]);
+			}
+			this.poolImageIds = null;
+		}
+	}
+
+	public void freePoolIds(final HandleIdAllocator allocator) {
+		freeShadowPoolIds(allocator);
+		if (this.poolUbersplatIds != null) {
+			allocator.freeImageId(this.poolUbersplatIds[0]);
+			allocator.freeUbersplatId(this.poolUbersplatIds[1]);
+			this.poolUbersplatIds = null;
+		}
 	}
 
 	@Override

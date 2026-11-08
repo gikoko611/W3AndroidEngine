@@ -1,8 +1,37 @@
 [compileJava, compileTestJava]*.options*.encoding = 'UTF-8'
 
-sourceCompatibility = 1.17
+java {
+    sourceCompatibility = JavaVersion.VERSION_17
+    targetCompatibility = JavaVersion.VERSION_17
+}
 
 sourceSets.main.java.srcDirs = [ "src/" ]
+sourceSets.test.java.srcDirs = [ "test/" ]
+
+// The engine's version is the Android app's version name; every platform reads it from this resource, so replays of
+// one platform are known to another.
+def engineVersion = (file("../android/build.gradle").text =~ /versionName\s*=?\s*"([^"]+)"/)[0][1]
+def engineVersionDir = layout.buildDirectory.dir("generated/engineVersion")
+def engineVersionResource = tasks.register("engineVersionResource") {
+    inputs.property("engineVersion", engineVersion)
+    outputs.dir(engineVersionDir)
+    doLast {
+        def file = engineVersionDir.get().file("com/etheller/warsmash/version.txt").asFile
+        file.parentFile.mkdirs()
+        file.text = engineVersion
+    }
+}
+sourceSets.main.resources.srcDir(files(engineVersionDir).builtBy(engineVersionResource))
+
+dependencies {
+    testImplementation platform("org.junit:junit-bom:6.1.3")
+    testImplementation "org.junit.jupiter:junit-jupiter"
+    testRuntimeOnly "org.junit.platform:junit-platform-launcher"
+}
+
+test {
+    useJUnitPlatform()
+}
 
 
 eclipse.project {

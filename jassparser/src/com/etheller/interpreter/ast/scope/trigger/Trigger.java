@@ -10,13 +10,15 @@ import com.etheller.interpreter.ast.execution.JassThread;
 import com.etheller.interpreter.ast.function.JassFunction;
 import com.etheller.interpreter.ast.scope.GlobalScope;
 import com.etheller.interpreter.ast.scope.TriggerExecutionScope;
-import com.etheller.interpreter.ast.util.CHandle;
+import com.etheller.interpreter.ast.util.CAllocatedHandle;
 import com.etheller.interpreter.ast.value.CodeJassValue;
 import com.etheller.interpreter.ast.value.JassValue;
 
-public class Trigger implements CHandle {
-	private static int STUPID_STATIC_TRIGGER_COUNT_DELETE_THIS_LATER = 452354453;
-	private final int handleId = STUPID_STATIC_TRIGGER_COUNT_DELETE_THIS_LATER++;
+public class Trigger implements CAllocatedHandle {
+	private int handleId;
+	private boolean handleReleased;
+	private boolean handleIdKept;
+	private int referenceCount;
 	private final List<TriggerBooleanExpression> conditions = new ArrayList<>();
 	private final List<JassFunction> actions = new ArrayList<>();
 	private final List<RemovableTriggerEvent> events = new ArrayList<>();
@@ -177,6 +179,30 @@ public class Trigger implements CHandle {
 		return this.handleId;
 	}
 
+	@Override
+	public void setHandleId(final int handleId) {
+		this.handleId = handleId;
+	}
+
+	@Override
+	public boolean releaseHandle() {
+		if (this.handleReleased) {
+			return false;
+		}
+		this.handleReleased = true;
+		return true;
+	}
+
+	@Override
+	public void keepHandleId() {
+		this.handleIdKept = true;
+	}
+
+	@Override
+	public boolean isHandleIdKept() {
+		return this.handleIdKept;
+	}
+
 	private static final class JassThreadActionFunc implements JassFunction {
 		private final CodeJassValue codeJassValue;
 
@@ -246,5 +272,16 @@ public class Trigger implements CHandle {
 			evt.remove();
 			this.events.remove(evt);
 		}
+	}
+
+	@Override
+	public int changeReferenceCount(final int delta) {
+		this.referenceCount += delta;
+		return this.referenceCount;
+	}
+
+	@Override
+	public int getReferenceCount() {
+		return this.referenceCount;
 	}
 }

@@ -12,14 +12,17 @@ import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.utils.IntIntMap;
 import com.etheller.warsmash.util.WarsmashConstants;
 import com.etheller.warsmash.viewer5.handlers.w3x.War3MapViewer;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.players.CPlayerCommandCodec;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.players.CPlayerCommandRecorder;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.players.CPlayerUnitOrderExecutor;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.players.CPlayerUnitOrderListener;
 
 import net.warsmash.networking.udp.OrderedUdpClient;
 
 public class WarsmashClient implements ServerToClientListener, GameTurnManager {
 	private final OrderedUdpClient udpClient;
 	private final War3MapViewer game;
-	private final Map<Integer, CPlayerUnitOrderExecutor> indexToExecutor = new HashMap<>();
+	private final Map<Integer, CPlayerUnitOrderListener> indexToExecutor = new HashMap<>();
 	private int latestCompletedTurn = -1;
 	private int latestLocallyRequestedTurn = -1;
 	private final WarsmashClientWriter writer;
@@ -34,11 +37,12 @@ public class WarsmashClient implements ServerToClientListener, GameTurnManager {
 		this.serverSlotToMapSlot = serverSlotToMapSlot;
 	}
 
-	private CPlayerUnitOrderExecutor getExecutor(final int serverPlayerIndex) {
+	private CPlayerUnitOrderListener getExecutor(final int serverPlayerIndex) {
 		final int mapPlayerIndex = this.serverSlotToMapSlot.get(serverPlayerIndex, -1);
-		CPlayerUnitOrderExecutor executor = this.indexToExecutor.get(serverPlayerIndex);
+		CPlayerUnitOrderListener executor = this.indexToExecutor.get(serverPlayerIndex);
 		if (executor == null) {
-			executor = new CPlayerUnitOrderExecutor(this.game.simulation, mapPlayerIndex);
+			executor = new CPlayerCommandRecorder(this.game.simulation, mapPlayerIndex,
+					new CPlayerUnitOrderExecutor(this.game.simulation, mapPlayerIndex));
 			this.indexToExecutor.put(serverPlayerIndex, executor);
 		}
 		return executor;
@@ -57,7 +61,7 @@ public class WarsmashClient implements ServerToClientListener, GameTurnManager {
 	@Override
 	public void issueTargetOrder(final int playerIndex, final int unitHandleId, final int abilityHandleId,
 			final int orderId, final int targetHandleId, final boolean queue) {
-		final CPlayerUnitOrderExecutor executor = getExecutor(playerIndex);
+		final CPlayerUnitOrderListener executor = getExecutor(playerIndex);
 		Gdx.app.postRunnable(new Runnable() {
 			@Override
 			public void run() {
@@ -84,7 +88,7 @@ public class WarsmashClient implements ServerToClientListener, GameTurnManager {
 	@Override
 	public void issuePointOrder(final int playerIndex, final int unitHandleId, final int abilityHandleId,
 			final int orderId, final float x, final float y, final boolean queue) {
-		final CPlayerUnitOrderExecutor executor = getExecutor(playerIndex);
+		final CPlayerUnitOrderListener executor = getExecutor(playerIndex);
 		Gdx.app.postRunnable(new Runnable() {
 			@Override
 			public void run() {
@@ -113,7 +117,7 @@ public class WarsmashClient implements ServerToClientListener, GameTurnManager {
 	@Override
 	public void issueDropItemAtPointOrder(final int playerIndex, final int unitHandleId, final int abilityHandleId,
 			final int orderId, final int targetHandleId, final float x, final float y, final boolean queue) {
-		final CPlayerUnitOrderExecutor executor = getExecutor(playerIndex);
+		final CPlayerUnitOrderListener executor = getExecutor(playerIndex);
 		Gdx.app.postRunnable(new Runnable() {
 			@Override
 			public void run() {
@@ -142,7 +146,7 @@ public class WarsmashClient implements ServerToClientListener, GameTurnManager {
 	@Override
 	public void issueDropItemAtTargetOrder(final int playerIndex, final int unitHandleId, final int abilityHandleId,
 			final int orderId, final int targetHandleId, final int targetHeroHandleId, final boolean queue) {
-		final CPlayerUnitOrderExecutor executor = getExecutor(playerIndex);
+		final CPlayerUnitOrderListener executor = getExecutor(playerIndex);
 		Gdx.app.postRunnable(new Runnable() {
 			@Override
 			public void run() {
@@ -171,7 +175,7 @@ public class WarsmashClient implements ServerToClientListener, GameTurnManager {
 	@Override
 	public void issueImmediateOrder(final int playerIndex, final int unitHandleId, final int abilityHandleId,
 			final int orderId, final boolean queue) {
-		final CPlayerUnitOrderExecutor executor = getExecutor(playerIndex);
+		final CPlayerUnitOrderListener executor = getExecutor(playerIndex);
 		Gdx.app.postRunnable(new Runnable() {
 			@Override
 			public void run() {
@@ -197,7 +201,7 @@ public class WarsmashClient implements ServerToClientListener, GameTurnManager {
 
 	@Override
 	public void unitCancelTrainingItem(final int playerIndex, final int unitHandleId, final int cancelIndex) {
-		final CPlayerUnitOrderExecutor executor = getExecutor(playerIndex);
+		final CPlayerUnitOrderListener executor = getExecutor(playerIndex);
 		Gdx.app.postRunnable(new Runnable() {
 			@Override
 			public void run() {
@@ -223,7 +227,7 @@ public class WarsmashClient implements ServerToClientListener, GameTurnManager {
 
 	@Override
 	public void issueGuiPlayerEvent(final int playerIndex, final int eventId) {
-		final CPlayerUnitOrderExecutor executor = getExecutor(playerIndex);
+		final CPlayerUnitOrderListener executor = getExecutor(playerIndex);
 		Gdx.app.postRunnable(new Runnable() {
 			@Override
 			public void run() {
@@ -238,6 +242,32 @@ public class WarsmashClient implements ServerToClientListener, GameTurnManager {
 				}
 				else if (currentServerTurnInProgress == WarsmashClient.this.latestLocallyRequestedTurn) {
 					executor.issueGuiPlayerEvent(eventId);
+				}
+				else {
+					System.err.println("Turn tick system mismatch: " + currentServerTurnInProgress + " < "
+							+ WarsmashClient.this.latestLocallyRequestedTurn);
+				}
+			}
+		});
+	}
+
+	@Override
+	public void issuePlayerCommand(final int playerIndex, final byte[] command) {
+		final CPlayerUnitOrderListener executor = getExecutor(playerIndex);
+		Gdx.app.postRunnable(new Runnable() {
+			@Override
+			public void run() {
+				final int currentServerTurnInProgress = WarsmashClient.this.latestCompletedTurn + 1;
+				if (currentServerTurnInProgress > WarsmashClient.this.latestLocallyRequestedTurn) {
+					WarsmashClient.this.queuedMessages.add(new QueuedMessage(currentServerTurnInProgress) {
+						@Override
+						public void run() {
+							CPlayerCommandCodec.decode(command, executor);
+						}
+					});
+				}
+				else if (currentServerTurnInProgress == WarsmashClient.this.latestLocallyRequestedTurn) {
+					CPlayerCommandCodec.decode(command, executor);
 				}
 				else {
 					System.err.println("Turn tick system mismatch: " + currentServerTurnInProgress + " < "

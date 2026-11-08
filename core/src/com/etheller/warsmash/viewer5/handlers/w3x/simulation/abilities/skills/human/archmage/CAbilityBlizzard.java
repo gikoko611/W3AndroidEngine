@@ -12,8 +12,16 @@ import com.etheller.warsmash.util.WarsmashConstants;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CSimulation;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CUnit;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CUnitEnumFunction;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CWidget;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.targeting.AbilityPointTarget;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.behaviors.CBehavior;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.util.AbilityTargetCheckReceiver;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.util.CommandStringErrorKeys;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.CAbility;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.skills.CAbilityPointTargetSpellBase;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.GetAbilityByRawcodeVisitor;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.skills.neutral.brewmaster.CBuffBreathOfFire;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.skills.neutral.creeps.CCreepCastAbility;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.targeting.AbilityTarget;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.types.definitions.impl.AbilityFields;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.types.definitions.impl.AbstractCAbilityTypeDefinition;
@@ -23,8 +31,11 @@ import com.etheller.warsmash.viewer5.handlers.w3x.simulation.orders.OrderIds;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.trigger.enumtypes.CDamageType;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.trigger.enumtypes.CEffectType;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.trigger.enumtypes.CWeaponSoundTypeJass;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.util.BooleanAbilityTargetCheckReceiver;
 
-public class CAbilityBlizzard extends CAbilityPointTargetSpellBase {
+public class CAbilityBlizzard extends CAbilityPointTargetSpellBase implements CCreepCastAbility {
+	// Measured on 1.29: creeps rain fire on a group of at least two enemies.
+	private static final int CREEP_CAST_MINIMUM_TARGETS = 2;
 	private static final float WAVE_DAMAGE_DELAY = 0.9f;
 	// Measured on 1.29: the hit buff lasts more than 0.9 and less than 1 second.
 	private static final float HIT_BUFF_DURATION = 0.95f;
@@ -39,6 +50,9 @@ public class CAbilityBlizzard extends CAbilityPointTargetSpellBase {
 	private float areaOfEffect;
 	private War3ID effectId;
 	private War3ID hitBuffId;
+	private War3ID burnBuffId;
+	private final int orderId;
+	private final CDamageType damageType;
 
 	private int currentWave;
 	private int nextWaveTick;
@@ -47,7 +61,17 @@ public class CAbilityBlizzard extends CAbilityPointTargetSpellBase {
 	private final Rectangle recycleRect = new Rectangle();
 
 	public CAbilityBlizzard(final int handleId, final War3ID alias) {
+		this(handleId, alias, OrderIds.blizzard, CDamageType.COLD);
+	}
+
+	/**
+	 * Rain of Fire is the same spell under its own order, burning instead of freezing.
+	 */
+	public CAbilityBlizzard(final int handleId, final War3ID alias, final int orderId,
+			final CDamageType damageType) {
 		super(handleId, alias);
+		this.orderId = orderId;
+		this.damageType = damageType;
 	}
 
 	@Override
@@ -68,11 +92,12 @@ public class CAbilityBlizzard extends CAbilityPointTargetSpellBase {
 		if ((this.hitBuffId == null) || War3ID.NONE.equals(this.hitBuffId)) {
 			this.hitBuffId = AbstractCAbilityTypeDefinition.getBuffId(worldEditorAbility, level, 0);
 		}
+		this.burnBuffId = AbstractCAbilityTypeDefinition.getBuffId(worldEditorAbility, level, 0);
 	}
 
 	@Override
 	public int getBaseOrderId() {
-		return OrderIds.blizzard;
+		return this.orderId;
 	}
 
 	@Override
@@ -127,7 +152,8 @@ public class CAbilityBlizzard extends CAbilityPointTargetSpellBase {
 					@Override
 					public boolean call(final CUnit possibleTarget) {
 						if (possibleTarget.canReach(target, CAbilityBlizzard.this.areaOfEffect)
-								&& possibleTarget.canBeTargetedBy(simulation, caster, getTargetsAllowed())
+								&& possibleTarget.canBeTargetedBy(simulation, caster, false, getTargetsAllowed(),
+										BooleanAbilityTargetCheckReceiver.<CWidget>getInstance().reset())
 								&& !hasHitBuff(possibleTarget)) {
 							damageTargets.add(possibleTarget);
 						}
@@ -135,19 +161,68 @@ public class CAbilityBlizzard extends CAbilityPointTargetSpellBase {
 					}
 				});
 		float damagePerTarget = this.damage;
-		if ((damagePerTarget * damageTargets.size()) > this.maximumDamagePerWave) {
+		if ((this.maximumDamagePerWave > 0)
+				&& ((damagePerTarget * damageTargets.size()) > this.maximumDamagePerWave)) {
 			damagePerTarget = this.maximumDamagePerWave / damageTargets.size();
 		}
 		final float damagePerTargetBuilding = damagePerTarget * (this.buildingReduction);
 		for (final CUnit damageTarget : damageTargets) {
 			final float thisTargetDamage = damageTarget.isBuilding() ? damagePerTargetBuilding : damagePerTarget;
-			damageTarget.damage(simulation, caster, DAMAGE_FLAGS, CAttackType.SPELLS, CDamageType.COLD,
+			damageTarget.damage(simulation, caster, DAMAGE_FLAGS, CAttackType.SPELLS, this.damageType,
 					CWeaponSoundTypeJass.WHOKNOWS.name(), thisTargetDamage);
+			if (!damageTarget.isDead() && (this.damagePerSecond > 0) && (getDuration() > 0)
+					&& (this.burnBuffId != null) && !War3ID.NONE.equals(this.burnBuffId)) {
+				// Measured on 1.29: a new wave restarts the burn instead of adding a second one.
+				final CAbility previousBurn = damageTarget
+						.getAbility(GetAbilityByRawcodeVisitor.getInstance().reset(this.burnBuffId));
+				if (previousBurn instanceof CBuffBreathOfFire) {
+					damageTarget.remove(simulation, (CBuffBreathOfFire) previousBurn);
+				}
+				damageTarget.add(simulation, new CBuffBreathOfFire(simulation.getHandleIdAllocator().createId(),
+						this.burnBuffId, getDuration(), caster, this.damagePerSecond));
+			}
 			if (!damageTarget.isDead() && (this.hitBuffId != null) && !War3ID.NONE.equals(this.hitBuffId)) {
 				damageTarget.add(simulation, new CBuffBlizzard(simulation.getHandleIdAllocator().createId(),
 						this.hitBuffId, HIT_BUFF_DURATION));
 			}
 		}
+	}
+
+	/**
+	 * Measured on 1.29 (Doom Guard): the creep rains fire on the enemy it attacks when at least two enemies stand in
+	 * the area around it, none of them a hero, and the creep itself stays out of the area; 3 Footmen in melee around
+	 * it, 3 spread 300 apart, one alone or 2 with a Paladin get none.
+	 */
+	@Override
+	public boolean tryCreepCast(final CSimulation game, final CUnit creep, final CUnit attackTarget,
+			final boolean inAttackRange) {
+		if ((getCooldownRemaining(game, creep) > 0) || (creep.getMana() < getManaCost())) {
+			return false;
+		}
+		if ((this.orderId != OrderIds.rainoffire) || (attackTarget.getHeroData() != null)
+				|| creep.canReach(attackTarget, this.areaOfEffect) || !creep.canReach(attackTarget, getCastRange())) {
+			return false;
+		}
+		final int[] targets = { 0 };
+		final boolean[] hero = { false };
+		game.getWorldCollision().enumUnitsInRange(attackTarget.getX(), attackTarget.getY(), this.areaOfEffect,
+				(enumUnit) -> {
+					if (enumUnit.canReach(attackTarget, this.areaOfEffect)
+							&& enumUnit.canBeTargetedBy(game, creep, getTargetsAllowed())
+							&& !enumUnit.isUnitAlly(game.getPlayer(creep.getPlayerIndex()))) {
+						if (enumUnit.getHeroData() != null) {
+							hero[0] = true;
+						}
+						else {
+							targets[0]++;
+						}
+					}
+					return false;
+				});
+		if (hero[0] || (targets[0] < CREEP_CAST_MINIMUM_TARGETS)) {
+			return false;
+		}
+		return creep.order(game, this.orderId, attackTarget, true);
 	}
 
 	private boolean hasHitBuff(final CUnit unit) {
@@ -157,6 +232,30 @@ public class CAbilityBlizzard extends CAbilityPointTargetSpellBase {
 
 	private static int ticks(final float seconds) {
 		return StrictMath.round(seconds / WarsmashConstants.SIMULATION_STEP_TIME);
+	}
+
+	/**
+	 * Like other area spells, it can be aimed at a unit: it falls where the unit stands when the spell starts.
+	 */
+	@Override
+	protected void innerCheckCanTarget(final CSimulation game, final CUnit unit, final int orderId,
+			final CWidget target, final AbilityTargetCheckReceiver<CWidget> receiver) {
+		if (orderId != getBaseOrderId()) {
+			receiver.orderIdNotAccepted();
+		}
+		else if (!unit.isMovementDisabled() || unit.canReach(target, getCastRange())) {
+			receiver.targetOk(target);
+		}
+		else {
+			receiver.targetCheckFailed(CommandStringErrorKeys.TARGET_IS_OUTSIDE_RANGE);
+		}
+	}
+
+	@Override
+	public CBehavior begin(final CSimulation game, final CUnit caster, final int playerIndex, final int orderId,
+			final boolean autoOrder, final CWidget target) {
+		return begin(game, caster, playerIndex, orderId, autoOrder,
+				new AbilityPointTarget(target.getX(), target.getY()));
 	}
 
 	@Override

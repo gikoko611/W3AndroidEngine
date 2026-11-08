@@ -1,6 +1,8 @@
 package com.etheller.warsmash.viewer5.handlers.w3x.simulation.quest;
 
-public class CQuestItem {
+import com.etheller.interpreter.ast.util.AllocatedHandle;
+
+public class CQuestItem extends AllocatedHandle {
 	private final CQuest quest;
 	private String description = "";
 	private boolean completed;

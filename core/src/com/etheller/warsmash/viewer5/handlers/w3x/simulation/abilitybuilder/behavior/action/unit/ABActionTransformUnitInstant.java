@@ -121,7 +121,7 @@ public class ABActionTransformUnitInstant implements ABAction {
 				}
 			}
 			foodCost = Math.max(targetType.getFoodUsed() - u1.getUnitType().getFoodUsed(), 0);
-			if (foodCost > 0 && pl.getFoodUsed() + foodCost > pl.getFoodCap()) {
+			if (foodCost > 0 && pl.getFoodUsed() + foodCost > pl.getFoodCapLimit()) {
 				localStore.put(ABLocalStoreKeys.FAILEDTOCAST + castId, true);
 				return;
 			}

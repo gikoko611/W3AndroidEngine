@@ -1,6 +1,6 @@
 package com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilitybuilder.ability;
 
-import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -423,7 +423,7 @@ public class CAbilityAbilityBuilderActivePairing extends CAbilityAbilityBuilderG
 	@Override
 	public Set<CUnit> findPairUnits(final CSimulation game, final CUnit caster) {
 		if ((this.getPairAbilityCode(game, caster) != null) || (this.getPairUnitID(game, caster) != null)) {
-			final Set<CUnit> retSet = new HashSet<>();
+			final Set<CUnit> retSet = new LinkedHashSet<>();
 			if (this.maxPartners(game, caster) != 1) {
 				game.getWorldCollision().enumUnitsInRange(caster.getX(), caster.getY(),
 						this.getPairSearchRadius(game, caster), (enumUnit) -> {

@@ -16,4 +16,8 @@ public class DeclareLocalArrayInstruction implements JassInstruction {
 		thread.stackFrame.push(new ArrayJassValue(this.arrayType));
 	}
 
+	@Override
+	public int opCost() {
+		return 1;
+	}
 }

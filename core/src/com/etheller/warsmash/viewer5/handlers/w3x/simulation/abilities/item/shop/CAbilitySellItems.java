@@ -8,7 +8,6 @@ import java.util.Map;
 import java.util.Set;
 
 import com.etheller.warsmash.util.War3ID;
-import com.etheller.warsmash.util.WarsmashConstants;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CItem;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CItemType;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CShopEvents;
@@ -25,6 +24,7 @@ import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.targeting
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.targeting.AbilityTarget;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.behaviors.CBehavior;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.players.CPlayer;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.timers.CTimer;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.util.AbilityActivationReceiver;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.util.AbilityTargetCheckReceiver;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.util.CommandStringErrorKeys;
@@ -299,7 +299,7 @@ public final class CAbilitySellItems extends AbstractCAbility {
 				return;
 			}
 			state = new SellStockState(stockMax,
-					(int) (itemType.getStockReplenishInterval() / WarsmashConstants.SIMULATION_STEP_TIME),
+					CTimer.wholeSteps(itemType.getStockReplenishInterval()),
 					itemType.getStockInitial());
 			this.itemToSellState.put(itemTypeId, state);
 			this.itemsSold.add(itemTypeId);

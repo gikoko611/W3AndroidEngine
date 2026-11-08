@@ -5,6 +5,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.BooleanSupplier;
 
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.utils.viewport.Viewport;
@@ -76,6 +77,7 @@ public class MeleeScoreScreen {
 	private final com.etheller.warsmash.parsers.w3x.objectdata.Warcraft3MapRuntimeObjectData objectData;
 	private final Map<CPlayer, List<HeroEntry>> heroes = new HashMap<>();
 	private final Runnable onOk;
+	private BooleanSupplier replaySaver;
 	private final int localPlayerIndex;
 	private AbstractUIFrame frame;
 	private final List<CPlayer> players = new ArrayList<>();
@@ -97,6 +99,11 @@ public class MeleeScoreScreen {
 
 	public boolean isVisible() {
 		return (this.frame != null) && this.frame.isVisible();
+	}
+
+	/** Save Replay is shown after a game that was recorded; the saver keeps its replay and says whether it could. */
+	public void setReplaySaver(final BooleanSupplier replaySaver) {
+		this.replaySaver = replaySaver;
 	}
 
 	public void show() {
@@ -163,9 +170,18 @@ public class MeleeScoreScreen {
 				}
 			}
 		}
-		// No replays yet.
-		root.getFrameByName("ScoreScreenSaveReplayButton", 0).setVisible(false);
-		root.getFrameByName("ScoreScreenReplaySavedButton", 0).setVisible(false);
+		final UIFrame saveReplayButton = root.getFrameByName("ScoreScreenSaveReplayButton", 0);
+		final UIFrame replaySavedButton = root.getFrameByName("ScoreScreenReplaySavedButton", 0);
+		saveReplayButton.setVisible(this.replaySaver != null);
+		replaySavedButton.setVisible(false);
+		if ((this.replaySaver != null) && (saveReplayButton instanceof GlueTextButtonFrame)) {
+			((GlueTextButtonFrame) saveReplayButton).setOnClick(() -> {
+				if (this.replaySaver.getAsBoolean()) {
+					saveReplayButton.setVisible(false);
+					replaySavedButton.setVisible(true);
+				}
+			});
+		}
 		// The original shows the scroll bar only when the rows do not fit.
 		final ScrollBarFrame scrollBar = (ScrollBarFrame) root.getFrameByName("ScoreScreenScrollBar", 0);
 		scrollBar.setVisible(players.size() > VISIBLE_ROWS);

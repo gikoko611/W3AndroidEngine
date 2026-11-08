@@ -1,10 +1,10 @@
 package com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.nightelf.eattree;
 
 import com.etheller.warsmash.util.War3ID;
-import com.etheller.warsmash.util.WarsmashConstants;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CSimulation;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CUnit;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.skills.util.CBuffTimed;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.timers.CTimer;
 
 public class CBuffEatTree extends CBuffTimed {
 	private final float delay;
@@ -49,7 +49,7 @@ public class CBuffEatTree extends CBuffTimed {
 					caster.heal(game, healingDone);
 					hitPointsGained -= healingDone;
 				}
-				nextHealTick = gameTurnTick + (int) (delay / WarsmashConstants.SIMULATION_STEP_TIME);
+				nextHealTick = gameTurnTick + CTimer.wholeSteps(delay);
 			}
 		}
 		super.onTick(game, caster);

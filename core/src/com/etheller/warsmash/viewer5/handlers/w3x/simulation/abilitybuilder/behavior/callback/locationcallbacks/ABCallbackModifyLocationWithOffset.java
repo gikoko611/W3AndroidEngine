@@ -24,10 +24,10 @@ public class ABCallbackModifyLocationWithOffset extends ABLocationCallback {
 		final float a = this.angle.callback(game, caster, localStore, castId);
 		
 		if (angleInDegrees != null && angleInDegrees.callback(game, caster, localStore, castId)) {
-			orig.add((float)(d * Math.cos(Math.toRadians(a))), (float)(d * Math.sin(Math.toRadians(a))));
+			orig.add((float)(d * StrictMath.cos(StrictMath.toRadians(a))), (float)(d * StrictMath.sin(StrictMath.toRadians(a))));
 			return orig;
 		}
-		orig.add((float)(d * Math.cos(a)), (float)(d * Math.sin(a)));
+		orig.add((float)(d * StrictMath.cos(a)), (float)(d * StrictMath.sin(a)));
 		return orig;
 	}
 

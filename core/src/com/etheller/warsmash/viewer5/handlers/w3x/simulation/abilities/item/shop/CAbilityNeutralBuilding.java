@@ -14,6 +14,7 @@ import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.targeting
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.targeting.AbilityTargetVisitor;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.behaviors.CBehavior;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.orders.OrderIds;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.timers.CTimer;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.trigger.enumtypes.CEffectType;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.util.AbilityActivationReceiver;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.util.AbilityTargetCheckReceiver;
@@ -107,8 +108,8 @@ public class CAbilityNeutralBuilding extends AbstractGenericAliasedAbility {
 						perUnitCallback);
 				unit.notifyOrdersChanged();
 			}
-			this.nextUpdateTick = gameTurnTick + Math.max(1, (int) StrictMath.ceil(
-					game.getGameplayConstants().getNeutralBuildingPollPeriod() / WarsmashConstants.SIMULATION_STEP_TIME));
+			this.nextUpdateTick = gameTurnTick
+					+ Math.max(1, CTimer.ceilSteps(game.getGameplayConstants().getNeutralBuildingPollPeriod()));
 		}
 	}
 

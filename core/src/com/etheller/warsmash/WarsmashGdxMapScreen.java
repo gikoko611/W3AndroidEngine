@@ -10,6 +10,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 
+import com.badlogic.gdx.Application.ApplicationType;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.Input;
@@ -26,11 +27,12 @@ import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
 import com.badlogic.gdx.math.Matrix4;
 import com.badlogic.gdx.math.Rectangle;
 import com.badlogic.gdx.utils.viewport.ExtendViewport;
-import com.badlogic.gdx.utils.Disposable;
 import com.badlogic.gdx.utils.BufferUtils;
 import com.etheller.warsmash.util.SessionResources;
 import com.etheller.warsmash.input.touch.SliderHost;
 import com.etheller.warsmash.input.touch.TouchTarget;
+import com.etheller.warsmash.movie.Movie;
+import com.etheller.warsmash.movie.Movies;
 import com.etheller.warsmash.datasources.CascDataSourceDescriptor;
 import com.etheller.warsmash.datasources.CompoundDataSource;
 import com.etheller.warsmash.datasources.CompoundDataSourceDescriptor;
@@ -66,7 +68,7 @@ import com.etheller.warsmash.viewer5.handlers.w3x.simulation.players.CPlayerUnit
 import com.etheller.warsmash.viewer5.handlers.w3x.save.SavedGame;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.players.CPlayerGameResult;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.players.CRace;
-import com.etheller.warsmash.viewer5.handlers.w3x.simulation.campaign.CCampaignProgress;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.campaign.CGameExit;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.campaign.CGameCache;
 import com.etheller.warsmash.viewer5.handlers.w3x.ui.MeleeUI;
 import com.etheller.warsmash.viewer5.handlers.w3x.ui.WarsmashUI;
@@ -100,8 +102,11 @@ public class WarsmashGdxMapScreen implements InputProcessor, Screen, TouchTarget
 	private CommonEnvironment commonEnv;
 	private int previousVao;
 	private int vao;
-	private List<Disposable> sessionResources;
+	/** The GL the vertex array was made with, which leaves deletes alone once its context is lost. */
+	private GL30 vaoGl;
+	private SessionResources.Scope sessionResources;
 	private boolean disposed;
+	private boolean scriptFailed;
 	private static final float MAX_INTERFACE_FRAME_TIME = 3 * WarsmashConstants.SIMULATION_STEP_TIME;
 
 	public WarsmashGdxMapScreen(final War3MapViewer mapViewer, final WarsmashGdxMultiScreenGame screenManager,
@@ -136,8 +141,9 @@ public class WarsmashGdxMapScreen implements InputProcessor, Screen, TouchTarget
 		tempByteBuffer.order(ByteOrder.LITTLE_ENDIAN);
 		final IntBuffer temp = tempByteBuffer.asIntBuffer();
 
-		SessionResources.begin();
-		Gdx.gl30.glGenVertexArrays(1, temp);
+		this.sessionResources = SessionResources.begin();
+		this.vaoGl = Gdx.gl30;
+		this.vaoGl.glGenVertexArrays(1, temp);
 		this.previousVao = WarsmashGdxGame.VAO;
 		this.vao = temp.get(0);
 		WarsmashGdxGame.VAO = this.vao;
@@ -230,13 +236,29 @@ public class WarsmashGdxMapScreen implements InputProcessor, Screen, TouchTarget
 				}, this.uiOrderListener, new Runnable() {
 					@Override
 					public void run() {
-						final String result = localPlayerResult();
+						// The movies PlayCinematic asked for play as the game is left, before the next level.
+						final List<Movie> movies = Movies.find(WarsmashGdxMapScreen.this.viewer.dataSource,
+								WarsmashGdxMapScreen.this.viewer.simulation.takeQueuedCinematics(),
+								Gdx.graphics.getWidth());
+						if (movies.isEmpty()) {
+							leaveGame();
+						}
+						else {
+							// The game's music ends with the game, not under its movies.
+							WarsmashGdxMapScreen.this.meleeUI.gameClosed();
+							Movies.play(movies, () -> Gdx.app.postRunnable(this::leaveGame));
+						}
+					}
+
+					private void leaveGame() {
+						final String result = WarsmashGdxMapScreen.this.scriptFailed ? "error" : localPlayerResult();
 						final int race = localPlayerRace();
 						// The menu picks up its own sounds and textures from here on.
 						WarsmashGdxMapScreen.this.endSession();
 						final WarsmashGdxMenuScreen.GameEndListener gameEndListener = WarsmashGdxMapScreen.this.menuScreen
 								.getGameEndListener();
-						if ((gameEndListener != null) && !CCampaignProgress.hasPendingLevel()) {
+						final CGameExit exit = WarsmashGdxMapScreen.this.viewer.getGameExit();
+						if ((gameEndListener != null) && !exit.hasNextLevel() && (exit.getNextReplay() == null)) {
 							final SavedGame.Loadability loadFailure = SavedGame.consumeLoadFailure();
 							final String mapFile = WarsmashGdxMapScreen.this.viewer.getMapFileName();
 							WarsmashGdxMapScreen.this.screenManager.setScreen(null);
@@ -245,13 +267,18 @@ public class WarsmashGdxMapScreen implements InputProcessor, Screen, TouchTarget
 									race);
 							return;
 						}
-						WarsmashGdxMapScreen.this.menuScreen.onReturnFromGame();
+						WarsmashGdxMapScreen.this.menuScreen.onReturnFromGame(exit.isCampaignSelectScreenForced());
 						WarsmashGdxMapScreen.this.screenManager.setScreen(WarsmashGdxMapScreen.this.menuScreen);
+						if (WarsmashGdxMapScreen.this.scriptFailed) {
+							WarsmashGdxMapScreen.this.menuScreen.showMapLoadError();
+						}
 						CGameCache.dropUnsaved();
-						final String nextLevel = CCampaignProgress.consumePendingLevel();
-						if (nextLevel != null) {
-							WarsmashGdxMapScreen.this.menuScreen.startMap(nextLevel,
-									CCampaignProgress.consumePendingComputerSlots());
+						if (exit.getNextReplay() != null) {
+							WarsmashGdxMapScreen.this.menuScreen.startReplay(exit.getNextReplay());
+						}
+						else if (exit.hasNextLevel()) {
+							WarsmashGdxMapScreen.this.menuScreen.startMap(exit.getNextLevel(),
+									exit.getNextComputerSlots(), exit.getSavedGame(), exit.isSavedGameLoadedByScript());
 						}
 					}
 				});
@@ -285,7 +312,7 @@ public class WarsmashGdxMapScreen implements InputProcessor, Screen, TouchTarget
 		}
 		this.commonEnv = Jass2.loadCommon(this.viewer.mapMpq, this.uiViewport, this.uiScene, this.viewer, this.meleeUI,
 				WarsmashConstants.JASS_FILE_LIST);
-		final FileHandle savedGame = SavedGame.consumePendingLoad();
+		final FileHandle savedGame = this.viewer.getSavedGameToLoad();
 		if (savedGame != null) {
 			try {
 				this.commonEnv.loadSavedGame(this.viewer, savedGame);
@@ -297,6 +324,12 @@ public class WarsmashGdxMapScreen implements InputProcessor, Screen, TouchTarget
 				SavedGame.loadFailed(savedGame, e);
 				Gdx.app.postRunnable(this.baseMeleeUI::quitMission);
 			}
+		}
+		else if (this.commonEnv.getScriptError() != null) {
+			// The original game shows an error for a map whose script does not compile and does not play it.
+			System.err.println("The map's script does not compile: " + this.commonEnv.getScriptError().getMessage());
+			this.scriptFailed = true;
+			Gdx.app.postRunnable(this.baseMeleeUI::quitMission);
 		}
 		else {
 			this.commonEnv.main();
@@ -429,19 +462,19 @@ public class WarsmashGdxMapScreen implements InputProcessor, Screen, TouchTarget
 		this.meleeUI.dispose();
 		this.batch.dispose();
 		this.shapeRenderer.dispose();
-		for (final Disposable resource : this.sessionResources) {
-			resource.dispose();
+		if (this.sessionResources != null) {
+			this.sessionResources.dispose();
 		}
 		this.viewer.dispose();
 		final IntBuffer vaos = BufferUtils.newIntBuffer(1);
 		vaos.put(0, this.vao);
-		Gdx.gl30.glDeleteVertexArrays(1, vaos);
+		this.vaoGl.glDeleteVertexArrays(1, vaos);
 		WarsmashGdxGame.VAO = this.previousVao;
 		Gdx.gl30.glBindVertexArray(WarsmashGdxGame.VAO);
 	}
 
 	/** How the game ended for the local player: victory, defeat or tie, or quit when it had no result yet. */
-	private String localPlayerResult() {
+	public String localPlayerResult() {
 		try {
 			final CPlayerGameResult result = this.viewer.simulation.getPlayer(this.viewer.getLocalPlayerIndex())
 					.getRemovedResult();
@@ -456,7 +489,7 @@ public class WarsmashGdxMapScreen implements InputProcessor, Screen, TouchTarget
 	}
 
 	/** The race the local player played, a random one as it was drawn; 0 when unknown. */
-	private int localPlayerRace() {
+	public int localPlayerRace() {
 		try {
 			final CRace race = this.viewer.simulation.getPlayer(this.viewer.getLocalPlayerIndex()).getRace();
 			return race == null ? 0 : race.getId();
@@ -467,9 +500,7 @@ public class WarsmashGdxMapScreen implements InputProcessor, Screen, TouchTarget
 	}
 
 	private void endSession() {
-		if (this.sessionResources == null) {
-			this.sessionResources = SessionResources.end();
-		}
+		SessionResources.end(this.sessionResources);
 	}
 
 	@Override
@@ -734,10 +765,44 @@ public class WarsmashGdxMapScreen implements InputProcessor, Screen, TouchTarget
 
 	@Override
 	public void pause() {
+		// A single player game waits while the app is away from the screen; a network game cannot stop for one
+		// player. The desktop backend calls this whenever the window loses focus, and a game there keeps running.
+		if ((Gdx.app.getType() == ApplicationType.Android) && !this.viewer.isNetworkGame()) {
+			this.viewer.setGamePaused(War3MapViewer.PauseSource.BACKGROUND, true);
+			Gdx.app.log("Warsmash", "Game paused in the background at step " + gameStep());
+		}
 	}
 
 	@Override
 	public void resume() {
+		if (this.viewer.isGamePaused(War3MapViewer.PauseSource.BACKGROUND)) {
+			this.viewer.setGamePaused(War3MapViewer.PauseSource.BACKGROUND, false);
+			Gdx.app.log("Warsmash", "Game resumed at step " + gameStep());
+		}
+	}
+
+	private int gameStep() {
+		return this.viewer.simulation == null ? 0 : this.viewer.simulation.getGameTurnTick();
+	}
+
+	/**
+	 * Saves the running game when the GL context was lost, so that it goes on from the save once the screens are
+	 * made again.
+	 *
+	 * @return false for a network game, a game that is over (its score screen) or one that could not be saved
+	 */
+	public boolean saveAfterContextLoss(final FileHandle file) {
+		if (this.disposed || (this.viewer.simulation == null) || this.viewer.isNetworkGame()
+				|| this.viewer.isWorldHidden()) {
+			return false;
+		}
+		try {
+			return SavedGame.save(this.viewer, file);
+		}
+		catch (final RuntimeException e) {
+			e.printStackTrace();
+			return false;
+		}
 	}
 
 	@Override

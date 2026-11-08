@@ -25,3 +25,6 @@
 -dontwarn javax.sound.**
 -dontwarn org.lwjgl.**
 -dontwarn sun.misc.**
+# Optional compression codecs of commons-compress that the game never uses.
+-dontwarn com.github.luben.zstd.**
+-dontwarn org.tukaani.xz.**

@@ -11,10 +11,13 @@ import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.GL30;
 import com.badlogic.gdx.math.Rectangle;
 import com.badlogic.gdx.math.Vector3;
+import com.badlogic.gdx.utils.BufferUtils;
+import com.etheller.warsmash.datasources.BorrowedDataSource;
 import com.etheller.warsmash.datasources.DataSource;
 import com.etheller.warsmash.parsers.fdf.GameUI;
 import com.etheller.warsmash.units.DataTable;
 import com.etheller.warsmash.units.Element;
+import com.etheller.warsmash.util.GraphicsContext;
 import com.etheller.warsmash.util.StringBundle;
 import com.etheller.warsmash.util.WarsmashConstants;
 import com.etheller.warsmash.viewer5.CanvasProvider;
@@ -107,6 +110,7 @@ public class GlueBackdropRenderer implements ApplicationListener, CanvasProvider
 	private final Vector3 position = new Vector3();
 	private final Vector3 target = new Vector3();
 	private final Vector3 worldUp = new Vector3(0, 0, 1);
+	private final DataSource gameData;
 	private volatile DataSource dataSource;
 	private volatile Element skin;
 	private volatile Element menuFog;
@@ -114,10 +118,18 @@ public class GlueBackdropRenderer implements ApplicationListener, CanvasProvider
 	private boolean dataRequested;
 	private MdxViewer viewer;
 	private int vertexArray;
+	/** The GL the vertex array was made with, which leaves deletes alone once its context is lost. */
+	private GL30 vertexArrayGl;
 
 	public GlueBackdropRenderer(final DataTable warsmashIni, final Listener listener) {
+		this(warsmashIni, listener, null);
+	}
+
+	/** @param gameData game data the caller keeps open, read instead of opening it again; null opens its own */
+	public GlueBackdropRenderer(final DataTable warsmashIni, final Listener listener, final DataSource gameData) {
 		this.warsmashIni = warsmashIni;
 		this.listener = listener;
+		this.gameData = gameData;
 		for (int i = 0; i < LAYERS; i++) {
 			this.layers[i] = new Layer();
 		}
@@ -150,7 +162,8 @@ public class GlueBackdropRenderer implements ApplicationListener, CanvasProvider
 		final ByteBuffer buffer = ByteBuffer.allocateDirect(4);
 		buffer.order(ByteOrder.LITTLE_ENDIAN);
 		final IntBuffer temp = buffer.asIntBuffer();
-		Gdx.gl30.glGenVertexArrays(1, temp);
+		this.vertexArrayGl = Gdx.gl30;
+		this.vertexArrayGl.glGenVertexArrays(1, temp);
 		this.vertexArray = temp.get(0);
 		Gdx.gl30.glClearColor(0, 0, 0, 1);
 	}
@@ -161,7 +174,8 @@ public class GlueBackdropRenderer implements ApplicationListener, CanvasProvider
 		final Thread thread = new Thread(() -> {
 			try {
 				WarsmashConstants.loadConstants(this.warsmashIni.get("Emulator"), this.warsmashIni);
-				final DataSource data = WarsmashGdxMapScreen.parseDataSources(this.warsmashIni);
+				final DataSource data = this.gameData != null ? new BorrowedDataSource(this.gameData)
+						: WarsmashGdxMapScreen.parseDataSources(this.warsmashIni);
 				this.skin = GameUI.loadSkin(data, WarsmashConstants.GAME_VERSION).getSkin();
 				final DataTable miscData = new DataTable(StringBundle.EMPTY);
 				try (InputStream stream = data.getResourceAsStream("UI\\MiscData.txt")) {
@@ -367,6 +381,29 @@ public class GlueBackdropRenderer implements ApplicationListener, CanvasProvider
 		view.moveToAndFace(this.position, this.target, this.worldUp);
 	}
 
+	/**
+	 * On the rendering thread, after the GL context was lost: the scenes are loaded and drawn again from their
+	 * requests.
+	 */
+	public void contextLost() {
+		final MdxViewer lost = this.viewer;
+		this.viewer = null;
+		if (lost != null) {
+			GraphicsContext.disposeLost(lost::dispose);
+		}
+		for (final Layer layer : this.layers) {
+			layer.scene = null;
+			layer.instance = null;
+			layer.model = null;
+			layer.camera = null;
+			layer.frames = 0;
+			layer.failed = false;
+		}
+		create();
+		Gdx.graphics.setContinuousRendering(true);
+		Gdx.graphics.requestRendering();
+	}
+
 	@Override
 	public void resize(final int width, final int height) {
 	}
@@ -384,6 +421,12 @@ public class GlueBackdropRenderer implements ApplicationListener, CanvasProvider
 		if (this.viewer != null) {
 			this.viewer.dispose();
 			this.viewer = null;
+		}
+		if (this.vertexArray != 0) {
+			final IntBuffer arrays = BufferUtils.newIntBuffer(1);
+			arrays.put(0, this.vertexArray);
+			this.vertexArrayGl.glDeleteVertexArrays(1, arrays);
+			this.vertexArray = 0;
 		}
 		final DataSource data = this.dataSource;
 		this.dataSource = null;

@@ -1,11 +1,11 @@
 package com.etheller.warsmash.viewer5.handlers.w3x.simulation.players.vision;
 
-import com.etheller.warsmash.util.WarsmashConstants;
 import com.etheller.warsmash.viewer5.handlers.w3x.environment.PathingGrid;
 import com.etheller.warsmash.viewer5.handlers.w3x.environment.PathingGrid.MovementType;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CSimulation;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CUnit;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.players.CPlayer;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.timers.CTimer;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.trigger.enumtypes.CFogState;
 
 public class CUnitDeathVisionFogModifier extends CFogModifier {
@@ -18,14 +18,16 @@ public class CUnitDeathVisionFogModifier extends CFogModifier {
 
 	@Override
 	public void onAdd(final CSimulation game, final CPlayer player) {
-		this.endTurnTick = (int) Math
-				.floor(game.getGameTurnTick() + (DYING_UNIT_VISION_DURATION / WarsmashConstants.SIMULATION_STEP_TIME));
+		this.endTurnTick = game.getGameTurnTick()
+				+ CTimer.wholeSteps(game.getGameplayConstants().getFogFlashTime());
 	}
 
 	@Override
 	public void update(final CSimulation game, final CPlayer player, final PathingGrid pathingGrid,
 			final CPlayerFogOfWar fogOfWar) {
-		if (DYING_UNIT_VISION_RADIUS > 0) {
+		final float radius = game.getGameplayConstants().getDyingRevealRadius();
+		if (radius > 0) {
+			final float radiusSq = gridRadiusSq(radius);
 			final boolean flying = this.unit.getMovementType() == MovementType.FLY;
 			final float myX = this.unit.getX();
 			final float myY = this.unit.getY();
@@ -35,10 +37,10 @@ public class CUnitDeathVisionFogModifier extends CFogModifier {
 
 			int myXi = game.getPathingGrid().getFogOfWarIndexX(myX);
 			int myYi = game.getPathingGrid().getFogOfWarIndexY(myY);
-			int maxXi = game.getPathingGrid().getFogOfWarIndexX(myX + DYING_UNIT_VISION_RADIUS);
-			int maxYi = game.getPathingGrid().getFogOfWarIndexY(myY + DYING_UNIT_VISION_RADIUS);
+			int maxXi = game.getPathingGrid().getFogOfWarIndexX(myX + radius);
+			int maxYi = game.getPathingGrid().getFogOfWarIndexY(myY + radius);
 			for (int a = 1; a <= Math.max(maxYi - myYi, maxXi - myXi); a++) {
-				if (a * a <= DYING_UNIT_VISION_RADIUS_SQ) {
+				if (a * a <= radiusSq) {
 					fogOfWar.checkCardinalVision(game, pathingGrid, flying, myXi, myYi - a, myXi, myYi - a + 1, myX,
 							myY - a * CPlayerFogOfWar.GRID_STEP, myX, myY - (a - 1) * CPlayerFogOfWar.GRID_STEP, myZ);
 					fogOfWar.checkCardinalVision(game, pathingGrid, flying, myXi, myYi + a, myXi, myYi + a - 1, myX,
@@ -54,7 +56,7 @@ public class CUnitDeathVisionFogModifier extends CFogModifier {
 
 			for (int y = 1; y <= maxYi - myYi; y++) {
 				for (int x = 1; x <= maxXi - myXi; x++) {
-					if (x * x + y * y <= DYING_UNIT_VISION_RADIUS_SQ) {
+					if (x * x + y * y <= radiusSq) {
 						int xf = x * CPlayerFogOfWar.GRID_STEP;
 						int yf = y * CPlayerFogOfWar.GRID_STEP;
 

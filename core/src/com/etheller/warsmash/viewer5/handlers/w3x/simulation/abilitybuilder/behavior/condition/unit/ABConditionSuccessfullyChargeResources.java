@@ -49,7 +49,7 @@ public class ABConditionSuccessfullyChargeResources extends ABCondition {
 
 		if ((manaCost > 0 && manaCost > theUnit.getMana()) || (goldCost > 0 && goldCost > thePlayer.getGold())
 				|| (lumberCost > 0 && lumberCost > thePlayer.getLumber())
-				|| (foodCost > 0 && foodCost > (thePlayer.getFoodCap() - thePlayer.getFoodUsed()))) {
+				|| (foodCost > 0 && foodCost > (thePlayer.getFoodCapLimit() - thePlayer.getFoodUsed()))) {
 			return false;
 		}
 

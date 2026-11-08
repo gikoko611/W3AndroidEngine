@@ -2,20 +2,19 @@ package com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.skills.u
 
 import com.etheller.warsmash.units.GameObject;
 import com.etheller.warsmash.util.War3ID;
-import com.etheller.warsmash.util.WarsmashConstants;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CSimulation;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CUnit;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.GetAbilityByRawcodeVisitor;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.generic.CLevelingAbility;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.skills.CAbilityPassiveSpellBase;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.types.definitions.impl.AbstractCAbilityTypeDefinition;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.timers.CTimer;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.trigger.enumtypes.CEffectType;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.util.SimulationRenderComponent;
 
 public abstract class CAbilityAuraBase extends CAbilityPassiveSpellBase {
 	private static final float AURA_PERIODIC_CHECK_TIME = 2.00f;
-	private static final int AURA_PERIODIC_CHECK_TIME_TICKS = (int) (Math
-			.ceil(AURA_PERIODIC_CHECK_TIME / WarsmashConstants.SIMULATION_STEP_TIME));
+	private static final int AURA_PERIODIC_CHECK_TIME_TICKS = CTimer.ceilSteps(AURA_PERIODIC_CHECK_TIME);
 	private War3ID buffId;
 	private SimulationRenderComponent fx;
 	private int nextAreaCheck = 0;

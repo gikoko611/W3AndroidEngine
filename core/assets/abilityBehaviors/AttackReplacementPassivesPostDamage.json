@@ -75,6 +75,16 @@
 						}]
 				}]
 			},{
+				"type": "storeValueLocally",
+				"key": {
+					"type": "rawString",
+					"value": "pulving"
+				},
+				"valueToStore": {
+					"type": "rawBoolean",
+					"value": "false"
+				}
+			},{
 				"type": "createAttackModifier",
 				"priority": {
 					"type": "rawInteger",
@@ -152,6 +162,16 @@
 							"type": "getLastCreatedAttackPostDamageListener"
 						}
 					}]
+				},{
+					"type": "storeValueLocally",
+					"key": {
+						"type": "rawString",
+						"value": "pulving"
+					},
+					"valueToStore": {
+						"type": "rawBoolean",
+						"value": "false"
+					}
 				}]
 		}],
 		"onAddAbility": [{

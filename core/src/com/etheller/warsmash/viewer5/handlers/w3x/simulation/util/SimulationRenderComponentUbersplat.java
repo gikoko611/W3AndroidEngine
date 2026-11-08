@@ -1,9 +1,20 @@
 package com.etheller.warsmash.viewer5.handlers.w3x.simulation.util;
 
+import com.etheller.interpreter.ast.util.CHandle;
+import com.etheller.warsmash.viewer5.handlers.w3x.save.SavedDefault;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.HandleIdAllocator;
+
 /**
  * A script ubersplat (CreateUbersplat).
  */
-public interface SimulationRenderComponentUbersplat {
+public interface SimulationRenderComponentUbersplat extends CHandle {
+	State getState();
+
+	@Override
+	default int getHandleId() {
+		final State state = getState();
+		return state == null ? HandleIdAllocator.UNNUMBERED : state.handleId;
+	}
 	void destroy();
 
 	void reset();
@@ -38,6 +49,12 @@ public interface SimulationRenderComponentUbersplat {
 		public float age;
 		/** Age at which FinishUbersplat started its decay. */
 		public float finishedAge;
+		/** In the ubersplat pool; -1 for a name the splat table does not have (measured on 1.29). */
+		@SavedDefault("-2147483648")
+		public int handleId = HandleIdAllocator.UNNUMBERED;
+		/** Measured on 1.29: an ubersplat also takes a number of the image pool. */
+		@SavedDefault("-1")
+		public int imageId = -1;
 
 		public State copy() {
 			final State copy = new State();
@@ -57,6 +74,8 @@ public interface SimulationRenderComponentUbersplat {
 			copy.destroyed = this.destroyed;
 			copy.age = this.age;
 			copy.finishedAge = this.finishedAge;
+			copy.handleId = this.handleId;
+			copy.imageId = this.imageId;
 			return copy;
 		}
 	}

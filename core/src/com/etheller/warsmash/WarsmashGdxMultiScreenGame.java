@@ -4,6 +4,9 @@ import com.badlogic.gdx.Game;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Screen;
 import com.etheller.warsmash.input.touch.TouchInputRouter;
+import com.etheller.warsmash.movie.GdxMoviePlayer;
+import com.etheller.warsmash.movie.Movies;
+import com.etheller.warsmash.util.GraphicsContext;
 import com.etheller.warsmash.viewer5.CanvasProvider;
 
 public class WarsmashGdxMultiScreenGame extends Game implements CanvasProvider {
@@ -17,6 +20,24 @@ public class WarsmashGdxMultiScreenGame extends Game implements CanvasProvider {
 	 * it for no screen and closes the activity at once, so that frame may never come; dispose() then still has it.
 	 */
 	private WarsmashGdxMapScreen leftMapScreen;
+	/**
+	 * The menu of a game that ended back to the launcher, leaving no screen. The map disposes itself, the menu is
+	 * disposed with the game; held until then, its textures and sounds kept the finished activity reachable.
+	 */
+	private WarsmashGdxMenuScreen endedMenuScreen;
+	private GdxMoviePlayer moviePlayer;
+
+	/** Plays the movies in this window, in place of the screen while they play. */
+	public void setMoviePlayer(final GdxMoviePlayer moviePlayer) {
+		if (this.moviePlayer != null) {
+			Movies.removePlayer(this.moviePlayer);
+			this.moviePlayer.dispose();
+		}
+		this.moviePlayer = moviePlayer;
+		if (moviePlayer != null) {
+			Movies.setPlayer(moviePlayer);
+		}
+	}
 
 	@Override
 	public void setScreen(final Screen screen) {
@@ -25,11 +46,20 @@ public class WarsmashGdxMultiScreenGame extends Game implements CanvasProvider {
 		if ((previous instanceof WarsmashGdxMapScreen) && (previous != screen)) {
 			this.leftMapScreen = (WarsmashGdxMapScreen) previous;
 		}
+		if (screen != null) {
+			this.endedMenuScreen = null;
+		}
+		else if (previous instanceof WarsmashGdxMapScreen) {
+			this.endedMenuScreen = ((WarsmashGdxMapScreen) previous).getMenuScreen();
+		}
 	}
 
 	@Override
 	public void render() {
 		TouchInputRouter.drainInstalled();
+		if ((this.moviePlayer != null) && this.moviePlayer.render()) {
+			return;
+		}
 		super.render();
 		if ((this.leftMapScreen != null) && this.leftMapScreen.isDisposed()) {
 			this.leftMapScreen = null;
@@ -47,6 +77,7 @@ public class WarsmashGdxMultiScreenGame extends Game implements CanvasProvider {
 		Screen closing = getScreen();
 		final WarsmashGdxMapScreen left = this.leftMapScreen;
 		this.leftMapScreen = null;
+		setMoviePlayer(null);
 		super.dispose();
 		if ((left != null) && (left != closing)) {
 			left.dispose();
@@ -70,6 +101,34 @@ public class WarsmashGdxMultiScreenGame extends Game implements CanvasProvider {
 		catch (final RuntimeException e) {
 			e.printStackTrace();
 		}
+		final WarsmashGdxMenuScreen endedMenu = this.endedMenuScreen;
+		this.endedMenuScreen = null;
+		if ((endedMenu != null) && (endedMenu != closing)) {
+			try {
+				endedMenu.dispose();
+			}
+			catch (final RuntimeException e) {
+				e.printStackTrace();
+			}
+		}
+	}
+
+	/** The game on the screen, or null in the menu or while a map loads. */
+	public WarsmashGdxMapScreen getRunningMapScreen() {
+		final Screen current = getScreen();
+		if ((current instanceof WarsmashGdxMapScreen) && !((WarsmashGdxMapScreen) current).isDisposed()) {
+			return (WarsmashGdxMapScreen) current;
+		}
+		return null;
+	}
+
+	/**
+	 * After the GL context was lost: the screens are disposed without touching the new context, and the caller sets
+	 * up new ones.
+	 */
+	public void disposeLostScreens() {
+		GraphicsContext.disposeLost(this::dispose);
+		this.screen = null;
 	}
 
 	@Override

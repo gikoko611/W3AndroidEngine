@@ -143,6 +143,16 @@
 					}
 				}]
 			},{
+				"type": "storeValueLocally",
+				"key": {
+					"type": "rawString",
+					"value": "isCritting"
+				},
+				"valueToStore": {
+					"type": "rawBoolean",
+					"value": "false"
+				}
+			},{
 				"type": "createAttackModifier",
 				"priority": {
 					"type": "rawInteger",
@@ -226,6 +236,16 @@
 							}
 						}
 					}]
+				},{
+					"type": "storeValueLocally",
+					"key": {
+						"type": "rawString",
+						"value": "isCritting"
+					},
+					"valueToStore": {
+						"type": "rawBoolean",
+						"value": "false"
+					}
 				}]
 		}],
 		"onAddAbility": [{

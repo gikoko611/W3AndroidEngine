@@ -1,7 +1,6 @@
 package com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.skills.nightelf.units;
 
 import com.etheller.warsmash.util.War3ID;
-import com.etheller.warsmash.util.WarsmashConstants;
 import com.etheller.warsmash.viewer5.handlers.w3x.environment.PathingGrid;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CDestructable;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CSimulation;
@@ -9,6 +8,7 @@ import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.generic.C
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.players.CPlayer;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.players.vision.CFogModifier;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.players.vision.CPlayerFogOfWar;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.timers.CTimer;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.trigger.enumtypes.CEffectType;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.trigger.enumtypes.CFogState;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.util.SimulationRenderComponentModel;
@@ -51,7 +51,7 @@ public class CSentinelOwl extends CFogModifier implements CDestructableBuff {
 
 	@Override
 	public void onAdd(final CSimulation game, final CPlayer player) {
-		this.endTick = game.getGameTurnTick() + (int) (this.duration / WarsmashConstants.SIMULATION_STEP_TIME);
+		this.endTick = game.getGameTurnTick() + CTimer.wholeSteps(this.duration);
 	}
 
 	public void leave(final CSimulation game) {

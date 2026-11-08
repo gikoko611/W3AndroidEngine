@@ -14,4 +14,12 @@ public class CRacePreferences {
 	public void clear() {
 		bitFlags = 0;
 	}
+
+	public int getBitFlags() {
+		return bitFlags;
+	}
+
+	public void setBitFlags(final int bitFlags) {
+		this.bitFlags = bitFlags;
+	}
 }

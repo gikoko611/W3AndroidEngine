@@ -15,6 +15,8 @@ public final class AssetPathFallback {
 	// The DE package holds lighter versions of the same models.
 	private static final String[] GRAPHICS_PACKAGES = { "_de.w3mod", "_hd.w3mod" };
 	private static final String IMPORT_FOLDER = "war3mapimported\\";
+	private static final String DIFFUSE_SUFFIX = "_diffuse";
+	private static final String ART_FOLDER = "\\assets\\art\\";
 
 	private AssetPathFallback() {
 	}
@@ -28,16 +30,41 @@ public final class AssetPathFallback {
 			return null;
 		}
 		final String normalized = normalize(path);
-		if (!normalized.equals(path) && dataSource.has(normalized)) {
-			return normalized;
-		}
-		for (final String graphicsPackage : GRAPHICS_PACKAGES) {
-			final String candidate = graphicsPackage + "\\" + normalized;
-			if (dataSource.has(candidate)) {
+		final String[] candidates = textureNames(normalized);
+		for (final String candidate : candidates) {
+			if (!candidate.equals(path) && dataSource.has(candidate)) {
 				return candidate;
 			}
 		}
+		for (final String graphicsPackage : GRAPHICS_PACKAGES) {
+			for (final String candidate : candidates) {
+				final String packaged = graphicsPackage + "\\" + candidate;
+				if (dataSource.has(packaged)) {
+					return packaged;
+				}
+			}
+		}
 		return null;
+	}
+
+	/**
+	 * The names a texture can have in 2.0 and later data: the Classic name, the same name as .dds, and the .dds with the
+	 * "_diffuse" suffix of the new material textures (some Classic bridge and tileset textures too).
+	 */
+	private static String[] textureNames(final String path) {
+		final int dotIndex = path.lastIndexOf('.');
+		if ((dotIndex == -1) || (dotIndex < path.lastIndexOf('\\'))) {
+			return new String[] { path };
+		}
+		final String extension = path.substring(dotIndex).toLowerCase(Locale.US);
+		if (!".blp".equals(extension) && !".dds".equals(extension) && !".tga".equals(extension)) {
+			return new String[] { path };
+		}
+		final String base = path.substring(0, dotIndex);
+		if (base.toLowerCase(Locale.US).endsWith(DIFFUSE_SUFFIX)) {
+			return new String[] { path, base + ".dds" };
+		}
+		return new String[] { path, base + ".dds", base + DIFFUSE_SUFFIX + ".dds" };
 	}
 
 	/**
@@ -58,9 +85,24 @@ public final class AssetPathFallback {
 		}
 		String normalized = builder.toString();
 		if ((normalized.length() > 2) && (normalized.charAt(1) == ':')) {
-			final int importFolder = normalized.toLowerCase(Locale.US).lastIndexOf(IMPORT_FOLDER);
+			final String lower = normalized.toLowerCase(Locale.US);
+			final int importFolder = lower.lastIndexOf(IMPORT_FOLDER);
+			final int packageStart = lower.lastIndexOf(ART_FOLDER) + ART_FOLDER.length();
 			if (importFolder != -1) {
 				normalized = normalized.substring(importFolder);
+			}
+			else if ((packageStart >= ART_FOLDER.length()) && (lower.length() > (packageStart + 3))
+					&& (lower.charAt(packageStart + 2) == '\\')) {
+				// Some HD and DE models name other models by their path in the artists' source tree
+				// (...\assets\art\de\buildings\...); the folder after "art" is the graphics package.
+				final String quality = lower.substring(packageStart, packageStart + 2);
+				final String rest = normalized.substring(packageStart + 3);
+				if ("sd".equals(quality)) {
+					normalized = rest;
+				}
+				else if ("de".equals(quality) || "hd".equals(quality)) {
+					normalized = "_" + quality + ".w3mod\\" + rest;
+				}
 			}
 		}
 		return normalized;

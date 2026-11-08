@@ -14,8 +14,12 @@ import org.json.JSONObject;
 import android.app.ActivityManager;
 import android.app.ApplicationExitInfo;
 import android.content.Context;
+import android.content.Intent;
 import android.os.Build;
 import android.util.Log;
+
+import com.etheller.warsmash.launcher.GameResult;
+import com.etheller.warsmash.launcher.LaunchRequest;
 
 /**
  * What the launcher and the engine tell each other: the Intent extras that start a game without the engine's menu,
@@ -31,16 +35,23 @@ final class LaunchContract {
 	static final String EXTRA_DIFFICULTY = "difficulty";
 	/** Which version of the campaign maps is played: {@link #CAMPAIGN_MAPS_REFORGED} or classic (the default). */
 	static final String EXTRA_CAMPAIGN_MAPS = "campaignmaps";
-	static final String CAMPAIGN_MAPS_REFORGED = "reforged";
-	static final String CAMPAIGN_MAPS_CLASSIC = "classic";
+	static final String CAMPAIGN_MAPS_REFORGED = LaunchRequest.CAMPAIGN_MAPS_REFORGED;
+	static final String CAMPAIGN_MAPS_CLASSIC = LaunchRequest.CAMPAIGN_MAPS_CLASSIC;
 	/** A map of the custom game list, played with {@link #EXTRA_SLOTS} and {@link #EXTRA_OPTIONS}. */
 	static final String EXTRA_CUSTOM_MAP = "custommap";
 	static final String EXTRA_SLOTS = "slots";
 	static final String EXTRA_OPTIONS = "options";
 	/** A saved game of the current profile, by its name without the extension. */
 	static final String EXTRA_SAVE_FILE = "savefile";
+	/** A replay of the Replay folder, by its full path. */
+	static final String EXTRA_REPLAY_FILE = "replayfile";
 	/** The map the game starts on, whose loading screen the engine shows from its first frame on. */
 	static final String EXTRA_MAP_FILE = "mapfile";
+	/** The launcher's skin: {@link #SKIN_REFORGED} shows the Reforged loading screens of maps. */
+	static final String EXTRA_SKIN = "skin";
+	static final String SKIN_REFORGED = LaunchRequest.SKIN_REFORGED;
+	/** The profile's Reforged portrait, from 1, which the Reforged loading screens show for the local player. */
+	static final String EXTRA_PORTRAIT = "portrait";
 	/** The player profile the game is played with, by its name. */
 	static final String EXTRA_PROFILE = "profile";
 	static final String EXTRA_TOKEN = "launchToken";
@@ -50,34 +61,53 @@ final class LaunchContract {
 	static final String RESULT_FILE = "launcher-result.json";
 	private static final String TOKEN_FILE = "launch-token";
 
-	static final String SOURCE_CAMPAIGN = "campaign";
-	static final String SOURCE_CUSTOM = "custom";
-	static final String SOURCE_LOAD = "load";
+	private LaunchContract() {
+	}
 
-	/**
-	 * victory, defeat, tie, quit (left the game to the menu), exit (closed the program), error (not started) or crash
-	 * (an exception ended the program).
-	 */
-	static final class Result {
-		String result;
-		String source;
-		String map;
-		String profile;
-		String loadFailure;
-		/** The race the player played, a random one as it was drawn; 0 when the engine did not tell. */
-		int race;
-		long finished;
-
-		boolean failed() {
-			return "error".equals(this.result) || (this.loadFailure != null);
+	/** The game of a request in the extras of the engine's activity. */
+	static void put(final Intent intent, final LaunchRequest request) {
+		if (request.campaign >= 0) {
+			intent.putExtra(EXTRA_CAMPAIGN, request.campaign);
+			intent.putExtra(EXTRA_MISSION, request.mission);
 		}
+		putString(intent, EXTRA_DIFFICULTY, request.difficulty);
+		putString(intent, EXTRA_CAMPAIGN_MAPS, request.campaignMaps);
+		putString(intent, EXTRA_CUSTOM_MAP, request.customMap);
+		putString(intent, EXTRA_SLOTS, request.slots);
+		putString(intent, EXTRA_OPTIONS, request.options);
+		putString(intent, EXTRA_SAVE_FILE, request.saveFile);
+		putString(intent, EXTRA_REPLAY_FILE, request.replayFile);
+		putString(intent, EXTRA_MAP_FILE, request.mapFile);
+		putString(intent, EXTRA_SKIN, request.skin);
+		if (request.portrait > 0) {
+			intent.putExtra(EXTRA_PORTRAIT, request.portrait);
+		}
+		putString(intent, EXTRA_PROFILE, request.profile);
+	}
 
-		boolean crashed() {
-			return "crash".equals(this.result);
+	private static void putString(final Intent intent, final String key, final String value) {
+		if (value != null) {
+			intent.putExtra(key, value);
 		}
 	}
 
-	private LaunchContract() {
+	/** The game the extras of the engine's activity ask for. */
+	static LaunchRequest request(final Intent intent) {
+		final LaunchRequest request = new LaunchRequest();
+		request.campaign = intent.hasExtra(EXTRA_CAMPAIGN) ? intent.getIntExtra(EXTRA_CAMPAIGN, -1) : -1;
+		request.mission = intent.getIntExtra(EXTRA_MISSION, -1);
+		request.difficulty = intent.getStringExtra(EXTRA_DIFFICULTY);
+		request.campaignMaps = intent.getStringExtra(EXTRA_CAMPAIGN_MAPS);
+		request.customMap = intent.getStringExtra(EXTRA_CUSTOM_MAP);
+		request.slots = intent.getStringExtra(EXTRA_SLOTS);
+		request.options = intent.getStringExtra(EXTRA_OPTIONS);
+		request.saveFile = intent.getStringExtra(EXTRA_SAVE_FILE);
+		request.replayFile = intent.getStringExtra(EXTRA_REPLAY_FILE);
+		request.mapFile = intent.getStringExtra(EXTRA_MAP_FILE);
+		request.skin = intent.getStringExtra(EXTRA_SKIN);
+		request.portrait = intent.getIntExtra(EXTRA_PORTRAIT, 0);
+		request.profile = intent.getStringExtra(EXTRA_PROFILE);
+		return request;
 	}
 
 	static String newToken(final Context context) {
@@ -114,7 +144,7 @@ final class LaunchContract {
 		}
 	}
 
-	static void writeResult(final Context context, final Result result) {
+	static void writeResult(final Context context, final GameResult result) {
 		final JSONObject json = new JSONObject();
 		try {
 			json.put("version", 1);
@@ -141,7 +171,7 @@ final class LaunchContract {
 	}
 
 	/** Reads and removes the result file; null when there is none or it cannot be read. */
-	static Result takeResult(final Context context) {
+	static GameResult takeResult(final Context context) {
 		final File file = new File(context.getFilesDir(), RESULT_FILE);
 		if (!file.isFile()) {
 			return null;
@@ -149,7 +179,7 @@ final class LaunchContract {
 		try {
 			final JSONObject json = new JSONObject(
 					new String(Files.readAllBytes(file.toPath()), StandardCharsets.UTF_8));
-			final Result result = new Result();
+			final GameResult result = new GameResult();
 			result.result = json.optString("result", "quit");
 			result.source = json.optString("source", "");
 			result.map = json.optString("map", "");

@@ -19,7 +19,7 @@ import com.etheller.warsmash.viewer5.handlers.w3x.simulation.combat.attacks.repl
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.combat.projectile.CAttackProjectileInstant;
 
 public class CUnitAttackInstant extends CUnitAttack {
-	private static CAttackDamageFlags ATTACK_FLAGS = new CAttackDamageFlags(true);
+	private static final CAttackDamageFlags ATTACK_FLAGS = new CAttackDamageFlags(true);
 	private String projectileArt;
 
 	public CUnitAttackInstant(final float animationBackswingPoint, final float animationDamagePoint,

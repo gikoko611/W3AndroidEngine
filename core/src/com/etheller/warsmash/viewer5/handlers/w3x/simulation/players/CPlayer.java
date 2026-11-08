@@ -1,9 +1,11 @@
 package com.etheller.warsmash.viewer5.handlers.w3x.simulation.players;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -50,6 +52,7 @@ public class CPlayer extends CBasePlayer {
 	private int foodUsed;
 	// 1.29 starts every player at 100; the game data has no field for it.
 	private int foodCapCeiling = 100;
+	private final Map<CUnit, Runnable> foodWaiters = new LinkedHashMap<>();
 	private final Map<War3ID, Integer> rawcodeToTechtreeUnlocked = new HashMap<>();
 	private final Map<War3ID, Integer> rawcodeToTechtreeInProgress = new HashMap<>();
 	private final Map<War3ID, Integer> rawcodeToTechtreeMaxAllowed = new HashMap<>();
@@ -89,6 +92,7 @@ public class CPlayer extends CBasePlayer {
 	private float handicapDamage = 1.0f;
 	private float handicapReviveTime = 1.0f;
 	private final CPlayerFogOfWar fogOfWar;
+	private CPlayerSelection selection;
 	private JassAIEnvironment aiScript;
 
 	public CPlayer(final CRace race, final float[] startLocation, final CBasePlayer configPlayer,
@@ -101,6 +105,13 @@ public class CPlayer extends CBasePlayer {
 		for (final Map.Entry<CPlayerState, Integer> configState : configPlayer.getConfigPlayerStates().entrySet()) {
 			applyPlayerState(configState.getKey(), configState.getValue());
 		}
+	}
+
+	public CPlayerSelection getSelection() {
+		if (this.selection == null) {
+			this.selection = new CPlayerSelection();
+		}
+		return this.selection;
 	}
 
 	public CPlayerFogOfWar getFogOfWar() {
@@ -162,6 +173,13 @@ public class CPlayer extends CBasePlayer {
 		return this.foodCapCeiling;
 	}
 
+	/**
+	 * The food a player may use: the food cap state itself stays above the ceiling, as GetPlayerState shows it.
+	 */
+	public int getFoodCapLimit() {
+		return Math.min(this.foodCap, this.foodCapCeiling);
+	}
+
 	public float[] getStartLocation() {
 		return this.startLocation;
 	}
@@ -213,10 +231,14 @@ public class CPlayer extends CBasePlayer {
 	}
 
 	public void setFoodCap(final int foodCap) {
+		final boolean raised = foodCap > this.foodCap;
 		this.foodCap = foodCap;
 		this.scores[CPlayerScore.FOOD_MAXPROD.ordinal()] = Math.max(this.scores[CPlayerScore.FOOD_MAXPROD.ordinal()],
 				Math.min(foodCap, this.foodCapCeiling));
 		this.stateNotifier.foodChanged();
+		if (raised) {
+			retryFoodWaiters();
+		}
 	}
 
 	public void setFoodCapCeiling(final int foodCapCeiling) {
@@ -225,10 +247,33 @@ public class CPlayer extends CBasePlayer {
 	}
 
 	public void setFoodUsed(final int foodUsed) {
+		final boolean freed = foodUsed < this.foodUsed;
 		this.foodUsed = foodUsed;
 		this.scores[CPlayerScore.FOOD_MAXUSED.ordinal()] = Math.max(this.scores[CPlayerScore.FOOD_MAXUSED.ordinal()],
 				foodUsed);
 		this.stateNotifier.foodChanged();
+		if (freed) {
+			retryFoodWaiters();
+		}
+	}
+
+	/**
+	 * A building whose next queue item waits for food.
+	 */
+	public void addFoodWaiter(final CUnit unit, final Runnable retry) {
+		this.foodWaiters.put(unit, retry);
+	}
+
+	public void removeFoodWaiter(final CUnit unit) {
+		this.foodWaiters.remove(unit);
+	}
+
+	private void retryFoodWaiters() {
+		if (!this.foodWaiters.isEmpty()) {
+			for (final Runnable retry : new ArrayList<>(this.foodWaiters.values())) {
+				retry.run();
+			}
+		}
 	}
 
 	public void addScore(final CPlayerScore score, final int amount) {
@@ -324,6 +369,14 @@ public class CPlayer extends CBasePlayer {
 			return 0;
 		}
 		return techtreeInProgress;
+	}
+
+	public Map<War3ID, Integer> getTechtreeUnlockedLevels() {
+		return Collections.unmodifiableMap(this.rawcodeToTechtreeUnlocked);
+	}
+
+	public Map<War3ID, Integer> getTechtreeInProgressCounts() {
+		return Collections.unmodifiableMap(this.rawcodeToTechtreeInProgress);
 	}
 
 	public int getTechtreeUnlockedOrInProgress(final War3ID rawcode) {
@@ -674,7 +727,7 @@ public class CPlayer extends CBasePlayer {
 		if (eventList != null) {
 			for (final CPlayerEvent event : eventList) {
 				event.fire(unit, CommonTriggerExecutionScope.unitTrainFinishScope(
-						JassGameEventsWar3.EVENT_PLAYER_UNIT_TRAIN_FINISH, event.getTrigger(), unit, trainedUnit));
+						JassGameEventsWar3.EVENT_PLAYER_UNIT_TRAIN_FINISH, event.getTrigger(), unit, trainedUnit, this));
 			}
 		}
 	}
@@ -902,14 +955,45 @@ public class CPlayer extends CBasePlayer {
 		return (maxHeroes < 0) || (getHeroCount(game, true) < maxHeroes);
 	}
 
+	/**
+	 * Measured: a dead hero awaiting revive is not counted by GetPlayerTechCount or requirements, but it still
+	 * takes its place in its type's limit (one dead Paladin blocks a new Paladin at limit 1, not at limit 2).
+	 */
 	public boolean isTechtreeAllowedByMax(final War3ID techtree) {
 		final int techtreeMaxAllowed = getTechtreeMaxAllowed(techtree);
 		if (techtreeMaxAllowed >= 0) {
-			if (getTechtreeUnlockedOrInProgress(techtree) >= techtreeMaxAllowed) {
+			if ((getTechtreeUnlockedOrInProgress(techtree) + getDeadHeroCount(techtree)) >= techtreeMaxAllowed) {
 				return false;
 			}
 		}
 		return true;
+	}
+
+	private int getDeadHeroCount(final War3ID typeId) {
+		int count = 0;
+		for (final CUnit hero : this.heroes) {
+			if (hero.isDead() && hero.getTypeId().equals(typeId)) {
+				count++;
+			}
+		}
+		return count;
+	}
+
+	/**
+	 * GetPlayerTechCount: 'HERO' is the number of living heroes, a reincarnating one included (measured), anything
+	 * else its techtree count.
+	 */
+	public int getTechCount(final War3ID techtree) {
+		if (HERO_TECHTREE.equals(techtree)) {
+			int count = 0;
+			for (final CUnit hero : this.heroes) {
+				if (!hero.isDead() || hero.isFalseDeath()) {
+					count++;
+				}
+			}
+			return count;
+		}
+		return getTechtreeUnlocked(techtree);
 	}
 
 	public void setHandicapXP(final float handicapXP) {

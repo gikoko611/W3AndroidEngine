@@ -1,22 +1,27 @@
 package com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.skills.human.archmage;
 
 import java.util.ArrayList;
+import java.util.EnumSet;
 import java.util.List;
 
 import com.etheller.warsmash.units.GameObject;
 import com.etheller.warsmash.util.War3ID;
-import com.etheller.warsmash.util.WarsmashConstants;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CSimulation;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CUnit;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.skills.CAbilityTargetSpellBase;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.targeting.AbilityTarget;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.targeting.AbilityTargetVisitor;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.types.definitions.impl.AbilityFields;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.combat.CTargetType;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.orders.OrderIds;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.timers.CTimer;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.trigger.enumtypes.CEffectType;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.util.SimulationRenderComponentModel;
 
 public class CAbilityMassTeleport extends CAbilityTargetSpellBase {
+	// Only the caster's own units go along, flying ones too, whatever the data's target flags say; never wards.
+	private static final EnumSet<CTargetType> TELEPORTED_UNITS = EnumSet.of(CTargetType.AIR, CTargetType.GROUND,
+			CTargetType.PLAYERUNITS, CTargetType.VULNERABLE, CTargetType.INVULNERABLE);
 
 	private int numberOfUnitsTeleported;
 	private boolean useTeleportClustering;
@@ -42,12 +47,18 @@ public class CAbilityMassTeleport extends CAbilityTargetSpellBase {
 		useTeleportClustering = worldEditorAbility.getFieldAsBoolean(AbilityFields.DATA_C + level, 0);
 		castingDelay = worldEditorAbility.getFieldAsFloat(AbilityFields.DATA_B + level, 0);
 		areaOfEffect = worldEditorAbility.getFieldAsFloat(AbilityFields.AREA_OF_EFFECT + level, 0);
+		// The target may be a seen unit of any owner, enemies and creeps too, despite "player,neutral,ally".
+		final EnumSet<CTargetType> targetsAllowed = EnumSet.copyOf(getTargetsAllowed());
+		targetsAllowed.add(CTargetType.FRIEND);
+		targetsAllowed.add(CTargetType.NEUTRAL);
+		targetsAllowed.add(CTargetType.ENEMIES);
+		setTargetsAllowed(targetsAllowed);
 	}
 
 	@Override
 	public boolean doEffect(final CSimulation simulation, final CUnit caster, final AbilityTarget target) {
 		this.channelEndTick = simulation.getGameTurnTick()
-				+ (int) StrictMath.ceil(castingDelay / WarsmashConstants.SIMULATION_STEP_TIME);
+				+ CTimer.ceilSteps(castingDelay);
 		sourceAreaEffectRenderComponent = simulation.spawnSpellEffectOnPoint(caster.getX(), caster.getY(), 0,
 				getAlias(), CEffectType.AREA_EFFECT, 0);
 		targetAreaEffectRenderComponent = simulation.spawnSpellEffectOnPoint(target.getX(), target.getY(), 0,
@@ -70,7 +81,7 @@ public class CAbilityMassTeleport extends CAbilityTargetSpellBase {
 			final float targetX = target.getX();
 			final float targetY = target.getY();
 			simulation.getWorldCollision().enumUnitsInRange(casterX, casterY, areaOfEffect, (enumUnit) -> {
-				if ((enumUnit != caster) && enumUnit.canBeTargetedBy(simulation, caster, getTargetsAllowed())) {
+				if ((enumUnit != caster) && enumUnit.canBeTargetedBy(simulation, caster, TELEPORTED_UNITS)) {
 					teleportingUnits.add(enumUnit);
 				}
 				return (teleportingUnits.size() + 1) >= numberOfUnitsTeleported;

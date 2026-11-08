@@ -213,6 +213,21 @@ public class WarsmashServer implements ClientToServerListener {
 	}
 
 	@Override
+	public void issuePlayerCommand(final SocketAddress sourceAddress, final long sessionToken, final byte[] command) {
+		final int playerIndex = getPlayerIndex(sourceAddress, sessionToken);
+		if (playerIndex == -1) {
+			return;
+		}
+		this.turnActions.add(new Runnable() {
+			@Override
+			public void run() {
+				WarsmashServer.this.writer.issuePlayerCommand(playerIndex, command);
+				WarsmashServer.this.writer.send();
+			}
+		});
+	}
+
+	@Override
 	public void finishedTurn(final SocketAddress sourceAddress, final long sessionToken, final int clientGameTurnTick) {
 		final int gameTurnTick = clientGameTurnTick + MAGIC_DELAY_OFFSET;
 		if (VERBOSE_LOGGING) {

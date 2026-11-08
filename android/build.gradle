@@ -1,12 +1,14 @@
 apply plugin: "com.android.application"
 
 android {
-    namespace "com.etheller.warsmash.android"
-    compileSdk 34
+    namespace = "com.etheller.warsmash.android"
+    compileSdk = 36
+    compileSdkMinor = 1
+    buildToolsVersion = "36.1.0"
 
     sourceSets {
         main {
-            manifest.srcFile "AndroidManifest.xml"
+            manifest.srcFile("AndroidManifest.xml")
             java.srcDirs = ["src"]
             res.srcDirs = ["res"]
             assets.srcDirs = ["assets", "build/generated/engineAssets"]
@@ -14,32 +16,32 @@ android {
         }
         debug {
             java.srcDirs = ["src-debug"]
-            manifest.srcFile "src-debug/AndroidManifest.xml"
+            manifest.srcFile("src-debug/AndroidManifest.xml")
         }
     }
 
     defaultConfig {
-        applicationId "com.etheller.warsmash.android"
-        minSdk 26
-        targetSdk 34
-        versionCode 1
-        versionName "0.2.9"
+        applicationId = "com.etheller.warsmash.android"
+        minSdk = 26
+        targetSdk = 36
+        versionCode = 1
+        versionName = "0.2.11"
     }
 
     buildTypes {
         release {
-            minifyEnabled true
-            shrinkResources true
+            minifyEnabled = true
+            shrinkResources = true
             proguardFiles getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro"
         }
     }
 
     compileOptions {
-        sourceCompatibility JavaVersion.VERSION_17
-        targetCompatibility JavaVersion.VERSION_17
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
     }
 
-    packagingOptions {
+    packaging {
         resources {
             excludes += ["META-INF/*.kotlin_module", "META-INF/LICENSE*", "META-INF/NOTICE*", "META-INF/DEPENDENCIES"]
         }

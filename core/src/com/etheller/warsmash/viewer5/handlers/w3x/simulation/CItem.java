@@ -177,8 +177,8 @@ public class CItem extends CWidget {
 				break;
 			}
 			final double angle = ((((int) Math.floor(Math.sqrt((4 * i) + 1))) % 4) * Math.PI) / 2;
-			checkX -= (int) Math.cos(angle);
-			checkY -= (int) Math.sin(angle);
+			checkX -= (int) StrictMath.cos(angle);
+			checkY -= (int) StrictMath.sin(angle);
 		}
 		final float oldX = getX();
 		final float oldY = getY();

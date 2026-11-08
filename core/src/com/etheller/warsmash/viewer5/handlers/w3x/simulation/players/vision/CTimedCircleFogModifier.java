@@ -1,9 +1,9 @@
 package com.etheller.warsmash.viewer5.handlers.w3x.simulation.players.vision;
 
-import com.etheller.warsmash.util.WarsmashConstants;
 import com.etheller.warsmash.viewer5.handlers.w3x.environment.PathingGrid;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CSimulation;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.players.CPlayer;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.timers.CTimer;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.trigger.enumtypes.CFogState;
 
 public class CTimedCircleFogModifier extends CFogModifier {
@@ -37,7 +37,7 @@ public class CTimedCircleFogModifier extends CFogModifier {
 	
 	@Override
 	public void onAdd(final CSimulation game, final CPlayer player) {
-		this.endTurnTick = (int) Math.floor(game.getGameTurnTick() + (this.duration / WarsmashConstants.SIMULATION_STEP_TIME));
+		this.endTurnTick = game.getGameTurnTick() + CTimer.wholeSteps(this.duration);
 	}
 
 	@Override

@@ -2,7 +2,6 @@ package com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.skills.n
 
 import com.etheller.warsmash.units.GameObject;
 import com.etheller.warsmash.util.War3ID;
-import com.etheller.warsmash.util.WarsmashConstants;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CSimulation;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CUnit;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CWidget;
@@ -15,6 +14,7 @@ import com.etheller.warsmash.viewer5.handlers.w3x.simulation.combat.CAttackType;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.combat.CSpellDamageFlags;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.combat.projectile.CEffect;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.orders.OrderIds;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.timers.CTimer;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.trigger.enumtypes.CDamageType;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.trigger.enumtypes.CEffectType;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.trigger.enumtypes.CWeaponSoundTypeJass;
@@ -71,9 +71,9 @@ public class CAbilityManaBurn extends CAbilityTargetSpellBase {
 					targetUnit);
 			simulation.createTemporarySpellEffectOnUnit(targetUnit, getAlias(), CEffectType.TARGET);
 			final int boltDelayEndTick = simulation.getGameTurnTick()
-					+ (int) StrictMath.ceil(boltDelay / WarsmashConstants.SIMULATION_STEP_TIME);
+					+ CTimer.ceilSteps(boltDelay);
 			final int boltLifetimeEndTick = simulation.getGameTurnTick()
-					+ (int) StrictMath.ceil(boltLifetime / WarsmashConstants.SIMULATION_STEP_TIME);
+					+ CTimer.ceilSteps(boltLifetime);
 			simulation.registerEffect(new CEffectManaBurnBolt(boltLifetimeEndTick, boltDelayEndTick,
 					this.maxManaDrained, caster, targetUnit, lightning));
 		}

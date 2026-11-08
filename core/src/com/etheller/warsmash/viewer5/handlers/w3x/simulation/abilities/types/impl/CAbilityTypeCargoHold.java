@@ -21,7 +21,7 @@ public class CAbilityTypeCargoHold extends CAbilityType<CAbilityTypeCargoHoldLev
 	public CAbility createAbility(final int handleId) {
 		final CAbilityTypeCargoHoldLevelData levelData = getLevelData(0);
 		return new CAbilityCargoHold(handleId, getCode(), getAlias(), levelData.getCargoCapcity(), levelData.getDuration(),
-				levelData.getCastRange(), levelData.getTargetsAllowed());
+				levelData.getCastRange(), levelData.getArea(), levelData.getTargetsAllowed());
 	}
 
 	@Override
@@ -32,6 +32,7 @@ public class CAbilityTypeCargoHold extends CAbilityType<CAbilityTypeCargoHoldLev
 		heroAbility.setDuration(levelData.getDuration());
 		heroAbility.setCargoCapacity(levelData.getCargoCapcity());
 		heroAbility.setTargetsAllowed(levelData.getTargetsAllowed());
+		heroAbility.setArea(levelData.getArea());
 
 		heroAbility.setLevel(game, unit, level);
 	}

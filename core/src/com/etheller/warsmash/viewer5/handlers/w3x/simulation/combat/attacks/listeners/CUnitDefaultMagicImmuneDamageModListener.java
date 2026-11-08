@@ -7,7 +7,7 @@ import com.etheller.warsmash.viewer5.handlers.w3x.simulation.combat.CDamageFlags
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.trigger.enumtypes.CDamageType;
 
 public class CUnitDefaultMagicImmuneDamageModListener implements CUnitAttackFinalDamageTakenModificationListener {
-	public static CUnitDefaultMagicImmuneDamageModListener INSTANCE = new CUnitDefaultMagicImmuneDamageModListener();
+	public static final CUnitDefaultMagicImmuneDamageModListener INSTANCE = new CUnitDefaultMagicImmuneDamageModListener();
 
 	@Override
 	public float onDamage(CSimulation game, CUnit attacker, CUnit target, final CDamageFlags flags,

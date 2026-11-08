@@ -5,9 +5,15 @@ import com.etheller.interpreter.ast.value.JassValue;
 
 public class PushLiteralInstruction implements JassInstruction {
 	private final JassValue value;
+	private final int opCost;
 
 	public PushLiteralInstruction(final JassValue value) {
+		this(value, 1);
+	}
+
+	public PushLiteralInstruction(final JassValue value, final int opCost) {
 		this.value = value;
+		this.opCost = opCost;
 	}
 
 	@Override
@@ -15,4 +21,8 @@ public class PushLiteralInstruction implements JassInstruction {
 		thread.stackFrame.push(this.value);
 	}
 
+	@Override
+	public int opCost() {
+		return this.opCost;
+	}
 }

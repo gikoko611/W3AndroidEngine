@@ -26,7 +26,114 @@ package net.warsmash.parsers.jass;
 	public int getColumn() {
 		return yycolumn;
 	}
-	
+
+	/* The next input character after the current match, or -1 at the end of the input. */
+	private int peekNext() throws java.io.IOException {
+		if ((zzMarkedPos >= zzEndRead) && (zzAtEOF || zzRefill())) {
+			return -1;
+		}
+		return zzBuffer[zzMarkedPos];
+	}
+
+	/* Adds the following characters that are digits of the given radix to the current match. */
+	private void extendDigits(final int radix) throws java.io.IOException {
+		int c;
+		while (((c = peekNext()) != -1) && (Character.digit((char) c, radix) != -1)) {
+			zzMarkedPos++;
+		}
+	}
+
+	/* Literals keep their low 32 bits, as in the original game, which also refuses a prefix without digits ("0x"). */
+	private int parseLiteral(final int prefixLength, final int radix) {
+		final String text = yytext();
+		if (text.length() == prefixLength) {
+			throw new IllegalStateException((getLine() + 1) + ":" + getColumn() + ": Missing digits in '" + text + "'");
+		}
+		int value = 0;
+		for (int i = prefixLength; i < text.length(); i++) {
+			final int digit = Character.digit(text.charAt(i), radix);
+			if (digit == -1) {
+				throw new IllegalStateException((getLine() + 1) + ":" + getColumn() + ": Invalid digit in '" + text + "'");
+			}
+			value = (value * radix) + digit;
+		}
+		return value;
+	}
+
+	/*
+	 * A rawcode is its bytes as base 256 digits, so 'C' is 67, not 'C\0\0\0'. The original game takes one byte, four
+	 * bytes without a backslash, or one escape alone ('\n' is 10); 'ab', 'a\\bc', '\n\n\n\n' and '\q' are syntax
+	 * errors there.
+	 */
+	private int rawcodeValue() throws java.io.IOException {
+		String text = yytext();
+		if (text.equals("'\\'") && (peekNext() == '\'')) {
+			// The expression stops at the quote of '\''.
+			zzMarkedPos++;
+			text = yytext();
+		}
+		final String content = text.substring(1, text.length() - 1);
+		if (content.indexOf('\\') != -1) {
+			final int escaped = content.length() == 2 ? rawcodeEscape(content.charAt(1)) : -1;
+			if ((content.charAt(0) != '\\') || (escaped == -1)) {
+				throw new IllegalStateException((getLine() + 1) + ":" + getColumn() + ": Invalid rawcode " + text);
+			}
+			return escaped;
+		}
+		final byte[] rawcodeBytes = content.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+		if ((rawcodeBytes.length != 1) && (rawcodeBytes.length != 4)) {
+			throw new IllegalStateException((getLine() + 1) + ":" + getColumn() + ": Invalid rawcode " + text);
+		}
+		int rawcode = 0;
+		for (int i = 0; i < rawcodeBytes.length; i++) {
+			rawcode = (rawcode << 8) | (rawcodeBytes[i] & 0xFF);
+		}
+		return rawcode;
+	}
+
+	private static int rawcodeEscape(final char c) {
+		switch (c) {
+		case 'n':
+			return '\n';
+		case 't':
+			return '\t';
+		case 'r':
+			return '\r';
+		case 'b':
+			return '\b';
+		case 'f':
+			return '\f';
+		case '"':
+		case '\'':
+		case '\\':
+			return c;
+		default:
+			return -1;
+		}
+	}
+
+	/*
+	 * The regular expressions only match a lone "0" before other digits, so the original game's octal ("010" is 8),
+	 * upper case hex ("0X1F") and leading zero real ("01.5") forms are read here. "08" is a syntax error there.
+	 */
+	private int zeroPrefixedLiteral() throws java.io.IOException {
+		if (peekNext() == 'X') {
+			zzMarkedPos++;
+			extendDigits(16);
+			yylval = parseLiteral(2, 16);
+			return SmashJassParser.Lexer.HEX_CONSTANT;
+		}
+		extendDigits(10);
+		if (peekNext() == '.') {
+			zzMarkedPos++;
+			extendDigits(10);
+			yylval = Double.parseDouble(yytext());
+			return SmashJassParser.Lexer.REAL;
+		}
+		yylval = parseLiteral(0, 8);
+		return SmashJassParser.Lexer.INTEGER;
+	}
+
 %}
 
 
@@ -218,26 +325,24 @@ MULTILINE_COMMENT = ("/*"(("*"[^"/"])|[^"*"])*?"*/")
 	yylval = parsedString;
 	return SmashJassParser.Lexer.STRING_LITERAL; }
 {INTEGER} {
-	yylval = (int) Long.parseLong(yytext());
+	if (yytext().equals("0")) {
+		return zeroPrefixedLiteral();
+	}
+	yylval = parseLiteral(0, 10);
 	return SmashJassParser.Lexer.INTEGER; }
 {HEX_CONSTANT} {
-	yylval = (int) (Long.parseLong(yytext().substring(2), 16) & 0xFFFFFFFF);
+	yylval = parseLiteral(2, 16);
 	return SmashJassParser.Lexer.HEX_CONSTANT; }
 {DOLLAR_HEX_CONSTANT} {
-	yylval = Integer.parseInt(yytext().substring(1), 16);
+	/* lower case digits are valid too ("$1f") */
+	extendDigits(16);
+	yylval = parseLiteral(1, 16);
 	return SmashJassParser.Lexer.DOLLAR_HEX_CONSTANT; }
 {RAWCODE} {
-	final String stringLiteralText = yytext();
-	String parsedString = stringLiteralText.substring(1, stringLiteralText.length() - 1).replace("\\\\", "\\");
-	// A rawcode is its characters as base 256 digits, so 'C' is 67, not 'C\0\0\0'.
-	int rawcode = 0;
-	for (int i = 0; i < parsedString.length(); i++) {
-		rawcode = (rawcode << 8) | (parsedString.charAt(i) & 0xFF);
-	}
-	yylval = rawcode;
+	yylval = rawcodeValue();
 	return SmashJassParser.Lexer.RAWCODE; }
 {REAL} {
-	yylval = Double.parseDouble(yytext());
+	yylval = com.etheller.interpreter.ast.util.JassNumbers.parseLiteral(yytext());
 	return SmashJassParser.Lexer.REAL; }
 {NULL} { return SmashJassParser.Lexer.NULL; }
 {TRUE} { return SmashJassParser.Lexer.TRUE; }

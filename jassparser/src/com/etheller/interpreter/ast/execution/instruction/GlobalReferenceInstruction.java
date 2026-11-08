@@ -14,4 +14,8 @@ public class GlobalReferenceInstruction implements JassInstruction {
 		thread.stackFrame.push(thread.globalScope.getGlobalById(this.globalId));
 	}
 
+	@Override
+	public int opCost() {
+		return 1;
+	}
 }

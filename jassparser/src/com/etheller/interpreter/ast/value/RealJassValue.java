@@ -1,11 +1,13 @@
 package com.etheller.interpreter.ast.value;
 
+import com.etheller.interpreter.ast.util.JassNumbers;
+
 public class RealJassValue implements JassValue {
 	public static final JassValue ZERO = new RealJassValue(0);
 	private final double value;
 
 	public RealJassValue(final double value) {
-		this.value = value;
+		this.value = JassNumbers.round(value);
 	}
 
 	public double getValue() {

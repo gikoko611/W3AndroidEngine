@@ -8,7 +8,7 @@ import com.etheller.warsmash.viewer5.handlers.w3x.simulation.players.CAllianceTy
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.trigger.enumtypes.CDamageType;
 
 public class CUnitDefaultEtherealDamageModListener implements CUnitAttackDamageTakenModificationListener {
-	public static CUnitDefaultEtherealDamageModListener INSTANCE = new CUnitDefaultEtherealDamageModListener();
+	public static final CUnitDefaultEtherealDamageModListener INSTANCE = new CUnitDefaultEtherealDamageModListener();
 
 	@Override
 	public CUnitAttackDamageTakenModificationListenerDamageModResult onDamage(CSimulation game, CUnit attacker,

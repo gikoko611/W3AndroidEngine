@@ -22,6 +22,7 @@ import com.etheller.warsmash.viewer5.handlers.w3x.simulation.combat.attacks.list
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.combat.attacks.replacement.CUnitAttackSettings;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.combat.attacks.replacement.CUnitPriorityLoopData;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.unit.NonStackingStatBuff;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.unit.NonStackingStatBuffs;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.util.TextTagConfigType;
 
 /**
@@ -38,7 +39,6 @@ import com.etheller.warsmash.viewer5.handlers.w3x.simulation.util.TextTagConfigT
  * these attacks as best as possible.
  */
 public abstract class CUnitAttack {
-	private static CUnitPriorityLoopData postListenerLoop = new CUnitPriorityLoopData();
 	private float animationBackswingPointBase;
 	private float animationBackswingPoint;
 	private float animationDamagePoint;
@@ -137,31 +137,15 @@ public abstract class CUnitAttack {
 		this.maxDamageDisplay = this.totalBaseDamage + (this.totalDamageDice * this.damageSidesPerDie);
 
 		int totalNSAtkBuff = 0;
-		for (final String key : this.nonStackingFlatBuffs.keySet()) {
-			float buffForKey = 0;
-			for (final NonStackingStatBuff buff : this.nonStackingFlatBuffs.get(key)) {
-				if (key.equals(NonStackingStatBuff.ALLOW_STACKING_KEY)) {
-					buffForKey += buff.getValue();
-				} else {
-					buffForKey = Math.abs(buffForKey) > Math.abs(buff.getValue()) ? buffForKey : buff.getValue();
-				}
+		for (final Map.Entry<String, List<NonStackingStatBuff>> entry : this.nonStackingFlatBuffs.entrySet()) {
+			final Float buffForKey = NonStackingStatBuffs.valueForKey(entry.getKey(), entry.getValue());
+			if (buffForKey != null) {
+				totalNSAtkBuff += buffForKey;
 			}
-			totalNSAtkBuff += buffForKey;
 		}
 		int totalNSAtkPctBuff = 0;
-		for (final String key : this.nonStackingPctBuffs.keySet()) {
-			Float buffForKey = null;
-			for (final NonStackingStatBuff buff : this.nonStackingPctBuffs.get(key)) {
-				if (buffForKey == null) {
-					buffForKey = buff.getValue();
-				} else {
-					if (key.equals(NonStackingStatBuff.ALLOW_STACKING_KEY)) {
-						buffForKey += buff.getValue();
-					} else {
-						buffForKey = Math.abs(buffForKey) > Math.abs(buff.getValue()) ? buffForKey : buff.getValue();
-					}
-				}
-			}
+		for (final Map.Entry<String, List<NonStackingStatBuff>> entry : this.nonStackingPctBuffs.entrySet()) {
+			final Float buffForKey = NonStackingStatBuffs.valueForKey(entry.getKey(), entry.getValue());
 			if (buffForKey == null) {
 				continue;
 			}
@@ -509,7 +493,8 @@ public abstract class CUnitAttack {
 			final float actualDamage, final CUnitAttackSettings settings) {
 		int maxPriority = 0;
 		int i = 0;
-		postListenerLoop.reset();
+		// A listener may start another hit, so each run keeps its own loop state.
+		final CUnitPriorityLoopData postListenerLoop = new CUnitPriorityLoopData();
 		while (i <= maxPriority) {
 			postListenerLoop.startLoop(i);
 

@@ -16,6 +16,8 @@ import com.etheller.warsmash.viewer5.handlers.w3x.simulation.orders.OrderIds;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.trigger.enumtypes.CDamageType;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.trigger.enumtypes.CEffectType;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.trigger.enumtypes.CWeaponSoundTypeJass;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CWidget;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.util.BooleanAbilityTargetCheckReceiver;
 
 /**
  * Frost Nova: the target takes the specific damage, every enemy around it the area damage, and all of them are
@@ -57,7 +59,8 @@ public class CAbilityFrostNova extends CAbilityTargetSpellBase {
 		simulation.getWorldCollision().enumUnitsInRange(targetUnit.getX(), targetUnit.getY(), this.areaOfEffect,
 				(enumUnit) -> {
 					if (!enumUnit.isUnitAlly(simulation.getPlayer(caster.getPlayerIndex()))
-							&& enumUnit.canBeTargetedBy(simulation, caster, getTargetsAllowed())) {
+							&& enumUnit.canBeTargetedBy(simulation, caster, false, getTargetsAllowed(),
+									BooleanAbilityTargetCheckReceiver.<CWidget>getInstance().reset())) {
 						enumUnit.damage(simulation, caster, DAMAGE_FLAGS, CAttackType.SPELLS, CDamageType.UNIVERSAL,
 								CWeaponSoundTypeJass.WHOKNOWS.name(), this.areaDamage);
 						enumUnit.add(simulation,

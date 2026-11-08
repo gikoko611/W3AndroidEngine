@@ -1,6 +1,8 @@
 package com.etheller.warsmash.viewer5.handlers.w3x.ui;
 
+import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.utils.IntIntMap;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.replay.CReplay;
 import com.etheller.warsmash.viewer5.handlers.w3x.ui.mapsetup.CurrentNetGameMapLookup;
 
 public class BeginGameInformation {
@@ -12,4 +14,8 @@ public class BeginGameInformation {
 	public IntIntMap serverSlotToMapSlot;
 	public IntIntMap mapSlotToServerSlot;
 	public boolean loadingStarted = false;
+	/** The replay this game plays, or null for a game that is played. */
+	public CReplay replay;
+	/** The file the replay was read from, which Restart plays again. */
+	public FileHandle replayFile;
 }

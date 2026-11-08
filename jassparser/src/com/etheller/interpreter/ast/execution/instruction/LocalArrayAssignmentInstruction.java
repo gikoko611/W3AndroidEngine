@@ -26,7 +26,7 @@ public class LocalArrayAssignmentInstruction implements JassInstruction {
 		final ArrayJassValue arrayValue = localValue.visit(ArrayJassValueVisitor.getInstance());
 		if (arrayValue != null) {
 			final Integer indexInt = index.visit(IntegerJassValueVisitor.getInstance());
-			if ((indexInt != null) && (indexInt >= 0)) {
+			if (indexInt != null) {
 				arrayValue.set(thread.globalScope, indexInt, value);
 			}
 			else {

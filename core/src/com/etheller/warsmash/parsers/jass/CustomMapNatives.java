@@ -22,9 +22,9 @@ import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CDestructable;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CItem;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CSimulation;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CUnit;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.AbstractCAbility;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.CAbility;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.generic.CLevelingAbility;
-import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.GetAbilityByRawcodeVisitor;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.hero.CAbilityHero;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.skills.util.CBuffTimedLife;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.combat.attacks.CUnitAttack;
@@ -37,10 +37,12 @@ import com.etheller.warsmash.viewer5.handlers.w3x.simulation.players.CPlayer;
  */
 final class CustomMapNatives {
 	private final JassProgram program;
+	private final War3MapViewer viewer;
 	private final CSimulation simulation;
 
 	private CustomMapNatives(final JassProgram program, final War3MapViewer viewer) {
 		this.program = program;
+		this.viewer = viewer;
 		this.simulation = viewer.simulation;
 	}
 
@@ -63,6 +65,10 @@ final class CustomMapNatives {
 	private static String string(final List<JassValue> arguments, final int index) {
 		final JassValue value = arguments.get(index);
 		return value == null ? null : value.visit(StringJassValueVisitor.getInstance());
+	}
+
+	private String mapString(final List<JassValue> arguments, final int index) {
+		return this.viewer.getGameUI().getTrigStr(string(arguments, index));
 	}
 
 	private static int integer(final List<JassValue> arguments, final int index) {
@@ -104,11 +110,19 @@ final class CustomMapNatives {
 			if (unit == null) {
 				return IntegerJassValue.ZERO;
 			}
-			final CLevelingAbility ability = unit
-					.getAbility(GetAbilityByRawcodeVisitor.getInstance().reset(new War3ID(integer(arguments, 1))));
-			if (ability == null) {
+			final CAbility found = unit.getAbilityByRawcode(new War3ID(integer(arguments, 1)));
+			if (found == null) {
 				return IntegerJassValue.ZERO;
 			}
+			if (!(found instanceof CLevelingAbility)) {
+				final int level = AbilityNatives.scriptLevel(found);
+				if ((found instanceof AbstractCAbility) && (level > 1)) {
+					((AbstractCAbility) found).setScriptLevel(level - 1);
+					return IntegerJassValue.of(level - 1);
+				}
+				return IntegerJassValue.of(level);
+			}
+			final CLevelingAbility ability = (CLevelingAbility) found;
 			final int newLevel = ability.getLevel() - 1;
 			if (newLevel < 1) {
 				return IntegerJassValue.of(ability.getLevel());
@@ -145,7 +159,7 @@ final class CustomMapNatives {
 		});
 		add("BlzSetHeroProperName", (arguments, globalScope, triggerScope) -> {
 			final CUnit unit = object(arguments, 0);
-			final String name = string(arguments, 1);
+			final String name = mapString(arguments, 1);
 			final CAbilityHero hero = unit == null ? null : unit.getHeroData();
 			if ((hero != null) && (name != null)) {
 				hero.setProperName(name);

@@ -1,10 +1,9 @@
 package com.etheller.warsmash.viewer5.handlers.w3x.ui;
 
 import java.util.Arrays;
-import java.util.Collections;
-import java.util.Set;
-import java.util.WeakHashMap;
+import java.util.List;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 import com.badlogic.gdx.graphics.Color;
@@ -14,6 +13,7 @@ import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.math.Rectangle;
 import com.badlogic.gdx.math.Vector2;
 import com.etheller.warsmash.viewer5.handlers.w3x.environment.PathingGrid;
+import com.etheller.warsmash.viewer5.handlers.w3x.rendersim.RenderFogGhost;
 import com.etheller.warsmash.viewer5.handlers.w3x.rendersim.RenderUnit;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CSimulation;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CUnit;
@@ -27,6 +27,7 @@ import com.etheller.warsmash.viewer5.handlers.w3x.simulation.trigger.enumtypes.C
 public class MeleeUIMinimap {
 	private boolean observerView;
 	private AllyColorFilter allyColorFilter;
+	private Predicate<CUnit> heroAlertShown;
 	private Supplier<String> altIconPath;
 	private Function<String, Texture> altIconLoader;
 	private String loadedAltIconPath;
@@ -48,8 +49,8 @@ public class MeleeUIMinimap {
 	private boolean terrainVisible = true;
 	private boolean maskedAreasPartiallyVisible;
 	private final float[] cameraFootprint = new float[8];
-	/** Structures stay on the minimap where the local player last saw them, as in the original. */
-	private final Set<CUnit> seenStructures = Collections.newSetFromMap(new WeakHashMap<>());
+	// Measured on 1.29: a remembered building's player-coloured dot in the fog is drawn at 75 % of its colour.
+	private static final float FOGGED_ICON_SHADE = 0.75f;
 	private Texture lineTexture;
 	// The fog was drawn as one sprite per fog cell every frame, thousands of them, which phones could not keep up
 	// with; it is now painted into a texture a few times a second and drawn as one sprite.
@@ -78,6 +79,11 @@ public class MeleeUIMinimap {
 
 	public void setObserverView(final boolean observerView) {
 		this.observerView = observerView;
+	}
+
+	/** While a hurt hero's alert flashes on, its mark is drawn red instead. */
+	public void setHeroAlertShown(final Predicate<CUnit> heroAlertShown) {
+		this.heroAlertShown = heroAlertShown;
 	}
 
 	public void setAllyColorFilter(final AllyColorFilter allyColorFilter) {
@@ -109,7 +115,8 @@ public class MeleeUIMinimap {
 	}
 
 	public void render(final CSimulation game, final SpriteBatch batch, final Iterable<RenderUnit> units,
-			final PathingGrid pathingGrid, final CPlayerFogOfWar fogOfWar, final CPlayer player) {
+			final List<RenderFogGhost> fogGhosts, final PathingGrid pathingGrid, final CPlayerFogOfWar fogOfWar,
+			final CPlayer player) {
 		if (!this.visible) {
 			return;
 		}
@@ -182,77 +189,99 @@ public class MeleeUIMinimap {
 		this.iconCount = 0;
 		for (final RenderUnit unit : units) {
 			final CUnit simUnit = unit.getSimulationUnit();
-			int dimensions = 4;
 			final boolean unitVisible = this.observerView || simUnit.isVisible(game, player.getId());
-			if (unitVisible && simUnit.isBuilding()) {
-				this.seenStructures.add(simUnit);
-			}
 			if (!(simUnit.isHidden() || simUnit.isHideMinimapIcon() || simUnit.isDead())
-					&& (unitVisible || this.seenStructures.contains(simUnit)
-						|| isExploredLandmark(game, simUnit, pathingGrid, fogOfWar,
-								this.maskedAreasPartiallyVisible))) {
-				float red = 1f;
-				float green = 1f;
-				float blue = 1f;
-				float alpha = 1f;
-				int layer = 1;
-				final Texture minimapIcon;
-				final Texture altIcon = simUnit.isUsesAltMinimapIcon() ? altIcon() : null;
-				if (altIcon != null) {
-					minimapIcon = altIcon;
-					dimensions = 21;
-				} else if (simUnit.getGoldMineData() != null) {
-					minimapIcon = this.specialIcons[0];
-					dimensions = 21;
-				} else if (simUnit.getOverlayedGoldMineData() != null) {
-					final CAbilityOverlayedMine overlayedGoldMineData = simUnit.getOverlayedGoldMineData();
-					if (overlayedGoldMineData instanceof CAbilityEntangledMine) {
-						minimapIcon = this.specialIcons[3];
-					} else {
-						minimapIcon = this.specialIcons[4];
-					}
-					dimensions = 21;
-				} else if (simUnit.getUnitType().isNeutralBuildingShowMinimapIcon()) {
-					minimapIcon = this.specialIcons[1];
-					dimensions = 21;
-				} else if (simUnit.isHero()) {
-					if (!player.hasAlliance(simUnit.getFakePlayerIndex(), CAllianceType.PASSIVE)) {
-						green = 0.2f;
-						blue = 0.2f;
-					}
-					alpha = this.heroAlpha;
-					layer = 2;
-					minimapIcon = this.specialIcons[2];
-					dimensions = 28;
-				} else {
-					if (simUnit.isBuilding()) {
-						dimensions = 10;
-					}
-					layer = 0;
-					final float[] filtered = this.allyColorFilter == null ? null
-							: this.allyColorFilter.minimapColor(game, player.getId(), simUnit.getFakePlayerIndex());
-					if (filtered != null) {
-						minimapIcon = this.specialIcons[5];
-						red = filtered[0];
-						green = filtered[1];
-						blue = filtered[2];
-					}
-					else if (simUnit.getFakePlayerIndex() == player.getId()) {
-						minimapIcon = this.specialIcons[5];
-					}
-					else {
-						minimapIcon = this.teamColors[unit.getSimulationUnit().getFakePlayerIndex()];
-					}
-				}
-				final int offset = dimensions / 2;
-				addIcon(minimapIcon, layer, (this.minimapFilledArea.x + (((unit.location[0] - this.playableMapArea.getX())
-						/ (this.playableMapArea.getWidth())) * this.minimapFilledArea.width)) - offset,
-						(this.minimapFilledArea.y + (((unit.location[1] - this.playableMapArea.getY())
-								/ (this.playableMapArea.getHeight())) * this.minimapFilledArea.height)) - offset,
-						dimensions, red, green, blue, alpha);
+					&& (unitVisible || (!unit.hasFogGhost() && isExploredLandmark(game, simUnit, pathingGrid,
+							fogOfWar, this.maskedAreasPartiallyVisible)))) {
+				addUnitIcon(game, simUnit, simUnit.getFakePlayerIndex(), unit.location[0], unit.location[1], player,
+						1f);
+			}
+		}
+		for (int i = 0, n = fogGhosts.size(); i < n; i++) {
+			final RenderFogGhost ghost = fogGhosts.get(i);
+			if (!ghost.isMinimapIconHidden()) {
+				addUnitIcon(game, ghost.getUnit(), ghost.getFakePlayerIndex(), ghost.getX(), ghost.getY(), player,
+						FOGGED_ICON_SHADE);
 			}
 		}
 		drawIcons(batch);
+	}
+
+	private void addUnitIcon(final CSimulation game, final CUnit simUnit, final int fakePlayerIndex, final float x,
+			final float y, final CPlayer player, final float shade) {
+		int dimensions = 4;
+		float red = 1f;
+		float green = 1f;
+		float blue = 1f;
+		float alpha = 1f;
+		int layer = 1;
+		final Texture minimapIcon;
+		final Texture altIcon = simUnit.isUsesAltMinimapIcon() ? altIcon() : null;
+		if (altIcon != null) {
+			minimapIcon = altIcon;
+			dimensions = 21;
+		} else if (simUnit.getGoldMineData() != null) {
+			minimapIcon = this.specialIcons[0];
+			dimensions = 21;
+		} else if (simUnit.getOverlayedGoldMineData() != null) {
+			final CAbilityOverlayedMine overlayedGoldMineData = simUnit.getOverlayedGoldMineData();
+			if (overlayedGoldMineData instanceof CAbilityEntangledMine) {
+				minimapIcon = this.specialIcons[3];
+			} else {
+				minimapIcon = this.specialIcons[4];
+			}
+			dimensions = 21;
+		} else if (simUnit.getUnitType().isNeutralBuildingShowMinimapIcon()) {
+			minimapIcon = this.specialIcons[1];
+			dimensions = 21;
+		} else if (simUnit.isHero()) {
+			if (!player.hasAlliance(fakePlayerIndex, CAllianceType.PASSIVE)) {
+				green = 0.2f;
+				blue = 0.2f;
+			}
+			alpha = this.heroAlpha;
+			if ((this.heroAlertShown != null) && this.heroAlertShown.test(simUnit)) {
+				green = 0f;
+				blue = 0f;
+				alpha = 1f;
+			}
+			layer = 2;
+			minimapIcon = this.specialIcons[2];
+			dimensions = 28;
+		} else {
+			if (simUnit.isBuilding()) {
+				dimensions = 10;
+			}
+			layer = 0;
+			final float[] filtered = this.allyColorFilter == null ? null
+					: this.allyColorFilter.minimapColor(game, player.getId(), fakePlayerIndex);
+			if (filtered != null) {
+				minimapIcon = this.specialIcons[5];
+				red = filtered[0];
+				green = filtered[1];
+				blue = filtered[2];
+			}
+			else if (fakePlayerIndex == player.getId()) {
+				minimapIcon = this.specialIcons[5];
+			}
+			else {
+				minimapIcon = this.teamColors[fakePlayerIndex];
+			}
+			red *= shade;
+			green *= shade;
+			blue *= shade;
+		}
+		final int offset = dimensions / 2;
+		addIcon(minimapIcon, layer,
+				(this.minimapFilledArea.x
+						+ (((x - this.playableMapArea.getX()) / (this.playableMapArea.getWidth()))
+								* this.minimapFilledArea.width))
+						- offset,
+				(this.minimapFilledArea.y
+						+ (((y - this.playableMapArea.getY()) / (this.playableMapArea.getHeight()))
+								* this.minimapFilledArea.height))
+						- offset,
+				dimensions, red, green, blue, alpha);
 	}
 
 	private static boolean isExploredLandmark(final CSimulation game, final CUnit unit, final PathingGrid pathingGrid,

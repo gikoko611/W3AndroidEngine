@@ -5,13 +5,14 @@ import java.util.List;
 
 import com.etheller.interpreter.ast.scope.trigger.RemovableTriggerEvent;
 import com.etheller.interpreter.ast.scope.trigger.Trigger;
+import com.etheller.interpreter.ast.util.AllocatedHandle;
 import com.etheller.warsmash.parsers.fdf.GameUI;
 import com.etheller.warsmash.parsers.fdf.frames.GlueTextButtonFrame;
 import com.etheller.warsmash.parsers.fdf.frames.StringFrame;
 import com.etheller.warsmash.parsers.jass.scope.CommonTriggerExecutionScope;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.trigger.JassGameEventsWar3;
 
-public class CScriptDialogButton {
+public class CScriptDialogButton extends AllocatedHandle {
 	private GlueTextButtonFrame buttonFrame;
 	private StringFrame buttonText;
 	private String text;
@@ -55,21 +56,21 @@ public class CScriptDialogButton {
 		rootFrame.setText(this.buttonText, text);
 	}
 
-	public void setupEvents(final CScriptDialog dialog) {
-		this.buttonFrame.setOnClick(new Runnable() {
-			@Override
-			public void run() {
-				for (final Trigger trigger : CScriptDialogButton.this.eventTriggers) {
-					final CommonTriggerExecutionScope scope = CommonTriggerExecutionScope.triggerDialogScope(
-							JassGameEventsWar3.EVENT_DIALOG_BUTTON_CLICK, trigger, dialog, CScriptDialogButton.this);
-					dialog.getGlobalScope().queueTrigger(null, null, trigger, scope, scope);
-				}
-				dialog.onButtonClick(CScriptDialogButton.this);
-				if (CScriptDialogButton.this.afterClick != null) {
-					CScriptDialogButton.this.afterClick.run();
-				}
-			}
-		});
+	/** A press is a player command: the game clicks the button when it applies that command. */
+	public void setupEvents(final Runnable onPress) {
+		this.buttonFrame.setOnClick(onPress);
+	}
+
+	public void click(final CScriptDialog dialog) {
+		for (final Trigger trigger : this.eventTriggers) {
+			final CommonTriggerExecutionScope scope = CommonTriggerExecutionScope
+					.triggerDialogScope(JassGameEventsWar3.EVENT_DIALOG_BUTTON_CLICK, trigger, dialog, this);
+			dialog.getGlobalScope().queueTrigger(null, null, trigger, scope, scope);
+		}
+		dialog.onButtonClick(this);
+		if (this.afterClick != null) {
+			this.afterClick.run();
+		}
 	}
 
 	/**

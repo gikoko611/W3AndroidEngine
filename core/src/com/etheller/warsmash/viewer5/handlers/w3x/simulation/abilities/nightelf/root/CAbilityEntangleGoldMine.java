@@ -132,8 +132,6 @@ public class CAbilityEntangleGoldMine extends CAbilityTargetSpellBase {
 
 				if (!this.instant) {
 					this.entangledMine.setConstructing(true);
-					this.entangledMine.setLife(simulation,
-							this.entangledMine.getMaximumLife() * WarsmashConstants.BUILDING_CONSTRUCT_START_LIFE);
 					this.entangledMine.add(simulation,
 							new CAbilityBuildInProgress(simulation.getHandleIdAllocator().createId()));
 					for (final CAbility ability : this.entangledMine.getAbilities()) {
@@ -144,6 +142,10 @@ public class CAbilityEntangleGoldMine extends CAbilityTargetSpellBase {
 				this.entangledMine.setFoodUsed(this.entangledMine.getUnitType().getFoodUsed());
 				simulation.getPlayer(unit.getPlayerIndex()).addTechtreeInProgress(simulation, this.resultingTypeId);
 				simulation.unitConstructedEvent(unit, this.entangledMine);
+				if (!this.instant) {
+					this.entangledMine.setLife(simulation,
+							this.entangledMine.getMaximumLife() * WarsmashConstants.BUILDING_CONSTRUCT_START_LIFE);
+				}
 				// == end stuff copied from build behavior (this was noted in case it refactors
 				// to a common subroutine later) ==
 

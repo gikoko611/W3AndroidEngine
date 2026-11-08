@@ -14,7 +14,7 @@ public enum CUnitRace {
 	CRITTERS,
 	OTHER;
 
-	private static Map<String, CUnitRace> keyToRace = new HashMap<>();
+	private static final Map<String, CUnitRace> keyToRace = new HashMap<>();
 
 	static {
 		for (final CUnitRace race : CUnitRace.values()) {

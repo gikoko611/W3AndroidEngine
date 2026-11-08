@@ -2,7 +2,6 @@ package com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.nightelf
 
 import com.etheller.warsmash.units.GameObject;
 import com.etheller.warsmash.util.War3ID;
-import com.etheller.warsmash.util.WarsmashConstants;
 import com.etheller.warsmash.viewer5.handlers.w3x.SequenceUtils;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CDestructable;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CSimulation;
@@ -14,6 +13,7 @@ import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.targeting
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.types.definitions.impl.AbilityFields;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.types.definitions.impl.AbstractCAbilityTypeDefinition;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.orders.OrderIds;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.timers.CTimer;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.trigger.enumtypes.CEffectType;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.util.AbilityTargetCheckReceiver;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.util.CommandStringErrorKeys;
@@ -83,8 +83,8 @@ public class CAbilityEatTree extends CAbilityTargetSpellBase {
 	@Override
 	public boolean doEffect(final CSimulation simulation, final CUnit unit, final AbilityTarget target) {
 		final int gameTurnTick = simulation.getGameTurnTick();
-		this.ripEndTick = gameTurnTick + (int) (this.ripDelay / WarsmashConstants.SIMULATION_STEP_TIME);
-		this.eatEndTick = this.ripEndTick + (int) ((this.eatDelay) / WarsmashConstants.SIMULATION_STEP_TIME);
+		this.ripEndTick = gameTurnTick + CTimer.wholeSteps(this.ripDelay);
+		this.eatEndTick = this.ripEndTick + CTimer.wholeSteps(this.eatDelay);
 		this.ripComplete = false;
 		return true;
 	}

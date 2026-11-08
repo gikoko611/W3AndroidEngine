@@ -6,22 +6,18 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.lang.reflect.Field;
 import java.nio.IntBuffer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
-import java.util.Map;
-import java.util.WeakHashMap;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 
 import android.app.Activity;
+import android.app.ActivityManager;
+import android.content.Context;
 import android.content.Intent;
 import android.graphics.Rect;
-import android.media.MediaMetadataRetriever;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.SystemClock;
@@ -31,19 +27,29 @@ import android.view.View;
 import android.view.WindowInsets;
 
 import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.Input;
 import com.badlogic.gdx.audio.Music;
 import com.badlogic.gdx.audio.Sound;
 import com.badlogic.gdx.backends.android.AndroidApplication;
 import com.badlogic.gdx.backends.android.AndroidApplicationConfiguration;
+import com.badlogic.gdx.backends.android.keyboardheight.KeyboardHeightObserver;
+import com.badlogic.gdx.backends.android.keyboardheight.KeyboardHeightProvider;
 import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.utils.BufferUtils;
 import com.badlogic.gdx.utils.GdxRuntimeException;
+import com.etheller.warsmash.WarsmashGdxMapScreen;
 import com.etheller.warsmash.WarsmashGdxMenuScreen;
 import com.etheller.warsmash.WarsmashGdxMultiScreenGame;
+import com.etheller.warsmash.datasources.GraphicsSettings;
 import com.etheller.warsmash.input.touch.OnscreenKeyboard;
 import com.etheller.warsmash.input.touch.TouchInputRouter;
 import com.etheller.warsmash.input.touch.TouchSettings;
+import com.etheller.warsmash.launcher.DataFolderCheck;
+import com.etheller.warsmash.launcher.GameResult;
+import com.etheller.warsmash.launcher.LaunchRequest;
+import com.etheller.warsmash.launcher.LauncherKeys;
+import com.etheller.warsmash.movie.Movies;
 import com.etheller.warsmash.units.Element;
 import com.etheller.warsmash.units.DataTable;
 import com.etheller.warsmash.util.StringBundle;
@@ -56,24 +62,43 @@ import com.etheller.warsmash.viewer5.gl.AudioExtension;
 import com.etheller.warsmash.viewer5.gl.DynamicShadowExtension;
 import com.etheller.warsmash.viewer5.gl.Extensions;
 import com.etheller.warsmash.viewer5.gl.WireframeExtension;
-import com.etheller.warsmash.viewer5.handlers.w3x.simulation.trigger.enumtypes.CMapDifficulty;
+import com.etheller.warsmash.viewer5.handlers.w3x.save.SavedGame;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.campaign.CSaveStorage;
 import com.etheller.warsmash.viewer5.handlers.w3x.ui.GameOptions;
-import com.etheller.warsmash.viewer5.handlers.w3x.ui.MenuUI;
 
 public class AndroidLauncher extends AndroidApplication {
 	private static final String TAG = "Warsmash";
 	static final String INI_FILE_NAME = "warsmash.ini";
+
+	/** The texture size limit of this device when the player chose none: by screen size and memory. */
+	static int defaultTextureSize(final Context context) {
+		final ActivityManager.MemoryInfo memory = new ActivityManager.MemoryInfo();
+		((ActivityManager) context.getSystemService(Context.ACTIVITY_SERVICE)).getMemoryInfo(memory);
+		final boolean tablet = context.getResources().getConfiguration().smallestScreenWidthDp >= 600;
+		return GraphicsSettings.defaultTextureSize(true, tablet, memory.totalMem >> 20);
+	}
 	/**
 	 * Map to start right away, like the desktop -loadfile argument.
 	 */
 	static final String EXTRA_LOAD_FILE = "loadfile";
+	/** Fixed random seed for test runs, like the desktop -Dwarsmash.seed. */
+	static final String EXTRA_SEED = "seed";
+	/** Profile of a test run started with a map, like the desktop -Dwarsmash.profile; never stored as current. */
+	static final String EXTRA_TEST_PROFILE = "testprofile";
 	private AndroidPointerSource pointerSource;
 	/** Started by the launcher: the game begins at once and the launcher comes back when it ends. */
 	private boolean fromLauncher;
 	private volatile boolean resultWritten;
+	private boolean initialized;
 	/** The game started from the launcher that is running, for the crash handler. */
 	private static volatile AndroidLauncher launched;
 	private static boolean crashHandlerSet;
+	private static final int REQUEST_MOVIES = 1;
+	/** The game saved when the GL context was lost, in the app's own files; not one of the player's saves. */
+	private static final String CONTEXT_LOSS_SAVE = "context-loss" + CSaveStorage.SAVE_EXTENSION;
+	/** Goes on with the game once the movies it asked for have played. */
+	private Runnable afterMovies;
+	private Movies.Player moviePlayer;
 
 	/**
 	 * Settings files written before version 2 were made with music off by default, when music could not play yet; they
@@ -162,6 +187,7 @@ public class AndroidLauncher extends AndroidApplication {
 			return;
 		}
 		WarsmashConstants.loadConstants(warsmashIni.get("Emulator"), warsmashIni);
+		GraphicsSettings.applyDefaultTextureSize(warsmashIni, defaultTextureSize(this));
 		final Element touchSettings = warsmashIni.get("Touch");
 		if ((touchSettings == null) || !"Off".equalsIgnoreCase(touchSettings.getField("TouchControls"))) {
 			final TouchInputRouter router = new TouchInputRouter(
@@ -172,72 +198,131 @@ public class AndroidLauncher extends AndroidApplication {
 			this.pointerSource = new AndroidPointerSource(router);
 		}
 		loadExtensions(new File(getCacheDir(), "sounds"));
+		this.moviePlayer = (movies, done) -> runOnUiThread(() -> {
+			if (isFinishing() || isDestroyed() || (this.afterMovies != null)) {
+				done.run();
+				return;
+			}
+			this.afterMovies = done;
+			startActivityForResult(MovieActivity.intent(this, movies), REQUEST_MOVIES);
+			overridePendingTransition(0, 0);
+		});
+		Movies.setPlayer(this.moviePlayer);
 
 		final AndroidApplicationConfiguration config = new AndroidApplicationConfiguration();
 		config.useGL30 = true;
 		config.useImmersiveMode = true;
 		final String fileToLoad = getIntent().getStringExtra(EXTRA_LOAD_FILE);
+		final String seed = getIntent().getStringExtra(EXTRA_SEED);
+		if (seed != null) {
+			System.setProperty("warsmash.seed", seed);
+		}
+		// A map started from outside the launcher (automated runs) may name its own profile, as the desktop
+		// -Dwarsmash.profile does, so its saves and caches stay out of the player's. The process outlives the run, so
+		// a later game must not inherit it.
+		final String testProfile = this.fromLauncher ? null : getIntent().getStringExtra(EXTRA_TEST_PROFILE);
+		if ((fileToLoad != null) && (testProfile != null) && !testProfile.isEmpty()) {
+			System.setProperty("warsmash.profile", testProfile);
+		}
+		else {
+			System.clearProperty("warsmash.profile");
+		}
 		final WarsmashGdxMultiScreenGame game = new WarsmashGdxMultiScreenGame();
-		initialize(game, config);
+		initialize(GlContextWatch.watch(game, () -> contextLost(game, warsmashIni, fileToLoad)), config);
+		this.initialized = true;
+		// An unhandled Escape comes back from Android as Back and would close the game; a keyboard's Escape works as
+		// on a PC instead (ends a cinematic, closes menus and dialogs).
+		Gdx.input.setCatchKey(Input.Keys.ESCAPE, true);
+		GlContextWatch.dropContextOnPauseIfAsked(this, this.graphics.getView());
 		trackOnscreenKeyboard();
 		Gdx.app.postRunnable(() -> {
 			// The launcher's Options page may have changed the file since an earlier game in this process read it.
 			GameOptions.reload();
-			final WarsmashGdxMenuScreen menuScreen = new WarsmashGdxMenuScreen(warsmashIni, game);
-			if (this.fromLauncher) {
-				menuScreen.setLauncherMode(true);
-				menuScreen.setWaitForTap(true);
-				menuScreen.setStartupMap(getIntent().getStringExtra(LaunchContract.EXTRA_MAP_FILE));
-				menuScreen.setStartupSlots(getIntent().getStringExtra(LaunchContract.EXTRA_SLOTS));
-				menuScreen.setGameEndListener(this::gameEnded);
-				final Intent launch = getIntent();
-				menuScreen.whenLoaded(menu -> {
-					if (!startFromLauncher(menu, launch)) {
-						Log.e(TAG, "The launcher asked for a game the engine cannot start: " + launch.getExtras());
-						gameEnded("error", null, null, 0);
-					}
-				});
-			}
-			game.setScreen(menuScreen);
-			if (!this.fromLauncher && (fileToLoad != null)) {
-				menuScreen.startMap(fileToLoad);
-			}
+			startEngine(game, warsmashIni, fileToLoad, null);
 		});
 	}
 
-	private static boolean startFromLauncher(final MenuUI menu, final Intent launch) {
-		try {
-			menu.useProfile(launch.getStringExtra(LaunchContract.EXTRA_PROFILE));
-			if (launch.hasExtra(LaunchContract.EXTRA_CAMPAIGN)) {
-				return menu.startCampaignMission(launch.getIntExtra(LaunchContract.EXTRA_CAMPAIGN, -1),
-						launch.getIntExtra(LaunchContract.EXTRA_MISSION, -1),
-						difficulty(launch.getStringExtra(LaunchContract.EXTRA_DIFFICULTY)),
-						LaunchContract.CAMPAIGN_MAPS_REFORGED
-								.equals(launch.getStringExtra(LaunchContract.EXTRA_CAMPAIGN_MAPS)));
-			}
-			if (launch.hasExtra(LaunchContract.EXTRA_CUSTOM_MAP)) {
-				return menu.startSkirmish(launch.getStringExtra(LaunchContract.EXTRA_CUSTOM_MAP),
-						launch.getStringExtra(LaunchContract.EXTRA_SLOTS),
-						launch.getStringExtra(LaunchContract.EXTRA_OPTIONS));
-			}
-			if (launch.hasExtra(LaunchContract.EXTRA_SAVE_FILE)) {
-				return menu.startSavedGame(launch.getStringExtra(LaunchContract.EXTRA_SAVE_FILE));
-			}
-		}
-		catch (final RuntimeException e) {
-			Log.e(TAG, "Unable to start the game", e);
-		}
-		return false;
+	/**
+	 * The skin of the loading screens when the engine is started without the launcher: the one the extras name, else
+	 * the one the launcher was left on.
+	 */
+	private String chosenSkin() {
+		final String skin = getIntent().getStringExtra(LaunchContract.EXTRA_SKIN);
+		return skin != null ? skin
+				: getSharedPreferences(LauncherKeys.PREFERENCES, MODE_PRIVATE).getString(LauncherKeys.KEY_SKIN, null);
 	}
 
-	private static CMapDifficulty difficulty(final String name) {
-		if ("easy".equalsIgnoreCase(name)) {
-			return CMapDifficulty.EASY;
+	/** @param continued a saved game to go on with in place of the game asked for, or null */
+	private void startEngine(final WarsmashGdxMultiScreenGame game, final DataTable warsmashIni,
+			final String fileToLoad, final FileHandle continued) {
+		final WarsmashGdxMenuScreen menuScreen = new WarsmashGdxMenuScreen(warsmashIni, game);
+		String continuedMap = null;
+		if (continued != null) {
+			CSaveStorage.finishBackgroundWrites();
+			try {
+				continuedMap = SavedGame.readHeader(continued).mapFile;
+			}
+			catch (final IOException e) {
+				Log.e(TAG, "Unable to read the saved game " + continued, e);
+			}
 		}
-		if ("hard".equalsIgnoreCase(name)) {
-			return CMapDifficulty.HARD;
+		final FileHandle save = continuedMap != null ? continued : null;
+		if (this.fromLauncher) {
+			final LaunchRequest launch = LaunchContract.request(getIntent());
+			launch.prepare(menuScreen);
+			if (save != null) {
+				menuScreen.setStartupMap(continuedMap);
+			}
+			menuScreen.setGameEndListener(this::gameEnded);
+			menuScreen.whenLoaded(menu -> {
+				final boolean started;
+				if (save != null) {
+					menu.useProfile(launch.profile);
+					started = menu.startSavedGame(save);
+				}
+				else {
+					started = launch.start(menu);
+				}
+				if (!started) {
+					Log.e(TAG, "The launcher asked for a game the engine cannot start: " + launch);
+					gameEnded("error", null, null, 0);
+				}
+			});
 		}
-		return CMapDifficulty.NORMAL;
+		else if (save != null) {
+			menuScreen.setStartupMap(continuedMap);
+			menuScreen.whenLoaded(menu -> menu.startSavedGame(save));
+		}
+		if (!this.fromLauncher) {
+			menuScreen.setReforgedLoadingScreens(LaunchRequest.SKIN_REFORGED.equals(chosenSkin()));
+		}
+		game.setScreen(menuScreen);
+		if (!this.fromLauncher && (save == null) && (fileToLoad != null)) {
+			menuScreen.startMap(fileToLoad);
+		}
+	}
+
+	/**
+	 * Everything the screens drew with went with the GL context, so they are made again: a single player game goes on
+	 * from a save, a network game or a finished one ends, and the menu or a loading game starts over.
+	 */
+	private void contextLost(final WarsmashGdxMultiScreenGame game, final DataTable warsmashIni,
+			final String fileToLoad) {
+		final WarsmashGdxMapScreen running = game.getRunningMapScreen();
+		final FileHandle save = Gdx.files.local(CONTEXT_LOSS_SAVE);
+		final boolean saved = (running != null) && running.saveAfterContextLoss(save);
+		final String result = (running != null) && !saved ? running.localPlayerResult() : null;
+		final String mapFile = running != null ? running.getViewer().getMapFileName() : null;
+		final int race = running != null ? running.localPlayerRace() : 0;
+		if (saved) {
+			Log.i(TAG, "The game goes on from a save made at step " + running.getViewer().simulation.getGameTurnTick());
+		}
+		game.disposeLostScreens();
+		if ((result != null) && this.fromLauncher) {
+			gameEnded(result, mapFile, null, race);
+			return;
+		}
+		startEngine(game, warsmashIni, fileToLoad, saved ? save : null);
 	}
 
 	/**
@@ -274,12 +359,9 @@ public class AndroidLauncher extends AndroidApplication {
 			return;
 		}
 		this.resultWritten = true;
-		final Intent launch = getIntent();
-		final LaunchContract.Result written = new LaunchContract.Result();
+		final GameResult written = new GameResult();
 		written.result = result;
-		written.source = launch.hasExtra(LaunchContract.EXTRA_CAMPAIGN) ? LaunchContract.SOURCE_CAMPAIGN
-				: launch.hasExtra(LaunchContract.EXTRA_CUSTOM_MAP) ? LaunchContract.SOURCE_CUSTOM
-						: LaunchContract.SOURCE_LOAD;
+		written.source = LaunchContract.request(getIntent()).source();
 		written.map = mapFile != null ? mapFile : "";
 		written.profile = GameCatalog.currentProfile(this);
 		written.loadFailure = loadFailure;
@@ -312,15 +394,83 @@ public class AndroidLauncher extends AndroidApplication {
 	}
 
 	@Override
+	protected void onActivityResult(final int requestCode, final int resultCode, final Intent data) {
+		super.onActivityResult(requestCode, resultCode, data);
+		if (requestCode == REQUEST_MOVIES) {
+			final Runnable done = this.afterMovies;
+			this.afterMovies = null;
+			if (done != null) {
+				done.run();
+			}
+		}
+	}
+
+	@Override
+	protected void onPause() {
+		// The backend pauses only the music it made itself.
+		PreparedMusic.pauseAll();
+		super.onPause();
+	}
+
+	@Override
+	protected void onResume() {
+		super.onResume();
+		PreparedMusic.resumeAll();
+	}
+
+	@Override
 	protected void onDestroy() {
 		if (launched == this) {
 			launched = null;
 		}
+		Movies.removePlayer(this.moviePlayer);
 		// Exit Program in the game menu closes the program; the launcher hears that it was no crash.
 		if (this.fromLauncher && isFinishing()) {
 			writeResult("exit", null, null, 0);
 		}
+		if (!this.initialized) {
+			skipKeyboardHeightClose();
+		}
 		super.onDestroy();
+	}
+
+	/**
+	 * The backend closes its keyboard height provider on destroy without checking that initialize made one, so an
+	 * activity that finished before starting the engine (no data folder, say) would fail there.
+	 */
+	private void skipKeyboardHeightClose() {
+		try {
+			final Field field = AndroidApplication.class.getDeclaredField("keyboardHeightProvider");
+			field.setAccessible(true);
+			if (field.get(this) == null) {
+				field.set(this, new KeyboardHeightProvider() {
+					@Override
+					public void start() {
+					}
+
+					@Override
+					public void close() {
+					}
+
+					@Override
+					public void setKeyboardHeightObserver(final KeyboardHeightObserver observer) {
+					}
+
+					@Override
+					public int getKeyboardLandscapeHeight() {
+						return 0;
+					}
+
+					@Override
+					public int getKeyboardPortraitHeight() {
+						return 0;
+					}
+				});
+			}
+		}
+		catch (final ReflectiveOperationException e) {
+			Log.w(TAG, "Unable to stand in for the keyboard height provider", e);
+		}
 	}
 
 	/**
@@ -422,16 +572,6 @@ public class AndroidLauncher extends AndroidApplication {
 			}
 		};
 		Extensions.audio = new AudioExtension() {
-			// SoundPool does not report durations, so they are read from the cached file.
-			private final Map<Sound, File> soundFiles = Collections.synchronizedMap(new WeakHashMap<>());
-
-			@Override
-			public float getDuration(final Sound sound) {
-				final File file = sound == null ? null : this.soundFiles.get(sound);
-				final float duration = file == null ? 0 : durationOf(file);
-				return duration > 0 ? duration : 1;
-			}
-
 			@Override
 			public long play(final Sound buffer, final float volume, final float pitch, final float x, final float y,
 					final float z, final boolean is3dSound, final float maxDistance, final float refDistance,
@@ -452,62 +592,15 @@ public class AndroidLauncher extends AndroidApplication {
 			// game data once.
 			@Override
 			public Sound newSound(final FileHandle file) {
-				final FileHandle copy = cachedCopy(soundCache, file);
-				final Sound sound = Gdx.audio.newSound(copy);
-				this.soundFiles.put(sound, copy.file());
-				// Reading the length opens a decoder for the file, too slow for the render thread when a map
-				// loads hundreds of sounds; it is read ahead and only waited for when asked before it is known.
-				DURATION_READER.execute(() -> durationOf(copy.file()));
-				return sound;
+				return Gdx.audio.newSound(cachedCopy(soundCache, file));
 			}
 
 			@Override
 			public Music newMusic(final FileHandle file) {
-				return Gdx.audio.newMusic(cachedCopy(soundCache, file));
+				// Only the copy out of the game data, made once per track, stays on this thread.
+				return new PreparedMusic(cachedCopy(soundCache, file).file().getPath());
 			}
 		};
-	}
-
-	private static final Map<String, Float> DURATIONS = new ConcurrentHashMap<>();
-	private static final ExecutorService DURATION_READER = Executors.newSingleThreadExecutor(runnable -> {
-		final Thread thread = new Thread(runnable, "sound-durations");
-		thread.setDaemon(true);
-		thread.setPriority(Thread.MIN_PRIORITY);
-		return thread;
-	});
-
-	/**
-	 * @return the duration in seconds, or 0 if the file does not report one; a cached copy keeps its length for the
-	 *         life of the process
-	 */
-	private static float durationOf(final File file) {
-		final String path = file.getAbsolutePath();
-		Float duration = DURATIONS.get(path);
-		if (duration == null) {
-			duration = readDuration(file);
-			DURATIONS.put(path, duration);
-		}
-		return duration;
-	}
-
-	private static float readDuration(final File file) {
-		final MediaMetadataRetriever retriever = new MediaMetadataRetriever();
-		try {
-			retriever.setDataSource(file.getAbsolutePath());
-			final String millis = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION);
-			return millis == null ? 0 : Long.parseLong(millis) / 1000f;
-		}
-		catch (final RuntimeException e) {
-			return 0;
-		}
-		finally {
-			try {
-				retriever.release();
-			}
-			catch (final IOException | RuntimeException e) {
-				Log.w(TAG, "Unable to release the metadata reader", e);
-			}
-		}
 	}
 
 	private static FileHandle cachedCopy(final File cacheFolder, final FileHandle file) {

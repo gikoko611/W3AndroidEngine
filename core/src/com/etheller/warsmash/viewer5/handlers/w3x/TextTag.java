@@ -13,9 +13,11 @@ public class TextTag implements CHandle {
 	private float lifetimeDuration;
 	private float fadeStart;
 	private float fontHeight;
-	private final int handleId;
+	private int handleId;
 	private final Vector2 screenCoordTravelOffset;
 	private float lifetime = 0;
+	/** Age in game time, which the simulation counts so a script tag's id comes back at the same step everywhere. */
+	private float gameAge = 0;
 	private boolean suspended;
 	private boolean visible;
 	private boolean permanent;
@@ -97,6 +99,16 @@ public class TextTag implements CHandle {
 
 	public void setLifetime(final float lifetime) {
 		this.lifetime = lifetime;
+		this.gameAge = lifetime;
+	}
+
+	/** @return true once a tag that is not permanent has outlived its lifespan */
+	public boolean advanceGameAge(final float seconds) {
+		if (this.permanent || this.suspended) {
+			return false;
+		}
+		this.gameAge += seconds;
+		return this.gameAge > this.lifetimeDuration;
 	}
 
 	public float getLifetimeDuration() {
@@ -118,6 +130,10 @@ public class TextTag implements CHandle {
 	@Override
 	public int getHandleId() {
 		return this.handleId;
+	}
+
+	public void setHandleId(final int handleId) {
+		this.handleId = handleId;
 	}
 
 	public void setPosition(final float x, final float y, final float z) {

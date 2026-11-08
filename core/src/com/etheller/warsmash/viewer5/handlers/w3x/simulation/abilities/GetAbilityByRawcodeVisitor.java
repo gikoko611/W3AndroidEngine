@@ -31,7 +31,6 @@ public class GetAbilityByRawcodeVisitor implements CAbilityVisitor<CLevelingAbil
 		return INSTANCE;
 	}
 
-	private static final War3ID RALLY_RAWCODE = War3ID.fromString("Aral");
 	private War3ID rawcode;
 
 	public GetAbilityByRawcodeVisitor reset(final War3ID rawcode) {
@@ -167,7 +166,7 @@ public class GetAbilityByRawcodeVisitor implements CAbilityVisitor<CLevelingAbil
 
 	@Override
 	public CLevelingAbility accept(final CAbilityRally ability) {
-		if (this.rawcode.equals(RALLY_RAWCODE)) {
+		if (this.rawcode.equals(ability.getAlias())) {
 			return ability;
 		}
 		return null;

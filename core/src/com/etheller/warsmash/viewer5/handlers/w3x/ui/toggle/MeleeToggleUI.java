@@ -67,6 +67,21 @@ public class MeleeToggleUI implements WarsmashUI {
 	}
 
 	@Override
+	public void noteAlertPosition(final int playerIndex, final float x, final float y) {
+		this.meleeUI.noteAlertPosition(playerIndex, x, y);
+	}
+
+	@Override
+	public void unitAttacked(final CUnit unit, final CUnit attacker) {
+		this.meleeUI.unitAttacked(unit, attacker);
+	}
+
+	@Override
+	public void heroDied(final CUnit hero) {
+		this.meleeUI.heroDied(hero);
+	}
+
+	@Override
 	public CScriptDialog createScriptDialog(final GlobalScope globalScope) {
 		return this.meleeUI.createScriptDialog(globalScope);
 	}
@@ -79,6 +94,11 @@ public class MeleeToggleUI implements WarsmashUI {
 	@Override
 	public void destroyDialog(final CScriptDialog dialog) {
 		this.meleeUI.destroyDialog(dialog);
+	}
+
+	@Override
+	public void displayScriptDialog(final CScriptDialog dialog, final boolean flag) {
+		this.meleeUI.displayScriptDialog(dialog, flag);
 	}
 
 	@Override
@@ -272,11 +292,6 @@ public class MeleeToggleUI implements WarsmashUI {
 	}
 
 	@Override
-	public List<CUnit> getSelectedSimulationUnits(final int playerIndex) {
-		return this.meleeUI.getSelectedSimulationUnits(playerIndex);
-	}
-
-	@Override
 	public boolean isOverSlider(final int screenX, final int screenY) {
 		return this.meleeUI.isOverSlider(screenX, screenY);
 	}
@@ -400,6 +415,11 @@ public class MeleeToggleUI implements WarsmashUI {
 	@Override
 	public void forceCinematicSubtitles(boolean value) {
 		this.meleeUI.forceCinematicSubtitles(value);
+	}
+
+	@Override
+	public void hideCinematicPanels(final boolean hide) {
+		this.meleeUI.hideCinematicPanels(hide);
 	}
 
 	@Override

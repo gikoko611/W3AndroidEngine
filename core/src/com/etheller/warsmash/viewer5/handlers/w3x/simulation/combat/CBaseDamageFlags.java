@@ -1,13 +1,13 @@
 package com.etheller.warsmash.viewer5.handlers.w3x.simulation.combat;
 
 public abstract class CBaseDamageFlags implements CDamageFlags {
-	private static int ATTACK = 0b1;
-	private static int RANGED = 0b10;
-	private static int IGNOREINVUL = 0b100;
-	private static int EXPLODE = 0b1000;
-	private static int SUMMON = 0b10000;
-	private static int NONLETHAL = 0b100000;
-	private static int PASSLIMITEDMAGICIMMUNE = 0b1000000;
+	private static final int ATTACK = 0b1;
+	private static final int RANGED = 0b10;
+	private static final int IGNOREINVUL = 0b100;
+	private static final int EXPLODE = 0b1000;
+	private static final int SUMMON = 0b10000;
+	private static final int NONLETHAL = 0b100000;
+	private static final int PASSLIMITEDMAGICIMMUNE = 0b1000000;
 
 	private int flags = 0;
 

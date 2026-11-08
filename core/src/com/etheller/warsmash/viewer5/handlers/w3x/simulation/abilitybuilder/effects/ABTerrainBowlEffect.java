@@ -65,7 +65,7 @@ public class ABTerrainBowlEffect extends ABTerrainEffect {
 						} else {
 							timeFraction = timeRatio / this.sinkTime;
 						}
-						dz = (float) ((this.startDepth + timeFraction * this.depth) * Math.cos(d * 0.5 * Math.PI));
+						dz = (float) ((this.startDepth + timeFraction * this.depth) * StrictMath.cos(d * 0.5 * Math.PI));
 						if (this.stopping) {
 							dz *= stopRatio;
 						}

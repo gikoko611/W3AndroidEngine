@@ -74,7 +74,7 @@ public final class CAbilityQueue extends AbstractCAbility {
 					if ((player.getGold() >= unitType.getGoldCost()) || skipGoldLumberCost) {
 						if ((player.getLumber() >= unitType.getLumberCost()) || skipGoldLumberCost) {
 							if ((unitType.getFoodUsed() == 0)
-									|| ((player.getFoodUsed() + unitType.getFoodUsed()) <= player.getFoodCap())) {
+									|| ((player.getFoodUsed() + unitType.getFoodUsed()) <= player.getFoodCapLimit())) {
 								receiver.useOk();
 							}
 							else {
@@ -236,7 +236,7 @@ public final class CAbilityQueue extends AbstractCAbility {
 	public CBehavior beginNoTarget(final CSimulation game, final CUnit caster, final int playerIndex, final int orderId,
 			final boolean autoOrder) {
 		if (orderId == OrderIds.cancel) {
-			caster.cancelBuildQueueItem(game, 0);
+			caster.cancelLastBuildQueueItem(game);
 		}
 		else {
 			final War3ID rawcode = new War3ID(orderId);
@@ -271,10 +271,7 @@ public final class CAbilityQueue extends AbstractCAbility {
 
 	@Override
 	public void onDeath(final CSimulation game, final CUnit cUnit) {
-		// refund stuff when building dies
-		while (cUnit.getBuildQueueTypes()[0] != null) {
-			cUnit.cancelBuildQueueItem(game, 0);
-		}
+		cUnit.clearBuildQueueOnDeath(game);
 	}
 
 	@Override

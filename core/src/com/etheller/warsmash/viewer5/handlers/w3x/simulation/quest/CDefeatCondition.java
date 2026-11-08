@@ -1,6 +1,8 @@
 package com.etheller.warsmash.viewer5.handlers.w3x.simulation.quest;
 
-public class CDefeatCondition {
+import com.etheller.interpreter.ast.util.AllocatedHandle;
+
+public class CDefeatCondition extends AllocatedHandle {
 	private final CQuestLog log;
 	private String description = "";
 

@@ -24,6 +24,9 @@ public interface ClientToServerListener {
 
 	void issueGuiPlayerEvent(SocketAddress sourceAddress, long sessionToken, int eventId);
 
+	/** Any other player command, as bytes the game encodes and decodes; the server only passes them on. */
+	void issuePlayerCommand(SocketAddress sourceAddress, long sessionToken, byte[] command);
+
 	void finishedTurn(SocketAddress sourceAddress, long sessionToken, int gameTurnTick);
 
 	void framesSkipped(long sessionToken, int nFramesSkipped);

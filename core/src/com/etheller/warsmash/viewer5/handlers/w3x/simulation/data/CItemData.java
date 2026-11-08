@@ -58,13 +58,15 @@ public class CItemData {
 
 	private final Map<War3ID, CItemType> itemIdToItemType = new HashMap<>();
 	private final ObjectData itemData;
+	private final int mapGameVersion;
 
-	public CItemData(final ObjectData itemData) {
+	public CItemData(final ObjectData itemData, final int mapGameVersion) {
 		this.itemData = itemData;
+		this.mapGameVersion = mapGameVersion;
 		// TODO the below is a bit hacky, but needed to build the list of random choices
 		for (final String key : this.itemData.keySet()) {
 			final GameObject mutableGameObject = this.itemData.get(key);
-			if (!WarsmashConstants.isOutOfMapVersion(mutableGameObject)) {
+			if (!WarsmashConstants.isOutOfMapVersion(mutableGameObject, this.mapGameVersion)) {
 				getItemTypeInstance(War3ID.fromString(key), mutableGameObject);
 			}
 		}
@@ -79,12 +81,12 @@ public class CItemData {
 	}
 
 	public boolean isOutOfMapVersion(final War3ID typeId) {
-		return WarsmashConstants.isOutOfMapVersion(this.itemData.get(typeId.asStringValue()));
+		return WarsmashConstants.isOutOfMapVersion(this.itemData.get(typeId.asStringValue()), this.mapGameVersion);
 	}
 
 	public CItemType getItemType(final War3ID typeId) {
 		final GameObject itemType = this.itemData.get(typeId.asStringValue());
-		if ((itemType == null) || WarsmashConstants.isOutOfMapVersion(itemType)) {
+		if ((itemType == null) || WarsmashConstants.isOutOfMapVersion(itemType, this.mapGameVersion)) {
 			return null;
 		}
 		return getItemTypeInstance(typeId, itemType);

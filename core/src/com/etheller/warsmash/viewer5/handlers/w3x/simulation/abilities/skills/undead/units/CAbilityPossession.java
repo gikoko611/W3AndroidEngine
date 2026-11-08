@@ -2,7 +2,6 @@ package com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.skills.u
 
 import com.etheller.warsmash.units.GameObject;
 import com.etheller.warsmash.util.War3ID;
-import com.etheller.warsmash.util.WarsmashConstants;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CSimulation;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CUnit;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CWidget;
@@ -15,6 +14,7 @@ import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.types.def
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.combat.projectile.CAbilityProjectileListener;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.combat.projectile.CProjectile;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.orders.OrderIds;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.timers.CTimer;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.util.AbilityTargetCheckReceiver;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.util.CommandStringErrorKeys;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.util.SimulationRenderComponentLightning;
@@ -86,7 +86,7 @@ public class CAbilityPossession extends CAbilityTargetSpellBase {
 		}
 		final float duration = getDurationForTarget(targetUnit);
 		this.channelEndTick = simulation.getGameTurnTick()
-				+ (int) (duration / WarsmashConstants.SIMULATION_STEP_TIME);
+				+ CTimer.wholeSteps(duration);
 		this.targetBuff = new CBuffPossessionTarget(simulation.getHandleIdAllocator().createId(), this.targetBuffId,
 				this.targetInvulnerable, this.targetMagicImmune);
 		targetUnit.add(simulation, this.targetBuff);

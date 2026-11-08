@@ -5,6 +5,7 @@ import java.util.List;
 
 import com.badlogic.gdx.math.Quaternion;
 
+import com.etheller.interpreter.ast.util.AllocatedHandle;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CWidget;
 
 import com.etheller.warsmash.viewer5.handlers.mdx.MdxComplexInstance;
@@ -17,7 +18,7 @@ import com.etheller.warsmash.viewer5.handlers.w3x.IndexedSequence;
 import com.etheller.warsmash.viewer5.handlers.w3x.SequenceUtils;
 import com.etheller.warsmash.viewer5.handlers.w3x.War3MapViewer;
 
-public class RenderSpellEffect implements RenderEffect, ScriptEffect {
+public class RenderSpellEffect extends AllocatedHandle implements RenderEffect, ScriptEffect {
 	public static final PrimaryTag[] DEFAULT_ANIMATION_QUEUE = { PrimaryTag.BIRTH, PrimaryTag.STAND, PrimaryTag.DEATH };
 	public static final PrimaryTag[] STAND_ONLY = { PrimaryTag.STAND };
 	public static final PrimaryTag[] DEATH_ONLY = { PrimaryTag.DEATH };

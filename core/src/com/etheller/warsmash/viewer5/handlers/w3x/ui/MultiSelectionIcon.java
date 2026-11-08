@@ -52,6 +52,10 @@ public class MultiSelectionIcon extends AbstractRenderableFrame implements Click
 		this.iconFrame.setTexture(texture);
 	}
 
+	public void setIconColor(final float r, final float g, final float b, final float a) {
+		this.iconFrame.setColor(r, g, b, a);
+	}
+
 	@Override
 	protected void innerPositionBounds(final GameUI gameUI, final Viewport viewport) {
 		this.iconFrame.positionBounds(gameUI, viewport);
@@ -217,6 +221,10 @@ public class MultiSelectionIcon extends AbstractRenderableFrame implements Click
 
 	public void setManaRatioRemaining(final float lifeRatioRemaining) {
 		this.manaBarFrame.setValue(lifeRatioRemaining);
+	}
+
+	public void setLifeBarVisible(final boolean visible) {
+		this.hpBarFrame.setVisible(visible);
 	}
 
 	public void setManaBarVisible(final boolean visible) {

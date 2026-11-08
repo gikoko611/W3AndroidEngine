@@ -56,6 +56,7 @@ import com.etheller.warsmash.parsers.fdf.frames.PopupMenuFrame;
 import com.etheller.warsmash.parsers.fdf.frames.ScrollBarFrame;
 import com.etheller.warsmash.parsers.fdf.frames.SetPoint;
 import com.etheller.warsmash.parsers.fdf.frames.SimpleButtonFrame;
+import com.etheller.warsmash.parsers.fdf.frames.SimpleCheckBoxFrame;
 import com.etheller.warsmash.parsers.fdf.frames.SimpleFrame;
 import com.etheller.warsmash.parsers.fdf.frames.SimpleStatusBarFrame;
 import com.etheller.warsmash.parsers.fdf.frames.SpriteFrame;
@@ -335,6 +336,10 @@ public final class GameUI extends AbstractUIFrame implements UIFrame {
 			return value.charAt(1);
 		}
 		final String text = this.templates.getDecoratedString(key);
+		if (text.equals(key)) {
+			// No string has this key; map string keys are not looked up here either.
+			return 0;
+		}
 		final int white = text.toLowerCase(Locale.US).indexOf("|cffffffff");
 		if ((white >= 0) && ((white + 10) < text.length())) {
 			return Character.toUpperCase(text.charAt(white + 10));
@@ -452,6 +457,15 @@ public final class GameUI extends AbstractUIFrame implements UIFrame {
 			setDecoratedText((StringFrame) text, textDefinition.getSecond());
 		}
 		return text;
+	}
+
+	private Texture simpleCheckBoxTexture(final FrameDefinition frameDefinition, final String field,
+			final boolean decorateFileNames) {
+		final String file = frameDefinition.getString(field);
+		if (file == null) {
+			return null;
+		}
+		return loadTexture(decorateFileNames ? trySkinField(file) : file);
 	}
 
 	public UIFrame inflate(final FrameDefinition frameDefinition, final UIFrame parent,
@@ -904,6 +918,14 @@ public final class GameUI extends AbstractUIFrame implements UIFrame {
 					}
 				}
 				inflatedFrame = glueButtonFrame;
+			}
+			else if ("SIMPLECHECKBOX".equals(frameDefinition.getFrameType())) {
+				final boolean decorateFileNames = frameDefinition.has("DecorateFileNames") || inDecorateFileNames;
+				final SimpleCheckBoxFrame checkBoxFrame = new SimpleCheckBoxFrame(frameDefinition.getName(), parent);
+				checkBoxFrame.setTextures(simpleCheckBoxTexture(frameDefinition, "NormalTexture", decorateFileNames),
+						simpleCheckBoxTexture(frameDefinition, "PushedTexture", decorateFileNames),
+						simpleCheckBoxTexture(frameDefinition, "CheckedTexture", decorateFileNames));
+				inflatedFrame = checkBoxFrame;
 			}
 			else if ("SIMPLEBUTTON".equals(frameDefinition.getFrameType())) {
 				// ButtonText & ControlBackdrop
@@ -1768,11 +1790,8 @@ public final class GameUI extends AbstractUIFrame implements UIFrame {
 		return getTrigStr(errorString);
 	}
 
-	public String getTrigStr(String errorString) {
-		if (errorString.startsWith("TRIGSTR_")) {
-			errorString = this.mapStrings.get(Integer.parseInt(errorString.substring(8)));
-		}
-		return errorString;
+	public String getTrigStr(final String value) {
+		return WTS.resolve(this.mapStrings, value);
 	}
 
 	public GlyphLayout getGlyphLayout() {

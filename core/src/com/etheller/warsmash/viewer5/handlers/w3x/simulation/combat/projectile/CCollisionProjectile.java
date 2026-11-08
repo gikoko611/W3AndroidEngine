@@ -13,6 +13,7 @@ import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CUnitEnumFunction;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CWidget;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.targeting.AbilityPointTarget;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.targeting.AbilityTarget;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.timers.CTimer;
 
 public class CCollisionProjectile extends CProjectile {
 
@@ -60,7 +61,7 @@ public class CCollisionProjectile extends CProjectile {
 		final float dtsy = getTargetY() - this.y;
 		this.distanceToTarget = (float) Math.sqrt((dtsx * dtsx) + (dtsy * dtsy));
 
-		this.collisionInterval = (int) (collisionInterval / WarsmashConstants.SIMULATION_STEP_TIME);
+		this.collisionInterval = CTimer.wholeSteps(collisionInterval);
 	}
 
 	@Override

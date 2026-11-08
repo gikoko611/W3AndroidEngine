@@ -10,7 +10,7 @@ import com.etheller.warsmash.viewer5.handlers.w3x.environment.PathingGrid;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CUnit;
 
 public class CRegionManager {
-	private static Rectangle tempRect = new Rectangle();
+	private static final Rectangle tempRect = new Rectangle();
 	private final Quadtree<CRegion> regionTree;
 	private final RegionChecker regionChecker = new RegionChecker();
 	private final List<CRegion>[][] cellRegions;

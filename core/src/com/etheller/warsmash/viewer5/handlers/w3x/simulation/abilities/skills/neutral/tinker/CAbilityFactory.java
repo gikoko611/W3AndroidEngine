@@ -2,7 +2,6 @@ package com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.skills.n
 
 import com.etheller.warsmash.units.GameObject;
 import com.etheller.warsmash.util.War3ID;
-import com.etheller.warsmash.util.WarsmashConstants;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CSimulation;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CUnit;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CUnitClassification;
@@ -12,6 +11,7 @@ import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.targeting
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.types.definitions.impl.AbilityFields;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.types.definitions.impl.AbstractCAbilityTypeDefinition;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.orders.OrderIds;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.timers.CTimer;
 
 public class CAbilityFactory extends CAbilityPassiveSpellBase {
 	private War3ID spawnUnitId;
@@ -37,7 +37,7 @@ public class CAbilityFactory extends CAbilityPassiveSpellBase {
 	public void onTick(final CSimulation game, final CUnit factory) {
 		final int gameTurnTick = game.getGameTurnTick();
 		if (gameTurnTick >= (lastSpawnTick
-				+ (int) (StrictMath.ceil(this.spawnInterval / WarsmashConstants.SIMULATION_STEP_TIME)))) {
+				+ CTimer.ceilSteps(this.spawnInterval))) {
 
 			final float facing = factory.getFacing();
 			final float facingRad = (float) StrictMath.toRadians(facing);

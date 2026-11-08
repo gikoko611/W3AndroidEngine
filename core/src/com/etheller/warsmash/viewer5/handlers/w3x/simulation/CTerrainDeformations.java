@@ -5,7 +5,6 @@ import java.util.List;
 
 import com.etheller.warsmash.util.WarsmashConstants;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.timers.CTimer;
-import com.etheller.warsmash.viewer5.handlers.w3x.simulation.util.SimulationRenderController;
 
 /**
  * Script terrain deformations (TerrainDeformCrater, Ripple, Wave, Random). They move the drawn ground and the heights
@@ -113,15 +112,15 @@ public final class CTerrainDeformations {
 		if (this.columns > 0) {
 			return true;
 		}
-		final SimulationRenderController controller = simulation.getSimulationRenderController();
-		final int[] size = controller == null ? null : controller.getTerrainCornerCount();
-		if (size == null) {
+		final CTerrainData terrain = simulation.getTerrainData();
+		if (terrain == null) {
 			return false;
 		}
+		final int[] size = terrain.getCornerCount();
 		this.columns = size[0];
 		this.rows = size[1];
-		this.originX = -controller.getTerrainSpaceX(0) * CELL;
-		this.originY = -controller.getTerrainSpaceY(0) * CELL;
+		this.originX = -terrain.getTerrainSpaceX(0) * CELL;
+		this.originY = -terrain.getTerrainSpaceY(0) * CELL;
 		return true;
 	}
 
@@ -225,6 +224,7 @@ public final class CTerrainDeformations {
 				}
 			}
 		}
+		simulation.getTerrainData().setDeformation(x0, y0, width, height, offsets);
 		simulation.getSimulationRenderController().setTerrainDeformation(x0, y0, width, height, offsets);
 	}
 
@@ -325,11 +325,11 @@ public final class CTerrainDeformations {
 			if (this.radius <= 0) {
 				return 0;
 			}
-			final float distance = (float) Math.hypot(px - this.x, py - this.y);
+			final float distance = (float) StrictMath.hypot(px - this.x, py - this.y);
 			if (distance >= this.radius) {
 				return 0;
 			}
-			return (float) (-this.depth * fraction * Math.cos((Math.PI / 2) * (distance / this.radius)));
+			return (float) (-this.depth * fraction * StrictMath.cos((Math.PI / 2) * (distance / this.radius)));
 		}
 
 		@Override
@@ -394,11 +394,11 @@ public final class CTerrainDeformations {
 			final float progress = Math.min(1, this.elapsed / this.total);
 			final float currentRadius = this.radius
 					* (this.radiusStartPct + ((1 - this.radiusStartPct) * progress));
-			final float distance = (float) Math.hypot(px - this.x, py - this.y);
+			final float distance = (float) StrictMath.hypot(px - this.x, py - this.y);
 			if (distance >= currentRadius) {
 				return 0;
 			}
-			final float value = (float) (-this.depth * (1 - progress) * Math.sin((Math.PI * this.spaceWaves
+			final float value = (float) (-this.depth * (1 - progress) * StrictMath.sin((Math.PI * this.spaceWaves
 					* (distance / this.radius)) + (Math.PI * this.timeWaves * (this.elapsed / this.period))));
 			return this.limitNeg ? Math.min(0, value) : value;
 		}
@@ -421,7 +421,7 @@ public final class CTerrainDeformations {
 				final float speed, final float radius, final float depth, final int trailTimeMs, final int count) {
 			this.x = x;
 			this.y = y;
-			final float length = (float) Math.hypot(dirX, dirY);
+			final float length = (float) StrictMath.hypot(dirX, dirY);
 			this.dirX = length > 0 ? dirX / length : 0;
 			this.dirY = length > 0 ? dirY / length : 0;
 			this.distance = Math.max(0, distance);
@@ -456,12 +456,12 @@ public final class CTerrainDeformations {
 			final float tail = Math.max(0, Math.min(this.distance, this.speed * (time - this.trail)));
 			final float along = ((px - this.x) * this.dirX) + ((py - this.y) * this.dirY);
 			final float nearest = Math.max(tail, Math.min(lead, along));
-			final float gap = (float) Math.hypot(px - (this.x + (this.dirX * nearest)),
+			final float gap = (float) StrictMath.hypot(px - (this.x + (this.dirX * nearest)),
 					py - (this.y + (this.dirY * nearest)));
 			if (gap >= this.radius) {
 				return 0;
 			}
-			float value = (float) (-0.5 * this.depth * (Math.cos(Math.PI * (gap / this.radius)) + 1));
+			float value = (float) (-0.5 * this.depth * (StrictMath.cos(Math.PI * (gap / this.radius)) + 1));
 			final float progress = time / this.run;
 			if (progress > 0.9f) {
 				value *= 1 - ((progress - 0.9f) / 0.1f);
@@ -517,7 +517,7 @@ public final class CTerrainDeformations {
 
 		@Override
 		float offset(final float px, final float py) {
-			if ((this.radius <= 0) || (Math.hypot(px - this.x, py - this.y) >= this.radius)) {
+			if ((this.radius <= 0) || (StrictMath.hypot(px - this.x, py - this.y) >= this.radius)) {
 				return 0;
 			}
 			final float steps = this.elapsed / this.interval;
@@ -528,7 +528,7 @@ public final class CTerrainDeformations {
 		}
 	}
 
-	private static final class UpdateTimer extends CTimer {
+	static final class UpdateTimer extends CTimer {
 		private final CTerrainDeformations owner;
 
 		UpdateTimer(final CTerrainDeformations owner) {

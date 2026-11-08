@@ -7,11 +7,12 @@ import com.etheller.warsmash.util.WarsmashConstants;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CSimulation;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CUnit;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.CAbility;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.timers.CExactExpiry;
 
 public abstract class ABGenericTimedBuff extends ABBuff {
 	private final float duration;
-	private int currentTick = 0;
-	private int expireTick;
+	private final CExactExpiry expiry = new CExactExpiry();
+	private int lastTick;
 
 	public ABGenericTimedBuff(int handleId, War3ID alias, Map<String, Object> localStore, CAbility sourceAbility,
 			CUnit sourceUnit, float duration, boolean showTimedLifeBar, boolean leveled, boolean positive,
@@ -39,11 +40,15 @@ public abstract class ABGenericTimedBuff extends ABBuff {
 	@Override
 	public void onAdd(CSimulation game, CUnit unit) {
 		this.onBuffAdd(game, unit);
+		startExpiry(game);
+	}
+
+	private void startExpiry(final CSimulation game) {
+		this.lastTick = game.getGameTurnTick();
 		if (this.duration == 0) {
-			expireTick = Integer.MAX_VALUE;
+			this.expiry.never(game);
 		} else {
-			final int durationTicks = (int) (this.duration / WarsmashConstants.SIMULATION_STEP_TIME);
-			expireTick = durationTicks;
+			this.expiry.start(game, this.duration);
 		}
 	}
 
@@ -51,6 +56,7 @@ public abstract class ABGenericTimedBuff extends ABBuff {
 
 	@Override
 	public void onRemove(CSimulation game, CUnit unit) {
+		this.expiry.cancel(game);
 		this.onBuffRemove(game, unit);
 		this.cleanUpUniqueValues();
 	}
@@ -66,17 +72,26 @@ public abstract class ABGenericTimedBuff extends ABBuff {
 
 	@Override
 	public float getDurationRemaining(final CSimulation game, final CUnit unit) {
-		final int remaining = Math.max(0, this.expireTick - this.currentTick);
-		return remaining * WarsmashConstants.SIMULATION_STEP_TIME;
+		return (float) this.expiry.getRemaining(game);
 	}
 
 	@Override
 	public void onTick(final CSimulation game, final CUnit caster) {
-		this.currentTick++;
-		if (this.currentTick >= this.expireTick) {
-			this.onBuffExpire(game, caster);
-			caster.remove(game, this);
+		// Steps its unit spent paused, without ticking its buffs, do not count.
+		final int tick = game.getGameTurnTick();
+		final int skippedSteps = tick - this.lastTick - 1;
+		this.lastTick = tick;
+		if (skippedSteps > 0) {
+			this.expiry.postpone(game, skippedSteps * (double) WarsmashConstants.SIMULATION_STEP_TIME);
 		}
+		if (this.expiry.check(game, simulation -> expire(simulation, caster))) {
+			expire(game, caster);
+		}
+	}
+
+	private void expire(final CSimulation game, final CUnit caster) {
+		this.onBuffExpire(game, caster);
+		caster.remove(game, this);
 	}
 
 	@Override
@@ -85,6 +100,6 @@ public abstract class ABGenericTimedBuff extends ABBuff {
 	}
 
 	public void updateExpiration(final CSimulation game, final CUnit unit) {
-		this.currentTick = 0;
+		startExpiry(game);
 	}
 }

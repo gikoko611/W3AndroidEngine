@@ -88,6 +88,12 @@ public class WarsmashClientTestingUtility implements ServerToClientListener {
 	}
 
 	@Override
+	public void issuePlayerCommand(final int playerIndex, final byte[] command) {
+		System.out.println("WarsmashClientTestingUtility.issuePlayerCommand");
+		System.out.println("playerIndex = " + playerIndex + ", bytes = " + command.length);
+	}
+
+	@Override
 	public void startGame() {
 		System.out.println("WarsmashClientTestingUtility.startGame");
 		System.out.println();

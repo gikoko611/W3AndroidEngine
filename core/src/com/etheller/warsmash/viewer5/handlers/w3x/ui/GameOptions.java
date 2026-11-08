@@ -81,7 +81,8 @@ public final class GameOptions {
 				Gdx.graphics.setVSync(isVSync());
 			}
 			catch (final RuntimeException e) {
-				// Some desktop drivers refuse the swap interval while another game holds the GPU; the map still runs.
+				// Some desktop drivers refuse the swap interval, and LWJGL reads the GL error flag here, so an error
+				// an earlier GL call left behind surfaces here too; the map still runs.
 				e.printStackTrace();
 			}
 		}
@@ -170,6 +171,15 @@ public final class GameOptions {
 		setFlag("subtitles", value);
 	}
 
+	/** Reforged's "Show Portraits in Cinematics", off by default; Classic cinematics always show the portrait. */
+	public boolean isCinematicPortraits() {
+		return flag("cinePortraits", false);
+	}
+
+	public void setCinematicPortraits(final boolean value) {
+		setFlag("cinePortraits", value);
+	}
+
 	public int getMouseScroll() {
 		return number("mouseScroll", NEUTRAL_SCROLL, 100);
 	}
@@ -256,6 +266,15 @@ public final class GameOptions {
 
 	public void setMinimapCreeps(final boolean value) {
 		setFlag("minimapCreeps", value);
+	}
+
+	/** The ally color mode of the minimap button and Alt-A; a new game starts in the last one the player chose. */
+	public int getAllyFilter() {
+		return number("allyFilter", 0, AllyColorFilter.MODE_COUNT - 1);
+	}
+
+	public void setAllyFilter(final int value) {
+		this.values.put("allyFilter", value);
 	}
 
 	public int getGamma() {

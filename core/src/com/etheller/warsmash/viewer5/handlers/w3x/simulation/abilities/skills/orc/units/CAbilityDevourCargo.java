@@ -2,7 +2,6 @@ package com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.skills.o
 
 import com.etheller.warsmash.units.GameObject;
 import com.etheller.warsmash.util.War3ID;
-import com.etheller.warsmash.util.WarsmashConstants;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CSimulation;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CUnit;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CWidget;
@@ -14,6 +13,7 @@ import com.etheller.warsmash.viewer5.handlers.w3x.simulation.behaviors.CBehavior
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.combat.CAttackType;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.combat.CSpellDamageFlags;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.players.vision.CUnitVisionFogModifier;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.timers.CTimer;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.trigger.enumtypes.CDamageType;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.trigger.enumtypes.CWeaponSoundTypeJass;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.util.AbilityActivationReceiver;
@@ -25,7 +25,7 @@ import com.etheller.warsmash.viewer5.handlers.w3x.simulation.util.AbilityTargetC
  */
 public class CAbilityDevourCargo extends AbstractGenericNoIconAbility implements CAbilitySpell {
 	private static final CSpellDamageFlags DAMAGE_FLAGS = new CSpellDamageFlags();
-	private static final int TICKS_PER_SECOND = (int) (1.0f / WarsmashConstants.SIMULATION_STEP_TIME);
+	private static final int TICKS_PER_SECOND = CTimer.wholeSteps(1.0f);
 
 	private float damagePerSecond;
 	private int maximumCreepLevel;

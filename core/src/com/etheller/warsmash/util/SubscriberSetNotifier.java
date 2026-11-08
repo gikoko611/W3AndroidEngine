@@ -1,8 +1,8 @@
 package com.etheller.warsmash.util;
 
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.Iterator;
+import java.util.LinkedHashSet;
 import java.util.Set;
 
 public abstract class SubscriberSetNotifier<LISTENER_TYPE> {
@@ -16,7 +16,7 @@ public abstract class SubscriberSetNotifier<LISTENER_TYPE> {
 		this.set = new SubscriberSet<>();
 	}
 
-	private static final class SubscriberSet<LISTENER_TYPE> extends HashSet<LISTENER_TYPE> {
+	private static final class SubscriberSet<LISTENER_TYPE> extends LinkedHashSet<LISTENER_TYPE> {
 		@Override
 		public Iterator<LISTENER_TYPE> iterator() {
 			return isEmpty() ? Collections.<LISTENER_TYPE>emptyIterator() : super.iterator();

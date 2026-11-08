@@ -75,6 +75,8 @@ public class RenderUnit implements RenderWidget {
 	public MdxModel specialArtModel;
 	public SplatMover uberSplat;
 	private boolean decalsRemovedWhileHidden;
+	private boolean shownToLocalPlayer;
+	private RenderFogGhost fogGhost;
 	private int shownTeamColor;
 	private float selectionHeight;
 	private RenderUnit preferredSelectionReplacement;
@@ -198,8 +200,15 @@ public class RenderUnit implements RenderWidget {
 				createBuildingDecalSplats(map);
 			}
 		}
-		if (this.simulationUnit.isHidden() || (!map.isObserverView()
-				&& !this.simulationUnit.isVisible(map.simulation, map.getLocalPlayerIndex()))) {
+		if (this.simulationUnit.isHidden() || !isShownToLocalPlayer(map)) {
+			if (this.shownToLocalPlayer) {
+				this.shownToLocalPlayer = false;
+				if (!this.dead && (this.fogGhost == null) && !this.simulationUnit.isHidden()
+						&& this.simulationUnit.isBuilding()
+						&& (this.simulationUnit.getPlayerIndex() != map.getLocalPlayerIndex())) {
+					this.fogGhost = map.addFogGhost(this);
+				}
+			}
 			if (!wasHidden) {
 				if (this.selectionCircle != null) {
 					this.selectionCircle.hide();
@@ -214,6 +223,7 @@ public class RenderUnit implements RenderWidget {
 			this.instance.hide();
 			return;
 		} else {
+			this.shownToLocalPlayer = true;
 			this.instance.show();
 			if (wasHidden) {
 				if (this.selectionCircle != null) {
@@ -654,7 +664,37 @@ public class RenderUnit implements RenderWidget {
 	}
 
 	public void onRemove(final War3MapViewer map) {
+		if (this.fogGhost != null) {
+			this.fogGhost.takeBuildingDecals(this.buildingShadowInstance, this.uberSplat);
+			this.buildingShadowInstance = null;
+			this.uberSplat = null;
+			this.fogGhost = null;
+		}
 		removeSplats(map);
+	}
+
+	public boolean hasFogGhost() {
+		return this.fogGhost != null;
+	}
+
+	void fogGhostRemoved(final RenderFogGhost ghost) {
+		if (this.fogGhost == ghost) {
+			this.fogGhost = null;
+		}
+	}
+
+	/**
+	 * A unit that dies where the local player cannot see stays out of sight, a building as it was last seen.
+	 */
+	private boolean isShownToLocalPlayer(final War3MapViewer map) {
+		if (map.isObserverView()) {
+			return true;
+		}
+		if (this.simulationUnit.isDead()) {
+			return map.getFogOfWar().isVisible(map.simulation, map.simulation.getPathingGrid(),
+					this.simulationUnit.getX(), this.simulationUnit.getY());
+		}
+		return map.isShownToViewer(this.simulationUnit);
 	}
 
 	public void setPreferredSelectionReplacement(final RenderUnit preferredSelectionReplacement) {

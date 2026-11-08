@@ -25,7 +25,7 @@ import com.etheller.warsmash.viewer5.handlers.w3x.simulation.util.AbilityTargetC
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.util.CommandStringErrorKeys;
 
 public abstract class AbstractCAbilityBuild extends AbstractCAbility implements CAbilityMenu {
-	private static boolean REFUND_ON_ORDER_CANCEL = false;
+	private static final boolean REFUND_ON_ORDER_CANCEL = false;
 	private final Set<War3ID> structuresBuilt;
 
 	public AbstractCAbilityBuild(final int handleId, final War3ID code, final List<War3ID> structuresBuilt) {
@@ -57,7 +57,7 @@ public abstract class AbstractCAbilityBuild extends AbstractCAbility implements 
 					if ((player.getGold() >= unitType.getGoldCost())) {
 						if ((player.getLumber() >= unitType.getLumberCost())) {
 							if ((unitType.getFoodUsed() == 0)
-									|| ((player.getFoodUsed() + unitType.getFoodUsed()) <= player.getFoodCap())) {
+									|| ((player.getFoodUsed() + unitType.getFoodUsed()) <= player.getFoodCapLimit())) {
 
 								receiver.useOk();
 							}
@@ -195,13 +195,6 @@ public abstract class AbstractCAbilityBuild extends AbstractCAbility implements 
 		return buildLocationObstructed;
 	}
 
-	private static final Rectangle footprintRect = new Rectangle();
-	private static final List<CUnit> unitsToMoveAside = new ArrayList<>();
-
-	public static void releaseStaticReferences() {
-		unitsToMoveAside.clear();
-	}
-
 	public static void moveControlledUnitsAside(final CSimulation simulation, final CUnit structure,
 			final CUnit worker) {
 		final ArgbImage pathingMap = structure.getUnitType().getBuildingPathingPixelMap();
@@ -212,10 +205,10 @@ public abstract class AbstractCAbilityBuild extends AbstractCAbility implements 
 		final float height = pathingMap.getHeight() * 32f;
 		final float offsetX = ((pathingMap.getWidth() % 2) == 1) ? 16f : 0f;
 		final float offsetY = ((pathingMap.getHeight() % 2) == 1) ? 16f : 0f;
-		footprintRect.set((structure.getX() - (width / 2)) + offsetX, (structure.getY() - (height / 2)) + offsetY,
-				width, height);
+		final Rectangle footprintRect = new Rectangle((structure.getX() - (width / 2)) + offsetX,
+				(structure.getY() - (height / 2)) + offsetY, width, height);
 		final int controllerIndex = worker.getPlayerIndex();
-		unitsToMoveAside.clear();
+		final List<CUnit> unitsToMoveAside = new ArrayList<>();
 		simulation.getWorldCollision().enumUnitsInRect(footprintRect, (unit) -> {
 			if ((unit != structure) && (unit != worker) && !unit.isBuilding()
 					&& (unit.getMovementType() != PathingGrid.MovementType.FLY)
@@ -229,7 +222,6 @@ public abstract class AbstractCAbilityBuild extends AbstractCAbility implements 
 			final CUnit unit = unitsToMoveAside.get(i);
 			unit.setPointAndCheckUnstuck(unit.getX(), unit.getY(), simulation);
 		}
-		unitsToMoveAside.clear();
 	}
 
 	public static void roundTargetPoint(final Vector2 point, final CUnitType unitType) {

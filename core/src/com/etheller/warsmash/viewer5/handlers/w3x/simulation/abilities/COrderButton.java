@@ -10,6 +10,7 @@ public class COrderButton extends CExtensibleHandleAbstract {
 	private int autoCastUnOrderId;
 	private int containerMenuOrderId;
 	private boolean disabled;
+	private boolean hidden;
 	private int manaCost;
 	private int goldCost;
 	private int lumberCost;
@@ -60,6 +61,15 @@ public class COrderButton extends CExtensibleHandleAbstract {
 
 	public void setDisabled(final boolean disabled) {
 		this.disabled = disabled;
+	}
+
+	/** A hidden button is left off the command card; its order can still be given. */
+	public boolean isHidden() {
+		return this.hidden;
+	}
+
+	public void setHidden(final boolean hidden) {
+		this.hidden = hidden;
 	}
 
 	public int getManaCost() {

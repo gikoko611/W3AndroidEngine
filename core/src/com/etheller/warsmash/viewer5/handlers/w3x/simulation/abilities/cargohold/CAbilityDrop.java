@@ -1,6 +1,8 @@
 package com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.cargohold;
 
 import com.etheller.warsmash.util.War3ID;
+import com.etheller.warsmash.viewer5.handlers.w3x.environment.PathingGrid;
+import com.etheller.warsmash.viewer5.handlers.w3x.environment.PathingGrid.MovementType;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CSimulation;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CUnit;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CWidget;
@@ -57,7 +59,7 @@ public class CAbilityDrop extends AbstractGenericSingleIconNoSmartActiveAbility 
 	@Override
 	public CBehavior beginNoTarget(final CSimulation game, final CUnit caster, final int playerIndex, final int orderId,
 			final boolean autoOrder) {
-		return null;
+		return caster.pollNextOrderBehavior(game);
 	}
 
 	@Override
@@ -85,10 +87,29 @@ public class CAbilityDrop extends AbstractGenericSingleIconNoSmartActiveAbility 
 		receiver.orderIdNotAccepted();
 	}
 
+	private static final float LAND_SEARCH_RADIUS = 64f;
+
+	/** Whether a unit of that movement type can stand at or right next to the point. */
+	public static boolean isNearLand(final PathingGrid grid, final float x, final float y,
+			final MovementType movementType) {
+		for (float dy = -LAND_SEARCH_RADIUS; dy <= LAND_SEARCH_RADIUS; dy += 32f) {
+			for (float dx = -LAND_SEARCH_RADIUS; dx <= LAND_SEARCH_RADIUS; dx += 32f) {
+				if (grid.contains(x + dx, y + dy) && grid.isPathable(x + dx, y + dy, movementType)) {
+					return true;
+				}
+			}
+		}
+		return false;
+	}
+
 	@Override
 	protected void innerCheckCanTarget(final CSimulation game, final CUnit unit, final int orderId,
 			final AbilityPointTarget target, final AbilityTargetCheckReceiver<AbilityPointTarget> receiver) {
-		if (!unit.isMovementDisabled() || unit.canReach(target, this.castRange)) {
+		if (!isNearLand(game.getPathingGrid(), target.getX(), target.getY(), MovementType.FOOT)) {
+			// Measured on 1.29: unload-all on water is refused.
+			receiver.targetCheckFailed(CommandStringErrorKeys.UNABLE_TO_TARGET_THERE);
+		}
+		else if (!unit.isMovementDisabled() || unit.canReach(target, this.castRange)) {
 			receiver.targetOk(target);
 		}
 		else {
@@ -99,7 +120,8 @@ public class CAbilityDrop extends AbstractGenericSingleIconNoSmartActiveAbility 
 	@Override
 	protected void innerCheckCanTargetNoTarget(final CSimulation game, final CUnit unit, final int orderId,
 			final AbilityTargetCheckReceiver<Void> receiver) {
-		receiver.orderIdNotAccepted();
+		// Measured on 1.29: unload-all without a target is taken and does nothing.
+		receiver.targetOk(null);
 	}
 
 	public float getCastRange() {

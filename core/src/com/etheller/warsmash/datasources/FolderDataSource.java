@@ -78,6 +78,15 @@ public class FolderDataSource implements DataSource {
 
 					@Override
 					public FileVisitResult visitFileFailed(final Path file, final IOException exc) {
+						System.err.println("Data folder entry left out, it cannot be read: " + exc);
+						return FileVisitResult.CONTINUE;
+					}
+
+					@Override
+					public FileVisitResult postVisitDirectory(final Path dir, final IOException exc) {
+						if (exc != null) {
+							System.err.println("Data folder listed only in part, it cannot be read: " + exc);
+						}
 						return FileVisitResult.CONTINUE;
 					}
 				});

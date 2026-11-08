@@ -6,6 +6,7 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
 
 import com.hiveworkshop.blizzard.casc.Key;
 import com.hiveworkshop.blizzard.casc.nio.HashMismatchException;
@@ -142,6 +143,17 @@ public class IndexFile {
 		});
 
 		return index >= 0 ? entries.get(index) : null;
+	}
+
+	/** Every entry of this key; an index can list a key more than once. */
+	public List<IndexEntry> getEntries(final Key encodingKey) {
+		final List<IndexEntry> matches = new ArrayList<>();
+		for (final IndexEntry entry : entries) {
+			if (entry.getKey().compareTo(encodingKey) == 0) {
+				matches.add(entry);
+			}
+		}
+		return matches;
 	}
 
 	public IndexEntry getEntry(final int index) {

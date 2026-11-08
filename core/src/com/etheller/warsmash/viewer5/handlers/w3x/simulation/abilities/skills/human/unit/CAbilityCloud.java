@@ -12,6 +12,8 @@ import com.etheller.warsmash.viewer5.handlers.w3x.simulation.orders.OrderIds;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.timers.CTimer;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.trigger.enumtypes.CEffectType;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.util.SimulationRenderComponentModel;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CWidget;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.util.BooleanAbilityTargetCheckReceiver;
 
 /**
  * Cloud (Dragonhawk Rider): a cloud stays over the target area for the duration and the enemy buildings under it
@@ -54,7 +56,8 @@ public class CAbilityCloud extends CAbilityPointTargetSpellBase {
 		simulation.getWorldCollision().enumUnitsInRange(target.getX(), target.getY(), this.areaOfEffect,
 				(enumUnit) -> {
 					if (!enumUnit.isUnitAlly(simulation.getPlayer(caster.getPlayerIndex()))
-							&& enumUnit.canBeTargetedBy(simulation, caster, getTargetsAllowed())) {
+							&& enumUnit.canBeTargetedBy(simulation, caster, false, getTargetsAllowed(),
+									BooleanAbilityTargetCheckReceiver.<CWidget>getInstance().reset())) {
 						final CBuffCloud previous = enumUnit.getFirstAbilityOfType(CBuffCloud.class);
 						if (previous != null) {
 							enumUnit.remove(simulation, previous);

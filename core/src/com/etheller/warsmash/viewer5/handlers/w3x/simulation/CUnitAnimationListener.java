@@ -21,7 +21,8 @@ public interface CUnitAnimationListener {
 	void queueAnimation(final PrimaryTag animationName, final EnumSet<SecondaryTag> secondaryAnimationTags,
 			boolean allowRarityVariations);
 
-	boolean isAnimationQueued(PrimaryTag animationName);
+	/** Stand animation of a unit that stops, unless a stand animation is already queued to follow. */
+	void playStopAnimation();
 
 	boolean addSecondaryTag(SecondaryTag secondaryTag);
 

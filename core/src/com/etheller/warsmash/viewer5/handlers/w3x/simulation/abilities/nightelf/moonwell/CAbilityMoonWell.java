@@ -3,7 +3,6 @@ package com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.nightelf
 import com.badlogic.gdx.math.Rectangle;
 import com.etheller.warsmash.units.GameObject;
 import com.etheller.warsmash.util.War3ID;
-import com.etheller.warsmash.util.WarsmashConstants;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CSimulation;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CUnit;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CUnitEnumFunction;
@@ -18,6 +17,7 @@ import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.types.def
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.behaviors.CBehavior;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.data.CUnitRace;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.orders.OrderIds;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.timers.CTimer;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.trigger.enumtypes.CEffectType;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.util.AbilityTargetCheckReceiver;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.util.CommandStringErrorKeys;
@@ -106,7 +106,7 @@ public class CAbilityMoonWell extends CAbilitySpellBase implements CAutocastAbil
 			final int gameTurnTick = game.getGameTurnTick();
 			if ((gameTurnTick >= this.lastAutoCastCheckTick) && (unit.getMana() > this.autocastRequirement)) {
 				checkAutoCast(game, unit);
-				this.lastAutoCastCheckTick = gameTurnTick + (int) (2.0f / WarsmashConstants.SIMULATION_STEP_TIME);
+				this.lastAutoCastCheckTick = gameTurnTick + CTimer.wholeSteps(2.0f);
 			}
 		}
 		super.onTick(game, unit);

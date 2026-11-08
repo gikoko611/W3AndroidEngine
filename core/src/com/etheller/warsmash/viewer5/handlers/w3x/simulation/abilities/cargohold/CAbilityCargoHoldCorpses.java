@@ -59,8 +59,8 @@ public class CAbilityCargoHoldCorpses extends CAbilityCargoHold {
 		float y = caster.getY();
 		if (count > 1) {
 			final double angle = ((Math.PI * 2) * index) / count;
-			x += (float) (Math.cos(angle) * DROP_SPREAD);
-			y += (float) (Math.sin(angle) * DROP_SPREAD);
+			x += (float) (StrictMath.cos(angle) * DROP_SPREAD);
+			y += (float) (StrictMath.sin(angle) * DROP_SPREAD);
 		}
 		corpse.releaseCorpse(game, x, y);
 	}

@@ -1,13 +1,13 @@
 package com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.skills.util;
 
 import com.etheller.warsmash.util.War3ID;
-import com.etheller.warsmash.util.WarsmashConstants;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CSimulation;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CUnit;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CWidget;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.generic.AbstractCBuff;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.targeting.AbilityPointTarget;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.behaviors.CBehavior;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.timers.CTimer;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.trigger.enumtypes.CEffectType;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.util.AbilityActivationReceiver;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.util.AbilityTargetCheckReceiver;
@@ -15,8 +15,7 @@ import com.etheller.warsmash.viewer5.handlers.w3x.simulation.util.SimulationRend
 
 public abstract class CBuffAuraBase extends AbstractCBuff {
 	private static final float AURA_BUFF_DECAY_TIME = 2.00f;
-	private static final int AURA_BUFF_DECAY_TIME_TICKS = (int) (Math
-			.ceil(AURA_BUFF_DECAY_TIME / WarsmashConstants.SIMULATION_STEP_TIME));
+	private static final int AURA_BUFF_DECAY_TIME_TICKS = CTimer.ceilSteps(AURA_BUFF_DECAY_TIME);
 	private SimulationRenderComponent fx;
 	private CUnit auraSourceUnit;
 	private CAbilityAuraBase auraSourceAbility;

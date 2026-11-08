@@ -14,4 +14,8 @@ public class LocalReferenceInstruction implements JassInstruction {
 		thread.stackFrame.push(thread.stackFrame.contents.get(this.localId));
 	}
 
+	@Override
+	public int opCost() {
+		return 1;
+	}
 }

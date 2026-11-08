@@ -2,7 +2,6 @@ package com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.skills.n
 
 import com.etheller.warsmash.units.GameObject;
 import com.etheller.warsmash.util.War3ID;
-import com.etheller.warsmash.util.WarsmashConstants;
 import com.etheller.warsmash.viewer5.handlers.w3x.AnimationTokens.PrimaryTag;
 import com.etheller.warsmash.viewer5.handlers.w3x.SequenceUtils;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CSimulation;
@@ -14,6 +13,7 @@ import com.etheller.warsmash.viewer5.handlers.w3x.simulation.behaviors.CBehavior
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.behaviors.CBehaviorCategory;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.behaviors.skills.CBehaviorNoTargetSpellBase;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.orders.OrderIds;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.timers.CTimer;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.unit.StateModBuff;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.unit.StateModBuffType;
 
@@ -65,7 +65,7 @@ public class CAbilityShadowmeld extends CAbilityNoTargetSpellBase {
 		// also right after moving or at the start.
 		if ((orderId == OrderIds.ambush) && (this.permanent || game.isNight()) && !this.melded) {
 			this.eligible = true;
-			this.meldTick = game.getGameTurnTick() + (int) (this.fadeDuration / WarsmashConstants.SIMULATION_STEP_TIME);
+			this.meldTick = game.getGameTurnTick() + CTimer.wholeSteps(this.fadeDuration);
 		}
 		return super.checkBeforeQueue(game, caster, playerIndex, orderId, autoOrder, target);
 	}
@@ -94,7 +94,7 @@ public class CAbilityShadowmeld extends CAbilityNoTargetSpellBase {
 			else {
 				delay = this.actionDuration + this.fadeDuration;
 			}
-			this.meldTick = tick + (int) (delay / WarsmashConstants.SIMULATION_STEP_TIME);
+			this.meldTick = tick + CTimer.wholeSteps(delay);
 		}
 		else if (!nowEligible) {
 			this.lastBlockedByDay = !dark;

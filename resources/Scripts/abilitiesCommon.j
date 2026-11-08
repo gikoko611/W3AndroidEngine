@@ -1656,6 +1656,7 @@ library OrderButtonAPI requires BehaviorAPI, IconUI
 	// if you set container id, it would only show if you also added a menu-type icon
 	native SetOrderButtonContainerMenuOrderId takes orderbutton whichOrder, integer containerMenuOrderId returns nothing
 	native SetOrderButtonDisabled takes orderbutton whichOrder, boolean disabled returns nothing
+	native SetOrderButtonHidden takes orderbutton whichOrder, boolean hidden returns nothing
 	native SetOrderButtonManaCost takes orderbutton whichOrder, integer costAmount returns nothing
 	native SetOrderButtonGoldCost takes orderbutton whichOrder, integer costAmount returns nothing
 	native SetOrderButtonLumberCost takes orderbutton whichOrder, integer costAmount returns nothing
@@ -1689,6 +1690,7 @@ library OrderButtonAPI requires BehaviorAPI, IconUI
 	native GetOrderButtonUnAutoCastOrderId takes orderbutton whichOrder returns integer
 	native GetOrderButtonContainerMenuOrderId takes orderbutton whichOrder returns integer
 	native IsOrderButtonDisabled takes orderbutton whichOrder returns boolean
+	native IsOrderButtonHidden takes orderbutton whichOrder returns boolean
 	native GetOrderButtonManaCost takes orderbutton whichOrder returns integer
 	native GetOrderButtonGoldCost takes orderbutton whichOrder returns integer
 	native GetOrderButtonLumberCost takes orderbutton whichOrder returns integer

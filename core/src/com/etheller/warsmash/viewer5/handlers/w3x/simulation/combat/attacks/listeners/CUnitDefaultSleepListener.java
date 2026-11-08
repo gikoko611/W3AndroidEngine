@@ -7,7 +7,7 @@ import com.etheller.warsmash.viewer5.handlers.w3x.simulation.trigger.enumtypes.C
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.unit.StateModBuffType;
 
 public class CUnitDefaultSleepListener implements CUnitAttackDamageTakenListener {
-	public static CUnitDefaultSleepListener INSTANCE = new CUnitDefaultSleepListener();
+	public static final CUnitDefaultSleepListener INSTANCE = new CUnitDefaultSleepListener();
 
 	public CUnitDefaultSleepListener() {
 	}

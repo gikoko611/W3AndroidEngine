@@ -8,6 +8,7 @@ import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CWidget;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.generic.AbstractCBuff;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.targeting.AbilityPointTarget;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.behaviors.CBehavior;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.timers.CExactExpiry;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.trigger.enumtypes.CEffectType;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.util.AbilityActivationReceiver;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.util.AbilityTargetCheckReceiver;
@@ -16,8 +17,8 @@ import com.etheller.warsmash.viewer5.handlers.w3x.simulation.util.SimulationRend
 public abstract class CBuffTimed extends AbstractCBuff {
 	private SimulationRenderComponent fx;
 	private final float duration;
-	private int expireTick;
-	private int carriedTicks = -1;
+	private final CExactExpiry expiry = new CExactExpiry();
+	private double carriedRemaining = -1;
 	private boolean timerPaused;
 
 	public CBuffTimed(final int handleId, final War3ID code, final War3ID alias, final float duration) {
@@ -33,21 +34,25 @@ public abstract class CBuffTimed extends AbstractCBuff {
 	public void onAdd(final CSimulation game, final CUnit unit) {
 		onBuffAdd(game, unit);
 		this.fx = game.createPersistentSpellEffectOnUnit(unit, getAlias(), CEffectType.TARGET);
-		final int durationTicks = this.carriedTicks >= 0 ? this.carriedTicks
-				: (int) (this.duration / WarsmashConstants.SIMULATION_STEP_TIME);
-		this.carriedTicks = -1;
-		this.expireTick = game.getGameTurnTick() + durationTicks;
+		if (this.carriedRemaining >= 0) {
+			this.expiry.startRemaining(game, this.carriedRemaining);
+		}
+		else {
+			this.expiry.start(game, this.duration);
+		}
+		this.carriedRemaining = -1;
 	}
 
 	/**
 	 * Keeps the time left when this buff is next added, for a buff moved to another unit (Spell Steal).
 	 */
 	public void carryRemainingTime(final CSimulation game) {
-		this.carriedTicks = Math.max(0, this.expireTick - game.getGameTurnTick());
+		this.carriedRemaining = this.expiry.getRemaining(game);
 	}
 
 	@Override
 	public void onRemove(final CSimulation game, final CUnit unit) {
+		this.expiry.cancel(game);
 		onBuffRemove(game, unit);
 		this.fx.remove();
 	}
@@ -59,11 +64,10 @@ public abstract class CBuffTimed extends AbstractCBuff {
 	@Override
 	public void onTick(final CSimulation game, final CUnit caster) {
 		if (this.timerPaused) {
-			this.expireTick++;
+			this.expiry.postpone(game, WarsmashConstants.SIMULATION_STEP_TIME);
 			return;
 		}
-		final int currentTick = game.getGameTurnTick();
-		if (currentTick >= this.expireTick) {
+		if (this.expiry.check(game, simulation -> caster.remove(simulation, this))) {
 			caster.remove(game, this);
 		}
 	}
@@ -127,8 +131,6 @@ public abstract class CBuffTimed extends AbstractCBuff {
 
 	@Override
 	public float getDurationRemaining(final CSimulation game, final CUnit unit) {
-		final int currentTick = game.getGameTurnTick();
-		final int remaining = Math.max(0, this.expireTick - currentTick);
-		return remaining * WarsmashConstants.SIMULATION_STEP_TIME;
+		return (float) this.expiry.getRemaining(game);
 	}
 }

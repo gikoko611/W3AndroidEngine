@@ -12,4 +12,5 @@ public class ClientToServerProtocol {
 	public static final int JOIN_GAME = 7;
 	public static final int FRAMES_SKIPPED = 8;
 	public static final int ISSUE_GUI_PLAYER_EVENT = 10;
+	public static final int ISSUE_PLAYER_COMMAND = 11;
 }

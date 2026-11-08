@@ -41,6 +41,9 @@ public abstract class ModelViewer {
 	private final Map<Model, List<TextureMapper>> textureMappers;
 	private final Set<ResourceHandler> handlers;
 	private final List<DataTexture> dataTextures = new ArrayList<>();
+	/** The largest width and height of a model texture, 0 for no limit; see {@link #setTextureSizeLimit(int)}. */
+	private int textureSizeLimit;
+	private long textureBytes;
 
 	public ModelViewer(final DataSource dataSource, final CanvasProvider canvas) {
 		this.dataSource = dataSource;
@@ -72,6 +75,28 @@ public abstract class ModelViewer {
 		this.gl.glBufferData(GL20.GL_ARRAY_BUFFER, temp.capacity(), temp, GL20.GL_STATIC_DRAW);
 		this.audioEnabled = false;
 		this.textureMappers = new HashMap<Model, List<TextureMapper>>();
+	}
+
+	/**
+	 * Model and terrain textures larger than this are loaded from their first stored mip level within it (0 for no
+	 * limit). Phones decode the block compressed images of the game data into plain RGBA, where one 2048 pixel HD
+	 * texture alone takes 16 MB.
+	 */
+	public void setTextureSizeLimit(final int textureSizeLimit) {
+		this.textureSizeLimit = Math.max(0, textureSizeLimit);
+	}
+
+	public int getTextureSizeLimit() {
+		return this.textureSizeLimit;
+	}
+
+	/** Counts the texture memory this viewer's textures hold, as uploaded (all mip levels). */
+	public void addTextureBytes(final long bytes) {
+		this.textureBytes += bytes;
+	}
+
+	public long getTextureBytes() {
+		return this.textureBytes;
 	}
 
 	public void setDataSource(final DataSource dataSource) {
@@ -175,21 +200,12 @@ public abstract class ModelViewer {
 
 			finalSrc = solved.getFinalSrc();
 			if (!this.dataSource.has(finalSrc)) {
-				final String ddsPath = finalSrc.substring(0, finalSrc.lastIndexOf('.')) + ".dds";
-				if (this.dataSource.has(ddsPath)) {
-					finalSrc = ddsPath;
+				final String fallback = AssetPathFallback.find(this.dataSource, finalSrc);
+				if (fallback != null) {
+					finalSrc = fallback;
 				}
 				else {
-					String fallback = AssetPathFallback.find(this.dataSource, finalSrc);
-					if (fallback == null) {
-						fallback = AssetPathFallback.find(this.dataSource, ddsPath);
-					}
-					if (fallback != null) {
-						finalSrc = fallback;
-					}
-					else {
-						System.err.println("Attempting to load non-existant file: " + finalSrc);
-					}
+					System.err.println("Attempting to load non-existant file: " + finalSrc);
 				}
 			}
 			extension = solved.getExtension();

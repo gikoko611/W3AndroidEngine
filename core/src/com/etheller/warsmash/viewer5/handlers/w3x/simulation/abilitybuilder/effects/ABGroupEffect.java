@@ -56,8 +56,8 @@ public class ABGroupEffect extends CTimer implements SimulationRenderComponent {
 		while (total > 0) {
 			total--;
 			double iAngle = startAngle + angleDelta * total;
-			double iX = inRad * Math.cos(iAngle);
-			double iY = inRad * Math.sin(iAngle);
+			double iX = inRad * StrictMath.cos(iAngle);
+			double iY = inRad * StrictMath.sin(iAngle);
 			game.spawnTemporarySpellEffectOnPoint((float) (loc.x + this.getJitter(game) + iX),
 					(float) (loc.y + this.getJitter(game) + iY), 0, id, effectType, 0);
 		}

@@ -39,7 +39,11 @@ public enum CAttackType implements CodeKeyType, CHandle {
 	}
 
 	public static CAttackType parseAttackType(final String attackTypeString) {
-		final String upperCaseAttackType = attackTypeString.toUpperCase();
+		final String upperCaseAttackType = attackTypeString.trim().toUpperCase();
+		// Units without a second attack leave its type empty (Reforged data), which still keeps the attack slot.
+		if (upperCaseAttackType.isEmpty() || "_".equals(upperCaseAttackType)) {
+			return UNKNOWN;
+		}
 		if ("SEIGE".equals(upperCaseAttackType)) {
 			return SIEGE;
 		}

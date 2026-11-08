@@ -19,7 +19,7 @@ public class ABCallbackRandomLocationInRange extends ABLocationCallback {
 		final float d = this.range.callback(game, caster, localStore, castId) * game.getSeededRandom().nextFloat();
 		final float a = (float) (Math.PI * 2 * game.getSeededRandom().nextFloat());
 		
-		orig.add((float)(d * Math.cos(a)), (float)(d * Math.sin(a)));
+		orig.add((float)(d * StrictMath.cos(a)), (float)(d * StrictMath.sin(a)));
 		return orig;
 	}
 

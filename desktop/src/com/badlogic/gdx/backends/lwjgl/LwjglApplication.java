@@ -63,6 +63,7 @@ public class LwjglApplication implements Application {
 	protected ApplicationLogger applicationLogger;
 	protected String preferencesdir;
 	protected Files.FileType preferencesFileType;
+	private volatile java.util.function.BooleanSupplier closeRequestListener;
 
 	public LwjglApplication(final ApplicationListener listener, final String title, final int width, final int height) {
 		this(listener, createConfig(title, width, height));
@@ -174,7 +175,8 @@ public class LwjglApplication implements Application {
 		boolean wasActive = true;
 		while (this.running) {
 			Display.processMessages();
-			if (Display.isCloseRequested()) {
+			if (Display.isCloseRequested()
+					&& ((this.closeRequestListener == null) || this.closeRequestListener.getAsBoolean())) {
 				exit();
 			}
 
@@ -459,6 +461,11 @@ public class LwjglApplication implements Application {
 	@Override
 	public ApplicationLogger getApplicationLogger() {
 		return this.applicationLogger;
+	}
+
+	/** Asked when the window's close button is pressed; false keeps the program running. */
+	public void setCloseRequestListener(final java.util.function.BooleanSupplier listener) {
+		this.closeRequestListener = listener;
 	}
 
 	@Override

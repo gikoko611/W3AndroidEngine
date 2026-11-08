@@ -21,6 +21,8 @@ public interface ServerToClientListener {
 
 	void issueGuiPlayerEvent(int playerIndex, int eventId);
 
+	void issuePlayerCommand(int playerIndex, byte[] command);
+
 	void startGame();
 
 	void finishedTurn(int gameTurnTick);

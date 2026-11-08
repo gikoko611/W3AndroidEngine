@@ -5,7 +5,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import com.badlogic.gdx.math.Rectangle;
 import com.badlogic.gdx.utils.IntMap;
 import com.etheller.warsmash.util.War3ID;
-import com.etheller.warsmash.util.WarsmashConstants;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CDestructable;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CDestructableEnumFunction;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CSimulation;
@@ -14,6 +13,7 @@ import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CUnitEnumFunction;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CWidget;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.targeting.AbilityPointTarget;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.targeting.AbilityTarget;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.timers.CTimer;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.trigger.enumtypes.CEffectType;
 
 public class CPseudoProjectile extends CProjectile {
@@ -90,7 +90,7 @@ public class CPseudoProjectile extends CProjectile {
 		this.dx = d1x * travelDistance;
 		this.dy = d1y * travelDistance;
 
-		this.stepInterval = (int) (projectileStepInterval / WarsmashConstants.SIMULATION_STEP_TIME);
+		this.stepInterval = CTimer.wholeSteps(projectileStepInterval);
 		this.artSkip = projectileArtSkip;
 	}
 

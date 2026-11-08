@@ -1,6 +1,5 @@
 package com.etheller.warsmash.viewer5.handlers.w3x.simulation.behaviors.test;
 
-import com.etheller.warsmash.util.WarsmashConstants;
 import com.etheller.warsmash.viewer5.handlers.w3x.SequenceUtils;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CSimulation;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CUnit;
@@ -9,6 +8,7 @@ import com.etheller.warsmash.viewer5.handlers.w3x.simulation.behaviors.CBehavior
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.behaviors.CBehaviorCategory;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.behaviors.CBehaviorVisitor;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.orders.OrderIds;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.timers.CTimer;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.trigger.enumtypes.CEffectType;
 
 public class CBehaviorChannelTest implements CBehavior {
@@ -33,7 +33,7 @@ public class CBehaviorChannelTest implements CBehavior {
 		if (gameTurnTick >= this.nextArtTick) {
 			game.createTemporarySpellEffectOnUnit(this.unit, this.abilityChannelTest.getAlias(), CEffectType.CASTER);
 			this.nextArtTick = gameTurnTick
-					+ (int) (this.abilityChannelTest.getArtDuration() / WarsmashConstants.SIMULATION_STEP_TIME);
+					+ CTimer.wholeSteps(this.abilityChannelTest.getArtDuration());
 		}
 		return this;
 	}

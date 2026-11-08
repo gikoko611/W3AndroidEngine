@@ -1,13 +1,14 @@
 package com.etheller.warsmash.viewer5.handlers.w3x.ui.dialog;
 
 import com.badlogic.gdx.graphics.Color;
+import com.etheller.interpreter.ast.util.AllocatedHandle;
 import com.etheller.warsmash.parsers.fdf.GameUI;
 import com.etheller.warsmash.parsers.fdf.frames.StringFrame;
 import com.etheller.warsmash.parsers.fdf.frames.UIFrame;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CSimulation;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.timers.CTimer;
 
-public class CTimerDialog {
+public class CTimerDialog extends AllocatedHandle {
 	private GameUI rootFrame;
 	private final CTimer timer;
 	private UIFrame timerDialogFrame;

@@ -1,5 +1,6 @@
 package com.etheller.interpreter.ast.expression;
 
+import com.etheller.interpreter.ast.util.JassNumbers;
 import com.etheller.interpreter.ast.value.BooleanJassValue;
 import com.etheller.interpreter.ast.value.CodeJassValue;
 import com.etheller.interpreter.ast.value.HandleJassValue;
@@ -20,22 +21,22 @@ public enum ArithmeticSigns implements ArithmeticSign {
 
 		@Override
 		public JassValue apply(final RealJassValue left, final RealJassValue right) {
-			return new RealJassValue(left.getValue() + right.getValue());
+			return new RealJassValue(JassNumbers.add(left.getValue(), right.getValue()));
 		}
 
 		@Override
 		public JassValue apply(final RealJassValue left, final IntegerJassValue right) {
-			return new RealJassValue(left.getValue() + right.getValue());
+			return new RealJassValue(JassNumbers.add(left.getValue(), JassNumbers.fromInt(right.getValue())));
 		}
 
 		@Override
 		public JassValue apply(final IntegerJassValue left, final RealJassValue right) {
-			return new RealJassValue(left.getValue() + right.getValue());
+			return new RealJassValue(JassNumbers.add(JassNumbers.fromInt(left.getValue()), right.getValue()));
 		}
 
 		@Override
 		public JassValue apply(final IntegerJassValue left, final IntegerJassValue right) {
-			return new IntegerJassValue(left.getValue() + right.getValue());
+			return IntegerJassValue.of(left.getValue() + right.getValue());
 		}
 
 		@Override
@@ -93,22 +94,22 @@ public enum ArithmeticSigns implements ArithmeticSign {
 
 		@Override
 		public JassValue apply(final RealJassValue left, final RealJassValue right) {
-			return new RealJassValue(left.getValue() - right.getValue());
+			return new RealJassValue(JassNumbers.subtract(left.getValue(), right.getValue()));
 		}
 
 		@Override
 		public JassValue apply(final RealJassValue left, final IntegerJassValue right) {
-			return new RealJassValue(left.getValue() - right.getValue());
+			return new RealJassValue(JassNumbers.subtract(left.getValue(), JassNumbers.fromInt(right.getValue())));
 		}
 
 		@Override
 		public JassValue apply(final IntegerJassValue left, final RealJassValue right) {
-			return new RealJassValue(left.getValue() - right.getValue());
+			return new RealJassValue(JassNumbers.subtract(JassNumbers.fromInt(left.getValue()), right.getValue()));
 		}
 
 		@Override
 		public JassValue apply(final IntegerJassValue left, final IntegerJassValue right) {
-			return new IntegerJassValue(left.getValue() - right.getValue());
+			return IntegerJassValue.of(left.getValue() - right.getValue());
 		}
 
 		@Override
@@ -162,22 +163,22 @@ public enum ArithmeticSigns implements ArithmeticSign {
 
 		@Override
 		public JassValue apply(final RealJassValue left, final RealJassValue right) {
-			return new RealJassValue(left.getValue() * right.getValue());
+			return new RealJassValue(JassNumbers.multiply(left.getValue(), right.getValue()));
 		}
 
 		@Override
 		public JassValue apply(final RealJassValue left, final IntegerJassValue right) {
-			return new RealJassValue(left.getValue() * right.getValue());
+			return new RealJassValue(JassNumbers.multiply(left.getValue(), JassNumbers.fromInt(right.getValue())));
 		}
 
 		@Override
 		public JassValue apply(final IntegerJassValue left, final RealJassValue right) {
-			return new RealJassValue(left.getValue() * right.getValue());
+			return new RealJassValue(JassNumbers.multiply(JassNumbers.fromInt(left.getValue()), right.getValue()));
 		}
 
 		@Override
 		public JassValue apply(final IntegerJassValue left, final IntegerJassValue right) {
-			return new IntegerJassValue(left.getValue() * right.getValue());
+			return IntegerJassValue.of(left.getValue() * right.getValue());
 		}
 
 		@Override
@@ -231,22 +232,22 @@ public enum ArithmeticSigns implements ArithmeticSign {
 
 		@Override
 		public JassValue apply(final RealJassValue left, final RealJassValue right) {
-			return new RealJassValue(left.getValue() / right.getValue());
+			return new RealJassValue(JassNumbers.divide(left.getValue(), right.getValue()));
 		}
 
 		@Override
 		public JassValue apply(final RealJassValue left, final IntegerJassValue right) {
-			return new RealJassValue(left.getValue() / right.getValue());
+			return new RealJassValue(JassNumbers.divide(left.getValue(), JassNumbers.fromInt(right.getValue())));
 		}
 
 		@Override
 		public JassValue apply(final IntegerJassValue left, final RealJassValue right) {
-			return new RealJassValue(left.getValue() / right.getValue());
+			return new RealJassValue(JassNumbers.divide(JassNumbers.fromInt(left.getValue()), right.getValue()));
 		}
 
 		@Override
 		public JassValue apply(final IntegerJassValue left, final IntegerJassValue right) {
-			return new IntegerJassValue(left.getValue() / right.getValue());
+			return IntegerJassValue.of(left.getValue() / right.getValue());
 		}
 
 		@Override
@@ -432,22 +433,22 @@ public enum ArithmeticSigns implements ArithmeticSign {
 
 		@Override
 		public JassValue apply(final RealJassValue left, final RealJassValue right) {
-			return BooleanJassValue.of(Math.abs(left.getValue() - right.getValue()) <= 0.00001);
+			return BooleanJassValue.of(JassNumbers.equal(left.getValue(), right.getValue()));
 		}
 
 		@Override
 		public JassValue apply(final RealJassValue left, final IntegerJassValue right) {
-			return BooleanJassValue.of(Math.abs(left.getValue() - right.getValue()) <= 0.00001);
+			return BooleanJassValue.of(JassNumbers.equal(left.getValue(), JassNumbers.fromInt(right.getValue())));
 		}
 
 		@Override
 		public JassValue apply(final IntegerJassValue left, final RealJassValue right) {
-			return BooleanJassValue.of(Math.abs(left.getValue() - right.getValue()) <= 0.00001);
+			return BooleanJassValue.of(JassNumbers.equal(JassNumbers.fromInt(left.getValue()), right.getValue()));
 		}
 
 		@Override
 		public JassValue apply(final IntegerJassValue left, final IntegerJassValue right) {
-			return BooleanJassValue.of(Math.abs(left.getValue() - right.getValue()) <= 0.00001);
+			return BooleanJassValue.of(left.getValue() == right.getValue());
 		}
 
 		@Override

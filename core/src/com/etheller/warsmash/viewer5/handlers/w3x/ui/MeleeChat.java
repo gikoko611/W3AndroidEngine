@@ -36,7 +36,7 @@ import com.etheller.warsmash.viewer5.handlers.w3x.simulation.trigger.enumtypes.C
  * In-game chat: the line Enter opens above the console, the Chat dialog (F12) with the default recipient and the
  * history, and the messages themselves, which reach the sending player's chat triggers.
  */
-final class MeleeChat {
+public final class MeleeChat {
 	enum Recipient {
 		ALL("CHAT_RECIPIENT_ALL", "COLON_MESSAGE_ALL"),
 		ALLIES("CHAT_RECIPIENT_ALLIES", "COLON_MESSAGE_ALLIES"),
@@ -62,6 +62,8 @@ final class MeleeChat {
 		void focusOn(EditBoxFrame box);
 
 		void dialogClosed();
+
+		void sendChatMessage(int recipient, int recipientPlayerIndex, String message);
 	}
 
 	private static final float ENTRY_BOTTOM = 0.155f;
@@ -286,7 +288,9 @@ final class MeleeChat {
 				+ coloredName(this.localPlayer) + ": " + message;
 		this.history.add(line);
 		this.host.showChatMessage(line);
-		this.localPlayer.fireChatEvents(message);
+		this.host.sendChatMessage(recipient.ordinal(),
+				(recipient == Recipient.PLAYER) && (this.privatePlayer != null) ? this.privatePlayer.getId() : -1,
+				message);
 	}
 
 	private String prompt(final Recipient recipient, final CPlayer player) {
@@ -298,6 +302,11 @@ final class MeleeChat {
 	static int playerTextColorRgba(final int color) {
 		final String hex = (color >= 0) && (color < PLAYER_TEXT_COLORS.length) ? PLAYER_TEXT_COLORS[color] : "959697";
 		return (Integer.parseInt(hex, 16) << 8) | 0xFF;
+	}
+
+	/** The hex RRGGBB a player's name is written in, for |c color codes. */
+	public static String playerTextHex(final int color) {
+		return (color >= 0) && (color < PLAYER_TEXT_COLORS.length) ? PLAYER_TEXT_COLORS[color] : "959697";
 	}
 
 	private static String coloredName(final CPlayer player) {

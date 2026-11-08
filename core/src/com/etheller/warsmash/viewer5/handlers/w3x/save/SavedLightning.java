@@ -1,5 +1,6 @@
 package com.etheller.warsmash.viewer5.handlers.w3x.save;
 
+import com.etheller.interpreter.ast.util.AllocatedHandle;
 import com.etheller.warsmash.util.War3ID;
 import com.etheller.warsmash.viewer5.handlers.w3x.War3MapViewer;
 import com.etheller.warsmash.viewer5.handlers.w3x.rendersim.LiveRenderObject;
@@ -14,7 +15,7 @@ import com.etheller.warsmash.viewer5.handlers.w3x.simulation.util.SimulationRend
 /**
  * Takes the place of a lightning in a saved game: what is needed to show it again.
  */
-public final class SavedLightning implements SimulationRenderComponentLightningMovable {
+public final class SavedLightning extends AllocatedHandle implements SimulationRenderComponentLightningMovable {
 	private War3ID lightningId;
 	private CUnit sourceUnit;
 	private CWidget targetWidget;
@@ -33,6 +34,7 @@ public final class SavedLightning implements SimulationRenderComponentLightningM
 		if (saved == null) {
 			saved = new SavedLightning();
 			saved.lightningId = lightning.getLightningId();
+			saved.setHandleId(lightning.getHandleId());
 			saved.sourceUnit = lightning.getSourceUnit();
 			saved.targetWidget = lightning.getTargetWidget();
 			saved.liveObject = new LiveRenderObject<>(lightning);

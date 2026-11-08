@@ -12,8 +12,8 @@ public class Bone extends GenericObject {
 		GeosetAnimation geosetAnimation = null;
 		final int geosetId = bone.getGeosetId();
 		if (geosetId != -1) {
-			final Geoset geoset = model.getGeosets().get(geosetId);
-			if (geoset.geosetAnimation != null) {
+			final Geoset geoset = model.getGeosetOfFile(geosetId);
+			if ((geoset != null) && (geoset.geosetAnimation != null)) {
 				geosetAnimation = geoset.geosetAnimation;
 			}
 			else {

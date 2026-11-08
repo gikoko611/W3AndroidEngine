@@ -7,6 +7,7 @@ import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CUnit;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.skills.util.CBuffTimed;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.combat.CAttackType;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.combat.CSpellDamageFlags;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.timers.CTimer;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.trigger.enumtypes.CDamageType;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.trigger.enumtypes.CWeaponSoundTypeJass;
 
@@ -15,7 +16,7 @@ import com.etheller.warsmash.viewer5.handlers.w3x.simulation.trigger.enumtypes.C
  */
 public class CBuffDisease extends CBuffTimed {
 	private static final CSpellDamageFlags DAMAGE_FLAGS = new CSpellDamageFlags();
-	private static final int TICKS_PER_SECOND = (int) (1.0f / WarsmashConstants.SIMULATION_STEP_TIME);
+	private static final int TICKS_PER_SECOND = CTimer.wholeSteps(1.0f);
 
 	static {
 		DAMAGE_FLAGS.setNonlethal(true);
@@ -37,7 +38,7 @@ public class CBuffDisease extends CBuffTimed {
 
 	@Override
 	protected void onBuffAdd(final CSimulation game, final CUnit unit) {
-		this.expireTick = game.getGameTurnTick() + (int) (this.duration / WarsmashConstants.SIMULATION_STEP_TIME);
+		this.expireTick = game.getGameTurnTick() + CTimer.wholeSteps(this.duration);
 		this.nextDamageTick = game.getGameTurnTick() + TICKS_PER_SECOND;
 	}
 
@@ -48,7 +49,7 @@ public class CBuffDisease extends CBuffTimed {
 	public void refresh(final CSimulation game, final CUnit source, final float damagePerSecond) {
 		this.source = source;
 		this.damagePerSecond = Math.max(this.damagePerSecond, damagePerSecond);
-		this.expireTick = game.getGameTurnTick() + (int) (this.duration / WarsmashConstants.SIMULATION_STEP_TIME);
+		this.expireTick = game.getGameTurnTick() + CTimer.wholeSteps(this.duration);
 	}
 
 	@Override

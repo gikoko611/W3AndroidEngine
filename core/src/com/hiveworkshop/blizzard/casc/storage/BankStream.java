@@ -5,10 +5,15 @@ import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.nio.BufferOverflowException;
 import java.nio.ByteBuffer;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.Arrays;
 import java.util.zip.DataFormatException;
 import java.util.zip.Inflater;
 
 import com.hiveworkshop.blizzard.casc.Key;
+import com.hiveworkshop.blizzard.casc.nio.DataNotLocalException;
+import com.hiveworkshop.blizzard.casc.nio.HashMismatchException;
 import com.hiveworkshop.blizzard.casc.nio.MalformedCASCStructureException;
 
 /**
@@ -55,9 +60,14 @@ public class BankStream {
 					streamBuffer = streamBuffer.slice();
 					streamBuffer.position(streamPos);
 				}
-			} else if (!BLTEContent.hasIdentifier(streamBuffer)) {
-				throw new MalformedCASCStructureException("container encoding key mismatch");
+			} else if (isZero(container.getKey().getKey())) {
+				throw new DataNotLocalException("container header missing (index " + encodingKey + ")");
+			} else {
+				throw new MalformedCASCStructureException("container encoding key mismatch (index " + encodingKey
+						+ ", data " + container.getKey() + ")");
 			}
+		} else if ((encodingKey != null) && !blteHeaderMatches(streamBuffer, encodingKey)) {
+			throw new MalformedCASCStructureException("BLTE data belongs to another key (index " + encodingKey + ")");
 		}
 
 		if (streamBuffer.hasRemaining()) {
@@ -190,6 +200,86 @@ public class BankStream {
 		}
 
 		return bankBuffer;
+	}
+
+	/**
+	 * Whether bare BLTE data, without a container header, is the data of this key.
+	 * The encoding key is the MD5 of a BLTE header with a block table; a header
+	 * without one cannot be matched and is taken as it is.
+	 */
+	static boolean blteHeaderMatches(final ByteBuffer blteBuffer, final Key encodingKey) throws IOException {
+		if (blteBuffer.remaining() < 8) {
+			return false;
+		}
+		final int headerSize = ((blteBuffer.get(blteBuffer.position() + 4) & 0xFF) << 24)
+				| ((blteBuffer.get(blteBuffer.position() + 5) & 0xFF) << 16)
+				| ((blteBuffer.get(blteBuffer.position() + 6) & 0xFF) << 8)
+				| (blteBuffer.get(blteBuffer.position() + 7) & 0xFF);
+		if (headerSize == 0) {
+			return true;
+		}
+		if ((headerSize <= 8) || (headerSize > blteBuffer.remaining())) {
+			return false;
+		}
+		final MessageDigest md5 = md5();
+		final ByteBuffer header = blteBuffer.duplicate();
+		header.limit(header.position() + headerSize);
+		md5.update(header);
+		return new Key(md5.digest()).equals(encodingKey);
+	}
+
+	/**
+	 * Checks the stored MD5 of every bank not yet decoded against its encoded
+	 * bytes.
+	 *
+	 * @return Whether any bank had a hash to check.
+	 * @throws HashMismatchException If a bank does not match its hash.
+	 */
+	public boolean verifyBankHashes() throws IOException {
+		if (!hasBanks || (content.length == 0)) {
+			return false;
+		}
+		final MessageDigest md5 = md5();
+		boolean checked = false;
+		int offset = streamBuffer.position();
+		for (int index = bank; index < content.length; index += 1) {
+			final BLTEContent blteEntry = content[index];
+			final long encodedSize = blteEntry.getCompressedSize();
+			if ((offset + encodedSize) > streamBuffer.limit()) {
+				throw new MalformedCASCStructureException("encoded data beyond end of file");
+			}
+			final byte[] expected = blteEntry.getHash();
+			if (!isZero(expected)) {
+				final ByteBuffer encodedBuffer = streamBuffer.duplicate();
+				encodedBuffer.limit(offset + (int) encodedSize);
+				encodedBuffer.position(offset);
+				md5.reset();
+				md5.update(encodedBuffer);
+				if (!Arrays.equals(expected, md5.digest())) {
+					throw new HashMismatchException("bank " + index + " hash mismatch");
+				}
+				checked = true;
+			}
+			offset += (int) encodedSize;
+		}
+		return checked;
+	}
+
+	private static MessageDigest md5() throws IOException {
+		try {
+			return MessageDigest.getInstance("MD5");
+		} catch (final NoSuchAlgorithmException e) {
+			throw new IOException("MD5 not available", e);
+		}
+	}
+
+	private static boolean isZero(final byte[] bytes) {
+		for (final byte b : bytes) {
+			if (b != 0) {
+				return false;
+			}
+		}
+		return true;
 	}
 
 	/**

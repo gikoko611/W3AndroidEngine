@@ -19,6 +19,8 @@ import com.etheller.warsmash.viewer5.handlers.w3x.simulation.players.CPlayerJass
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.region.CRegion;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.state.CUnitState;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.timers.CTimer;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.campaign.CTrackable;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.state.CGameState;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.trigger.JassGameEventsWar3;
 import com.etheller.warsmash.viewer5.handlers.w3x.ui.dialog.CScriptDialog;
 import com.etheller.warsmash.viewer5.handlers.w3x.ui.dialog.CScriptDialogButton;
@@ -45,6 +47,7 @@ public class CommonTriggerExecutionScope extends TriggerExecutionScope {
 	private CUnit revivableUnit;
 	private CUnit revivingUnit;
 	private CUnit attacker;
+	private CUnit eventTargetUnit;
 	private CUnit rescuer;
 	private CUnit dyingUnit;
 	private CUnit killingUnit;
@@ -80,6 +83,7 @@ public class CommonTriggerExecutionScope extends TriggerExecutionScope {
 	private CWidget triggerWidget;
 	private CScriptDialog clickedDialog;
 	private CScriptDialogButton clickedButton;
+	private CTrackable triggeringTrackable;
 	private CAbility spellAbility;
 	private CUnit spellAbilityUnit;
 	private CUnit spellTargetUnit;
@@ -100,6 +104,7 @@ public class CommonTriggerExecutionScope extends TriggerExecutionScope {
 
 	private JassGameEventsWar3 triggerEventId;
 	private CUnitState eventUnitState;
+	private CGameState eventGameState;
 
 	public CommonTriggerExecutionScope(final Trigger triggeringTrigger) {
 		super(triggeringTrigger);
@@ -138,6 +143,7 @@ public class CommonTriggerExecutionScope extends TriggerExecutionScope {
 		this.learnedSkillLevel = parentScope.learnedSkillLevel;
 		this.revivableUnit = parentScope.revivableUnit;
 		this.attacker = parentScope.attacker;
+		this.eventTargetUnit = parentScope.eventTargetUnit;
 		this.rescuer = parentScope.rescuer;
 		this.dyingUnit = parentScope.dyingUnit;
 		this.killingUnit = parentScope.killingUnit;
@@ -173,12 +179,14 @@ public class CommonTriggerExecutionScope extends TriggerExecutionScope {
 		this.triggerWidget = parentScope.triggerWidget;
 		this.clickedDialog = parentScope.clickedDialog;
 		this.clickedButton = parentScope.clickedButton;
+		this.triggeringTrackable = parentScope.triggeringTrackable;
 		this.spellAbilityTargetType = parentScope.spellAbilityTargetType;
 		this.spellAbilityOrderCommandCard = parentScope.spellAbilityOrderCommandCard;
 		this.enumFilePath = parentScope.enumFilePath;
 		this.triggerLocalStore = parentScope.triggerLocalStore;
 		this.triggerEventId = parentScope.triggerEventId;
 		this.eventUnitState = parentScope.eventUnitState;
+		this.eventGameState = parentScope.eventGameState;
 		this.damageTaken = parentScope.damageTaken;
 		this.damageSource = parentScope.damageSource;
 		this.chatString = parentScope.chatString;
@@ -271,6 +279,10 @@ public class CommonTriggerExecutionScope extends TriggerExecutionScope {
 
 	public CUnit getAttacker() {
 		return this.attacker;
+	}
+
+	public CUnit getEventTargetUnit() {
+		return this.eventTargetUnit;
 	}
 
 	public CUnit getRescuer() {
@@ -409,12 +421,20 @@ public class CommonTriggerExecutionScope extends TriggerExecutionScope {
 		return this.clickedDialog;
 	}
 
+	public CTrackable getTriggeringTrackable() {
+		return this.triggeringTrackable;
+	}
+
 	public JassGameEventsWar3 getTriggerEventId() {
 		return this.triggerEventId;
 	}
 
 	public CUnitState getEventUnitState() {
 		return this.eventUnitState;
+	}
+
+	public CGameState getEventGameState() {
+		return this.eventGameState;
 	}
 
 	public CUnit getSpellAbilityUnit() {
@@ -726,11 +746,26 @@ public class CommonTriggerExecutionScope extends TriggerExecutionScope {
 		return scope;
 	}
 
+	public static CommonTriggerExecutionScope gameStateLimitScope(final Trigger trigger, final CGameState state) {
+		final CommonTriggerExecutionScope scope = new CommonTriggerExecutionScope(trigger, TriggerExecutionScope.EMPTY);
+		scope.triggerEventId = JassGameEventsWar3.EVENT_GAME_STATE_LIMIT;
+		scope.eventGameState = state;
+		return scope;
+	}
+
 	public static CommonTriggerExecutionScope triggerDialogScope(final JassGameEventsWar3 triggerEventId,
 			final Trigger trigger, final CScriptDialog clickedDialog, final CScriptDialogButton clickedButton) {
 		final CommonTriggerExecutionScope scope = new CommonTriggerExecutionScope(trigger, TriggerExecutionScope.EMPTY);
 		scope.clickedDialog = clickedDialog;
 		scope.clickedButton = clickedButton;
+		scope.triggerEventId = triggerEventId;
+		return scope;
+	}
+
+	public static CommonTriggerExecutionScope trackableScope(final JassGameEventsWar3 triggerEventId,
+			final Trigger trigger, final CTrackable trackable) {
+		final CommonTriggerExecutionScope scope = new CommonTriggerExecutionScope(trigger, TriggerExecutionScope.EMPTY);
+		scope.triggeringTrackable = trackable;
 		scope.triggerEventId = triggerEventId;
 		return scope;
 	}
@@ -823,11 +858,12 @@ public class CommonTriggerExecutionScope extends TriggerExecutionScope {
 	}
 
 	public static CommonTriggerExecutionScope unitConstructCancelScope(final JassGameEventsWar3 triggerEventId,
-			final Trigger trigger, final CUnit cancelledStructure, final CUnit constructingUnit) {
+			final Trigger trigger, final CUnit cancelledStructure, final CPlayerJass player) {
 		final CommonTriggerExecutionScope scope = new CommonTriggerExecutionScope(trigger, TriggerExecutionScope.EMPTY);
 		scope.triggerWidget = cancelledStructure;
 		scope.triggeringUnit = cancelledStructure;
 		scope.cancelledStructure = cancelledStructure;
+		scope.triggeringPlayer = player;
 		scope.triggerEventId = triggerEventId;
 		return scope;
 	}
@@ -860,12 +896,27 @@ public class CommonTriggerExecutionScope extends TriggerExecutionScope {
 	}
 
 	public static CommonTriggerExecutionScope unitTrainFinishScope(final JassGameEventsWar3 triggerEventId,
-			final Trigger trigger, final CUnit trainingUnit, final CUnit trainedUnit) {
+			final Trigger trigger, final CUnit trainingUnit, final CUnit trainedUnit, final CPlayerJass player) {
 		final CommonTriggerExecutionScope scope = new CommonTriggerExecutionScope(trigger, TriggerExecutionScope.EMPTY);
 		scope.triggerWidget = trainingUnit;
 		scope.triggeringUnit = trainingUnit;
 		scope.trainedUnit = trainedUnit;
 		scope.trainedUnitType = trainedUnit.getUnitType().getTypeId().getValue();
+		scope.triggeringPlayer = player;
+		scope.triggerEventId = triggerEventId;
+		return scope;
+	}
+
+	/**
+	 * Train start and cancel: GetTrainedUnitType is the queued type, GetTrainedUnit stays null.
+	 */
+	public static CommonTriggerExecutionScope unitTrainScope(final JassGameEventsWar3 triggerEventId,
+			final Trigger trigger, final CUnit trainingUnit, final War3ID trainedUnitType, final CPlayerJass player) {
+		final CommonTriggerExecutionScope scope = new CommonTriggerExecutionScope(trigger, TriggerExecutionScope.EMPTY);
+		scope.triggerWidget = trainingUnit;
+		scope.triggeringUnit = trainingUnit;
+		scope.trainedUnitType = trainedUnitType.getValue();
+		scope.triggeringPlayer = player;
 		scope.triggerEventId = triggerEventId;
 		return scope;
 	}
@@ -940,6 +991,17 @@ public class CommonTriggerExecutionScope extends TriggerExecutionScope {
 		scope.triggeringUnit = attackedUnit;
 		scope.triggerWidget = attackedUnit;
 		scope.attacker = attacker;
+		scope.triggerEventId = triggerEventId;
+		scope.triggeringPlayer = player;
+		return scope;
+	}
+
+	public static CommonTriggerExecutionScope unitAcquiredTargetScope(final JassGameEventsWar3 triggerEventId,
+			final Trigger trigger, final CUnit unit, final CUnit target, final CPlayerJass player) {
+		final CommonTriggerExecutionScope scope = new CommonTriggerExecutionScope(trigger, TriggerExecutionScope.EMPTY);
+		scope.triggeringUnit = unit;
+		scope.triggerWidget = unit;
+		scope.eventTargetUnit = target;
 		scope.triggerEventId = triggerEventId;
 		scope.triggeringPlayer = player;
 		return scope;

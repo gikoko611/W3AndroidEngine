@@ -22,8 +22,8 @@ import com.etheller.warsmash.viewer5.handlers.mdx.ReplaceableIds;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CSimulation;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.players.CAllianceType;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.players.CPlayer;
-import com.etheller.warsmash.viewer5.handlers.w3x.simulation.players.CPlayerScore;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.players.CPlayerState;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.players.CPlayerUnitOrderListener;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.trigger.enumtypes.CPlayerSlotState;
 
 /**
@@ -44,6 +44,7 @@ public class MeleeAllianceDialog {
 	private final Viewport uiViewport;
 	private final CSimulation simulation;
 	private final CPlayer localPlayer;
+	private final CPlayerUnitOrderListener commandListener;
 	private final SimpleFrame container;
 	private final UIFrame dialog;
 	private final List<Row> rows = new ArrayList<>();
@@ -51,8 +52,9 @@ public class MeleeAllianceDialog {
 	private final boolean campaign;
 
 	public MeleeAllianceDialog(final GameUI rootFrame, final Viewport uiViewport, final CSimulation simulation,
-			final CPlayer localPlayer, final String mapFileName) {
+			final CPlayer localPlayer, final String mapFileName, final CPlayerUnitOrderListener commandListener) {
 		this.campaign = isCampaignMap(mapFileName);
+		this.commandListener = commandListener;
 		this.rootFrame = rootFrame;
 		this.uiViewport = uiViewport;
 		this.simulation = simulation;
@@ -302,36 +304,29 @@ public class MeleeAllianceDialog {
 		}
 
 		private void apply() {
-			final CPlayer local = MeleeAllianceDialog.this.localPlayer;
+			final CPlayerUnitOrderListener commands = MeleeAllianceDialog.this.commandListener;
 			final int otherIndex = this.other.getId();
 			final boolean allied = this.ally.isChecked();
 			// Only what the player changed is set: a script's partial alliance stays as it is on a plain Accept.
 			if (allied != this.allyShown) {
 				for (final CAllianceType type : ALLY_TYPES) {
-					local.setAlliance(otherIndex, type, allied);
+					commands.setAlliance(otherIndex, type.ordinal(), allied);
 				}
 			}
 			final boolean shareVision = allied && this.vision.isChecked();
 			if (shareVision != this.visionShown) {
-				local.setAlliance(otherIndex, CAllianceType.SHARED_VISION, shareVision);
+				commands.setAlliance(otherIndex, CAllianceType.SHARED_VISION.ordinal(), shareVision);
 			}
 			final boolean shareUnits = allied && this.units.isChecked();
 			if (shareUnits != this.unitsShown) {
-				local.setAlliance(otherIndex, CAllianceType.SHARED_CONTROL, shareUnits);
+				commands.setAlliance(otherIndex, CAllianceType.SHARED_CONTROL.ordinal(), shareUnits);
 				if (MeleeAllianceDialog.this.simulation.isSharedAdvancedControl()) {
-					local.setAlliance(otherIndex, CAllianceType.SHARED_ADVANCED_CONTROL, shareUnits);
+					commands.setAlliance(otherIndex, CAllianceType.SHARED_ADVANCED_CONTROL.ordinal(), shareUnits);
 				}
 			}
-			final int goldToSend = Math.min(this.gold, local.getGold());
-			final int lumberToSend = Math.min(this.lumber, local.getLumber());
-			local.setGold(local.getGold() - goldToSend);
-			this.other.setGold(this.other.getGold() + goldToSend);
-			local.setLumber(local.getLumber() - lumberToSend);
-			this.other.setLumber(this.other.getLumber() + lumberToSend);
-			local.addScore(CPlayerScore.GOLD_GIVEN, goldToSend);
-			local.addScore(CPlayerScore.LUMBER_GIVEN, lumberToSend);
-			this.other.addScore(CPlayerScore.GOLD_RECEIVED, goldToSend);
-			this.other.addScore(CPlayerScore.LUMBER_RECEIVED, lumberToSend);
+			if ((this.gold > 0) || (this.lumber > 0)) {
+				commands.transferResources(otherIndex, this.gold, this.lumber);
+			}
 		}
 	}
 }

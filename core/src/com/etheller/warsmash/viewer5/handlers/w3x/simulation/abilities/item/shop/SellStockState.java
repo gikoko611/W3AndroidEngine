@@ -1,6 +1,7 @@
 package com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.item.shop;
 
 import com.etheller.warsmash.util.WarsmashConstants;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.timers.CTimer;
 
 /**
  * Stock of one item or unit type in a shop: nothing until the start delay (game time) passes, then the initial
@@ -24,8 +25,8 @@ public class SellStockState {
 	public static SellStockState fromData(final int gameTurnTick, final int maxStock,
 			final float replenishIntervalSeconds, final float startDelaySeconds, final int initialStock) {
 		final SellStockState state = new SellStockState(maxStock,
-				(int) (replenishIntervalSeconds / WarsmashConstants.SIMULATION_STEP_TIME), initialStock);
-		state.init(gameTurnTick, (int) (startDelaySeconds / WarsmashConstants.SIMULATION_STEP_TIME));
+				CTimer.wholeSteps(replenishIntervalSeconds), initialStock);
+		state.init(gameTurnTick, CTimer.wholeSteps(startDelaySeconds));
 		return state;
 	}
 

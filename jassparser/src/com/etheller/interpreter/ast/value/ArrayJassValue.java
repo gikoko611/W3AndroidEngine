@@ -2,32 +2,37 @@ package com.etheller.interpreter.ast.value;
 
 import java.util.Arrays;
 
-import com.etheller.interpreter.ast.debug.JassException;
 import com.etheller.interpreter.ast.scope.GlobalScope;
+import com.etheller.interpreter.ast.util.HandleReferences;
 import com.etheller.interpreter.ast.util.JassSettings;
 import com.etheller.interpreter.ast.value.visitor.JassTypeGettingValueVisitor;
 
+/**
+ * A JASS array. As in the original game, an index outside 0 to {@link JassSettings#MAX_ARRAY_SIZE} - 1 is not an
+ * error: a write there is dropped and a read gives the element type's default. The storage grows with the highest
+ * index written, so the many arrays a map declares cost only what they hold.
+ */
 public class ArrayJassValue implements JassValue {
-	private final JassValue[] data = new JassValue[JassSettings.MAX_ARRAY_SIZE];
+	private static final JassValue[] EMPTY = new JassValue[0];
+	private JassValue[] data = EMPTY;
 	private final ArrayJassType type;
 
 	public ArrayJassValue(final ArrayJassType type) {
 		this.type = type;
-		final JassType primitiveType = this.type.getPrimitiveType();
+	}
 
-		// Some default values for primitives... in general seems like the user script
-		// should already do this, so maybe we could take it out for performance later,
-		// but at the moment it's only a cost when we create a new array (local array)
-		// which is rare. Anyway, preallocating arrays to size 8192 is very stupid.
+	private JassValue defaultValue() {
+		final JassType primitiveType = this.type.getPrimitiveType();
 		if (primitiveType == JassType.INTEGER) {
-			Arrays.fill(this.data, IntegerJassValue.ZERO);
+			return IntegerJassValue.ZERO;
 		}
-		else if (primitiveType == JassType.REAL) {
-			Arrays.fill(this.data, RealJassValue.ZERO);
+		if (primitiveType == JassType.REAL) {
+			return RealJassValue.ZERO;
 		}
-		else if (primitiveType == JassType.BOOLEAN) {
-			Arrays.fill(this.data, BooleanJassValue.FALSE);
+		if (primitiveType == JassType.BOOLEAN) {
+			return BooleanJassValue.FALSE;
 		}
+		return null;
 	}
 
 	@Override
@@ -51,15 +56,35 @@ public class ArrayJassValue implements JassValue {
 			throw new IllegalStateException("Illegal type for assignment to " + primitiveType.getName() + " array: "
 					+ (valueType == null ? "null" : valueType.getName()));
 		}
-		if (index >= this.data.length) {
-			throw new JassException(globalScope, "Max jass array size exceeded",
-					new ArrayIndexOutOfBoundsException(index));
+		if ((index < 0) || (index >= JassSettings.MAX_ARRAY_SIZE)) {
+			return;
 		}
+		if (index >= this.data.length) {
+			final int oldLength = this.data.length;
+			int newLength = Math.max(16, oldLength);
+			while (newLength <= index) {
+				newLength *= 2;
+			}
+			this.data = Arrays.copyOf(this.data, Math.min(newLength, JassSettings.MAX_ARRAY_SIZE));
+			final JassValue defaultValue = defaultValue();
+			if (defaultValue != null) {
+				Arrays.fill(this.data, oldLength, this.data.length, defaultValue);
+			}
+		}
+		HandleReferences.replace(this.data[index], value);
 		this.data[index] = value;
 	}
 
 	public JassValue get(final int index) {
+		if ((index < 0) || (index >= this.data.length)) {
+			return defaultValue();
+		}
 		return this.data[index];
+	}
+
+	/** The elements stored so far; the ones past it read as the element type's default. */
+	public int storedLength() {
+		return this.data.length;
 	}
 
 	public ArrayJassType getType() {

@@ -1,12 +1,12 @@
 package com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.skills.undead.units;
 
 import com.etheller.warsmash.util.War3ID;
-import com.etheller.warsmash.util.WarsmashConstants;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CSimulation;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CUnit;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.skills.util.CBuffTimed;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilitybuilder.buff.CPausedTickingBuff;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.players.CPlayer;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.timers.CTimer;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.util.ResourceType;
 
 /**
@@ -14,7 +14,7 @@ import com.etheller.warsmash.viewer5.handlers.w3x.simulation.util.ResourceType;
  * its cost, then vanishes.
  */
 public class CBuffUnsummoning extends CBuffTimed implements CPausedTickingBuff {
-	private static final int TICKS_PER_SECOND = (int) (1.0f / WarsmashConstants.SIMULATION_STEP_TIME);
+	private static final int TICKS_PER_SECOND = CTimer.wholeSteps(1.0f);
 
 	private final float salvageCostRatio;
 	private final float lifePerSecond;

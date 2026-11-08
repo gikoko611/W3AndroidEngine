@@ -14,7 +14,6 @@ import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CDestructableType;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CSimulation;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.HandleIdAllocator;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.combat.CTargetType;
-import com.etheller.warsmash.viewer5.handlers.w3x.simulation.util.SimulationRenderController;
 
 public class CDestructableData {
 	private static final String NAME = "Name"; // replaced from 'bnam'
@@ -28,21 +27,23 @@ public class CDestructableData {
 	private static final String LUMBER_REPAIR = "lumberRep"; // replaced from 'brel'
 
 	private static final String OCCLUSION_HEIGHT = "occH";
+	private static final String PATHING_TEXTURE = "pathTex"; // replaced from 'bptx'
+	private static final String PATHING_TEXTURE_DEATH = "pathTexDeath"; // replaced from 'bptd'
 
 	private final ObjectData unitData;
 	private final Map<War3ID, CDestructableType> unitIdToUnitType = new HashMap<>();
-	private final SimulationRenderController simulationRenderController;
+	private final CPathingTextures pathingTextures;
 
-	public CDestructableData(final ObjectData unitData, final SimulationRenderController simulationRenderController) {
+	public CDestructableData(final ObjectData unitData, final CPathingTextures pathingTextures) {
 		this.unitData = unitData;
-		this.simulationRenderController = simulationRenderController;
+		this.pathingTextures = pathingTextures;
 	}
 
 	public CDestructable create(final CSimulation simulation, final War3ID typeId, final float x, final float y,
 			final HandleIdAllocator handleIdAllocator, final RemovablePathingMapInstance pathingInstance,
 			final RemovablePathingMapInstance pathingInstanceDeath) {
 		final GameObject unitType = this.unitData.get(typeId);
-		final int handleId = handleIdAllocator.createId();
+		final int handleId = handleIdAllocator.createHandleId();
 
 		final CDestructableType unitTypeInstance = getUnitTypeInstance(typeId, unitType);
 
@@ -56,10 +57,10 @@ public class CDestructableData {
 	private CDestructableType getUnitTypeInstance(final War3ID typeId, final GameObject unitType) {
 		CDestructableType unitTypeInstance = this.unitIdToUnitType.get(typeId);
 		if (unitTypeInstance == null) {
-			final ArgbImage buildingPathingPixelMap = this.simulationRenderController
-					.getDestructablePathingPixelMap(typeId);
-			final ArgbImage buildingPathingDeathPixelMap = this.simulationRenderController
-					.getDestructablePathingDeathPixelMap(typeId);
+			final ArgbImage buildingPathingPixelMap = this.pathingTextures
+					.get(unitType.getFieldAsString(PATHING_TEXTURE, 0));
+			final ArgbImage buildingPathingDeathPixelMap = this.pathingTextures
+					.get(unitType.getFieldAsString(PATHING_TEXTURE_DEATH, 0));
 			final String name = unitType.getFieldAsString(NAME, 0);
 			final float life = unitType.getFieldAsFloat(HIT_POINT_MAXIMUM, 0);
 			final EnumSet<CTargetType> targetedAs = CTargetType

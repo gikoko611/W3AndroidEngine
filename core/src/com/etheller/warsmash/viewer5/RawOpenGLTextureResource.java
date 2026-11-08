@@ -9,6 +9,7 @@ import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.GL30;
 import com.etheller.warsmash.util.ArgbImage;
 import com.etheller.warsmash.viewer5.handlers.ResourceHandler;
+import com.etheller.warsmash.viewer5.handlers.blp.MipLevels;
 
 /**
  * Similar to GdxTextureResource, but now I'm probably replacing use of that one
@@ -32,6 +33,7 @@ public abstract class RawOpenGLTextureResource extends Texture {
 	private final int magFilter = GL20.GL_LINEAR;
 	private final int minFilter = GL20.GL_LINEAR;
 	private ByteBuffer data;
+	private long uploadedBytes;
 
 	public RawOpenGLTextureResource(final ModelViewer viewer, final String extension, final PathSolver pathSolver,
 			final String fetchUrl, final ResourceHandler handler) {
@@ -47,6 +49,8 @@ public abstract class RawOpenGLTextureResource extends Texture {
 	@Override
 	public void dispose() {
 		this.viewer.gl.glDeleteTexture(this.handle);
+		this.viewer.addTextureBytes(-this.uploadedBytes);
+		this.uploadedBytes = 0;
 	}
 
 	@Override
@@ -165,10 +169,42 @@ public abstract class RawOpenGLTextureResource extends Texture {
 //		else {
 		gl.glTexImage2D(GL20.GL_TEXTURE_2D, 0, sRGBFix ? GL30.GL_SRGB8_ALPHA8 : GL30.GL_RGBA8, imageWidth, imageHeight,
 				0, GL20.GL_RGBA, GL20.GL_UNSIGNED_BYTE, buffer);
+		gl.glTexParameteri(GL20.GL_TEXTURE_2D, GL30.GL_TEXTURE_MAX_LEVEL, 0);
+		gl.glTexParameteri(GL20.GL_TEXTURE_2D, GL20.GL_TEXTURE_MIN_FILTER, this.minFilter);
 
 		this.width = imageWidth;
 		this.height = imageHeight;
+		countUpload((long) imageWidth * imageHeight * BYTES_PER_PIXEL);
 //		}
+	}
+
+	/**
+	 * Uploads decoded mip levels, the largest first. The game's textures carry their own smaller levels, which are used
+	 * as they are; a chain that stops before one pixel ends the texture's levels there.
+	 */
+	public void update(final MipLevels levels, final boolean sRGBFix) {
+		if (levels.count() <= 1) {
+			update(levels.getWidth(0), levels.getHeight(0), levels.getRgba(0), sRGBFix);
+			return;
+		}
+		final GL20 gl = this.viewer.gl;
+		this.data = keepsPixels() ? levels.getRgba(0) : null;
+		gl.glBindTexture(GL20.GL_TEXTURE_2D, this.handle);
+		for (int level = 0; level < levels.count(); level++) {
+			gl.glTexImage2D(GL20.GL_TEXTURE_2D, level, sRGBFix ? GL30.GL_SRGB8_ALPHA8 : GL30.GL_RGBA8,
+					levels.getWidth(level), levels.getHeight(level), 0, GL20.GL_RGBA, GL20.GL_UNSIGNED_BYTE,
+					levels.getRgba(level));
+		}
+		gl.glTexParameteri(GL20.GL_TEXTURE_2D, GL30.GL_TEXTURE_MAX_LEVEL, levels.count() - 1);
+		gl.glTexParameteri(GL20.GL_TEXTURE_2D, GL20.GL_TEXTURE_MIN_FILTER, GL20.GL_LINEAR_MIPMAP_LINEAR);
+		this.width = levels.getWidth(0);
+		this.height = levels.getHeight(0);
+		countUpload(levels.byteCount());
+	}
+
+	private void countUpload(final long bytes) {
+		this.viewer.addTextureBytes(bytes - this.uploadedBytes);
+		this.uploadedBytes = bytes;
 	}
 
 	/**

@@ -9,6 +9,7 @@ import com.etheller.warsmash.util.WarsmashConstants;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CItemType;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CSimulation;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CUnit;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.timers.CTimer;
 
 public class MultiStockDelayProcessor {
 	private final Map<War3ID, StockInfo> rawcodeToStockInfo = new HashMap<>();
@@ -65,7 +66,7 @@ public class MultiStockDelayProcessor {
 				}
 				else {
 					stockInfo.setDelay(gameTurnTick,
-							gameTurnTick + (int) StrictMath.ceil(startDelay / WarsmashConstants.SIMULATION_STEP_TIME));
+							gameTurnTick + CTimer.ceilSteps(startDelay));
 				}
 			}
 		}

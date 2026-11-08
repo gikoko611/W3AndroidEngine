@@ -26,7 +26,7 @@ public class ArrayAssignmentInstruction implements JassInstruction {
 		final ArrayJassValue arrayValue = array.visit(ArrayJassValueVisitor.getInstance());
 		if (arrayValue != null) {
 			final Integer indexInt = index.visit(IntegerJassValueVisitor.getInstance());
-			if ((indexInt != null) && (indexInt >= 0)) {
+			if (indexInt != null) {
 				arrayValue.set(thread.globalScope, indexInt, value);
 			}
 			else {
@@ -40,4 +40,8 @@ public class ArrayAssignmentInstruction implements JassInstruction {
 
 	}
 
+	@Override
+	public int opCost() {
+		return 2;
+	}
 }

@@ -7,6 +7,7 @@ import com.badlogic.gdx.utils.viewport.Viewport;
 import com.etheller.interpreter.ast.scope.GlobalScope;
 import com.etheller.interpreter.ast.scope.trigger.RemovableTriggerEvent;
 import com.etheller.interpreter.ast.scope.trigger.Trigger;
+import com.etheller.interpreter.ast.util.AllocatedHandle;
 import com.etheller.warsmash.parsers.fdf.GameUI;
 import com.etheller.warsmash.parsers.fdf.datamodel.FramePoint;
 import com.etheller.warsmash.parsers.fdf.frames.GlueTextButtonFrame;
@@ -16,9 +17,7 @@ import com.etheller.warsmash.parsers.fdf.frames.UIFrame;
 import com.etheller.warsmash.parsers.jass.scope.CommonTriggerExecutionScope;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.trigger.JassGameEventsWar3;
 
-public class CScriptDialog {
-	private static int lastShown;
-
+public class CScriptDialog extends AllocatedHandle {
 	private final GlobalScope globalScope;
 	private SimpleFrame scriptDialogFrame;
 	private StringFrame scriptDialogTextFrame;
@@ -81,10 +80,12 @@ public class CScriptDialog {
 		return this.shownOrder;
 	}
 
+	/** Which dialog was shown last: the larger, the later. */
+	public void setShownOrder(final int shownOrder) {
+		this.shownOrder = shownOrder;
+	}
+
 	public void setVisible(final boolean flag) {
-		if (flag && !this.visible) {
-			this.shownOrder = ++lastShown;
-		}
 		this.visible = flag;
 		if (this.scriptDialogFrame != null) {
 			this.scriptDialogFrame.setVisible(flag);
@@ -111,7 +112,7 @@ public class CScriptDialog {
 	}
 
 	public void addButton(final GameUI rootFrame, final Viewport uiViewport,
-			final CScriptDialogButton scriptDialogButton) {
+			final CScriptDialogButton scriptDialogButton, final Runnable onPress) {
 		this.buttons.add(scriptDialogButton);
 		final GlueTextButtonFrame buttonFrame = scriptDialogButton.getButtonFrame();
 		this.scriptDialogFrame.add(buttonFrame);
@@ -121,7 +122,7 @@ public class CScriptDialog {
 				.setHeight(((this.scriptDialogFrame.getAssignedHeight() + (buttonFrame.getFramePointY(FramePoint.TOP)))
 						- buttonFrame.getFramePointY(FramePoint.BOTTOM)) * 1.5f);
 		this.scriptDialogFrame.positionBounds(rootFrame, uiViewport);
-		scriptDialogButton.setupEvents(this);
+		scriptDialogButton.setupEvents(onPress);
 	}
 
 	public GlobalScope getGlobalScope() {

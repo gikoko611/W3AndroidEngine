@@ -6,6 +6,7 @@ import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CSimulation;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CUnit;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CWidget;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.skills.CAbilityTargetSpellBase;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.skills.neutral.creeps.CCreepCastAbility;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.targeting.AbilityTarget;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.targeting.AbilityTargetVisitor;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.types.definitions.impl.AbilityFields;
@@ -17,19 +18,26 @@ import com.etheller.warsmash.viewer5.handlers.w3x.simulation.util.AbilityTargetC
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.util.CommandStringErrorKeys;
 
 /**
- * Devour: swallows a land unit into the caster's Cargo Hold (Devour), one at a time.
+ * Devour (also the creep version, which answers its own order): swallows a land unit into the caster's Cargo Hold
+ * (Devour), one at a time.
  */
-public class CAbilityDevour extends CAbilityTargetSpellBase {
+public class CAbilityDevour extends CAbilityTargetSpellBase implements CCreepCastAbility {
 	private int maximumCreepLevel;
 	private War3ID digestingBuffId;
+	private final int orderId;
 
 	public CAbilityDevour(final int handleId, final War3ID alias) {
+		this(handleId, alias, OrderIds.devour);
+	}
+
+	public CAbilityDevour(final int handleId, final War3ID alias, final int orderId) {
 		super(handleId, alias);
+		this.orderId = orderId;
 	}
 
 	@Override
 	public int getBaseOrderId() {
-		return OrderIds.devour;
+		return this.orderId;
 	}
 
 	@Override
@@ -75,6 +83,22 @@ public class CAbilityDevour extends CAbilityTargetSpellBase {
 			cargo.devour(simulation, caster, targetUnit, this.digestingBuffId);
 		}
 		return false;
+	}
+
+	/**
+	 * Measured on 1.29 (Dragon Turtle): the creep devours the unit it attacks once that unit is within its attack
+	 * range and the spell's reach, not while they close in.
+	 */
+	@Override
+	public boolean tryCreepCast(final CSimulation game, final CUnit creep, final CUnit attackTarget,
+			final boolean inAttackRange) {
+		if ((getCooldownRemaining(game, creep) > 0) || (creep.getMana() < getManaCost())) {
+			return false;
+		}
+		if ((this.orderId != OrderIds.creepdevour) || !inAttackRange || !creep.canReach(attackTarget, getCastRange())) {
+			return false;
+		}
+		return creep.order(game, this.orderId, attackTarget, true);
 	}
 
 	@Override

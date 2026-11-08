@@ -18,16 +18,21 @@ public class DynamicShadowManager {
 	private final Matrix4 depthMVP = new Matrix4();
 	private final Matrix4 biasMatrix = new Matrix4();
 	private final Matrix4 depthBiasMVP = new Matrix4();
+	/** The GL of the context the shadow map was made in, which leaves deletes alone once that context is lost. */
+	private GL30 gl;
 
 	public void dispose() {
-		Gdx.gl30.glDeleteFramebuffer(this.framebufferName);
-		Gdx.gl30.glDeleteTexture(this.depthTexture);
+		if (this.gl != null) {
+			this.gl.glDeleteFramebuffer(this.framebufferName);
+			this.gl.glDeleteTexture(this.depthTexture);
+		}
 	}
 
 	public boolean setup(final WebGL webGL) {
 		// The framebuffer, which regroups 0, 1, or more textures, and 0 or 1 depth
 		// buffer.
 		final GL30 gl = Gdx.gl30;
+		this.gl = gl;
 		this.framebufferName = 0;
 		this.framebufferName = gl.glGenFramebuffer();
 		gl.glBindFramebuffer(GL30.GL_FRAMEBUFFER, this.framebufferName);

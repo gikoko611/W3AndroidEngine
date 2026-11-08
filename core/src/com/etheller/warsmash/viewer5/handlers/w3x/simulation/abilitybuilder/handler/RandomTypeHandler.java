@@ -9,26 +9,18 @@ import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CSimulation;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CUnitType;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.data.CUnitRace;
 
+/**
+ * The types random choices pick from, built from one game's data and tileset on first use. Each game has its own
+ * ({@link CSimulation#getRandomTypes()}).
+ */
 public class RandomTypeHandler {
-	private static List<CUnitType> landCritters = null;
-	private static List<CUnitType> airCritters = null;
-	private static List<CUnitType> seaCritters = null;
+	private List<CUnitType> landCritters = null;
+	private List<CUnitType> airCritters = null;
+	private List<CUnitType> seaCritters = null;
 
-	private static List<CItemType> randomItems = null;
-	// The lists hold one game's types (its tileset, its map's data); another game in the same process loads its own.
-	private static CSimulation critterGame = null;
-	private static CSimulation itemGame = null;
+	private List<CItemType> randomItems = null;
 
-	public static void releaseStaticReferences() {
-		landCritters = null;
-		airCritters = null;
-		seaCritters = null;
-		randomItems = null;
-		critterGame = null;
-		itemGame = null;
-	}
-
-	private static void loadCritterLists(CSimulation game) {
+	private void loadCritterLists(CSimulation game) {
 		landCritters = new ArrayList<>();
 		airCritters = new ArrayList<>();
 		seaCritters = new ArrayList<>();
@@ -62,7 +54,7 @@ public class RandomTypeHandler {
 		}
 	}
 
-	private static void loadItemLists(CSimulation game) {
+	private void loadItemLists(CSimulation game) {
 		randomItems = new ArrayList<>();
 		Collection<CItemType> types = game.getItemData().getAllItemTypes();
 
@@ -73,9 +65,8 @@ public class RandomTypeHandler {
 		}
 	}
 
-	public static CUnitType getRandomMechanicalCritterType(CSimulation game) {
-		if ((landCritters == null) || (critterGame != game)) {
-			critterGame = game;
+	public CUnitType getRandomMechanicalCritterType(CSimulation game) {
+		if (landCritters == null) {
 			loadCritterLists(game);
 		}
 		if (landCritters.size() > 0 || seaCritters.size() > 0) {
@@ -92,9 +83,8 @@ public class RandomTypeHandler {
 		return null;
 	}
 
-	public static CItemType getRandomItemType(CSimulation game) {
-		if ((randomItems == null) || (itemGame != game)) {
-			itemGame = game;
+	public CItemType getRandomItemType(CSimulation game) {
+		if (randomItems == null) {
 			loadItemLists(game);
 		}
 		int i = game.getSeededRandom().nextInt(randomItems.size());

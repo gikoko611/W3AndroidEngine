@@ -2,7 +2,6 @@ package com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.skills.u
 
 import com.etheller.warsmash.units.GameObject;
 import com.etheller.warsmash.util.War3ID;
-import com.etheller.warsmash.util.WarsmashConstants;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CSimulation;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CUnit;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.harvest.CAbilityWispHarvest;
@@ -11,10 +10,13 @@ import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.targeting
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.types.definitions.impl.AbilityFields;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.combat.CAttackType;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.orders.OrderIds;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.timers.CTimer;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.trigger.enumtypes.CDamageType;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.trigger.enumtypes.CEffectType;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.trigger.enumtypes.CWeaponSoundTypeJass;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.util.SimulationRenderComponentModel;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CWidget;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.util.BooleanAbilityTargetCheckReceiver;
 
 /**
  * Death and Decay: while channeled, every second each unit in the area, of any owner, loses a share of its maximum
@@ -23,6 +25,8 @@ import com.etheller.warsmash.viewer5.handlers.w3x.simulation.util.SimulationRend
 public class CAbilityDeathAndDecay extends CAbilityPointTargetSpellBase {
 	private float maxLifeFractionPerSecond;
 	private static final float INTERVAL = 1f;
+	// Measured on 1.29: the first pulse comes this long after the effect, so the last one falls before the end.
+	private static final float FIRST_PULSE_DELAY = 0.3125f;
 
 	private float buildingFactor;
 	private float areaOfEffect;
@@ -50,7 +54,7 @@ public class CAbilityDeathAndDecay extends CAbilityPointTargetSpellBase {
 	public boolean doEffect(final CSimulation simulation, final CUnit caster, final AbilityTarget target) {
 		final int tick = simulation.getGameTurnTick();
 		this.channelEndTick = tick + ticks(getDuration());
-		this.nextPulseTick = tick;
+		this.nextPulseTick = tick + ticks(FIRST_PULSE_DELAY);
 		this.areaEffect = simulation.spawnSpellEffectOnPoint(target.getX(), target.getY(), 0, getAlias(),
 				CEffectType.EFFECT, 0);
 		simulation.createTemporarySpellEffectOnUnit(caster, getAlias(), CEffectType.CASTER);
@@ -60,11 +64,12 @@ public class CAbilityDeathAndDecay extends CAbilityPointTargetSpellBase {
 	@Override
 	public boolean doChannelTick(final CSimulation simulation, final CUnit caster, final AbilityTarget target) {
 		final int tick = simulation.getGameTurnTick();
-		if (tick >= this.nextPulseTick) {
+		if ((tick >= this.nextPulseTick) && (tick < this.channelEndTick)) {
 			this.nextPulseTick = tick + ticks(INTERVAL);
 			simulation.getWorldCollision().enumUnitsInRange(target.getX(), target.getY(), this.areaOfEffect,
 					(enumUnit) -> {
-						if (enumUnit.canBeTargetedBy(simulation, caster, getTargetsAllowed())) {
+						if (enumUnit.canBeTargetedBy(simulation, caster, false, getTargetsAllowed(),
+								BooleanAbilityTargetCheckReceiver.<CWidget>getInstance().reset())) {
 							enumUnit.damage(simulation, caster, DAMAGE_FLAGS, CAttackType.SPELLS,
 									CDamageType.UNIVERSAL, CWeaponSoundTypeJass.WHOKNOWS.name(),
 									enumUnit.getMaximumLife() * this.maxLifeFractionPerSecond * INTERVAL
@@ -93,6 +98,6 @@ public class CAbilityDeathAndDecay extends CAbilityPointTargetSpellBase {
 	}
 
 	private static int ticks(final float seconds) {
-		return (int) StrictMath.ceil(seconds / WarsmashConstants.SIMULATION_STEP_TIME);
+		return CTimer.ceilSteps(seconds);
 	}
 }

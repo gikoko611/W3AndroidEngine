@@ -24,14 +24,20 @@ public class CAbilityThunderBolt extends CAbilityTargetSpellBase {
 	private float projectileSpeed;
 	private boolean projectileHomingEnabled;
 	private War3ID buffId;
+	private final int orderId;
 
 	public CAbilityThunderBolt(final int handleId, final War3ID alias) {
+		this(handleId, alias, OrderIds.thunderbolt);
+	}
+
+	public CAbilityThunderBolt(final int handleId, final War3ID alias, final int orderId) {
 		super(handleId, alias);
+		this.orderId = orderId;
 	}
 
 	@Override
 	public int getBaseOrderId() {
-		return OrderIds.thunderbolt;
+		return this.orderId;
 	}
 
 	@Override
@@ -46,7 +52,7 @@ public class CAbilityThunderBolt extends CAbilityTargetSpellBase {
 	public boolean doEffect(final CSimulation simulation, final CUnit caster, final AbilityTarget target) {
 		final CUnit targetUnit = target.visit(AbilityTargetVisitor.UNIT);
 		if (targetUnit != null) {
-			simulation.createProjectile(targetUnit, getAlias(), caster.getX(), caster.getY(),
+			simulation.createProjectile(caster, getAlias(), caster.getX(), caster.getY(),
 					(float) caster.angleTo(targetUnit), projectileSpeed, projectileHomingEnabled, targetUnit,
 					new CAbilityProjectileListener() {
 						@Override

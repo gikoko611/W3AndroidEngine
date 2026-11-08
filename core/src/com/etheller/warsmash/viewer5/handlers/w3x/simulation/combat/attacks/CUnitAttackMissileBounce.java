@@ -143,7 +143,7 @@ public class CUnitAttackMissileBounce extends CUnitAttackMissile {
 				}
 				final float dx = enumUnit.getX() - this.x;
 				final float dy = enumUnit.getY() - this.y;
-				final float angle = (float) Math.atan2(dy, dx);
+				final float angle = (float) StrictMath.atan2(dy, dx);
 				this.simulation.createProjectile(this.source, this.x, this.y, angle, this.attack, enumUnit,
 						this.damage * (1.0f - this.attack.damageLossFactor), this.bounceIndex, this.attackListener, this.settings);
 				this.launched = true;

@@ -6,7 +6,6 @@ import java.util.List;
 
 import com.etheller.warsmash.units.GameObject;
 import com.etheller.warsmash.util.War3ID;
-import com.etheller.warsmash.util.WarsmashConstants;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CSimulation;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CUnit;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.CAbility;
@@ -19,6 +18,7 @@ import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.types.def
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.types.definitions.impl.AbstractCAbilityTypeDefinition;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.combat.projectile.CAbilityProjectileListener;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.orders.OrderIds;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.timers.CTimer;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.trigger.enumtypes.CEffectType;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.unit.StateModBuff;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.unit.StateModBuffType;
@@ -77,13 +77,13 @@ public class CAbilityMirrorImage extends CAbilityNoTargetSpellBase {
 		this.arrivalTicks.clear();
 		final int count = this.numberOfImages + 1;
 		final double centreAngle = simulation.getSeededRandom().nextDouble() * 2 * Math.PI;
-		final double centreX = caster.getX() + (Math.cos(centreAngle) * CENTRE_OFFSET);
-		final double centreY = caster.getY() + (Math.sin(centreAngle) * CENTRE_OFFSET);
+		final double centreX = caster.getX() + (StrictMath.cos(centreAngle) * CENTRE_OFFSET);
+		final double centreY = caster.getY() + (StrictMath.sin(centreAngle) * CENTRE_OFFSET);
 		final double startAngle = simulation.getSeededRandom().nextDouble() * 2 * Math.PI;
 		for (int i = 0; i < count; i++) {
 			final double angle = startAngle + ((2 * Math.PI * i) / count);
-			this.spots.add(new AbilityPointTarget((float) (centreX + (Math.cos(angle) * SPREAD)),
-					(float) (centreY + (Math.sin(angle) * SPREAD))));
+			this.spots.add(new AbilityPointTarget((float) (centreX + (StrictMath.cos(angle) * SPREAD)),
+					(float) (centreY + (StrictMath.sin(angle) * SPREAD))));
 		}
 		Collections.shuffle(this.spots, simulation.getSeededRandom());
 		simulation.createTemporarySpellEffectOnUnit(caster, getAlias(), CEffectType.SPECIAL);
@@ -91,7 +91,7 @@ public class CAbilityMirrorImage extends CAbilityNoTargetSpellBase {
 		caster.addStateModBuff(HIDDEN_INVULNERABLE);
 		caster.computeUnitState(simulation, StateModBuffType.INVULNERABLE);
 		this.appearTick = simulation.getGameTurnTick()
-				+ (int) StrictMath.ceil(this.animationDelay / WarsmashConstants.SIMULATION_STEP_TIME);
+				+ CTimer.ceilSteps(this.animationDelay);
 		return true;
 	}
 
@@ -109,9 +109,9 @@ public class CAbilityMirrorImage extends CAbilityNoTargetSpellBase {
 						simulation);
 				final AbilityPointTarget spot = new AbilityPointTarget(free[0], free[1]);
 				this.spots.set(i, spot);
-				final float distance = (float) Math.hypot(spot.getX() - caster.getX(), spot.getY() - caster.getY());
+				final float distance = (float) StrictMath.hypot(spot.getX() - caster.getX(), spot.getY() - caster.getY());
 				this.arrivalTicks.add(tick
-						+ (int) StrictMath.ceil(distance / speed / WarsmashConstants.SIMULATION_STEP_TIME));
+						+ CTimer.ceilSteps(distance / speed));
 				simulation.createProjectile(caster, getAlias(), caster.getX(), caster.getY(), caster.getFacing(),
 						speed, false, spot, CAbilityProjectileListener.DO_NOTHING);
 			}

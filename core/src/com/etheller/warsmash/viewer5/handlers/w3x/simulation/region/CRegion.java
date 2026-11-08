@@ -5,8 +5,9 @@ import java.util.List;
 
 import com.badlogic.gdx.math.Rectangle;
 import com.etheller.interpreter.ast.scope.trigger.RemovableTriggerEvent;
+import com.etheller.interpreter.ast.util.AllocatedHandle;
 
-public class CRegion {
+public class CRegion extends AllocatedHandle {
 	private Rectangle currentBounds;
 	private boolean complexRegion;
 	private final List<CRegionTriggerEnter> enterTriggers = new ArrayList<>();

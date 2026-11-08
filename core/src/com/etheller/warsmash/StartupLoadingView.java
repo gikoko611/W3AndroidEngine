@@ -9,11 +9,13 @@ import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer.ShapeType;
 import com.etheller.warsmash.datasources.DataSource;
 import com.etheller.warsmash.util.ImageUtils;
+import com.etheller.warsmash.viewer5.handlers.w3x.ui.ReforgedLoadingBar;
 
 /**
  * Drawn while the menu is being built when no map is started right after it, so startup is not a black screen without
  * progress. Until the game data is open only a plain bar is available; after that the load bar textures of the game
- * itself are used. There is no backdrop: the original shows no picture before its menu or a loading screen.
+ * itself are used, those of the Reforged loading screens with that skin. There is no backdrop: the original shows no
+ * picture before its menu or a loading screen.
  */
 final class StartupLoadingView {
 	private static final String BAR = "UI\\Glues\\Loading\\LoadBar\\Loading-Bar";
@@ -33,8 +35,16 @@ final class StartupLoadingView {
 	private Texture barFill;
 	private Texture barGlass;
 	private Texture barBorder;
+	private ReforgedLoadingBar reforgedBar;
 
-	void loadGameTextures(final DataSource dataSource) {
+	/** @param reforged whether the loading screens have the Reforged skin */
+	void loadGameTextures(final DataSource dataSource, final boolean reforged) {
+		if (reforged) {
+			this.reforgedBar = ReforgedLoadingBar.load(dataSource);
+			if (this.reforgedBar != null) {
+				return;
+			}
+		}
 		this.barBackground = loadEither(dataSource, MODEL_TEXTURES + "Background.blp", BAR + "Background.blp");
 		this.barFill = load(dataSource, BAR + "Fill.blp");
 		this.barGlass = loadEither(dataSource, MODEL_TEXTURES + "Glass.blp", BAR + "Glass.blp");
@@ -72,12 +82,23 @@ final class StartupLoadingView {
 			return;
 		}
 
+		final float clamped = Math.max(0, Math.min(1, progress));
+		if (this.reforgedBar != null) {
+			// Where the Reforged campaign loading screen has its bar: 80 above the bottom, centred.
+			final float s = Math.min(height / ReforgedLoadingBar.DESIGN_HEIGHT,
+					width / (ReforgedLoadingBar.WIDTH * 1.1f));
+			this.batch.begin();
+			this.batch.setColor(Color.WHITE);
+			this.reforgedBar.draw(this.batch, (width - (ReforgedLoadingBar.WIDTH * s)) / 2, 80 * s, s, clamped);
+			this.batch.end();
+			return;
+		}
+
 		final float fourThirdsWidth = Math.min(width, (height * 4f) / 3f);
 		final float barWidth = fourThirdsWidth * BAR_WIDTH_OF_4_3;
 		final float barHeight = barWidth / BAR_ASPECT;
 		final float barX = (width - barWidth) / 2;
 		final float barY = height * BAR_BOTTOM_OF_HEIGHT;
-		final float clamped = Math.max(0, Math.min(1, progress));
 
 		this.batch.begin();
 		this.batch.setColor(Color.WHITE);
@@ -128,6 +149,9 @@ final class StartupLoadingView {
 			if (texture != null) {
 				texture.dispose();
 			}
+		}
+		if (this.reforgedBar != null) {
+			this.reforgedBar.dispose();
 		}
 	}
 }

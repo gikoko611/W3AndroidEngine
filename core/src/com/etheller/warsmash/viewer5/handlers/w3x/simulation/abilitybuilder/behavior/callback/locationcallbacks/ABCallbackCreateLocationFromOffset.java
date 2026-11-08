@@ -25,9 +25,9 @@ public class ABCallbackCreateLocationFromOffset extends ABLocationCallback {
 		final float a = this.angle.callback(game, caster, localStore, castId);
 		
 		if (angleInDegrees != null && angleInDegrees.callback(game, caster, localStore, castId)) {
-			return new AbilityPointTarget((float) (orig.x + (d * Math.cos(Math.toRadians(a)))), (float) (orig.y + (d * Math.sin(Math.toRadians(a)))));
+			return new AbilityPointTarget((float) (orig.x + (d * StrictMath.cos(StrictMath.toRadians(a)))), (float) (orig.y + (d * StrictMath.sin(StrictMath.toRadians(a)))));
 		}
-		return new AbilityPointTarget((float) (orig.x + (d * Math.cos(a))), (float) (orig.y + (d * Math.sin(a))));
+		return new AbilityPointTarget((float) (orig.x + (d * StrictMath.cos(a))), (float) (orig.y + (d * StrictMath.sin(a))));
 	}
 
 	@Override

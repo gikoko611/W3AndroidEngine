@@ -17,12 +17,13 @@ public class CAbilityTypeDefinitionCargoHold extends AbstractCAbilityTypeDefinit
 		final int cargoCapacity = abilityEditorData.getFieldAsInteger(DATA_A + level, 0);
 		final float castRange = abilityEditorData.getFieldAsFloat(CAST_RANGE + level, 0);
 		final float duration = abilityEditorData.getFieldAsFloat(DURATION + level, 0);
+		final float area = abilityEditorData.getFieldAsFloat(AREA_OF_EFFECT + level, 0);
 
 //		final int goldCost = abilityEditorData.getFieldAsInteger(GOLD_COST, level);
 //		final int lumberCost = abilityEditorData.getFieldAsInteger(LUMBER_COST, level);
 
 		return new CAbilityTypeCargoHoldLevelData(getTargetsAllowed(abilityEditorData, level), cargoCapacity, duration,
-				castRange);
+				castRange, area);
 	}
 
 	@Override

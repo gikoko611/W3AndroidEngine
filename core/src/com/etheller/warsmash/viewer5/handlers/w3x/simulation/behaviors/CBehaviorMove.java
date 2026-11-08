@@ -1,8 +1,10 @@
 package com.etheller.warsmash.viewer5.handlers.w3x.simulation.behaviors;
 
+import java.util.BitSet;
 import java.util.List;
 
 import com.badlogic.gdx.math.Rectangle;
+import com.etheller.warsmash.util.ArgbImage;
 import com.etheller.warsmash.util.WarsmashConstants;
 import com.etheller.warsmash.viewer5.handlers.w3x.AnimationTokens.PrimaryTag;
 import com.etheller.warsmash.viewer5.handlers.w3x.SequenceUtils;
@@ -19,22 +21,31 @@ import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.targeting
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.behaviors.harvest.CBehaviorWispHarvest;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.orders.COrder;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.orders.COrderTargetWidget;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.orders.OrderIds;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.pathing.CPathPoint;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.pathing.CPathfindingProcessor;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.timers.CTimer;
 
 public class CBehaviorMove implements CBehavior {
-	private static boolean ALWAYS_INTERRUPT_MOVE = false;
+	private static final boolean ALWAYS_INTERRUPT_MOVE = false;
 	/**
 	 * Measured on 1.29: a unit turns its heading by turnRate radians every 0.029 s and walks once the
 	 * heading is inside the propulsion window, straight toward its next point; the drawn facing turns slower and on its
 	 * own.
 	 */
 	private static final float ORIGINAL_TURN_PERIOD = 0.029f;
+
+	/** Degrees the heading turns in one simulation step; the same rate when turning to attack or cast. */
+	public static float getTurnStep(final CUnit unit) {
+		return (float) StrictMath.toDegrees(unit.getTurnRate())
+				* (WarsmashConstants.SIMULATION_STEP_TIME / ORIGINAL_TURN_PERIOD);
+	}
 	/** Ticks a unit waits behind walking units before it searches a way around them. */
 	private static final int WAIT_FOR_WALKERS_TICKS = 10;
 	private static final float MAX_DETOUR_AROUND_UNITS = 320f;
 	private static final float GIVE_UP_NEAR_TARGET = 384f;
 	private static final int START_TICKS = 4;
+	private static final int APPROACH_SEARCH_CELLS = 65536;
 
 	private static final Rectangle tempRect = new Rectangle();
 	private final CUnit unit;
@@ -67,6 +78,9 @@ public class CBehaviorMove implements CBehavior {
 	private double pathLengthWhenBlocked;
 	private double pathStartDistance;
 	private CGroupMove group;
+	private CDestructable approachTarget;
+	private int resetCount;
+	private boolean takenOver;
 
 	public CBehaviorMove reset(final int highlightOrderId, final AbilityTarget target) {
 		if (!continuesSameMove(highlightOrderId, target)) {
@@ -75,6 +89,7 @@ public class CBehaviorMove implements CBehavior {
 		this.rangedBehavior = null;
 		this.group = null;
 		resetDisableCollision(false);
+		this.resetCount++;
 		return this;
 	}
 
@@ -114,7 +129,20 @@ public class CBehaviorMove implements CBehavior {
 		this.rangedBehavior = rangedBehavior;
 		this.group = null;
 		resetDisableCollision(disableCollision);
+		this.resetCount++;
 		return this;
+	}
+
+	public int getResetCount() {
+		return this.resetCount;
+	}
+
+	/**
+	 * The walk this behaviour was on was replaced by an order that set it up for itself and does not walk now (its
+	 * target is already in reach). Ending it then is not an interruption of that order.
+	 */
+	public void takenOver() {
+		this.takenOver = true;
 	}
 
 	public CGroupMove getGroup() {
@@ -152,6 +180,7 @@ public class CBehaviorMove implements CBehavior {
 		this.followSearch = false;
 		this.waitForWalkersTicks = 0;
 		this.searchAfterBlock = false;
+		this.approachTarget = null;
 	}
 
 	private void internalResetMove(final int highlightOrderId, final CUnit followUnit) {
@@ -170,6 +199,7 @@ public class CBehaviorMove implements CBehavior {
 		this.followSearch = false;
 		this.waitForWalkersTicks = 0;
 		this.searchAfterBlock = false;
+		this.approachTarget = null;
 	}
 
 	@Override
@@ -214,6 +244,12 @@ public class CBehaviorMove implements CBehavior {
 		final float collisionSize = this.unit.getUnitType().getCollisionSize();
 		final float startFloatingX = prevX;
 		final float startFloatingY = prevY;
+		if (this.approachTarget != null) {
+			if ((this.rangedBehavior instanceof CBehaviorAttack) && (this.path == null) && !this.pathfindingActive) {
+				aimAtApproachCell(pathingGrid, movementType, collisionSize);
+			}
+			this.approachTarget = null;
+		}
 		if (this.path == null) {
 			if (!this.pathfindingActive) {
 				if (this.followUnit != null) {
@@ -267,15 +303,14 @@ public class CBehaviorMove implements CBehavior {
 
 		float deltaX = currentTargetX - prevX;
 		float deltaY = currentTargetY - prevY;
-		double goalAngleRad = Math.atan2(deltaY, deltaX);
-		float goalAngle = (float) Math.toDegrees(goalAngleRad);
+		double goalAngleRad = StrictMath.atan2(deltaY, deltaX);
+		float goalAngle = (float) StrictMath.toDegrees(goalAngleRad);
 		if (goalAngle < 0) {
 			goalAngle += 360;
 		}
 		float facing = this.unit.getFacing();
 		float delta = goalAngle - facing;
 		final float propulsionWindow = this.unit.getPropWindow();
-		final float turnRate = this.unit.getTurnRate();
 		final int speed = this.group == null ? this.unit.getSpeed()
 				: this.group.limitSpeed(this.unit, this.unit.getSpeed());
 		final boolean speedChange = speed != prevSpeed;
@@ -288,8 +323,7 @@ public class CBehaviorMove implements CBehavior {
 			delta = -360 + delta;
 		}
 		float absDelta = Math.abs(delta);
-		final float turnStep = (float) Math.toDegrees(turnRate)
-				* (WarsmashConstants.SIMULATION_STEP_TIME / ORIGINAL_TURN_PERIOD);
+		final float turnStep = getTurnStep(this.unit);
 		// part of this tick left for walking once the heading comes inside the window
 		final float walkFraction;
 		if (absDelta < propulsionWindow) {
@@ -410,8 +444,8 @@ public class CBehaviorMove implements CBehavior {
 								onMoveGiveUp(simulation);
 								return this.unit.pollNextOrderBehavior(simulation);
 							}
-							goalAngleRad = Math.atan2(deltaY, deltaX);
-							goalAngle = (float) Math.toDegrees(goalAngleRad);
+							goalAngleRad = StrictMath.atan2(deltaY, deltaX);
+							goalAngle = (float) StrictMath.toDegrees(goalAngleRad);
 							if (goalAngle < 0) {
 								goalAngle += 360;
 							}
@@ -449,6 +483,15 @@ public class CBehaviorMove implements CBehavior {
 					if (this.followUnit != null) {
 						this.target.x = this.followUnit.getX();
 						this.target.y = this.followUnit.getY();
+						// Measured on 1.29: a unit following a target it was ordered to attack but cannot hit (a
+						// Paladin on a flyer) stops once it stands blocked next to it, as a move to a taken point
+						// does.
+						if ((this.rangedBehavior == null) && (this.highlightOrderId == OrderIds.attack)
+								&& (this.unit.distance(this.target.x, this.target.y) <= Math.max(128f,
+										collisionSize * 4))) {
+							onMoveGiveUp(simulation);
+							return this.unit.pollNextOrderBehavior(simulation);
+						}
 					}
 					// A point taken by other units is never reached; arriving next to it ends the move, otherwise
 					// the unit searches a path every tick and starves the pathfinding queue of other units.
@@ -520,6 +563,70 @@ public class CBehaviorMove implements CBehavior {
 		return !((CBehaviorAttack) this.rangedBehavior).checkTargetStillValid(simulation);
 	}
 
+	/**
+	 * Measured on 1.29: a unit ordered to attack a destructable whose middle cannot be reached (a gate standing in a
+	 * forest) walks to the free spot next to the destructable that is nearest by its way there, and attacks from
+	 * there; it does not walk to the free spot nearest the middle and give up. The footprint is the destructable's
+	 * pathing map as the attack range check sees it.
+	 */
+	private void aimAtApproachCell(final PathingGrid pathingGrid, final MovementType movementType,
+			final float collisionSize) {
+		final CDestructable dest = this.approachTarget;
+		if (pathingGrid.isPathable(dest.getX(), dest.getY(), movementType, collisionSize)) {
+			return;
+		}
+		final ArgbImage pathingMap = dest.isDead() ? dest.getDestType().getPathingDeathPixelMap()
+				: dest.getDestType().getPathingPixelMap();
+		if (pathingMap == null) {
+			return;
+		}
+		final float halfWidth = pathingMap.getWidth() * 16f;
+		final float halfHeight = pathingMap.getHeight() * 16f;
+		final float reach = collisionSize + 32f;
+		final int width = pathingGrid.getWidth();
+		final int height = pathingGrid.getHeight();
+		final int startX = pathingGrid.getCellX(this.unit.getX());
+		final int startY = pathingGrid.getCellY(this.unit.getY());
+		if ((startX < 0) || (startY < 0) || (startX >= width) || (startY >= height)) {
+			return;
+		}
+		final BitSet seen = new BitSet(width * height);
+		final int[] queue = new int[APPROACH_SEARCH_CELLS];
+		int head = 0;
+		int tail = 0;
+		queue[tail++] = (startY * width) + startX;
+		seen.set((startY * width) + startX);
+		while (head < tail) {
+			final int cell = queue[head++];
+			final int cellX = cell % width;
+			final int cellY = cell / width;
+			final float worldX = pathingGrid.getWorldX(cellX);
+			final float worldY = pathingGrid.getWorldY(cellY);
+			final float outX = Math.max(0f, Math.abs(worldX - dest.getX()) - halfWidth);
+			final float outY = Math.max(0f, Math.abs(worldY - dest.getY()) - halfHeight);
+			if (((outX * outX) + (outY * outY)) <= (reach * reach)) {
+				this.target = new CPathPoint(worldX, worldY);
+				return;
+			}
+			for (int direction = 0; direction < 4; direction++) {
+				final int nextX = cellX + ((direction == 0) ? 1 : (direction == 1) ? -1 : 0);
+				final int nextY = cellY + ((direction == 2) ? 1 : (direction == 3) ? -1 : 0);
+				if ((nextX < 0) || (nextY < 0) || (nextX >= width) || (nextY >= height)) {
+					continue;
+				}
+				final int next = (nextY * width) + nextX;
+				if (seen.get(next)) {
+					continue;
+				}
+				seen.set(next);
+				if ((tail < queue.length) && pathingGrid.isPathable(pathingGrid.getWorldX(nextX),
+						pathingGrid.getWorldY(nextY), movementType, collisionSize)) {
+					queue[tail++] = next;
+				}
+			}
+		}
+	}
+
 	private void onMoveGiveUp(final CSimulation simulation) {
 		// An attack-move whose point cannot be reached ends where the walk ended (1.29), instead of starting again
 		// as the unit's default behaviour.
@@ -554,6 +661,7 @@ public class CBehaviorMove implements CBehavior {
 		@Override
 		public Void accept(final CDestructable target) {
 			internalResetMove(this.highlightOrderId, target.getX(), target.getY());
+			CBehaviorMove.this.approachTarget = target;
 			return null;
 		}
 
@@ -566,6 +674,7 @@ public class CBehaviorMove implements CBehavior {
 
 	@Override
 	public void begin(final CSimulation game) {
+		this.takenOver = false;
 		if (this.disableCollision) {
 			this.unit.setNoCollisionMovementType(true);
 		}
@@ -580,9 +689,10 @@ public class CBehaviorMove implements CBehavior {
 			game.removeFromPathfindingQueue(this);
 			this.pathfindingActive = false;
 		}
-		if (this.rangedBehavior != null) {
+		if ((this.rangedBehavior != null) && !this.takenOver) {
 			this.rangedBehavior.endMove(game, interrupted);
 		}
+		this.takenOver = false;
 	}
 
 	public CUnit getUnit() {
@@ -635,7 +745,7 @@ public class CBehaviorMove implements CBehavior {
 			}
 			else {
 				this.giveUpUntilTurnTick = simulation.getGameTurnTick()
-						+ (int) (5 / WarsmashConstants.SIMULATION_STEP_TIME);
+						+ CTimer.wholeSteps(5);
 			}
 		}
 	}

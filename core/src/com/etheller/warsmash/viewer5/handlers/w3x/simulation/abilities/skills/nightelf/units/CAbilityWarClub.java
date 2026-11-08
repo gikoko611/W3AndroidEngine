@@ -2,7 +2,6 @@ package com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.skills.n
 
 import com.etheller.warsmash.units.GameObject;
 import com.etheller.warsmash.util.War3ID;
-import com.etheller.warsmash.util.WarsmashConstants;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CDestructable;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CSimulation;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CUnit;
@@ -14,6 +13,7 @@ import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.targeting
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.types.definitions.impl.AbilityFields;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.types.definitions.impl.AbstractCAbilityTypeDefinition;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.orders.OrderIds;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.timers.CTimer;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.util.AbilityTargetCheckReceiver;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.util.CommandStringErrorKeys;
 
@@ -75,9 +75,8 @@ public class CAbilityWarClub extends CAbilityTargetSpellBase {
 	@Override
 	public boolean doEffect(final CSimulation simulation, final CUnit unit, final AbilityTarget target) {
 		final int tick = simulation.getGameTurnTick();
-		this.attachTick = tick + (int) (this.attachDelay / WarsmashConstants.SIMULATION_STEP_TIME);
-		this.endTick = tick + (int) (Math.max(this.attachDelay, this.removeDelay)
-				/ WarsmashConstants.SIMULATION_STEP_TIME);
+		this.attachTick = tick + CTimer.wholeSteps(this.attachDelay);
+		this.endTick = tick + CTimer.wholeSteps(Math.max(this.attachDelay, this.removeDelay));
 		this.attached = false;
 		return true;
 	}

@@ -13,13 +13,13 @@ import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilitybuilder.core
 
 public class ABDestructableBuff implements CDestructableBuff {
 	
-	protected static int TIMEDLIFE = 0b1;
-	protected static int NEGATIVE = 0b10;
-	protected static int DISPELLABLE = 0b100;
-	protected static int HERO = 0b1000;
-	protected static int MAGIC = 0b10000;
-	protected static int PHYSICAL = 0b100000;
-	protected static int AURA = 0b1000000;
+	protected static final int TIMEDLIFE = 0b1;
+	protected static final int NEGATIVE = 0b10;
+	protected static final int DISPELLABLE = 0b100;
+	protected static final int HERO = 0b1000;
+	protected static final int MAGIC = 0b10000;
+	protected static final int PHYSICAL = 0b100000;
+	protected static final int AURA = 0b1000000;
 	protected int flags = 0b0;
 
 	private int handleId;

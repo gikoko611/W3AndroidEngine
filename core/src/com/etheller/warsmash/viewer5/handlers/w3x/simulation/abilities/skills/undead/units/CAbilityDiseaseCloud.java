@@ -2,13 +2,13 @@ package com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.skills.u
 
 import com.etheller.warsmash.units.GameObject;
 import com.etheller.warsmash.util.War3ID;
-import com.etheller.warsmash.util.WarsmashConstants;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CSimulation;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CUnit;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.skills.CAbilityPassiveSpellBase;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.skills.util.CBuffTimedLife;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.types.definitions.impl.AbilityFields;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.types.definitions.impl.AbstractCAbilityTypeDefinition;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.timers.CTimer;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.trigger.enumtypes.CEffectType;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.unit.StateModBuff;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.unit.StateModBuffType;
@@ -21,7 +21,7 @@ import com.etheller.warsmash.viewer5.handlers.w3x.simulation.util.SimulationRend
  */
 public class CAbilityDiseaseCloud extends CAbilityPassiveSpellBase {
 	private static final War3ID TIMED_LIFE_BUFF_ID = War3ID.fromString("BTLF");
-	private static final int AREA_CHECK_TICKS = (int) (1.0f / WarsmashConstants.SIMULATION_STEP_TIME);
+	private static final int AREA_CHECK_TICKS = CTimer.wholeSteps(1.0f);
 
 	private float diseaseDuration;
 	private float damagePerSecond;

@@ -1,7 +1,9 @@
 package com.etheller.warsmash.viewer5.handlers.w3x.simulation.config;
 
 import java.util.EnumMap;
+import java.util.function.UnaryOperator;
 
+import com.etheller.warsmash.parsers.w3x.w3i.Player;
 import com.etheller.warsmash.parsers.w3x.w3i.War3MapW3i;
 import com.etheller.warsmash.parsers.w3x.w3i.War3MapW3iFlags;
 
@@ -80,6 +82,13 @@ public class War3MapConfig implements CPlayerAPI {
 		return this.startLocations[whichStartLoc];
 	}
 
+	/** The start location, or null for an index outside the player slots (scripts may pass any integer). */
+	public War3MapConfigStartLoc findStartLoc(final int whichStartLoc) {
+		return (whichStartLoc >= 0) && (whichStartLoc < this.startLocations.length)
+				? this.startLocations[whichStartLoc]
+				: null;
+	}
+
 	public void setGameTypeSupported(final CGameType gameType, final boolean supported) {
 		this.gameTypeToSupported.put(gameType, supported);
 	}
@@ -99,6 +108,19 @@ public class War3MapConfig implements CPlayerAPI {
 	 * alliance changes, and a single player game always locks the random seed; the other flags start cleared. The
 	 * speed reads Normal.
 	 */
+	/**
+	 * The map information lists only the players the map uses, each with its own player number: a campaign map
+	 * without Player 1 starts its list with Player 2.
+	 */
+	public void applyPlayerNames(final War3MapW3i mapInfo, final UnaryOperator<String> trigStr) {
+		for (final Player mapPlayer : mapInfo.getPlayers()) {
+			final int id = mapPlayer.getId();
+			if ((id >= 0) && (id < this.players.length)) {
+				this.players[id].setName(trigStr.apply(mapPlayer.getName()));
+			}
+		}
+	}
+
 	public void applyMapInformation(final War3MapW3i mapInfo) {
 		this.mapFlagToEnabled.clear();
 		setMapFlag(CMapFlag.MAP_LOCK_ALLIANCE_CHANGES, mapInfo.hasFlag(War3MapW3iFlags.USE_CUSTOM_FORCES));

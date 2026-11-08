@@ -2,6 +2,7 @@ package com.etheller.interpreter.ast.execution;
 
 import com.etheller.interpreter.ast.scope.GlobalScope;
 import com.etheller.interpreter.ast.scope.TriggerExecutionScope;
+import com.etheller.interpreter.ast.util.JassSettings;
 
 public class JassThread {
 	public JassStackFrame stackFrame;
@@ -9,6 +10,11 @@ public class JassThread {
 	public TriggerExecutionScope triggerScope;
 	public int instructionPtr;
 	public boolean sleeping = false;
+	/**
+	 * Operations since the thread started or last waited, counted as in the original game (see
+	 * {@link com.etheller.interpreter.ast.util.JassSettings#OP_LIMIT}).
+	 */
+	public int opCount;
 	public JassThread parent;
 	private boolean sleepEndsThread;
 	private boolean halted;
@@ -23,6 +29,27 @@ public class JassThread {
 
 	public void setSleeping(final boolean sleeping) {
 		this.sleeping = sleeping;
+		if (sleeping) {
+			this.opCount = 0;
+			for (JassStackFrame frame = this.stackFrame; frame != null; frame = frame.stackBase) {
+				frame.countLocalStartingValues();
+			}
+		}
+	}
+
+	/**
+	 * Counts the instruction's operations and stops the thread when it goes over the limit, as the original game
+	 * does: silently, while the game and other threads, also the one that started this one, go on.
+	 *
+	 * @return false if the thread was stopped and the instruction must not run
+	 */
+	public boolean countOps(final int opCost) {
+		if ((this.opCount += opCost) >= JassSettings.OP_LIMIT) {
+			System.err.println("JASS thread stopped: operation limit");
+			halt();
+			return false;
+		}
+		return true;
 	}
 
 	public boolean isSleeping() {

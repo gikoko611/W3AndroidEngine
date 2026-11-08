@@ -2,6 +2,7 @@ package com.etheller.warsmash.viewer5.handlers.w3x.save;
 
 import java.util.Arrays;
 
+import com.etheller.interpreter.ast.util.AllocatedHandle;
 import com.etheller.warsmash.viewer5.handlers.w3x.War3MapViewer;
 import com.etheller.warsmash.viewer5.handlers.w3x.rendersim.LiveRenderObject;
 import com.etheller.warsmash.viewer5.handlers.w3x.rendersim.RenderSpellEffect;
@@ -14,7 +15,7 @@ import com.etheller.warsmash.viewer5.handlers.w3x.simulation.util.SimulationRend
  * Takes the place of a lasting effect in a saved game: what is needed to show it again. The model instance is not
  * saved, so a loaded effect starts over from its stand animation.
  */
-public final class SavedEffect implements SimulationRenderComponentModel, ScriptEffect {
+public final class SavedEffect extends AllocatedHandle implements SimulationRenderComponentModel, ScriptEffect {
 	private String modelName;
 	private CWidget widget;
 	private String[] attachPoints;
@@ -34,6 +35,7 @@ public final class SavedEffect implements SimulationRenderComponentModel, Script
 		if (saved == null) {
 			saved = new SavedEffect();
 			saved.modelName = effect.getModelName();
+			saved.setHandleId(effect.getHandleId());
 			saved.widget = effect.getWidget();
 			saved.attachPoints = effect.getAttachPoints() == null ? null
 					: effect.getAttachPoints().toArray(new String[0]);

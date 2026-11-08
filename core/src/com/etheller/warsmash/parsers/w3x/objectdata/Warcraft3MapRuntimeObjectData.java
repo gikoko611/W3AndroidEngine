@@ -9,6 +9,7 @@ import java.util.Map;
 import java.util.Map.Entry;
 
 import com.etheller.warsmash.datasources.DataSource;
+import com.etheller.warsmash.datasources.GraphicsSet;
 import com.etheller.warsmash.units.DataTable;
 import com.etheller.warsmash.units.ObjectData;
 import com.etheller.warsmash.units.StandardObjectData;
@@ -138,8 +139,15 @@ public final class Warcraft3MapRuntimeObjectData {
 
 	public static Warcraft3MapRuntimeObjectData load(final DataSource dataSource, final boolean inlineWTS,
 			final WTS wts, final WTS campaignWTS) throws IOException {
+		return load(dataSource, inlineWTS, wts, campaignWTS, GraphicsSet.CLASSIC, false);
+	}
 
-		final StandardObjectData standardObjectData = new StandardObjectData(dataSource);
+	public static Warcraft3MapRuntimeObjectData load(final DataSource dataSource, final boolean inlineWTS,
+			final WTS wts, final WTS campaignWTS, final GraphicsSet graphics, final boolean reforgedInterface)
+			throws IOException {
+
+		final StandardObjectData standardObjectData = new StandardObjectData(dataSource, graphics,
+				reforgedInterface);
 		final WarcraftData standardUnits = standardObjectData.getStandardUnits();
 		final WarcraftData standardItems = standardObjectData.getStandardItems();
 		final WarcraftData standardDoodads = standardObjectData.getStandardDoodads();

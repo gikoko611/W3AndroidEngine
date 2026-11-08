@@ -1,6 +1,6 @@
 package com.etheller.warsmash.viewer5.handlers.w3x.simulation.unit;
 
-import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.Set;
 
 import com.etheller.interpreter.ast.scope.GlobalScope;
@@ -22,8 +22,9 @@ public final class CUnitInRangeEvent extends RemovableTriggerEvent {
 	private final float range;
 	private final Trigger trigger;
 	private final TriggerBooleanExpression filter;
-	private final Set<CUnit> inRange = new HashSet<>();
-	private final Set<CUnit> swap = new HashSet<>();
+	private Set<CUnit> inRange = new LinkedHashSet<>();
+	// Units that come in range together fire in enumeration order, not in identity hash order.
+	private Set<CUnit> swap = new LinkedHashSet<>();
 	private final CSimulation simulation;
 
 	public CUnitInRangeEvent(final GlobalScope globalScope, final CSimulation simulation, final CUnit center,
@@ -64,7 +65,8 @@ public final class CUnitInRangeEvent extends RemovableTriggerEvent {
 				this.globalScope.queueTrigger(this.filter, filterScope, this.trigger, scope, scope);
 			}
 		}
-		this.inRange.clear();
-		this.inRange.addAll(this.swap);
+		final Set<CUnit> previous = this.inRange;
+		this.inRange = this.swap;
+		this.swap = previous;
 	}
 }

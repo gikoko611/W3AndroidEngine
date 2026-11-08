@@ -46,8 +46,8 @@ public class CAbilityWandOfIllusion extends CAbilityTargetSpellBase {
 		}
 		final double angle = simulation.getSeededRandom().nextDouble() * 2 * Math.PI;
 		final CUnit image = CIllusions.create(simulation, targetUnit, caster.getPlayerIndex(),
-				targetUnit.getX() + (float) (Math.cos(angle) * OFFSET),
-				targetUnit.getY() + (float) (Math.sin(angle) * OFFSET), targetUnit.getFacing(),
+				targetUnit.getX() + (float) (StrictMath.cos(angle) * OFFSET),
+				targetUnit.getY() + (float) (StrictMath.sin(angle) * OFFSET), targetUnit.getFacing(),
 				this.damageDealtFactor, this.damageTakenFactor, getDurationForTarget(targetUnit), this.buffId);
 		if (image != null) {
 			simulation.createTemporarySpellEffectOnUnit(image, getAlias(), CEffectType.TARGET);

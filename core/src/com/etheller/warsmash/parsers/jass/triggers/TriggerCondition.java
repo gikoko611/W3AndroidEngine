@@ -2,8 +2,9 @@ package com.etheller.warsmash.parsers.jass.triggers;
 
 import com.etheller.interpreter.ast.scope.trigger.Trigger;
 import com.etheller.interpreter.ast.scope.trigger.TriggerBooleanExpression;
+import com.etheller.interpreter.ast.util.AllocatedHandle;
 
-public class TriggerCondition {
+public class TriggerCondition extends AllocatedHandle {
 	private final TriggerBooleanExpression boolexpr;
 	private final Trigger trigger;
 	private final int conditionIndex;

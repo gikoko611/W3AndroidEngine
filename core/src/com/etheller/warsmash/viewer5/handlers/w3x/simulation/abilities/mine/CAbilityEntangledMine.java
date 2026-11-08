@@ -2,7 +2,6 @@ package com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.mine;
 
 import com.etheller.warsmash.units.GameObject;
 import com.etheller.warsmash.util.War3ID;
-import com.etheller.warsmash.util.WarsmashConstants;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CSimulation;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CUnit;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CWidget;
@@ -12,6 +11,7 @@ import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.targeting
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.types.definitions.impl.AbilityFields;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.behaviors.CBehavior;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.players.CPlayer;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.timers.CTimer;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.util.AbilityActivationReceiver;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.util.AbilityTargetCheckReceiver;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.util.ResourceType;
@@ -40,7 +40,7 @@ public class CAbilityEntangledMine extends CAbilityOverlayedMine implements CAbi
 	public void onTick(final CSimulation game, final CUnit unit) {
 		final int gameTurnTick = game.getGameTurnTick();
 		if (gameTurnTick >= this.nextGoldTick) {
-			this.nextGoldTick = gameTurnTick + (int) (this.intervalDuration / WarsmashConstants.SIMULATION_STEP_TIME);
+			this.nextGoldTick = gameTurnTick + CTimer.wholeSteps(this.intervalDuration);
 			final CAbilityCargoHold cargoData = unit.getCargoData();
 			if (cargoData != null) {
 				this.activeGoldIntervalIndex = (this.activeGoldIntervalIndex + 1) % cargoData.getCargoCapacity();

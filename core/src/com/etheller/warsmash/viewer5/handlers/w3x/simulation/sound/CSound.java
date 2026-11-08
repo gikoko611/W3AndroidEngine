@@ -2,20 +2,24 @@ package com.etheller.warsmash.viewer5.handlers.w3x.simulation.sound;
 
 import com.etheller.warsmash.viewer5.handlers.w3x.rendersim.RenderUnit;
 
+/**
+ * A script sound. Its timing is game state counted in simulation steps; only hearing it is local.
+ */
 public interface CSound {
-	void start();
+	void start(int gameTurnTick);
 
 	void stop();
 
-	float getPredictedDuration();
+	/** In seconds: the SetSoundDuration value, else the length of the file. */
+	float getDuration();
 
-	float getRemainingTimeToPlayOnTheDesyncLocalComputer();
+	/** For TriggerWaitForSound: seconds left of the script length since the last start. */
+	float getRemainingTime(int gameTurnTick);
 
 	/**
 	 * SetSoundDuration: scripts wait by this value, not by the length of the file.
 	 */
-	default void setDuration(final float seconds) {
-	}
+	void setDuration(final float seconds);
 
 	default void setVolume(final int volume) {
 	}
@@ -48,17 +52,12 @@ public interface CSound {
 	default void attachToUnit(final RenderUnit unit) {
 	}
 
-	default boolean isPlaying() {
-		return getRemainingTimeToPlayOnTheDesyncLocalComputer() > 0;
-	}
+	boolean isPlaying(int gameTurnTick);
 
 	/** KillSoundWhenDone: once the sound is not playing any more, it is released and cannot be started again. */
-	default void killWhenDone() {
-	}
+	void killWhenDone();
 
-	default boolean isKilled() {
-		return false;
-	}
+	boolean isKilled(int gameTurnTick);
 
 	default void setDialogueSpeakerNameKey(final String key) {
 	}

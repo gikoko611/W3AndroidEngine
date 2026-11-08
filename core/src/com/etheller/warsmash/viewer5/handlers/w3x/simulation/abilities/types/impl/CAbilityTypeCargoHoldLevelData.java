@@ -9,13 +9,20 @@ public class CAbilityTypeCargoHoldLevelData extends CAbilityTypeLevelData {
 	private final int cargoCapcity;
 	private final float duration;
 	private final float castRange;
+	private final float area;
 
 	public CAbilityTypeCargoHoldLevelData(final EnumSet<CTargetType> targetsAllowed, final int cargoCapcity,
-			final float duration, float castRange) {
+			final float duration, final float castRange) {
+		this(targetsAllowed, cargoCapcity, duration, castRange, 0);
+	}
+
+	public CAbilityTypeCargoHoldLevelData(final EnumSet<CTargetType> targetsAllowed, final int cargoCapcity,
+			final float duration, final float castRange, final float area) {
 		super(targetsAllowed);
 		this.cargoCapcity = cargoCapcity;
 		this.duration = duration;
 		this.castRange = castRange;
+		this.area = area;
 	}
 
 	public int getCargoCapcity() {
@@ -27,7 +34,11 @@ public class CAbilityTypeCargoHoldLevelData extends CAbilityTypeLevelData {
 	}
 
 	public float getCastRange() {
-		return castRange;
+		return this.castRange;
+	}
+
+	public float getArea() {
+		return this.area;
 	}
 
 }

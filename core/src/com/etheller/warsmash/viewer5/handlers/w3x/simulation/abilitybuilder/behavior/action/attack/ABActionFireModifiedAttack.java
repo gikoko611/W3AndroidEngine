@@ -44,10 +44,10 @@ public class ABActionFireModifiedAttack implements ABAction {
 					}
 					CUnitAttackSettings settings = attack.initialSettings();
 					if (mod != null) {
-						if (mod.checkPreLaunchApplication(game, theUnit, theTarget, attack)) {
+						if (mod.checkPreLaunchApplication(game, theUnit, theTarget, attack, settings)) {
 							mod.applyPreLaunchModification(game, theUnit, theTarget, attack, settings, null);
 						}
-						if (mod.checkApplication(game, theUnit, theTarget, attack)) {
+						if (mod.checkApplication(game, theUnit, theTarget, attack, settings)) {
 							mod.applyModification(game, theUnit, theTarget, attack, settings, null);
 						}
 					}

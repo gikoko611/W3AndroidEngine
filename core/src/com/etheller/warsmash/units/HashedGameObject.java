@@ -70,6 +70,19 @@ public abstract class HashedGameObject implements GameObject {
 		}
 	}
 
+	/**
+	 * Gives these fields the value of the first of the packages that has one, over the value the plain field has, so
+	 * that a graphics package's models and look can be shown while the other fields keep their Classic values.
+	 */
+	public void applyQualityOverrides(final String[] qualities, final Set<String> baseNames) {
+		for (final String baseName : baseNames) {
+			final List<String> value = findQualityValue(baseName, qualities);
+			if (value != null) {
+				this.fields.put(sharedKey(baseName), value);
+			}
+		}
+	}
+
 	private List<String> findQualityValue(final String baseName, final String[] qualities) {
 		for (final String quality : qualities) {
 			final List<String> value = this.fields.get(new StringKey(baseName + ":" + quality));

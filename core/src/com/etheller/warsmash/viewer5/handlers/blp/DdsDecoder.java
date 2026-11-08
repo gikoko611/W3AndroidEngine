@@ -3,43 +3,46 @@ package com.etheller.warsmash.viewer5.handlers.blp;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.util.Arrays;
 
 /**
- * Decodes the top mip level of a block compressed DDS image (DXT1, DXT3, DXT5,
- * ATI2) into RGBA bytes, without depending on java.awt or javax.imageio.
+ * Decodes a block compressed DDS image (DXT1, DXT3, DXT5, ATI2) into RGBA bytes, without depending on java.awt or
+ * javax.imageio: the largest stored mip level within a size limit, and the smaller stored levels below it when asked.
  */
 public final class DdsDecoder {
 	private static final int MAGIC = 0x20534444; // "DDS "
 	private static final int HEADER_SIZE = 128;
+	private static final int DDSD_MIPMAPCOUNT = 0x20000;
 	private static final int DDPF_FOURCC = 0x4;
-	private static final int FOURCC_DXT1 = fourCC("DXT1");
-	private static final int FOURCC_DXT3 = fourCC("DXT3");
-	private static final int FOURCC_DXT5 = fourCC("DXT5");
+	static final int FOURCC_DXT1 = fourCC("DXT1");
+	static final int FOURCC_DXT3 = fourCC("DXT3");
+	static final int FOURCC_DXT5 = fourCC("DXT5");
 	private static final int FOURCC_ATI2 = fourCC("ATI2");
 
-	private final int width;
-	private final int height;
-	private final ByteBuffer rgba;
+	private final MipLevels levels;
 
-	private DdsDecoder(final int width, final int height, final ByteBuffer rgba) {
-		this.width = width;
-		this.height = height;
-		this.rgba = rgba;
+	private DdsDecoder(final MipLevels levels) {
+		this.levels = levels;
 	}
 
 	public int getWidth() {
-		return this.width;
+		return this.levels.getWidth(0);
 	}
 
 	public int getHeight() {
-		return this.height;
+		return this.levels.getHeight(0);
 	}
 
 	/**
 	 * @return direct buffer of width * height RGBA pixels, rows from the top
 	 */
 	public ByteBuffer getRgba() {
-		return this.rgba;
+		return this.levels.getRgba(0);
+	}
+
+	/** The decoded levels, the largest first. */
+	public MipLevels getLevels() {
+		return this.levels;
 	}
 
 	public static boolean isDds(final ByteBuffer file) {
@@ -47,30 +50,94 @@ public final class DdsDecoder {
 		return (data.remaining() >= HEADER_SIZE) && (data.getInt(0) == MAGIC);
 	}
 
+	/** The top level only, at its full size. */
 	public static DdsDecoder decode(final ByteBuffer file) throws IOException {
+		return decode(file, 0, false);
+	}
+
+	/**
+	 * @param maxSize the largest width and height to decode, 0 for no limit: the first stored level within it becomes
+	 *                the top level; a file without such a level keeps its smallest one
+	 * @param mips    whether the smaller stored levels are decoded too
+	 */
+	public static DdsDecoder decode(final ByteBuffer file, final int maxSize, final boolean mips) throws IOException {
 		final ByteBuffer data = file.duplicate().order(ByteOrder.LITTLE_ENDIAN);
 		if ((data.remaining() < HEADER_SIZE) || (data.getInt(0) != MAGIC)) {
 			throw new IOException("Not a DDS file");
 		}
+		final int flags = data.getInt(8);
 		final int height = data.getInt(12);
 		final int width = data.getInt(16);
+		final int storedLevels = (flags & DDSD_MIPMAPCOUNT) != 0 ? Math.max(1, data.getInt(28)) : 1;
 		final int pixelFormatFlags = data.getInt(80);
 		final int fourCC = data.getInt(84);
 		if ((pixelFormatFlags & DDPF_FOURCC) == 0) {
 			throw new IOException("Unsupported uncompressed DDS");
 		}
+		if ((width <= 0) || (height <= 0) || (((long) width * height) > (1 << 26))) {
+			throw new IOException("Bad DDS dimensions " + width + "x" + height);
+		}
+		if ((fourCC != FOURCC_DXT1) && (fourCC != FOURCC_DXT3) && (fourCC != FOURCC_DXT5) && (fourCC != FOURCC_ATI2)) {
+			throw new IOException("Unsupported DDS format: " + Integer.toHexString(fourCC));
+		}
+		final int blockSize = fourCC == FOURCC_DXT1 ? 8 : 16;
+		// A stored chain may stop early, or claim levels the file is too short to hold; only whole levels count.
+		final int maxLevels = Math.min(storedLevels, MipLevels.levelCount(width, height));
+		final long[] offsets = new long[maxLevels + 1];
+		offsets[0] = HEADER_SIZE;
+		for (int level = 0; level < maxLevels; level++) {
+			offsets[level + 1] = offsets[level]
+					+ levelBytes(MipLevels.size(width, level), MipLevels.size(height, level), blockSize);
+		}
+		int first = MipLevels.firstWithin(width, height, maxSize, maxLevels);
+		while ((first > 0) && (offsets[first + 1] > data.limit())) {
+			first--;
+		}
+		long offset = offsets[first];
+		final MipLevels levels = new MipLevels();
+		for (int level = first; level < maxLevels; level++) {
+			final int levelWidth = MipLevels.size(width, level);
+			final int levelHeight = MipLevels.size(height, level);
+			final long size = levelBytes(levelWidth, levelHeight, blockSize);
+			if ((level > first) && ((offset + size) > data.limit())) {
+				break;
+			}
+			final byte[] src = new byte[(int) Math.max(0, Math.min(size, data.limit() - offset))];
+			if (src.length > 0) {
+				data.position((int) offset);
+				data.get(src);
+			}
+			levels.add(levelWidth, levelHeight, decodeBlocks(src, levelWidth, levelHeight, fourCC));
+			offset += size;
+			if (!mips) {
+				break;
+			}
+		}
+		return new DdsDecoder(levels);
+	}
 
-		final byte[] src = new byte[Math.max(0, data.limit() - HEADER_SIZE)];
-		data.position(HEADER_SIZE);
-		data.get(src, 0, Math.min(src.length, data.remaining()));
+	private static long levelBytes(final int width, final int height, final int blockSize) {
+		return (long) Math.max(1, (width + 3) / 4) * Math.max(1, (height + 3) / 4) * blockSize;
+	}
+
+	/**
+	 * @param data the blocks of one image, left to right and top to bottom; missing
+	 *             trailing blocks decode as zeros
+	 * @return width * height RGBA pixels, rows from the top
+	 */
+	static byte[] decodeBlocks(final byte[] data, final int width, final int height, final int fourCC)
+			throws IOException {
+		final int blocksWide = Math.max(1, (width + 3) / 4);
+		final int blocksHigh = Math.max(1, (height + 3) / 4);
+		final int blockSize = fourCC == FOURCC_DXT1 ? 8 : 16;
+		final byte[] src = data.length >= (blocksWide * blocksHigh * blockSize) ? data
+				: Arrays.copyOf(data, blocksWide * blocksHigh * blockSize);
 		final byte[] pixels = new byte[width * height * 4];
 		final byte[] block = new byte[16 * 4];
 		final byte[] channelA = new byte[16];
 		final byte[] channelB = new byte[16];
 		final int[] palette = new int[16];
 		final int[] values = new int[8];
-		final int blocksWide = Math.max(1, (width + 3) / 4);
-		final int blocksHigh = Math.max(1, (height + 3) / 4);
 		int offset = 0;
 		for (int blockY = 0; blockY < blocksHigh; blockY++) {
 			for (int blockX = 0; blockX < blocksWide; blockX++) {
@@ -112,10 +179,7 @@ public final class DdsDecoder {
 				writeBlock(pixels, block, blockX * 4, blockY * 4, width, height);
 			}
 		}
-		final ByteBuffer rgba = ByteBuffer.allocateDirect(pixels.length).order(ByteOrder.nativeOrder());
-		rgba.put(pixels);
-		rgba.position(0);
-		return new DdsDecoder(width, height, rgba);
+		return pixels;
 	}
 
 	private static void decodeColorBlock(final byte[] src, final int offset, final byte[] out, final int[] palette,

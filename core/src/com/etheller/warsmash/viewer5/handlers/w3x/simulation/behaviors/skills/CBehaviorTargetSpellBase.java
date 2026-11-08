@@ -1,6 +1,5 @@
 package com.etheller.warsmash.viewer5.handlers.w3x.simulation.behaviors.skills;
 
-import com.etheller.warsmash.util.WarsmashConstants;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CSimulation;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CUnit;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CWidget;
@@ -10,6 +9,8 @@ import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.targeting
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.behaviors.CAbstractRangedBehavior;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.behaviors.CBehavior;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.behaviors.CBehaviorCategory;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.timers.CExactExpiry;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.timers.CTimer;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.trigger.JassGameEventsWar3;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.util.CommandStringErrorKeys;
 
@@ -21,6 +22,9 @@ public class CBehaviorTargetSpellBase extends CAbstractRangedBehavior {
 	private boolean channeling = false;
 	private boolean castEventsFired = false;
 	private int castEventTick = -1;
+	private final CExactExpiry castPoint = new CExactExpiry();
+	/** Null in games saved before the backswing ended at its exact time; those end on whole steps. */
+	private CExactExpiry backswing;
 
 	public CBehaviorTargetSpellBase(final CUnit unit, final CAbilitySpellBase ability) {
 		super(unit);
@@ -30,6 +34,8 @@ public class CBehaviorTargetSpellBase extends CAbstractRangedBehavior {
 
 	public CBehavior reset(CSimulation game, final CWidget target) {
 		this.castStartTick = 0;
+		this.castPoint.cancel(game);
+		cancelBackswing(game);
 		this.castEventTick = -1;
 		this.doneEffect = false;
 		this.channeling = false;
@@ -39,6 +45,8 @@ public class CBehaviorTargetSpellBase extends CAbstractRangedBehavior {
 
 	public CBehavior reset(CSimulation game, final AbilityPointTarget target) {
 		this.castStartTick = 0;
+		this.castPoint.cancel(game);
+		cancelBackswing(game);
 		this.doneEffect = false;
 		this.channeling = false;
 		this.castEventsFired = false;
@@ -56,17 +64,22 @@ public class CBehaviorTargetSpellBase extends CAbstractRangedBehavior {
 
 	@Override
 	protected CBehavior update(final CSimulation simulation, final boolean withinFacingWindow) {
+		if ((this.castStartTick == 0) && isTurningToCast(withinFacingWindow)) {
+			return this;
+		}
 		this.unit.getUnitAnimationListener().playAnimation(false, this.ability.getCastingPrimaryTag(),
 				this.ability.getCastingSecondaryTags(), 1.0f, true);
 		if (this.castStartTick == 0) {
 			this.castStartTick = simulation.getGameTurnTick();
+			this.castPoint.start(simulation, this.unit.getUnitType().getCastPoint());
+			startBackswing(simulation);
 			if (!this.castEventsFired) {
 				this.castEventsFired = true;
 				final CBehavior prevBeh = this.unit.getCurrentBehavior();
 				this.unit.fireSpellEvents(simulation, JassGameEventsWar3.EVENT_UNIT_SPELL_CHANNEL, this.ability,
 						this.target);
 				final int castingTicks = this.ability.isCastingTimeBeforeCast()
-						? (int) (this.ability.getCastingTime() / WarsmashConstants.SIMULATION_STEP_TIME)
+						? CTimer.wholeSteps(this.ability.getCastingTime())
 						: 0;
 				if (castingTicks > 0) {
 					this.castEventTick = this.castStartTick + castingTicks;
@@ -88,47 +101,99 @@ public class CBehaviorTargetSpellBase extends CAbstractRangedBehavior {
 			}
 			this.castEventTick = -1;
 			this.castStartTick = simulation.getGameTurnTick();
+			this.castPoint.start(simulation, this.unit.getUnitType().getCastPoint());
+			startBackswing(simulation);
 			final CBehavior prevBeh = this.unit.getCurrentBehavior();
 			this.unit.fireSpellEvents(simulation, JassGameEventsWar3.EVENT_UNIT_SPELL_CAST, this.ability, this.target);
 			if (this.unit.getCurrentBehavior() != prevBeh) {
 				return this.unit.getCurrentBehavior();
 			}
 		}
-		final int ticksSinceCast = simulation.getGameTurnTick() - this.castStartTick;
-		final int castPointTicks =
-				(int) (this.unit.getUnitType().getCastPoint() / WarsmashConstants.SIMULATION_STEP_TIME);
-		// The backswing follows the cast point (1.29: effect at castpt, cast ends castbsw later).
-		final int backswingTicks = castPointTicks
-				+ (int) (this.unit.getUnitType().getCastBackswingPoint() / WarsmashConstants.SIMULATION_STEP_TIME);
-		if (ticksSinceCast >= castPointTicks) {
-			boolean wasEffectDone = this.doneEffect;
-			boolean wasChanneling = this.channeling;
-			if (!wasEffectDone) {
-				this.doneEffect = true;
-				if (!this.unit.chargeMana(this.ability.getManaCost())) {
-					simulation.getCommandErrorListener().showInterfaceError(this.unit.getPlayerIndex(),
-							CommandStringErrorKeys.NOT_ENOUGH_MANA);
-					return this.unit.pollNextOrderBehavior(simulation);
-				}
-				this.unit.beginCooldown(simulation, this.ability.getCode(), this.ability.getCooldown());
-				this.unit.fireSpellEvents(simulation, JassGameEventsWar3.EVENT_UNIT_SPELL_EFFECT, this.ability, this.target);
-				this.channeling = this.ability.doEffect(simulation, this.unit, this.target);
-				if (this.channeling) {
-					simulation.unitLoopSoundEffectEvent(this.unit, this.ability.getAlias());
-				}
-				else {
-					simulation.unitSoundEffectEvent(this.unit, this.ability.getAlias());
-				}
-			}
-			this.channeling = this.channeling && this.ability.doChannelTick(simulation, this.unit, this.target);
-			if (wasEffectDone && wasChanneling && !this.channeling) {
-				endChannel(simulation, false);
+		if (this.doneEffect || this.castPoint.check(simulation, this::effectAtCastPoint)) {
+			final CBehavior next = effect(simulation);
+			if (next != null) {
+				return next;
 			}
 		}
-		if ((ticksSinceCast >= backswingTicks) && !this.channeling) {
+		if (this.doneEffect && !this.channeling && backswingOver(simulation)) {
 			return this.unit.pollNextOrderBehavior(simulation);
 		}
 		return this;
+	}
+
+	/**
+	 * The backswing follows the cast point (1.29: effect at castpt, the cast ends castbsw later, at its exact time and
+	 * not on a step).
+	 */
+	private void startBackswing(final CSimulation simulation) {
+		if (this.backswing == null) {
+			this.backswing = new CExactExpiry();
+		}
+		this.backswing.start(simulation,
+				this.unit.getUnitType().getCastPoint() + this.unit.getUnitType().getCastBackswingPoint());
+	}
+
+	private void cancelBackswing(final CSimulation simulation) {
+		if (this.backswing != null) {
+			this.backswing.cancel(simulation);
+		}
+	}
+
+	private boolean backswingOver(final CSimulation simulation) {
+		if (this.backswing == null) {
+			return (simulation.getGameTurnTick() - this.castStartTick) >= CTimer.wholeSteps(
+					this.unit.getUnitType().getCastPoint() + this.unit.getUnitType().getCastBackswingPoint());
+		}
+		return this.backswing.check(simulation, this::endBackswingInStep);
+	}
+
+	private void endBackswingInStep(final CSimulation simulation) {
+		if (this.doneEffect && !this.channeling && (this.unit.getCurrentBehavior() == this) && !this.unit.isDead()) {
+			this.unit.beginBehavior(simulation, this.unit.pollNextOrderBehavior(simulation));
+		}
+	}
+
+	/** The effect at the cast point, then a channel tick; a behavior to switch to, or null. */
+	private CBehavior effect(final CSimulation simulation) {
+		boolean wasEffectDone = this.doneEffect;
+		boolean wasChanneling = this.channeling;
+		if (!wasEffectDone) {
+			this.doneEffect = true;
+			final int manaCost = this.ability.getManaCost();
+			if (this.unit.getMana() < manaCost) {
+				simulation.getCommandErrorListener().showInterfaceError(this.unit.getPlayerIndex(),
+						CommandStringErrorKeys.NOT_ENOUGH_MANA);
+				return this.unit.pollNextOrderBehavior(simulation);
+			}
+			this.unit.beginCooldown(simulation, this.ability.getCode(), this.ability.getCooldown());
+			// 1.29: the effect event still sees the mana from before the cast; the cost is paid after it.
+			this.unit.fireSpellEvents(simulation, JassGameEventsWar3.EVENT_UNIT_SPELL_EFFECT, this.ability, this.target);
+			this.unit.setMana(Math.max(0, this.unit.getMana() - manaCost));
+			this.channeling = this.ability.doEffect(simulation, this.unit, this.target);
+			if (this.channeling) {
+				simulation.unitLoopSoundEffectEvent(this.unit, this.ability.getAlias());
+			}
+			else {
+				simulation.unitSoundEffectEvent(this.unit, this.ability.getAlias());
+			}
+		}
+		this.channeling = this.channeling && this.ability.doChannelTick(simulation, this.unit, this.target);
+		if (wasEffectDone && wasChanneling && !this.channeling) {
+			endChannel(simulation, false);
+		}
+		return null;
+	}
+
+	/** A cast point inside a step takes effect at its exact time (1.29: 0.452 s after the cast, not on a step). */
+	private void effectAtCastPoint(final CSimulation simulation) {
+		if (this.doneEffect || (this.unit.getCurrentBehavior() != this) || this.unit.isDead()
+				|| !checkTargetStillValid(simulation)) {
+			return;
+		}
+		final CBehavior next = effect(simulation);
+		if ((next != null) && (next != this)) {
+			this.unit.beginBehavior(simulation, next);
+		}
 	}
 
 	@Override
@@ -147,8 +212,20 @@ public class CBehaviorTargetSpellBase extends CAbstractRangedBehavior {
 	}
 
 	@Override
+	protected boolean usesCastTurn() {
+		return true;
+	}
+
+	@Override
+	protected boolean isFacingLocked() {
+		return this.castStartTick != 0;
+	}
+
+	@Override
 	protected void resetBeforeMoving(final CSimulation simulation) {
 		this.castStartTick = 0;
+		this.castPoint.cancel(simulation);
+		cancelBackswing(simulation);
 	}
 
 	@Override
@@ -157,6 +234,7 @@ public class CBehaviorTargetSpellBase extends CAbstractRangedBehavior {
 
 	@Override
 	public void end(final CSimulation game, final boolean interrupted) {
+		cancelBackswing(game);
 		checkEndChannel(game, interrupted);
 		if (this.castEventsFired) {
 			this.castEventsFired = false;

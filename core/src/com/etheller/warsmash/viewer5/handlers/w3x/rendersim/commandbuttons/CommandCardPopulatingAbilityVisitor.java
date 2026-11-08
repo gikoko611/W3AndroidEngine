@@ -362,7 +362,7 @@ public class CommandCardPopulatingAbilityVisitor implements CAbilityVisitor<Void
 	public Void accept(final CAbilityJass ability) {
 		if (ability.isIconShowing()) {
 			for (final COrderButton order : ability.getOrderButtons()) {
-				if (this.menuBaseOrderId == order.getContainerMenuOrderId()) {
+				if ((this.menuBaseOrderId == order.getContainerMenuOrderId()) && !order.isHidden()) {
 					final OrderButtonUI renderPeer = this.abilityDataUI.getRenderPeer(order);
 					addCommandButton(ability, renderPeer.getIcon(), renderPeer.getIconDisabled(), renderPeer.getTip(),
 							renderPeer.getUberTip(), renderPeer.getButtonPositionX(), renderPeer.getButtonPositionY(),

@@ -1,7 +1,6 @@
 package com.etheller.warsmash.viewer5.handlers.w3x.simulation.util;
 
 import com.badlogic.gdx.graphics.Color;
-import com.etheller.warsmash.util.ArgbImage;
 import com.etheller.warsmash.util.War3ID;
 import com.etheller.warsmash.viewer5.handlers.w3x.TextTag;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CDestructable;
@@ -9,48 +8,21 @@ import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CItem;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CSimulation;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CUnit;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CWidget;
-import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.targeting.AbilityTarget;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.combat.attacks.CUnitAttackInstant;
-import com.etheller.warsmash.viewer5.handlers.w3x.simulation.combat.attacks.CUnitAttackListener;
-import com.etheller.warsmash.viewer5.handlers.w3x.simulation.combat.attacks.CUnitAttackMissile;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.combat.attacks.replacement.CUnitAttackSettings;
-import com.etheller.warsmash.viewer5.handlers.w3x.simulation.combat.projectile.CAbilityCollisionProjectileListener;
-import com.etheller.warsmash.viewer5.handlers.w3x.simulation.combat.projectile.CAbilityProjectile;
-import com.etheller.warsmash.viewer5.handlers.w3x.simulation.combat.projectile.CAbilityProjectileListener;
-import com.etheller.warsmash.viewer5.handlers.w3x.simulation.combat.projectile.CAttackProjectile;
-import com.etheller.warsmash.viewer5.handlers.w3x.simulation.combat.projectile.CCollisionProjectile;
-import com.etheller.warsmash.viewer5.handlers.w3x.simulation.combat.projectile.CJassProjectile;
-import com.etheller.warsmash.viewer5.handlers.w3x.simulation.combat.projectile.CPseudoProjectile;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.combat.projectile.CProjectile;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.trigger.enumtypes.CEffectType;
 
+/**
+ * What the simulation tells the presentation (models, sounds, text). The game must play the same whatever an
+ * implementation does, so nothing returned here may decide a game rule; {@link NoRenderController} runs it with none.
+ */
 public interface SimulationRenderController {
-	char getTileset();
-	
-	CAttackProjectile createAttackProjectile(CSimulation simulation, float launchX, float launchY, float launchFacing,
-			CUnit source, CUnitAttackMissile attack, AbilityTarget target, float damage, int bounceIndex,
-			CUnitAttackListener attackListener, CUnitAttackSettings settings);
+	/** Missile art for a projectile the simulation launched with a unit's attack settings. */
+	void spawnProjectileArt(CProjectile projectile, CUnit source, CUnitAttackSettings settings, int bounceIndex);
 
-	CAbilityProjectile createProjectile(CSimulation cSimulation, float launchX, float launchY, float launchFacing,
-			Float speed, Boolean homing, CUnit source, War3ID spellAlias, AbilityTarget target,
-			CAbilityProjectileListener projectileListener);
-
-	CAbilityProjectile createProjectile(CSimulation cSimulation, float launchX, float launchY, float launchFacing,
-			CUnit source, CUnitAttackSettings settings, AbilityTarget target,
-			CAbilityProjectileListener projectileListener);
-
-	CJassProjectile createJassProjectile(CSimulation cSimulation, float launchX, float launchY, float launchFacing,
-			float speed, boolean homing, CUnit source, War3ID spellAlias, AbilityTarget target);
-
-	CCollisionProjectile createCollisionProjectile(CSimulation cSimulation, float launchX, float launchY,
-			float launchFacing, Float projectileSpeed, Boolean homing, CUnit source, War3ID spellAlias,
-			AbilityTarget target, int maxHits, int hitsPerTarget, float startingRadius, float finalRadius,
-			float collisionInterval, CAbilityCollisionProjectileListener projectileListener, boolean provideCounts);
-
-	CPseudoProjectile createPseudoProjectile(CSimulation cSimulation, float launchX, float launchY, float launchFacing,
-			float projectileSpeed, float projectileStepInterval, int projectileArtSkip, boolean homing, CUnit source,
-			War3ID spellAlias, CEffectType effectType, int effectArtIndex, AbilityTarget target, int maxHits,
-			int hitsPerTarget, float startingRadius, float finalRadius,
-			CAbilityCollisionProjectileListener projectileListener, boolean provideCounts);
+	/** Missile art of an ability (its Missileart) for a projectile the simulation launched. */
+	void spawnProjectileArt(CProjectile projectile, CUnit source, War3ID spellAlias);
 
 	SimulationRenderComponentLightning createLightning(CSimulation simulation, War3ID lightningId, CUnit source,
 			CUnit target);
@@ -87,12 +59,6 @@ public interface SimulationRenderController {
 	void removeUnit(CUnit unit);
 
 	void removeDestructable(CDestructable dest);
-
-	ArgbImage getBuildingPathingPixelMap(War3ID rawcode);
-
-	ArgbImage getDestructablePathingPixelMap(War3ID rawcode);
-
-	ArgbImage getDestructablePathingDeathPixelMap(War3ID rawcode);
 
 	void spawnUnitConstructionFinishSound(CUnit constructedStructure);
 
@@ -168,35 +134,14 @@ public interface SimulationRenderController {
 
 	void changeUnitVertexColor(CUnit unit, float r, float g, float b, float a);
 
-	float[] getUnitVertexColor(CUnit unit);
-
-	int[] getTerrainModBufferSize(float x, float y, float width, float height);
-
-	int[] getTerrainModBufferSize(float centerX, float centerY, float radius);
-
 	void adjustTerrain(float x, float y, float i);
 
 	void adjustTerrain(int[] rect, float[] modBuffer);
-
-	float getTerrainSpaceX(float x);
-
-	float getTerrainSpaceY(float y);
-
-	/** Terrain corner columns and rows, or null without a drawn terrain. */
-	default int[] getTerrainCornerCount() {
-		return null;
-	}
 
 	/** Height offsets (world units) of the terrain corners in a rectangle, replacing the ones set before. */
 	default void setTerrainDeformation(final int column, final int row, final int width, final int height,
 			final float[] offsets) {
 	}
-
-	int getTerrainHeight(float x, float y);
-
-	boolean isTerrainRomp(float x, float y);
-
-	boolean isTerrainWater(float x, float y);
 
 	void changeUnitScale(CUnit unit, float scale, boolean multiplier);
 

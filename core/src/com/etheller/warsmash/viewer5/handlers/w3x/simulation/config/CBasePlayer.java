@@ -3,6 +3,7 @@ package com.etheller.warsmash.viewer5.handlers.w3x.simulation.config;
 import java.util.EnumMap;
 import java.util.EnumSet;
 
+import com.etheller.interpreter.ast.util.CHandle;
 import com.etheller.warsmash.util.WarsmashConstants;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.ai.AIDifficulty;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.players.CAllianceType;
@@ -13,8 +14,9 @@ import com.etheller.warsmash.viewer5.handlers.w3x.simulation.players.CRacePrefer
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.players.CRacePreferences;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.trigger.enumtypes.CPlayerSlotState;
 
-public abstract class CBasePlayer implements CPlayerJass {
+public abstract class CBasePlayer implements CPlayerJass, CHandle {
 	private final int id;
+	private int handleId;
 	private String name;
 	private int team;
 	private int startLocationIndex;
@@ -26,6 +28,7 @@ public abstract class CBasePlayer implements CPlayerJass {
 	private final EnumMap<CPlayerState, Integer> configPlayerStates;
 	private boolean onScoreScreen;
 	private boolean raceSelectable;
+	private CRacePreference raceSkin;
 	private CMapControl mapControl = CMapControl.NONE;
 	private CPlayerSlotState slotState = CPlayerSlotState.EMPTY;
 	private AIDifficulty aiDifficulty = null;
@@ -44,9 +47,19 @@ public abstract class CBasePlayer implements CPlayerJass {
 		this.configPlayerStates = other.configPlayerStates;
 		this.onScoreScreen = other.onScoreScreen;
 		this.raceSelectable = other.raceSelectable;
+		this.raceSkin = other.raceSkin;
 		this.mapControl = other.mapControl;
 		this.slotState = other.slotState;
 		this.handicap = other.handicap;
+	}
+
+	@Override
+	public int getHandleId() {
+		return this.handleId;
+	}
+
+	public void setHandleId(final int handleId) {
+		this.handleId = handleId;
 	}
 
 	public CBasePlayer(final int id) {
@@ -98,6 +111,19 @@ public abstract class CBasePlayer implements CPlayerJass {
 		this.raceSelectable = raceSelectable;
 	}
 
+	/**
+	 * The race whose interface skin this player sees; null (the user selectable preference) means the skin of the
+	 * player's own race.
+	 */
+	@Override
+	public void setRaceSkin(final CRacePreference raceSkin) {
+		this.raceSkin = raceSkin;
+	}
+
+	public CRacePreference getRaceSkin() {
+		return this.raceSkin;
+	}
+
 	@Override
 	public void setTeam(final int team) {
 		this.team = team;
@@ -126,6 +152,10 @@ public abstract class CBasePlayer implements CPlayerJass {
 	@Override
 	public int getColor() {
 		return this.color;
+	}
+
+	public CRacePreferences getRacePreferences() {
+		return this.racePrefs;
 	}
 
 	@Override

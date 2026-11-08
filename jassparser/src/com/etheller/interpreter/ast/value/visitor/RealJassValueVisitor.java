@@ -1,5 +1,6 @@
 package com.etheller.interpreter.ast.value.visitor;
 
+import com.etheller.interpreter.ast.util.JassNumbers;
 import com.etheller.interpreter.ast.value.ArrayJassValue;
 import com.etheller.interpreter.ast.value.BooleanJassValue;
 import com.etheller.interpreter.ast.value.CodeJassValue;
@@ -22,7 +23,7 @@ public class RealJassValueVisitor implements JassValueVisitor<Double> {
 
 	@Override
 	public Double accept(final IntegerJassValue value) {
-		return Double.valueOf(value.getValue());
+		return JassNumbers.fromInt(value.getValue());
 	}
 
 	@Override

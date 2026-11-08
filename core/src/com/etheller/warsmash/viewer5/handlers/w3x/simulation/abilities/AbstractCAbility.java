@@ -2,6 +2,7 @@ package com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities;
 
 import com.etheller.interpreter.ast.util.CExtensibleHandleAbstract;
 import com.etheller.warsmash.util.War3ID;
+import com.etheller.warsmash.viewer5.handlers.w3x.save.SavedDefault;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CItem;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CSimulation;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CUnit;
@@ -13,6 +14,12 @@ public abstract class AbstractCAbility extends CExtensibleHandleAbstract impleme
 	private boolean hero = false;
 	private boolean iconShowing = true;
 	private boolean permanent = false;
+	/**
+	 * The level scripts read for an ability without levels of its own (attack, move, train queue): 1, or what
+	 * SetUnitAbilityLevel left, capped at the data's level count, which is 0 for most of them.
+	 */
+	@SavedDefault("1")
+	private int scriptLevel = 1;
 
 	private final War3ID code;
 
@@ -34,6 +41,14 @@ public abstract class AbstractCAbility extends CExtensibleHandleAbstract impleme
 	@Override
 	public War3ID getAlias() {
 		return getCode();
+	}
+
+	public int getScriptLevel() {
+		return this.scriptLevel;
+	}
+
+	public void setScriptLevel(final int scriptLevel) {
+		this.scriptLevel = scriptLevel;
 	}
 
 	@Override

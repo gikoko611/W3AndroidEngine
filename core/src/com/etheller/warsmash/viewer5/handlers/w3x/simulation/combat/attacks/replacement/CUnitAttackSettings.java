@@ -30,6 +30,8 @@ public class CUnitAttackSettings {
 	private List<CUnitAttackPreDamageListener> listeners = null;
 	private List<CUnitAttackPostDamageListener> postDamageListeners = null;
 	private float baseDamage; // This is a hack, as Barrage needs the damage early
+	private List<Object> instanceOwners = null;
+	private List<Integer> instanceIds = null;
 
 	public CUnitAttackSettings(float projectileArc, String projectileArt, boolean projectileHomingEnabled, int projectileSpeed) {
 		this.projectileSpeed = projectileSpeed;
@@ -53,6 +55,30 @@ public class CUnitAttackSettings {
 		this.areaOfEffectSmallDamage = areaOfEffectSmallDamage;
 		this.damageFactorMedium = damageFactorMedium;
 		this.damageFactorSmall = damageFactorSmall;
+	}
+
+	/**
+	 * The instance id an attack modifier without a cast id gave this attack, or 0 if it gave none yet; the same id
+	 * then holds from the swing start to the hit.
+	 */
+	public int getInstanceId(final Object owner) {
+		if (this.instanceOwners != null) {
+			for (int i = 0; i < this.instanceOwners.size(); i++) {
+				if (this.instanceOwners.get(i) == owner) {
+					return this.instanceIds.get(i);
+				}
+			}
+		}
+		return 0;
+	}
+
+	public void setInstanceId(final Object owner, final int id) {
+		if (this.instanceOwners == null) {
+			this.instanceOwners = new ArrayList<>();
+			this.instanceIds = new ArrayList<>();
+		}
+		this.instanceOwners.add(owner);
+		this.instanceIds.add(id);
 	}
 
 	public List<CUnitAttackPreDamageListener> getPreDamageListeners() {

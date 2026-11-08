@@ -1,199 +1,92 @@
 package com.etheller.warsmash.viewer5.handlers.w3x.simulation.behaviors.build;
 
 import com.etheller.warsmash.util.WarsmashConstants;
-import com.etheller.warsmash.viewer5.handlers.w3x.AnimationTokens;
-import com.etheller.warsmash.viewer5.handlers.w3x.SequenceUtils;
-import com.etheller.warsmash.viewer5.handlers.w3x.environment.PathingGrid;
-import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CDestructable;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CSimulation;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CUnit;
-import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CWidget;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.build.CAbilityHumanRepair;
-import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.targeting.AbilityTargetStillAliveAndTargetableVisitor;
-import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.targeting.AbilityTargetVisitor;
-import com.etheller.warsmash.viewer5.handlers.w3x.simulation.behaviors.CAbstractRangedBehavior;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.behaviors.CBehavior;
-import com.etheller.warsmash.viewer5.handlers.w3x.simulation.behaviors.CBehaviorCategory;
-import com.etheller.warsmash.viewer5.handlers.w3x.simulation.orders.OrderIds;
 
-public class CBehaviorHumanRepair extends CAbstractRangedBehavior {
-	private final CAbilityHumanRepair ability;
-	private final AbilityTargetStillAliveAndTargetableVisitor stillAliveVisitor;
-
-	private int nextNotifyTick = 0;
-
-	private float totalGoldCharged = 0;
-	private float totalLumberCharged = 0;
-
-	private float goldPerUpdate = 0;
-	private float lumberPerUpdate = 0;
-	private float hpPerUpdate = 0;
-
+/**
+ * Repair that also helps build: the Peasant that started a building builds it at the normal rate for free, every
+ * other one adds the power build rate and pays the power build cost.
+ */
+public class CBehaviorHumanRepair extends AbstractCBehaviorRepair {
 	public CBehaviorHumanRepair(final CUnit unit, final CAbilityHumanRepair ability) {
-		super(unit);
-		this.ability = ability;
-		this.stillAliveVisitor = new AbilityTargetStillAliveAndTargetableVisitor();
+		super(unit, ability);
 	}
 
-	public CBehavior reset(final CSimulation game, final CWidget target) {
-		this.nextNotifyTick = 0;
-		this.totalGoldCharged = 0;
-		this.totalLumberCharged = 0;
-		if (target instanceof CUnit) {
-			final CUnit taru = (CUnit) target;
-			if (taru.isConstructing() && taru.isConstructingPaused()) {
-				this.goldPerUpdate = (taru.getUnitType().getGoldRepairCost() * this.ability.getPowerBuildCostRatio()
-						* WarsmashConstants.SIMULATION_STEP_TIME) / (taru.getUnitType().getBuildTime());
-				this.lumberPerUpdate = (taru.getUnitType().getLumberRepairCost() * this.ability.getPowerBuildCostRatio()
-						* WarsmashConstants.SIMULATION_STEP_TIME) / (taru.getUnitType().getBuildTime());
-				this.hpPerUpdate = taru.getMaxLife()
-						* (WarsmashConstants.SIMULATION_STEP_TIME / taru.getUnitType().getBuildTime())
-						* (1.0f - WarsmashConstants.BUILDING_CONSTRUCT_START_LIFE)
-						* this.ability.getPowerBuildTimeRatio();
-			}
-			else {
-				this.goldPerUpdate = taru.getUnitType().getGoldRepairCost()
-						* (WarsmashConstants.SIMULATION_STEP_TIME / taru.getUnitType().getRepairTime())
-						* this.ability.getRepairCostRatio() * this.ability.getRepairTimeRatio();
-				this.lumberPerUpdate = taru.getUnitType().getLumberRepairCost()
-						* (WarsmashConstants.SIMULATION_STEP_TIME / taru.getUnitType().getRepairTime())
-						* this.ability.getRepairCostRatio() * this.ability.getRepairTimeRatio();
-				this.hpPerUpdate = taru.getMaxLife()
-						* (WarsmashConstants.SIMULATION_STEP_TIME / taru.getUnitType().getRepairTime())
-						* this.ability.getRepairTimeRatio();
-			}
+	private CAbilityHumanRepair humanAbility() {
+		return (CAbilityHumanRepair) getAbility();
+	}
+
+	private static boolean isPowerBuildable(final CUnit target) {
+		return target.isConstructing() && target.isConstructingPaused();
+	}
+
+	@Override
+	protected boolean setBuildRates(final CUnit taru) {
+		if (!isPowerBuildable(taru)) {
+			return false;
 		}
-		else if (target instanceof CDestructable) {
-			final CDestructable tard = (CDestructable) target;
-			this.goldPerUpdate = tard.getDestType().getGoldRepairCost()
-					* (WarsmashConstants.SIMULATION_STEP_TIME / tard.getDestType().getRepairTime())
-					* this.ability.getRepairCostRatio() * this.ability.getRepairTimeRatio();
-			this.lumberPerUpdate = tard.getDestType().getLumberRepairCost()
-					* (WarsmashConstants.SIMULATION_STEP_TIME / tard.getDestType().getRepairTime())
-					* this.ability.getRepairCostRatio() * this.ability.getRepairTimeRatio();
-			this.hpPerUpdate = tard.getMaxLife()
-					* (WarsmashConstants.SIMULATION_STEP_TIME / tard.getDestType().getRepairTime())
-					* this.ability.getRepairTimeRatio();
+		final CAbilityHumanRepair ability = humanAbility();
+		this.goldPerUpdate = (taru.getUnitType().getGoldRepairCost() * ability.getPowerBuildCostRatio()
+				* WarsmashConstants.SIMULATION_STEP_TIME) / (taru.getUnitType().getBuildTime());
+		this.lumberPerUpdate = (taru.getUnitType().getLumberRepairCost() * ability.getPowerBuildCostRatio()
+				* WarsmashConstants.SIMULATION_STEP_TIME) / (taru.getUnitType().getBuildTime());
+		this.hpPerUpdate = taru.getMaxLife()
+				* (WarsmashConstants.SIMULATION_STEP_TIME / taru.getUnitType().getBuildTime())
+				* (1.0f - WarsmashConstants.BUILDING_CONSTRUCT_START_LIFE) * ability.getPowerBuildTimeRatio();
+		return true;
+	}
+
+	@Override
+	protected boolean isBuildTarget(final CUnit targetUnit) {
+		return (targetUnit != null) && isPowerBuildable(targetUnit);
+	}
+
+	@Override
+	protected boolean stopsWhenUndamaged() {
+		return true;
+	}
+
+	@Override
+	protected float extraCharge(final CUnit targetUnit, final float perUpdate) {
+		// Repairing a destructable (a gate) or a finished unit has no power builders to pay for.
+		if (!isBuildTarget(targetUnit)) {
+			return 0;
+		}
+		return perUpdate * humanAbility().getPowerBuildTimeRatio() * targetUnit.getPowerWorkers();
+	}
+
+	@Override
+	protected CBehavior buildStep(final CSimulation simulation, final CUnit targetUnit) {
+		final int buildTime = targetUnit.getUnitType().getBuildTime();
+		if (targetUnit.getWorker() == this.unit) {
+			targetUnit.setConstructionProgress(targetUnit.getConstructionProgress()
+					+ (WarsmashConstants.SIMULATION_STEP_TIME * simulation.getCheatBuildSpeed()));
+			final float healthGain = ((WarsmashConstants.SIMULATION_STEP_TIME * simulation.getCheatBuildSpeed())
+					/ buildTime) * (targetUnit.getMaximumLife() * (1.0f - WarsmashConstants.BUILDING_CONSTRUCT_START_LIFE));
+			targetUnit.setLife(simulation, Math.min(targetUnit.getLife() + healthGain, targetUnit.getMaximumLife()));
 		}
 		else {
-			this.goldPerUpdate = 0;
-			this.lumberPerUpdate = 0;
-			this.hpPerUpdate = 0;
+			targetUnit.setConstructionProgress(targetUnit.getConstructionProgress()
+					+ (WarsmashConstants.SIMULATION_STEP_TIME * humanAbility().getPowerBuildTimeRatio()
+							* simulation.getCheatBuildSpeed()));
+			targetUnit.setLife(simulation, Math.min(
+					targetUnit.getLife() + (this.hpPerUpdate * simulation.getCheatBuildSpeed()),
+					targetUnit.getMaximumLife()));
 		}
-		return innerReset(game, target, false);
-	}
-
-	@Override
-	public boolean isWithinRange(final CSimulation simulation) {
-		float castRange = this.ability.getCastRange();
-		if (this.target instanceof CUnit) {
-			final CUnit unitTarget = (CUnit) this.target;
-			if (unitTarget.getMovementType() == PathingGrid.MovementType.FLOAT) {
-				castRange += this.ability.getNavalRangeBonus();
-			}
-		}
-		return this.unit.canReach(this.target, castRange);
-	}
-
-	@Override
-	protected CBehavior update(final CSimulation simulation, final boolean withinFacingWindow) {
-		final CUnit targetUnit = this.target.visit(AbilityTargetVisitor.UNIT);
-		final boolean validHumanBuildTarget = (targetUnit != null) && targetUnit.isConstructing()
-				&& targetUnit.isConstructingPaused();
-		if (this.target instanceof CWidget) {
-			final CWidget targetWidget = (CWidget) this.target;
-			if ((targetWidget.getLife() >= targetWidget.getMaxLife()) && !validHumanBuildTarget) {
-				return this.unit.pollNextOrderBehavior(simulation);
-			}
-		}
-		if (!validHumanBuildTarget || (targetUnit.getWorker() != this.unit)) {
-			final float ng = this.totalGoldCharged + this.goldPerUpdate
-					+ (this.goldPerUpdate * this.ability.getPowerBuildTimeRatio() * targetUnit.getPowerWorkers());
-			final float nl = this.totalLumberCharged + this.lumberPerUpdate
-					+ (this.lumberPerUpdate * this.ability.getPowerBuildTimeRatio() * targetUnit.getPowerWorkers());
-			final int gdx = (int) (ng) - (int) this.totalGoldCharged;
-			final int ldx = (int) (nl) - (int) this.totalLumberCharged;
-			this.totalGoldCharged = ng;
-			this.totalLumberCharged = nl;
-			if (!simulation.getPlayer(this.unit.getPlayerIndex()).charge(gdx, ldx)) {
-				return this.unit.pollNextOrderBehavior(simulation);
-			}
-		}
-		this.unit.getUnitAnimationListener().playAnimation(false, AnimationTokens.PrimaryTag.STAND, SequenceUtils.WORK,
-				1.0f, true);
-		if ((this.nextNotifyTick == 0) || (simulation.getGameTurnTick() >= this.nextNotifyTick)) {
-			if (this.nextNotifyTick == 0) {
-				this.nextNotifyTick = (int) (simulation.getGameTurnTick()
-						+ WarsmashConstants.ONGOING_BEHAVIOR_NOTIFICATION_TICKS / WarsmashConstants.SIMULATION_STEP_TIME);
-			} else {
-				this.unit.fireBehaviorChangeEvent(simulation, this, true);
-			}
-		}
-		if (this.target instanceof CWidget) {
-			final CWidget targetWidget = (CWidget) this.target;
-			if (validHumanBuildTarget) {
-				if (targetUnit.getWorker() == this.unit) {
-					targetUnit.setConstructionProgress(
-							targetUnit.getConstructionProgress()
-									+ (WarsmashConstants.SIMULATION_STEP_TIME * simulation.getCheatBuildSpeed()));
-					final int buildTime = targetUnit.getUnitType().getBuildTime();
-					final float healthGain = ((WarsmashConstants.SIMULATION_STEP_TIME * simulation.getCheatBuildSpeed())
-							/ buildTime)
-							* (targetUnit.getMaximumLife() * (1.0f - WarsmashConstants.BUILDING_CONSTRUCT_START_LIFE));
-					targetUnit.setLife(simulation,
-							Math.min(targetUnit.getLife() + healthGain, targetUnit.getMaximumLife()));
-					if (targetUnit.getConstructionProgress() >= buildTime) {
-						return this.unit.pollNextOrderBehavior(simulation);
-					}
-				}
-				else {
-					targetUnit.setConstructionProgress(targetUnit.getConstructionProgress()
-							+ (WarsmashConstants.SIMULATION_STEP_TIME * this.ability.getPowerBuildTimeRatio()
-									* simulation.getCheatBuildSpeed()));
-					final int buildTime = targetUnit.getUnitType().getBuildTime();
-					targetUnit.setLife(simulation, Math.min(
-							targetUnit.getLife() + (this.hpPerUpdate * simulation.getCheatBuildSpeed()),
-							targetUnit.getMaximumLife()));
-					if (targetUnit.getConstructionProgress() >= buildTime) {
-						return this.unit.pollNextOrderBehavior(simulation);
-					}
-				}
-
-			}
-			else {
-				float newLifeValue = targetWidget.getLife() + this.hpPerUpdate;
-				final boolean done = newLifeValue > targetWidget.getMaxLife();
-				if (done) {
-					newLifeValue = targetWidget.getMaxLife();
-				}
-				targetWidget.setLife(simulation, newLifeValue);
-				if (done) {
-					return this.unit.pollNextOrderBehavior(simulation);
-				}
-			}
+		if (targetUnit.getConstructionProgress() >= buildTime) {
+			return this.unit.pollNextOrderBehavior(simulation);
 		}
 		return this;
-	}
-
-	@Override
-	protected CBehavior updateOnInvalidTarget(final CSimulation simulation) {
-		return this.unit.pollNextOrderBehavior(simulation);
-	}
-
-	@Override
-	protected boolean checkTargetStillValid(final CSimulation simulation) {
-		return this.target.visit(this.stillAliveVisitor.reset(simulation, this.unit, this.ability.getTargetsAllowed()));
-	}
-
-	@Override
-	protected void resetBeforeMoving(final CSimulation simulation) {
 	}
 
 	@Override
 	public void begin(final CSimulation game) {
 		if (this.target instanceof CUnit) {
 			final CUnit taru = (CUnit) this.target;
-			if (taru.isConstructing() && taru.isConstructingPaused()) {
+			if (isPowerBuildable(taru)) {
 				if (taru.getWorker() == null) {
 					taru.setWorker(this.unit, false);
 				}
@@ -208,7 +101,7 @@ public class CBehaviorHumanRepair extends CAbstractRangedBehavior {
 	public void end(final CSimulation game, final boolean interrupted) {
 		if (this.target instanceof CUnit) {
 			final CUnit taru = (CUnit) this.target;
-			if (taru.isConstructing() && taru.isConstructingPaused()) {
+			if (isPowerBuildable(taru)) {
 				if (taru.getWorker() == this.unit) {
 					taru.setWorker(null, false);
 				}
@@ -216,26 +109,6 @@ public class CBehaviorHumanRepair extends CAbstractRangedBehavior {
 					taru.removePowerWorker();
 				}
 			}
-
 		}
-	}
-
-	@Override
-	public void endMove(final CSimulation game, final boolean interrupted) {
-	}
-
-	@Override
-	public int getHighlightOrderId() {
-		return OrderIds.repair;
-	}
-
-	@Override
-	public boolean interruptable() {
-		return true;
-	}
-
-	@Override
-	public CBehaviorCategory getBehaviorCategory() {
-		return CBehaviorCategory.BUILD;
 	}
 }

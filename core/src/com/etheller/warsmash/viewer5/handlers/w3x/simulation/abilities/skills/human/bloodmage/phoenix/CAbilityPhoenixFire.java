@@ -4,7 +4,6 @@ import java.util.EnumSet;
 
 import com.badlogic.gdx.math.Rectangle;
 import com.etheller.warsmash.util.War3ID;
-import com.etheller.warsmash.util.WarsmashConstants;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CSimulation;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CUnit;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CWidget;
@@ -13,6 +12,7 @@ import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.targeting
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.behaviors.CBehavior;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.combat.CTargetType;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.combat.attacks.CUnitAttackListener;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.timers.CTimer;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.util.AbilityActivationReceiver;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.util.AbilityTargetCheckReceiver;
 
@@ -49,7 +49,7 @@ public class CAbilityPhoenixFire extends AbstractGenericNoIconAbility {
 
 	@Override
 	public void onTick(final CSimulation game, final CUnit unit) {
-		final int cooldownTicks = (int) (this.cooldown / WarsmashConstants.SIMULATION_STEP_TIME);
+		final int cooldownTicks = CTimer.wholeSteps(this.cooldown);
 		final int gameTurnTick = game.getGameTurnTick();
 		if (gameTurnTick > (this.lastAttackTurnTick + cooldownTicks)) {
 			game.getWorldCollision().enumUnitsInRect(new Rectangle(unit.getX() - this.areaOfEffect,

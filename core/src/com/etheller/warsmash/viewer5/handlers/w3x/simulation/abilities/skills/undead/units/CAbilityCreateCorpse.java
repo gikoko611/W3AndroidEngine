@@ -40,7 +40,7 @@ public class CAbilityCreateCorpse extends CAbilityPassiveSpellBase {
 	}
 
 	private double slotAngle(final CUnit unit, final int slot) {
-		return Math.toRadians(unit.getFacing()) + (((Math.PI * 2) * slot) / this.maximumCorpses);
+		return StrictMath.toRadians(unit.getFacing()) + (((Math.PI * 2) * slot) / this.maximumCorpses);
 	}
 
 	@Override
@@ -55,9 +55,9 @@ public class CAbilityCreateCorpse extends CAbilityPassiveSpellBase {
 			for (int i = 0; i < this.maximumCorpses; i++) {
 				final double angle = slotAngle(unit, i);
 				this.gravestones[i] = game.spawnSpellEffectOnPoint(
-						unit.getX() + (float) (Math.cos(angle) * this.gravestoneRadius),
-						unit.getY() + (float) (Math.sin(angle) * this.gravestoneRadius),
-						(float) Math.toDegrees(angle), getAlias(), CEffectType.SPECIAL, 0);
+						unit.getX() + (float) (StrictMath.cos(angle) * this.gravestoneRadius),
+						unit.getY() + (float) (StrictMath.sin(angle) * this.gravestoneRadius),
+						(float) StrictMath.toDegrees(angle), getAlias(), CEffectType.SPECIAL, 0);
 			}
 		}
 		int emptySlot = -1;
@@ -79,8 +79,8 @@ public class CAbilityCreateCorpse extends CAbilityPassiveSpellBase {
 			this.ticksTowardsCorpse = 0;
 			final double angle = slotAngle(unit, emptySlot);
 			final CUnit corpse = game.createUnit(this.corpseUnitType, unit.getPlayerIndex(),
-					unit.getX() + (float) (Math.cos(angle) * this.corpseRadius),
-					unit.getY() + (float) (Math.sin(angle) * this.corpseRadius), (float) Math.toDegrees(angle));
+					unit.getX() + (float) (StrictMath.cos(angle) * this.corpseRadius),
+					unit.getY() + (float) (StrictMath.sin(angle) * this.corpseRadius), (float) StrictMath.toDegrees(angle));
 			if (corpse != null) {
 				corpse.becomeCorpse(game);
 				this.corpses[emptySlot] = corpse;

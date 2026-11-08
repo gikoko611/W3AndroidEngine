@@ -8,7 +8,6 @@ import java.util.Map;
 import java.util.Set;
 
 import com.etheller.warsmash.util.War3ID;
-import com.etheller.warsmash.util.WarsmashConstants;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CShopEvents;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CSimulation;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CUnit;
@@ -23,6 +22,7 @@ import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.targeting
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.behaviors.CBehavior;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.players.CPlayer;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.players.CPlayerScore;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.timers.CTimer;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.util.AbilityActivationReceiver;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.util.AbilityTargetCheckReceiver;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.util.CommandStringErrorKeys;
@@ -123,7 +123,7 @@ public final class CAbilitySellUnits extends AbstractCAbility {
 			receiver.activationCheckFailed(CommandStringErrorKeys.NOT_ENOUGH_LUMBER);
 		}
 		else if ((unitType.getFoodUsed() != 0)
-				&& ((buyer.getFoodUsed() + unitType.getFoodUsed()) > buyer.getFoodCap())) {
+				&& ((buyer.getFoodUsed() + unitType.getFoodUsed()) > buyer.getFoodCapLimit())) {
 			receiver.activationCheckFailed(CommandStringErrorKeys.NOT_ENOUGH_FOOD);
 		}
 		else {
@@ -214,7 +214,7 @@ public final class CAbilitySellUnits extends AbstractCAbility {
 		final CPlayer buyer = game.getPlayer(playerIndex);
 		if (!buyer.isTechtreeAllowedByMax(unitTypeId) || (unitType.isHero() && !buyer.isHeroCountAllowedByMax(game))
 				|| ((unitType.getFoodUsed() != 0)
-						&& ((buyer.getFoodUsed() + unitType.getFoodUsed()) > buyer.getFoodCap()))) {
+						&& ((buyer.getFoodUsed() + unitType.getFoodUsed()) > buyer.getFoodCapLimit()))) {
 			return null;
 		}
 		if (unitType.isHero() && (buyer.getHeroTokens() > 0)) {
@@ -294,7 +294,7 @@ public final class CAbilitySellUnits extends AbstractCAbility {
 				return;
 			}
 			state = new SellStockState(stockMax,
-					(int) (unitType.getStockReplenishInterval() / WarsmashConstants.SIMULATION_STEP_TIME),
+					CTimer.wholeSteps(unitType.getStockReplenishInterval()),
 					unitType.getStockInitial());
 			this.unitToSellState.put(unitTypeId, state);
 			this.unitsSold.add(unitTypeId);

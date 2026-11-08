@@ -2,7 +2,6 @@ package com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.skills.n
 
 import com.badlogic.gdx.math.Rectangle;
 import com.etheller.warsmash.util.War3ID;
-import com.etheller.warsmash.util.WarsmashConstants;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CSimulation;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CUnit;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CUnitEnumFunction;
@@ -13,6 +12,7 @@ import com.etheller.warsmash.viewer5.handlers.w3x.simulation.behaviors.CBehavior
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.combat.CAttackType;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.combat.CDamageFlags;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.combat.CSpellDamageFlags;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.timers.CTimer;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.trigger.enumtypes.CDamageType;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.trigger.enumtypes.CEffectType;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.trigger.enumtypes.CWeaponSoundTypeJass;
@@ -47,8 +47,7 @@ public class CBuffImmolationCaster extends AbstractCBuff {
 	public void onTick(final CSimulation game, final CUnit caster) {
 		final int currentTick = game.getGameTurnTick();
 		if (currentTick >= this.nextDamageTick) {
-			final int delayTicks = (int) (this.abilityImmolation.getDuration()
-					/ WarsmashConstants.SIMULATION_STEP_TIME);
+			final int delayTicks = CTimer.wholeSteps(this.abilityImmolation.getDuration());
 			final float areaOfEffect = CBuffImmolationCaster.this.abilityImmolation.getAreaOfEffect();
 			this.nextDamageTick = currentTick + delayTicks;
 			// Measured: a paused unit takes only the first pulse; its buffs do not tick while paused.

@@ -8,8 +8,8 @@ import java.util.Map;
 import java.util.Set;
 
 public class OrderIdUtils {
-	private static Map<Integer, String> orderIdToString = new HashMap<>();
-	private static Map<String, Integer> stringToOrderId = new HashMap<>();
+	private static final Map<Integer, String> orderIdToString = new HashMap<>();
+	private static final Map<String, Integer> stringToOrderId = new HashMap<>();
 	// Measured on 1.29: OrderId2String gives null for these, OrderId("stunned") is 0.
 	private static final Set<Integer> NO_STRING = new HashSet<>(
 			Arrays.asList(OrderIds.stunned, OrderIds.skillmenu, OrderIds.smartvariant));

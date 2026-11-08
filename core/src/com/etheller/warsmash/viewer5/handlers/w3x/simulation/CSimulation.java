@@ -22,12 +22,14 @@ import com.etheller.interpreter.ast.scope.TriggerExecutionScope;
 import com.etheller.interpreter.ast.scope.trigger.RemovableTriggerEvent;
 import com.etheller.interpreter.ast.scope.trigger.Trigger;
 import com.etheller.warsmash.viewer5.handlers.w3x.save.SavedFormerly;
+import com.etheller.warsmash.viewer5.handlers.w3x.save.SavedDefault;
 import com.etheller.interpreter.ast.scope.trigger.TriggerBooleanExpression;
 import com.etheller.interpreter.ast.scope.variableevent.CLimitOp;
 import com.etheller.interpreter.ast.scope.variableevent.VariableEvent;
 import com.etheller.warsmash.parsers.jass.JassAIEnvironment;
 import com.etheller.warsmash.parsers.jass.scope.CommonTriggerExecutionScope;
 import com.etheller.warsmash.units.DataTable;
+import com.etheller.warsmash.units.GameObject;
 import com.etheller.warsmash.units.ObjectData;
 import com.etheller.warsmash.util.ArgbImage;
 import com.etheller.warsmash.util.War3ID;
@@ -45,7 +47,11 @@ import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.item.shop
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.listeners.CUnitSpellEffectListener;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.targeting.AbilityPointTarget;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.targeting.AbilityTarget;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilitybuilder.handler.RandomTypeHandler;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.behaviors.CBehaviorMove;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.campaign.CImage;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.campaign.CMultiboard;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.campaign.CTrackable;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.combat.attacks.CUnitAttackInstant;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.combat.attacks.CUnitAttackListener;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.combat.attacks.CUnitAttackMissile;
@@ -54,9 +60,11 @@ import com.etheller.warsmash.viewer5.handlers.w3x.simulation.combat.projectile.C
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.combat.projectile.CAbilityProjectile;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.combat.projectile.CAbilityProjectileListener;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.combat.projectile.CAttackProjectile;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.combat.projectile.CAttackProjectileMissile;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.combat.projectile.CCollisionProjectile;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.combat.projectile.CEffect;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.combat.projectile.CJassProjectile;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.combat.projectile.CProjectile;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.combat.projectile.CPseudoProjectile;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.config.CBasePlayer;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.config.CPlayerAPI;
@@ -64,6 +72,7 @@ import com.etheller.warsmash.viewer5.handlers.w3x.simulation.config.War3MapConfi
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.config.War3MapConfigStartLoc;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.data.CAbilityData;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.data.CDestructableData;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.data.CPathingTextures;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.data.CItemData;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.data.CUnitData;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.data.CUpgradeData;
@@ -76,12 +85,15 @@ import com.etheller.warsmash.viewer5.handlers.w3x.simulation.players.CPlayer;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.players.CPlayerColor;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.players.CPlayerJass;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.players.CPlayerState;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.players.CPlayerCommandHost;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.players.CPlayerCommandLog;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.players.CPlayerUnitOrderExecutor;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.players.CRace;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.state.CGameState;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.players.CRaceManagerEntry;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.players.CRacePreference;
-import com.etheller.warsmash.viewer5.handlers.w3x.simulation.players.vision.CFogModifier;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.players.vision.CPlayerFogOfWar;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.players.vision.CUnitVisionFogModifier;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.quest.CQuestLog;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.region.CRegionManager;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.state.FalseTimeOfDay;
@@ -114,6 +126,12 @@ public class CSimulation implements CPlayerAPI, CFogMaskSettings {
 	private final List<CUnit> removedUnits;
 	private final List<CDestructable> destructables;
 	private final List<CDestructable> removedDestructables;
+	private final List<TextTag> scriptTextTags = new ArrayList<>();
+	private final List<CImage> scriptImages = new ArrayList<>();
+	private final List<CTrackable> trackables = new ArrayList<>();
+	/** The multiboard drawn: the one shown last. */
+	private CMultiboard shownMultiboard;
+	private boolean multiboardsSuppressed;
 	private final List<CItem> items;
 	private final List<CPlayer> players;
 	private final List<CPlayerUnitOrderExecutor> defaultPlayerUnitOrderExecutors;
@@ -124,10 +142,13 @@ public class CSimulation implements CPlayerAPI, CFogMaskSettings {
 	private transient final SimulationRenderController simulationRenderController;
 	private int gameTurnTick = 0;
 	private final PathingGrid pathingGrid;
+	private final CTerrainData terrainData;
 	private final CWorldCollision worldCollision;
 	private final CPathfindingProcessor[] pathfindingProcessors;
 	private CPathfindingProcessor.SharedGraph pathfindingGraph;
 	private final int mapVersion;
+	/** The game the map is played in: 0 Reign of Chaos, 1 The Frozen Throne. */
+	private final int mapGameVersion;
 	private final CGameplayConstants gameplayConstants;
 	private final Random seededRandom;
 	private float currentGameDayTimeElapsed;
@@ -142,10 +163,13 @@ public class CSimulation implements CPlayerAPI, CFogMaskSettings {
 	private final List<Trigger> removedOnTickTriggers = new ArrayList<>();
 	private final LinkedList<Trigger> onTickTriggers = new LinkedList<>();
 	private transient CommandErrorListener commandErrorListener;
+	private transient CPlayerCommandLog playerCommandLog;
+	private transient CPlayerCommandHost playerCommandHost;
 	private final CRegionManager regionManager;
 	private final List<com.etheller.warsmash.viewer5.handlers.w3x.simulation.unit.CUnitInRangeEvent> unitInRangeEvents = new ArrayList<>();
 	private final Map<Long, com.etheller.warsmash.viewer5.handlers.w3x.simulation.players.vision.CUnitVisionFogModifier> sharedVisions = new HashMap<>();
 	private final List<TimeOfDayEvent> timeOfDayVariableEvents = new ArrayList<>();
+	private final List<GameStateVariableEvent> gameStateVariableEvents = new ArrayList<>();
 	private final EnumMap<JassGameEventsWar3, List<CGlobalEvent>> eventTypeToEvents = new EnumMap<>(
 			JassGameEventsWar3.class);
 	private boolean timeOfDaySuspended;
@@ -159,6 +183,9 @@ public class CSimulation implements CPlayerAPI, CFogMaskSettings {
 	private final Set<CDestructable> ownedTreeSet = new HashSet<>();
 	private GlobalScope globalScope;
 	private static final int BUILDING_PLACE_SEARCH_RINGS = 32;
+	private static final String MISSILE_SPEED = "Missilespeed";
+	private static final double SPELL_MISSILE_AT_ONCE_FLIGHT = 0.0995;
+	private static final String MISSILE_HOMING = "MissileHoming";
 	private boolean fogMaskEnabled = true;
 	private boolean fogEnabled = true;
 	private boolean cheatRevealMap = false;
@@ -171,27 +198,35 @@ public class CSimulation implements CPlayerAPI, CFogMaskSettings {
 	private final EnumMap<JassGameEventsWar3, List<Trigger>> gameEventTriggers = new EnumMap<>(
 			JassGameEventsWar3.class);
 	private String saveBasicFilename = "";
+	private RandomTypeHandler randomTypes;
+	private final List<String> queuedCinematics = new ArrayList<>();
+	/** The expiry time of the exact timer whose callback runs now; NaN outside of one. */
+	@SavedDefault("NaN")
+	private double timerFiringExactTime = Double.NaN;
 
-	public CSimulation(final War3MapConfig config, final int mapVersion, final DataTable miscData,
+	public CSimulation(final War3MapConfig config, final int mapVersion, final int mapGameVersion,
+			final DataTable miscData,
 			final ObjectData parsedUnitData, final ObjectData parsedItemData, final ObjectData parsedDestructableData,
 			final ObjectData parsedAbilityData, final ObjectData parsedUpgradeData,
 			final DataTable standardUpgradeEffectMeta, final SimulationRenderController simulationRenderController,
-			final PathingGrid pathingGrid, final Rectangle entireMapBounds, final Random seededRandom,
+			final CPathingTextures pathingTextures, final PathingGrid pathingGrid, final CTerrainData terrainData, final Rectangle entireMapBounds,
+			final Random seededRandom,
 			final CommandErrorListener commandErrorListener) {
 		this.mapVersion = mapVersion;
+		this.mapGameVersion = mapGameVersion;
 		this.gameplayConstants = new CGameplayConstants(miscData);
-		CFogModifier.setConstants(this.gameplayConstants);
 		this.simulationRenderController = simulationRenderController;
 		this.pathingGrid = pathingGrid;
-		this.abilityData = new CAbilityData(parsedAbilityData);
-		this.upgradeData = new CUpgradeData(this.gameplayConstants, parsedUpgradeData, standardUpgradeEffectMeta);
-		this.itemData = new CItemData(parsedItemData);
+		this.abilityData = new CAbilityData(parsedAbilityData, mapGameVersion);
+		this.upgradeData = new CUpgradeData(this.gameplayConstants, parsedUpgradeData, standardUpgradeEffectMeta,
+				mapGameVersion);
+		this.itemData = new CItemData(parsedItemData, mapGameVersion);
 		this.unitData = new CUnitData(this.gameplayConstants, parsedUnitData, this.abilityData, this.upgradeData,
-				this.simulationRenderController);
+				pathingTextures, mapGameVersion);
 		this.unitData.setTechEquivalents(this.itemData.getTechEquivalents());
 		this.unitData.setItemData(this.itemData);
 		this.unitData.getAllUnitTypesLightweight(); // Quick hack to avoid lag on first cast of Mech Critter
-		this.destructableData = new CDestructableData(parsedDestructableData, simulationRenderController);
+		this.destructableData = new CDestructableData(parsedDestructableData, pathingTextures);
 		this.units = new ArrayList<>();
 		this.newUnits = new ArrayList<>();
 		this.removedUnits = new ArrayList<>();
@@ -201,6 +236,7 @@ public class CSimulation implements CPlayerAPI, CFogMaskSettings {
 		this.projectiles = new ArrayList<>();
 		this.newProjectiles = new ArrayList<>();
 		this.handleIdAllocator = new HandleIdAllocator();
+		this.terrainData = terrainData;
 		this.worldCollision = new CWorldCollision(entireMapBounds, this.gameplayConstants.getMaxCollisionRadius());
 		this.regionManager = new CRegionManager(entireMapBounds, pathingGrid);
 		// Created on first use; all of them share one node grid.
@@ -209,6 +245,11 @@ public class CSimulation implements CPlayerAPI, CFogMaskSettings {
 		this.players = new ArrayList<>();
 		this.defaultPlayerUnitOrderExecutors = new ArrayList<>();
 		final List<CPlayer> neutralPlayers = new ArrayList<>();
+		// 1.29 gives Player(0) the id 0x100008: the game makes eight handles before the players. A player's handle
+		// is made when the script first asks for it: the players the map's config asked for come first, in that
+		// order, before the preplaced objects; the rest get theirs from Player() in the game.
+		this.handleIdAllocator.skipHandleIds(8);
+		final List<CBasePlayer> configAskedPlayers = new ArrayList<>();
 		for (int i = 0; i < WarsmashConstants.MAX_PLAYERS; i++) {
 			final CBasePlayer configPlayer = config.getPlayer(i);
 			final War3MapConfigStartLoc startLoc = config.getStartLoc(configPlayer.getStartLocationIndex());
@@ -240,11 +281,18 @@ public class CSimulation implements CPlayerAPI, CFogMaskSettings {
 			final CPlayer newPlayer = new CPlayer(defaultRace, new float[] { startLoc.getX(), startLoc.getY() },
 					configPlayer, new CPlayerFogOfWar(pathingGrid));
 			newPlayer.setAIDifficulty(configPlayer.getAIDifficulty());
+			if (configPlayer.getHandleId() != 0) {
+				configAskedPlayers.add(configPlayer);
+			}
 			this.players.add(newPlayer);
 			this.defaultPlayerUnitOrderExecutors.add(new CPlayerUnitOrderExecutor(this, i));
 			if ((newPlayer.getController() == CMapControl.NEUTRAL) && (i < (WarsmashConstants.MAX_PLAYERS - 4))) {
 				neutralPlayers.add(newPlayer);
 			}
+		}
+		configAskedPlayers.sort((a, b) -> Integer.compare(a.getHandleId(), b.getHandleId()));
+		for (final CBasePlayer configPlayer : configAskedPlayers) {
+			this.players.get(configPlayer.getId()).setHandleId(this.handleIdAllocator.createHandleId());
 		}
 		final CPlayer neutralAggressive = this.players.get(this.players.size() - 4);
 		neutralAggressive.setName(miscData.getLocalizedString("WESTRING_PLAYER_NA"));
@@ -323,7 +371,11 @@ public class CSimulation implements CPlayerAPI, CFogMaskSettings {
 	}
 	
 	public char getTileset() {
-		return this.simulationRenderController.getTileset();
+		return this.terrainData.getTileset();
+	}
+
+	public CTerrainData getTerrainData() {
+		return this.terrainData;
 	}
 
 	public CUnitData getUnitData() {
@@ -400,19 +452,40 @@ public class CSimulation implements CPlayerAPI, CFogMaskSettings {
 	}
 
 	private void internalRegisterTimer(final CTimer timer) {
-		if (this.activeTimers.contains(timer)) {
-			this.activeTimers.remove(timer);
-		}
+		this.activeTimers.remove(timer);
 		final ListIterator<CTimer> listIterator = this.activeTimers.listIterator();
 		while (listIterator.hasNext()) {
 			final CTimer nextTimer = listIterator.next();
-			if (nextTimer.getEngineFireTick() > timer.getEngineFireTick()) {
+			if ((nextTimer.getEngineFireTick() > timer.getEngineFireTick())
+					|| ((nextTimer.getEngineFireTick() == timer.getEngineFireTick())
+							&& (nextTimer.getQueueTime() > timer.getQueueTime()))) {
 				listIterator.previous();
 				listIterator.add(timer);
 				return;
 			}
 		}
 		this.activeTimers.addLast(timer);
+	}
+
+	/**
+	 * The timer part of a step: timers started since the last one join the queue, then every timer due by this step
+	 * fires in order of its tick and, within a tick, of its time (start order for the same time).
+	 */
+	void fireDueTimers() {
+		for (final CTimer timer : this.addedTimers) {
+			internalRegisterTimer(timer);
+		}
+		this.addedTimers.clear();
+		this.firingTimers = true;
+		try {
+			while (!this.activeTimers.isEmpty()
+					&& (this.activeTimers.peek().getEngineFireTick() <= this.gameTurnTick)) {
+				this.activeTimers.pop().fire(this);
+			}
+		}
+		finally {
+			this.firingTimers = false;
+		}
 	}
 
 	public void internalUnregisterTimer(final CTimer timer) {
@@ -441,11 +514,29 @@ public class CSimulation implements CPlayerAPI, CFogMaskSettings {
 	}
 
 	public CItem internalCreateItem(final War3ID alias, final float unitX, final float unitY) {
-		final CItem item = this.itemData.create(this, alias, unitX, unitY, this.handleIdAllocator.createId());
+		final CItem item = this.itemData.create(this, alias, unitX, unitY, this.handleIdAllocator.createHandleId());
+		// Measured on 1.29: an item takes one image pool number, a destructable none.
+		item.setShadowPoolIds(new int[] { this.handleIdAllocator.createImageId() });
 		this.handleIdToItem.put(item.getHandleId(), item);
 		this.items.add(item);
 		this.worldCollision.addItem(item);
 		return item;
+	}
+
+	/**
+	 * A living unit's shadow takes image pool numbers; measured on 1.29, a unit gives them back when it dies (a corpse
+	 * has no shadow), so they take them again when they come back to life.
+	 */
+	public void takeShadowPoolIds(final CUnit unit) {
+		final int imageCount = this.unitData.getShadowImageCount(unit.getTypeId());
+		if ((imageCount == 0) || unit.hasShadowPoolIds()) {
+			return;
+		}
+		final int[] imageIds = new int[imageCount];
+		for (int i = 0; i < imageCount; i++) {
+			imageIds[i] = this.handleIdAllocator.createImageId();
+		}
+		unit.setShadowPoolIds(imageIds);
 	}
 
 	public CItem createItem(final War3ID alias, final float unitX, final float unitY) {
@@ -506,6 +597,11 @@ public class CSimulation implements CPlayerAPI, CFogMaskSettings {
 		}
 		final CUnit createdUnit = this.simulationRenderController.createUnit(this, typeId, playerIndex, x, y, facing);
 		if (createdUnit != null) {
+			takeShadowPoolIds(createdUnit);
+			if (this.unitData.hasUberSplat(typeId)) {
+				createdUnit.setUbersplatPoolIds(this.handleIdAllocator.createImageId(),
+						this.handleIdAllocator.createUbersplatId());
+			}
 			createdUnit.setConstructing(constructing);
 			setupCreatedUnit(createdUnit);
 			final float handicap = getPlayer(playerIndex).getHandicap();
@@ -522,6 +618,13 @@ public class CSimulation implements CPlayerAPI, CFogMaskSettings {
 			// Fog is recomputed once a second; without this a script could not order a unit it just made against
 			// anything, because the new unit would not yet see its target.
 			createdUnit.updateFogOfWar(this);
+			// Players the owner shares its vision with see the new unit at once too (measured on 1.29).
+			final CPlayer owner = getPlayer(playerIndex);
+			for (final CPlayer receiver : this.players) {
+				if ((receiver != owner) && sharesVision(owner, receiver)) {
+					createdUnit.updateFogOfWar(this, receiver.getFogOfWar());
+				}
+			}
 			createdUnit.onCreatedNightSleep(this);
 			if (createdUnit.isHero()) {
 				heroCreateEvent(createdUnit);
@@ -539,8 +642,8 @@ public class CSimulation implements CPlayerAPI, CFogMaskSettings {
 		final ArgbImage pathingMap = unitType.getBuildingPathingPixelMap();
 		final float offsetX = ((pathingMap.getWidth() / 2) % 2) == 1 ? 32f : 0f;
 		final float offsetY = ((pathingMap.getHeight() / 2) % 2) == 1 ? 32f : 0f;
-		final float baseX = (roundHalfAwayFromZero((x - offsetX) / 64f) * 64f) + offsetX;
-		final float baseY = (roundHalfAwayFromZero((y - offsetY) / 64f) * 64f) + offsetY;
+		final float baseX = (truncateTowardZero((x - offsetX) / 64f) * 64f) + offsetX;
+		final float baseY = (truncateTowardZero((y - offsetY) / 64f) * 64f) + offsetY;
 		final int[] stepX = { 0, 1, 0, -1 };
 		final int[] stepY = { -1, 0, 1, 0 };
 		int cellX = 0;
@@ -568,9 +671,9 @@ public class CSimulation implements CPlayerAPI, CFogMaskSettings {
 		return new Vector2(baseX, baseY);
 	}
 
-	// Measured: halves round away from zero (-54.5 to -55, 34.5 to 35), unlike Math.round.
-	private static float roundHalfAwayFromZero(final float value) {
-		return Math.signum(value) * (float) Math.floor(Math.abs(value) + 0.5f);
+	// Measured: the grid point is cut toward zero, not rounded (-34.5 to -34, -63.25 to -63, 15.75 to 15, 51.56 to 51).
+	private static float truncateTowardZero(final float value) {
+		return (int) value;
 	}
 
 	public CUnit createUnitSimple(final War3ID typeId, final int playerIndex, float x, float y,
@@ -641,27 +744,69 @@ public class CSimulation implements CPlayerAPI, CFogMaskSettings {
 	public CAttackProjectile createProjectile(final CUnit source, final float launchX, final float launchY,
 			final float launchFacing, final CUnitAttackMissile attack, final AbilityTarget target, final float damage,
 			final int bounceIndex, final CUnitAttackListener attackListener, final CUnitAttackSettings settings) {
-		final CAttackProjectile projectile = this.simulationRenderController.createAttackProjectile(this, launchX,
-				launchY, launchFacing, source, attack, target, damage, bounceIndex, attackListener, settings);
+		final CAttackProjectile projectile = new CAttackProjectileMissile(
+				projectileLaunchX(source, launchX, launchFacing), projectileLaunchY(source, launchY, launchFacing),
+				settings.getProjectileSpeed(), target, source, damage, attack, bounceIndex, attackListener, settings);
+		this.simulationRenderController.spawnProjectileArt(projectile, source, settings, bounceIndex);
+		leadMidStepLaunch(projectile);
 		this.newProjectiles.add(projectile);
 		return projectile;
+	}
+
+	/**
+	 * Where a unit's missiles start: its launch offsets, which the unit data gives forward and sideways, turned to
+	 * the launch facing (radians).
+	 */
+	private float projectileLaunchX(final CUnit source, final float launchX, final float launchFacing) {
+		final War3ID typeId = source.getTypeId();
+		final float offsetX = this.unitData.getProjectileLaunchX(typeId);
+		final float offsetY = this.unitData.getProjectileLaunchY(typeId);
+		return launchX + (offsetY * (float) StrictMath.cos(launchFacing)) + (offsetX * (float) StrictMath.sin(launchFacing));
+	}
+
+	private float projectileLaunchY(final CUnit source, final float launchY, final float launchFacing) {
+		final War3ID typeId = source.getTypeId();
+		final float offsetX = this.unitData.getProjectileLaunchX(typeId);
+		final float offsetY = this.unitData.getProjectileLaunchY(typeId);
+		return (launchY + (offsetY * (float) StrictMath.sin(launchFacing))) - (offsetX * (float) StrictMath.cos(launchFacing));
+	}
+
+	/** Missile speed of the ability's data (Missilespeed). */
+	private float abilityMissileSpeed(final War3ID spellAlias) {
+		final GameObject abilityEditorData = this.abilityData.getEditorData(spellAlias.asStringValue());
+		return abilityEditorData == null ? 0 : abilityEditorData.getFieldAsFloat(MISSILE_SPEED, 0);
+	}
+
+	/** Whether the ability's missiles follow their target (MissileHoming). */
+	private boolean abilityMissileHoming(final War3ID spellAlias) {
+		final GameObject abilityEditorData = this.abilityData.getEditorData(spellAlias.asStringValue());
+		return (abilityEditorData != null) && abilityEditorData.getFieldAsBoolean(MISSILE_HOMING, 0);
 	}
 
 	public CAbilityProjectile createProjectile(final CUnit source, final War3ID spellAlias, final float launchX,
 			final float launchY, final float launchFacing, final Float speed, final Boolean homing,
 			final AbilityTarget target, final CAbilityProjectileListener projectileListener) {
-		final CAbilityProjectile projectile = this.simulationRenderController.createProjectile(this, launchX, launchY,
-				launchFacing, speed, homing, source, spellAlias, target, projectileListener);
+		final CAbilityProjectile projectile = new CAbilityProjectile(projectileLaunchX(source, launchX, launchFacing),
+				projectileLaunchY(source, launchY, launchFacing),
+				speed == null ? abilityMissileSpeed(spellAlias) : speed, target,
+				homing == null ? abilityMissileHoming(spellAlias) : homing, source, projectileListener);
+		this.simulationRenderController.spawnProjectileArt(projectile, source, spellAlias);
+		leadMidStepLaunch(projectile);
 		this.newProjectiles.add(projectile);
 		projectileListener.onLaunch(this, projectile, target);
+		projectile.startMissileClock(CTimer.currentTime(this));
+		hitAtLaunchIfNear(projectile);
 		return projectile;
 	}
 
 	public CAbilityProjectile createProjectile(final CUnit source, final CUnitAttackSettings settings,
 			final float launchX, final float launchY, final float launchFacing, final AbilityTarget target,
 			final CAbilityProjectileListener projectileListener) {
-		final CAbilityProjectile projectile = this.simulationRenderController.createProjectile(this, launchX, launchY,
-				launchFacing, source, settings, target, projectileListener);
+		final CAbilityProjectile projectile = new CAbilityProjectile(projectileLaunchX(source, launchX, launchFacing),
+				projectileLaunchY(source, launchY, launchFacing), settings.getProjectileSpeed(), target,
+				settings.isProjectileHomingEnabled(), source, projectileListener);
+		this.simulationRenderController.spawnProjectileArt(projectile, source, settings, 0);
+		leadMidStepLaunch(projectile);
 		this.newProjectiles.add(projectile);
 		projectileListener.onLaunch(this, projectile, target);
 		return projectile;
@@ -670,8 +815,10 @@ public class CSimulation implements CPlayerAPI, CFogMaskSettings {
 	public CJassProjectile createProjectile(final CUnit source, final War3ID spellAlias, final float launchX,
 			final float launchY, final float launchFacing, final Float speed, final Boolean homing,
 			final AbilityTarget target) {
-		final CJassProjectile projectile = this.simulationRenderController.createJassProjectile(this, launchX, launchY,
-				launchFacing, speed, homing, source, spellAlias, target);
+		final CJassProjectile projectile = new CJassProjectile(projectileLaunchX(source, launchX, launchFacing),
+				projectileLaunchY(source, launchY, launchFacing), speed, target, homing, source);
+		this.simulationRenderController.spawnProjectileArt(projectile, source, spellAlias);
+		leadMidStepLaunch(projectile);
 		this.newProjectiles.add(projectile);
 		return projectile;
 	}
@@ -681,9 +828,12 @@ public class CSimulation implements CPlayerAPI, CFogMaskSettings {
 			final AbilityTarget target, final int maxHits, final int hitsPerTarget, final float startingRadius,
 			final float finalRadius, final float collisionInterval,
 			final CAbilityCollisionProjectileListener projectileListener, final boolean provideCounts) {
-		final CCollisionProjectile projectile = this.simulationRenderController.createCollisionProjectile(this, launchX,
-				launchY, launchFacing, speed, homing, source, spellAlias, target, maxHits, hitsPerTarget,
+		final CCollisionProjectile projectile = new CCollisionProjectile(
+				projectileLaunchX(source, launchX, launchFacing), projectileLaunchY(source, launchY, launchFacing),
+				speed == null ? abilityMissileSpeed(spellAlias) : speed, target,
+				homing == null ? abilityMissileHoming(spellAlias) : homing, source, maxHits, hitsPerTarget,
 				startingRadius, finalRadius, collisionInterval, projectileListener, provideCounts);
+		this.simulationRenderController.spawnProjectileArt(projectile, source, spellAlias);
 		this.newProjectiles.add(projectile);
 		projectileListener.onLaunch(this, projectile, target);
 		return projectile;
@@ -695,13 +845,39 @@ public class CSimulation implements CPlayerAPI, CFogMaskSettings {
 			final int projectileArtSkip, final boolean homing, final AbilityTarget target, final int maxHits,
 			final int hitsPerTarget, final float startingRadius, final float finalRadius,
 			final CAbilityCollisionProjectileListener projectileListener, final boolean provideCounts) {
-		final CPseudoProjectile projectile = this.simulationRenderController.createPseudoProjectile(this, launchX,
-				launchY, launchFacing, speed, projectileStepInterval, projectileArtSkip, homing, source, spellAlias,
-				effectType, effectArtIndex, target, maxHits, hitsPerTarget, startingRadius, finalRadius,
-				projectileListener, provideCounts);
+		final CPseudoProjectile projectile = new CPseudoProjectile(projectileLaunchX(source, launchX, launchFacing),
+				projectileLaunchY(source, launchY, launchFacing), speed, projectileStepInterval, projectileArtSkip,
+				target, homing, source, spellAlias, effectType, effectArtIndex, maxHits, hitsPerTarget, startingRadius,
+				finalRadius, projectileListener, provideCounts);
 		this.newProjectiles.add(projectile);
 		projectileListener.onLaunch(this, projectile, target);
 		return projectile;
+	}
+
+	/**
+	 * Inside an exact timer's callback the step has already moved on to the timer's step end, so a missile launched
+	 * there is given the flight between its exact launch time and that step end.
+	 */
+	private void leadMidStepLaunch(final CProjectile projectile) {
+		if (!Double.isNaN(this.timerFiringExactTime)) {
+			final double lead = (this.gameTurnTick * (double) WarsmashConstants.SIMULATION_STEP_TIME)
+					- this.timerFiringExactTime;
+			if (lead > 0) {
+				projectile.setLaunchLead((float) lead);
+			}
+		}
+	}
+
+	/**
+	 * Measured on 1.29: a spell missile whose flight would take under 0.1 s hits as it is launched (Storm Bolt 80 and
+	 * 99 away and Death Coil 160 away hit at once, Storm Bolt 100 away and Death Coil 170 away fly).
+	 */
+	private void hitAtLaunchIfNear(final CAbilityProjectile projectile) {
+		final double distance = StrictMath.hypot(projectile.getTargetX() - projectile.getX(),
+				projectile.getTargetY() - projectile.getY());
+		if (distance < (projectile.getSpeed() * SPELL_MISSILE_AT_ONCE_FLIGHT)) {
+			projectile.hitAtLaunch(this);
+		}
 	}
 
 	public void registerEffect(final CEffect effect) {
@@ -848,6 +1024,11 @@ public class CSimulation implements CPlayerAPI, CFogMaskSettings {
 		}
 	}
 
+	/** Neutral Aggressive, Victim, Extra and Passive: the last four player slots. */
+	public boolean isNeutralPlayer(final int playerIndex) {
+		return playerIndex >= (this.players.size() - 4);
+	}
+
 	public boolean isUnitVisionShared(final CUnit unit, final CPlayer viewer) {
 		return !this.sharedVisions.isEmpty()
 				&& this.sharedVisions.containsKey((((long) unit.getHandleId()) << 8) | viewer.getId());
@@ -855,6 +1036,7 @@ public class CSimulation implements CPlayerAPI, CFogMaskSettings {
 
 	public void update() {
 		PerfStats.stepMark();
+		updateSelections();
 		for (int i = this.unitInRangeEvents.size() - 1; i >= 0; i--) {
 			this.unitInRangeEvents.get(i).update(this);
 		}
@@ -870,6 +1052,7 @@ public class CSimulation implements CPlayerAPI, CFogMaskSettings {
 				this.simulationRenderController.removeUnit(unit);
 				getPlayerHeroes(unit.getPlayerIndex()).remove(unit);
 				unit.onRemove(this);
+				freeUnitHandleId(unit);
 			}
 		}
 		finishAddingNewUnits();
@@ -881,8 +1064,14 @@ public class CSimulation implements CPlayerAPI, CFogMaskSettings {
 			this.worldCollision.removeDestructable(destructable);
 			this.simulationRenderController.removeDestructable(destructable);
 			destructable.onRemove(this);
+			// Measured on 1.29: the id of a removed destructable is given again, like a removed unit's.
+			this.handleIdToDestructable.remove(destructable.getHandleId(), destructable);
+			this.handleIdAllocator.release(destructable);
 		}
 		this.removedDestructables.clear();
+		// Missiles launched since the last move (a cast point inside the last step, a script) fly from this step on.
+		this.projectiles.addAll(this.newProjectiles);
+		this.newProjectiles.clear();
 		final Iterator<CEffect> projectileIterator = this.projectiles.iterator();
 		while (projectileIterator.hasNext()) {
 			final CEffect projectile = projectileIterator.next();
@@ -913,26 +1102,7 @@ public class CSimulation implements CPlayerAPI, CFogMaskSettings {
 		final float timeOfDayAfter = getGameTimeOfDay();
 		this.daytime = (timeOfDayAfter >= this.gameplayConstants.getDawnTimeGameHours())
 				&& (timeOfDayAfter < this.gameplayConstants.getDuskTimeGameHours());
-		for (final CTimer timer : this.addedTimers) {
-			internalRegisterTimer(timer);
-		}
-		this.addedTimers.clear();
-		final Set<CTimer> timers = new HashSet<>();
-		for (final CTimer timer : this.activeTimers) {
-			if (!timers.add(timer)) {
-				throw new IllegalStateException("Duplicate timer add: " + timer);
-			}
-		}
-		this.firingTimers = true;
-		try {
-			while (!this.activeTimers.isEmpty()
-					&& (this.activeTimers.peek().getEngineFireTick() <= this.gameTurnTick)) {
-				this.activeTimers.pop().fire(this);
-			}
-		}
-		finally {
-			this.firingTimers = false;
-		}
+		fireDueTimers();
 		checkTimeOfDayEvents(timeOfDayBefore, timeOfDayAfter);
 		PerfStats.stepEnd(PerfStats.Step.TIMERS);
 		this.onTickTriggers.addAll(this.addedOnTickTriggers);
@@ -960,6 +1130,54 @@ public class CSimulation implements CPlayerAPI, CFogMaskSettings {
 		for (final Runnable runnable : this.runningPostUpdateCallbacks) {
 			runnable.run();
 		}
+		expireScriptTextTags();
+		this.handleIdAllocator.endStep();
+		SimulationChecksum.afterStep(this);
+	}
+
+	private void updateSelections() {
+		for (final CPlayer player : this.players) {
+			final int playerIndex = player.getId();
+			player.getSelection().update(
+					unit -> !unit.isPaused() && controls(playerIndex, unit),
+					unit -> controls(playerIndex, unit) || unit.isVisible(this, playerIndex),
+					(unit, selected) -> unit.fireSelectionEvents(this, player, selected));
+		}
+	}
+
+	private boolean controls(final int playerIndex, final CUnit unit) {
+		return (unit.getPlayerIndex() == playerIndex)
+				|| getPlayer(unit.getPlayerIndex()).hasAlliance(playerIndex, CAllianceType.SHARED_CONTROL);
+	}
+
+	/**
+	 * ShowUnit(false): the unit leaves every player's selection at the next step.
+	 */
+	public void unitHiddenByScript(final CUnit unit) {
+		for (final CPlayer player : this.players) {
+			player.getSelection().unitHidden(unit);
+		}
+	}
+
+	/**
+	 * A player's selection command, applied in the step it is scheduled for on every machine.
+	 */
+	public void selectUnits(final int playerIndex, final int[] deselectedUnitHandleIds,
+			final int[] selectedUnitHandleIds) {
+		final CPlayer player = getPlayer(playerIndex);
+		player.getSelection().apply(unitsOf(deselectedUnitHandleIds), unitsOf(selectedUnitHandleIds),
+				(unit, selected) -> unit.fireSelectionEvents(this, player, selected));
+	}
+
+	private List<CUnit> unitsOf(final int[] handleIds) {
+		final List<CUnit> units = new ArrayList<>(handleIds.length);
+		for (final int handleId : handleIds) {
+			final CUnit unit = getUnit(handleId);
+			if (unit != null) {
+				units.add(unit);
+			}
+		}
+		return units;
 	}
 
 	public void removeUnit(final CUnit unit) {
@@ -989,8 +1207,25 @@ public class CSimulation implements CPlayerAPI, CFogMaskSettings {
 			this.simulationRenderController.removeUnit(unit);
 			getPlayerHeroes(unit.getPlayerIndex()).remove(unit);
 			unit.onRemove(this);
+			freeUnitHandleId(unit);
 		}
 		this.removedUnits.clear();
+	}
+
+	/** A unit gone from the game gives its id back; nothing keyed by the id may stay for the next owner of it. */
+	private void freeUnitHandleId(final CUnit unit) {
+		if (!this.sharedVisions.isEmpty()) {
+			for (final CPlayer viewer : this.players) {
+				final long key = (((long) unit.getHandleId()) << 8) | viewer.getId();
+				final CUnitVisionFogModifier existing = this.sharedVisions.remove(key);
+				if (existing != null) {
+					viewer.removeFogModifer(this, existing);
+				}
+			}
+		}
+		this.handleIdAllocator.release(unit);
+		// Measured on 1.29: a dying unit keeps its pool numbers until it is gone.
+		unit.freePoolIds(this.handleIdAllocator);
 	}
 
 	public float getGameTimeOfDay() {
@@ -1001,6 +1236,32 @@ public class CSimulation implements CPlayerAPI, CFogMaskSettings {
 				* this.gameplayConstants.getGameDayHours();
 	}
 
+	/**
+	 * The time of day a script reads: inside a timer that expires within a step, the time at that expiry rather than
+	 * at the step's end (1.29: a timer 0.01 s after another reads a time of day 0.0005 hours later).
+	 */
+	public float getScriptTimeOfDay() {
+		if ((this.falseTimeOfDay != null) && this.falseTimeOfDay.isInitialized()) {
+			return this.falseTimeOfDay.getTimeOfDay();
+		}
+		final float dayLength = this.gameplayConstants.getGameDayLength();
+		float elapsed = this.currentGameDayTimeElapsed - timeOfDayAheadOfScript();
+		if (elapsed < 0) {
+			elapsed += dayLength;
+		}
+		return (elapsed / dayLength) * this.gameplayConstants.getGameDayHours();
+	}
+
+	/** Game day seconds the step's clock has run past the exact time of the timer now firing. */
+	private float timeOfDayAheadOfScript() {
+		if (Double.isNaN(this.timerFiringExactTime) || (this.falseTimeOfDay != null) || this.timeOfDaySuspended) {
+			return 0;
+		}
+		final double ahead = (this.gameTurnTick * (double) WarsmashConstants.SIMULATION_STEP_TIME)
+				- this.timerFiringExactTime;
+		return ahead > 0 ? (float) (ahead * this.timeOfDayScale) : 0;
+	}
+
 	public void setGameTimeOfDay(final float value) {
 		final float timeOfDayBefore = getGameTimeOfDay();
 		if (this.falseTimeOfDay != null) {
@@ -1009,6 +1270,11 @@ public class CSimulation implements CPlayerAPI, CFogMaskSettings {
 		else {
 			this.currentGameDayTimeElapsed = (value / this.gameplayConstants.getGameDayHours())
 					* this.gameplayConstants.getGameDayLength();
+			final float ahead = timeOfDayAheadOfScript();
+			if (ahead > 0) {
+				this.currentGameDayTimeElapsed = (this.currentGameDayTimeElapsed + ahead)
+						% this.gameplayConstants.getGameDayLength();
+			}
 		}
 		final float timeOfDayAfter = getGameTimeOfDay();
 		this.daytime = (timeOfDayAfter >= this.gameplayConstants.getDawnTimeGameHours())
@@ -1035,7 +1301,7 @@ public class CSimulation implements CPlayerAPI, CFogMaskSettings {
 	public void addFalseTimeOfDay(final int hour, final int minute, final float duration) {
 		final float timeOfDayBefore = getGameTimeOfDay();
 		this.falseTimeOfDay = new FalseTimeOfDay(hour, minute,
-				(int) (duration / WarsmashConstants.SIMULATION_STEP_TIME));
+				CTimer.wholeSteps(duration));
 		checkTimeOfDayEvents(timeOfDayBefore, getGameTimeOfDay());
 	}
 
@@ -1061,6 +1327,22 @@ public class CSimulation implements CPlayerAPI, CFogMaskSettings {
 
 	public Random getSeededRandom() {
 		return this.seededRandom;
+	}
+
+	/** Built on first use from this game's data and tileset; a loaded save from before it was kept builds it again. */
+	public RandomTypeHandler getRandomTypes() {
+		if (this.randomTypes == null) {
+			this.randomTypes = new RandomTypeHandler();
+		}
+		return this.randomTypes;
+	}
+
+	public double getTimerFiringExactTime() {
+		return this.timerFiringExactTime;
+	}
+
+	public void setTimerFiringExactTime(final double time) {
+		this.timerFiringExactTime = time;
 	}
 
 	public void unitDamageEvent(final CUnit damagedUnit, final String weaponSound, final String armorType) {
@@ -1143,16 +1425,45 @@ public class CSimulation implements CPlayerAPI, CFogMaskSettings {
 		return this.defaultPlayerUnitOrderExecutors.get(index);
 	}
 
+	public CPlayerCommandLog getPlayerCommandLog() {
+		if (this.playerCommandLog == null) {
+			this.playerCommandLog = new CPlayerCommandLog();
+		}
+		return this.playerCommandLog;
+	}
+
+	public CPlayerCommandHost getPlayerCommandHost() {
+		return this.playerCommandHost == null ? CPlayerCommandHost.NONE : this.playerCommandHost;
+	}
+
+	public void setPlayerCommandHost(final CPlayerCommandHost playerCommandHost) {
+		this.playerCommandHost = playerCommandHost;
+	}
+
 	public CommandErrorListener getCommandErrorListener() {
 		return this.commandErrorListener;
 	}
 
 	public void unitConstructFinishEvent(final CUnit constructedStructure) {
 		this.simulationRenderController.spawnUnitConstructionFinishSound(constructedStructure);
+		noteAlertPosition(constructedStructure);
 	}
 
 	public void unitUpgradeFinishEvent(final CUnit constructedStructure) {
 		this.simulationRenderController.spawnUnitUpgradeFinishSound(constructedStructure);
+		noteAlertPosition(constructedStructure);
+	}
+
+	public void unitAttackedEvent(final CUnit unit, final CUnit attacker) {
+		if (this.commandErrorListener != null) {
+			this.commandErrorListener.unitAttacked(unit, attacker);
+		}
+	}
+
+	private void noteAlertPosition(final CUnit unit) {
+		if (this.commandErrorListener != null) {
+			this.commandErrorListener.noteAlertPosition(unit.getPlayerIndex(), unit.getX(), unit.getY());
+		}
 	}
 
 	public void createDeathExplodeEffect(final CUnit cUnit, final War3ID explodesOnDeathBuffId) {
@@ -1163,17 +1474,41 @@ public class CSimulation implements CPlayerAPI, CFogMaskSettings {
 		return this.handleIdAllocator;
 	}
 
+	public List<CPlayer> getPlayers() {
+		return this.players;
+	}
+
+	public List<CEffect> getProjectiles() {
+		return this.projectiles;
+	}
+
+	public List<CTimer> getActiveTimers() {
+		return this.activeTimers;
+	}
+
+	public List<CTimer> getAddedTimers() {
+		return this.addedTimers;
+	}
+
+	/** By player index; a player that never moved a unit has none. */
+	public CPathfindingProcessor[] getPathfindingProcessors() {
+		return this.pathfindingProcessors;
+	}
+
 	public void unitTrainedEvent(final CUnit trainingUnit, final CUnit trainedUnit) {
 		this.simulationRenderController.spawnUnitReadySound(trainedUnit);
+		noteAlertPosition(trainedUnit);
 	}
 
 	public void researchFinishEvent(final CUnit cUnit, final War3ID queuedRawcode, final int level) {
 		getCommandErrorListener().showUpgradeCompleteAlert(cUnit.getPlayerIndex(), queuedRawcode, level);
+		noteAlertPosition(cUnit);
 	}
 
 	public void heroReviveEvent(final CUnit trainingUnit, final CUnit trainedUnit) {
 		this.simulationRenderController.heroRevived(trainedUnit);
 		this.simulationRenderController.spawnUnitReadySound(trainedUnit);
+		noteAlertPosition(trainedUnit);
 	}
 
 	public void unitRepositioned(final CUnit cUnit) {
@@ -1205,11 +1540,68 @@ public class CSimulation implements CPlayerAPI, CFogMaskSettings {
 	}
 
 	public TextTag createTextTag() {
-		return this.simulationRenderController.createTextTag();
+		final TextTag textTag = this.simulationRenderController.createTextTag();
+		textTag.setHandleId(this.handleIdAllocator.createTextTagId());
+		this.scriptTextTags.add(textTag);
+		return textTag;
 	}
 
 	public void destroyTextTag(final TextTag textTag) {
 		this.simulationRenderController.destroyTextTag(textTag);
+		this.scriptTextTags.remove(textTag);
+		this.handleIdAllocator.freeTextTagId(textTag.getHandleId());
+	}
+
+	/** The image takes the next number of the image pool. */
+	public void addImage(final CImage image) {
+		image.setHandleId(this.handleIdAllocator.createImageId());
+		this.scriptImages.add(image);
+	}
+
+	public void destroyImage(final CImage image) {
+		if (image.isValid() && !image.isDestroyed()) {
+			image.destroy();
+			this.scriptImages.remove(image);
+			this.handleIdAllocator.freeImageId(image.getHandleId());
+		}
+	}
+
+	public List<CImage> getScriptImages() {
+		return this.scriptImages;
+	}
+
+	public void addTrackable(final CTrackable trackable) {
+		this.trackables.add(trackable);
+	}
+
+	public List<CTrackable> getTrackables() {
+		return this.trackables;
+	}
+
+	public CMultiboard getShownMultiboard() {
+		return this.multiboardsSuppressed ? null : this.shownMultiboard;
+	}
+
+	public void setShownMultiboard(final CMultiboard shownMultiboard) {
+		this.shownMultiboard = shownMultiboard;
+	}
+
+	public boolean isShownMultiboard(final CMultiboard board) {
+		return this.shownMultiboard == board;
+	}
+
+	public void setMultiboardsSuppressed(final boolean multiboardsSuppressed) {
+		this.multiboardsSuppressed = multiboardsSuppressed;
+	}
+
+	/** Measured on 1.29: a script text tag that runs out of life gives its id back like a destroyed one. */
+	private void expireScriptTextTags() {
+		for (int i = this.scriptTextTags.size() - 1; i >= 0; i--) {
+			final TextTag textTag = this.scriptTextTags.get(i);
+			if (textTag.advanceGameAge(WarsmashConstants.SIMULATION_STEP_TIME)) {
+				destroyTextTag(textTag);
+			}
+		}
 	}
 
 	public void unitGainLevelEvent(final CUnit unit, final boolean showEffect) {
@@ -1300,6 +1692,9 @@ public class CSimulation implements CPlayerAPI, CFogMaskSettings {
 	}
 
 	public void unitPreferredSelectionReplacement(final CUnit unit, final CUnit newUnit) {
+		for (final CPlayer player : this.players) {
+			player.getSelection().unitReplaced(unit, newUnit);
+		}
 		this.simulationRenderController.unitPreferredSelectionReplacement(unit, newUnit);
 	}
 
@@ -1331,7 +1726,7 @@ public class CSimulation implements CPlayerAPI, CFogMaskSettings {
 		return new TimeOfDayEventRegistration(this, trigger, timeOfDayVariableEvent);
 	}
 
-	private static final class FogUpdateTimer extends CTimer {
+	static final class FogUpdateTimer extends CTimer {
 		@Override
 		public void onFire(final CSimulation simulation) {
 			simulation.updateFogOfWar();
@@ -1509,6 +1904,12 @@ public class CSimulation implements CPlayerAPI, CFogMaskSettings {
 		this.simulationRenderController.heroDeathEvent(cUnit);
 	}
 
+	public void heroKilledEvent(final CUnit hero) {
+		if (this.commandErrorListener != null) {
+			this.commandErrorListener.heroDied(hero);
+		}
+	}
+
 	public void heroDissipateEvent(final CUnit cUnit) {
 		getPlayer(cUnit.getPlayerIndex()).onHeroDeath(cUnit);
 	}
@@ -1518,6 +1919,11 @@ public class CSimulation implements CPlayerAPI, CFogMaskSettings {
 		cItem.setHidden(true); // TODO fix
 		cItem.setLife(this, 0);
 		this.worldCollision.removeItem(cItem);
+		// Measured on 1.29: the id of a removed item is given again.
+		if (this.handleIdToItem.remove(cItem.getHandleId(), cItem)) {
+			this.handleIdAllocator.release(cItem);
+			cItem.freePoolIds(this.handleIdAllocator);
+		}
 	}
 
 	public void removeDestructable(final CDestructable dest) {
@@ -1526,7 +1932,13 @@ public class CSimulation implements CPlayerAPI, CFogMaskSettings {
 		if (dest.isRemovedFromGame() || this.removedDestructables.contains(dest)) {
 			return;
 		}
-		dest.setLife(this, 0);
+		if (dest.isDead()) {
+			// Measured on 1.29: removing a destructable that is already dead fires its death event again.
+			dest.fireDeathEvents(this);
+		}
+		else {
+			dest.setLife(this, 0);
+		}
 		this.removedDestructables.add(dest);
 	}
 
@@ -1575,7 +1987,67 @@ public class CSimulation implements CPlayerAPI, CFogMaskSettings {
 
 		@Override
 		public void fire() {
-			this.fire(this.globalScope);
+			final CommonTriggerExecutionScope scope = CommonTriggerExecutionScope.gameStateLimitScope(getTrigger(),
+					CGameState.TIME_OF_DAY);
+			this.globalScope.queueTrigger(null, null, getTrigger(), scope, scope);
+		}
+	}
+
+	/** A trigger on an integer game state: divine intervention or disconnected. */
+	private static final class GameStateVariableEvent extends VariableEvent {
+		private final GlobalScope globalScope;
+		private final CGameState gameState;
+
+		private GameStateVariableEvent(final Trigger trigger, final CGameState gameState, final CLimitOp limitOp,
+				final double doubleValue, final GlobalScope globalScope) {
+			super(trigger, limitOp, doubleValue);
+			this.gameState = gameState;
+			this.globalScope = globalScope;
+		}
+
+		private void fire() {
+			final CommonTriggerExecutionScope scope = CommonTriggerExecutionScope.gameStateLimitScope(getTrigger(),
+					this.gameState);
+			this.globalScope.queueTrigger(null, null, getTrigger(), scope, scope);
+		}
+	}
+
+	private static final class GameStateEventRegistration extends RemovableTriggerEvent {
+		private final CSimulation simulation;
+		private final GameStateVariableEvent event;
+
+		private GameStateEventRegistration(final CSimulation simulation, final GameStateVariableEvent event) {
+			super(event.getTrigger());
+			this.simulation = simulation;
+			this.event = event;
+		}
+
+		@Override
+		public void remove() {
+			this.simulation.gameStateVariableEvents.remove(this.event);
+		}
+	}
+
+	public RemovableTriggerEvent registerGameStateEvent(final GlobalScope globalScope, final Trigger trigger,
+			final CGameState gameState, final CLimitOp opcode, final double value) {
+		if (gameState == CGameState.TIME_OF_DAY) {
+			return registerTimeOfDayEvent(globalScope, trigger, opcode, value);
+		}
+		final GameStateVariableEvent event = new GameStateVariableEvent(trigger, gameState, opcode, value,
+				globalScope);
+		this.gameStateVariableEvents.add(event);
+		return new GameStateEventRegistration(this, event);
+	}
+
+	/**
+	 * Measured on 1.29: an integer game state's events fire at once each time the state is set to a value they match,
+	 * also when it matched before (the time of day fires only when it comes to match).
+	 */
+	private void fireGameStateEvents(final CGameState gameState, final int value) {
+		for (final GameStateVariableEvent event : new ArrayList<>(this.gameStateVariableEvents)) {
+			if ((event.gameState == gameState) && event.isMatching(value)) {
+				event.fire();
+			}
 		}
 	}
 
@@ -1661,6 +2133,7 @@ public class CSimulation implements CPlayerAPI, CFogMaskSettings {
 
 	public void setDivineInterventionGameState(final int value) {
 		this.divineInterventionGameState = value;
+		fireGameStateEvents(CGameState.DIVINE_INTERVENTION, value);
 	}
 
 	public int getDisconnectedGameState() {
@@ -1669,6 +2142,7 @@ public class CSimulation implements CPlayerAPI, CFogMaskSettings {
 
 	public void setDisconnectedGameState(final int value) {
 		this.disconnectedGameState = value;
+		fireGameStateEvents(CGameState.DISCONNECTED, value);
 	}
 
 	public void setTimeOfDaySuspended(final boolean flag) {
@@ -1693,6 +2167,8 @@ public class CSimulation implements CPlayerAPI, CFogMaskSettings {
 	}
 
 	public void unitUpdatedType(final CUnit unit, final War3ID typeId, final boolean updatePortrait) {
+		// The new look starts from its own type's tint, whatever color the old one had.
+		unit.setVertexColor(this.unitData.getTintingColor(typeId));
 		this.simulationRenderController.unitUpdatedType(unit, typeId, updatePortrait);
 	}
 
@@ -1723,19 +2199,24 @@ public class CSimulation implements CPlayerAPI, CFogMaskSettings {
 	}
 
 	public void changeUnitVertexColor(final CUnit unit, final Color color) {
+		unit.setVertexColor(new float[] { color.r, color.g, color.b, color.a });
 		this.simulationRenderController.changeUnitVertexColor(unit, color);
 	}
 
 	public void changeUnitVertexColor(final CUnit unit, final float r, final float g, final float b) {
+		unit.setVertexColor(new float[] { r, g, b, 1 });
 		this.simulationRenderController.changeUnitVertexColor(unit, r, g, b);
 	}
 
 	public void changeUnitVertexColor(final CUnit unit, final float r, final float g, final float b, final float a) {
+		unit.setVertexColor(new float[] { r, g, b, a });
 		this.simulationRenderController.changeUnitVertexColor(unit, r, g, b, a);
 	}
 
+	/** The unit's vertex color {r, g, b, a}, a copy the caller may change. */
 	public float[] getUnitVertexColor(final CUnit unit) {
-		return this.simulationRenderController.getUnitVertexColor(unit);
+		final float[] vertexColor = unit.getVertexColor();
+		return vertexColor != null ? vertexColor.clone() : this.unitData.getTintingColor(unit.getTypeId());
 	}
 
 	public void setGlobalScope(final GlobalScope globalScope) {
@@ -1747,43 +2228,63 @@ public class CSimulation implements CPlayerAPI, CFogMaskSettings {
 	}
 
 	public int[] getTerrainModBufferSize(float x, float y, float width, float height) {
-		return this.simulationRenderController.getTerrainModBufferSize(x, y, width, height);
+		return this.terrainData.getTerrainModBufferSize(x, y, width, height);
 	}
 
 	public int[] getTerrainModBufferSize(float centerX, float centerY, float radius) {
-		return this.simulationRenderController.getTerrainModBufferSize(centerX, centerY, radius);
+		return this.terrainData.getTerrainModBufferSize(centerX, centerY, radius);
 	}
 
 	public void adjustTerrain(int[] rect, float[] modBuffer) {
+		this.terrainData.adjustGround(rect, modBuffer);
 		this.simulationRenderController.adjustTerrain(rect, modBuffer);
 	}
 
 	public void adjustTerrain(float x, float y, float i) {
+		this.terrainData.adjustGround(x, y, i);
 		this.simulationRenderController.adjustTerrain(x, y, i);
 	}
 
 	public float getTerrainSpaceX(final float x) {
-		return this.simulationRenderController.getTerrainSpaceX(x);
+		return this.terrainData.getTerrainSpaceX(x);
 	}
 
 	public float getTerrainSpaceY(final float y) {
-		return this.simulationRenderController.getTerrainSpaceY(y);
+		return this.terrainData.getTerrainSpaceY(y);
 	}
 
 	public int getTerrainHeight(final float x, final float y) {
-		return this.simulationRenderController.getTerrainHeight(x, y);
+		return this.terrainData.getLayerHeight(x, y);
 	}
 
 	public boolean isTerrainRomp(final float x, final float y) {
-		return this.simulationRenderController.isTerrainRomp(x, y);
+		return this.terrainData.isRamp(x, y);
 	}
 
 	public boolean isTerrainWater(final float x, final float y) {
-		return this.simulationRenderController.isTerrainWater(x, y);
+		return this.terrainData.isWater(x, y);
 	}
 
 	public int getMapVersion() {
 		return this.mapVersion;
+	}
+
+	/** PlayCinematic: the movie plays when the game that asked for it ends, in the order they were asked for. */
+	public void queueCinematic(final String name) {
+		if ((name != null) && !name.isEmpty()) {
+			this.queuedCinematics.add(name);
+		}
+	}
+
+	/** @return the movies asked for since the last call, oldest first */
+	public List<String> takeQueuedCinematics() {
+		final List<String> taken = new ArrayList<>(this.queuedCinematics);
+		this.queuedCinematics.clear();
+		return taken;
+	}
+
+	public int getMapGameVersion() {
+		return this.mapGameVersion;
 	}
 
 	public boolean isMapReignOfChaos() {

@@ -6,6 +6,7 @@ public class BeginFunctionInstruction implements JassInstruction {
 	private final int lineNo;
 	private final String sourceFile;
 	private final String name;
+	private int opCost;
 
 	public BeginFunctionInstruction(final int lineNo, final String sourceFile, final String name) {
 		this.lineNo = lineNo;
@@ -25,6 +26,15 @@ public class BeginFunctionInstruction implements JassInstruction {
 //		jassStackFrame.functionNameMetaData = this.functionNameMetaData;
 //		jassStackFrame.returnAddress = thread.stackFrame;
 //		thread.stackFrame = jassStackFrame;
+	}
+
+	@Override
+	public int opCost() {
+		return this.opCost;
+	}
+
+	public void setOpCost(final int opCost) {
+		this.opCost = opCost;
 	}
 
 	public int getLineNo() {

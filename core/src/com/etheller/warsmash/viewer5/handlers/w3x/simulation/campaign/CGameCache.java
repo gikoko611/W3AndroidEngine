@@ -1,11 +1,15 @@
 package com.etheller.warsmash.viewer5.handlers.w3x.simulation.campaign;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
+
+import com.badlogic.gdx.files.FileHandle;
 
 /**
  * A game cache handle. Measured on 1.29: every InitGameCache call makes a new handle, handles of one file name share
@@ -21,6 +25,7 @@ public final class CGameCache {
 	private static final int STORE_VERSION = 1;
 	private static final Map<String, Data> FILES = new HashMap<>();
 	private static boolean loadedFromDisk;
+	private static Disk disk = ProfileDisk.INSTANCE;
 
 	private final String fileName;
 	private Data data;
@@ -43,15 +48,105 @@ public final class CGameCache {
 	}
 
 	public static boolean saveAllToDisk() {
-		return CSaveStorage.writeAtomically(CSaveStorage.profileFile(STORE_FILE), CGameCache::writeAll);
+		final byte[] bytes;
+		try {
+			bytes = toBytes();
+		}
+		catch (final IOException e) {
+			e.printStackTrace();
+			return false;
+		}
+		return disk.write(bytes);
 	}
 
 	public static void reloadAllFromDisk() {
 		final Map<String, Data> saved = new HashMap<>();
-		CSaveStorage.read(CSaveStorage.profileFile(STORE_FILE), in -> readAll(in, saved));
+		final byte[] bytes = disk.read();
+		if (bytes != null) {
+			try {
+				readAll(new DataInputStream(new ByteArrayInputStream(bytes)), saved);
+			}
+			catch (final IOException e) {
+				e.printStackTrace();
+			}
+		}
 		FILES.clear();
 		FILES.putAll(saved);
 		loadedFromDisk = true;
+	}
+
+	/**
+	 * Where the caches are saved to and read from. A replay records what the game read and plays it back from there,
+	 * since the profile's file may have changed in between.
+	 */
+	public interface Disk {
+		/** The saved file's bytes, or null without one. */
+		byte[] read();
+
+		boolean write(byte[] bytes);
+	}
+
+	public static Disk profileDisk() {
+		return ProfileDisk.INSTANCE;
+	}
+
+	/** Null puts back the profile's own file. */
+	public static void setDisk(final Disk disk) {
+		CGameCache.disk = disk == null ? ProfileDisk.INSTANCE : disk;
+	}
+
+	/** The caches as the game has them now, or null when none were read from the disk yet; for a replay's start. */
+	public static byte[] snapshot() {
+		if (!loadedFromDisk) {
+			return null;
+		}
+		try {
+			return toBytes();
+		}
+		catch (final IOException e) {
+			throw new IllegalStateException(e);
+		}
+	}
+
+	/** Puts back the caches of a {@link #snapshot()}. */
+	public static void restoreSnapshot(final byte[] snapshot) throws IOException {
+		if (snapshot == null) {
+			forgetLoaded();
+			return;
+		}
+		restoreAll(new DataInputStream(new ByteArrayInputStream(snapshot)));
+	}
+
+	private static byte[] toBytes() throws IOException {
+		final ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+		try (DataOutputStream out = new DataOutputStream(bytes)) {
+			writeAll(out);
+		}
+		return bytes.toByteArray();
+	}
+
+	private static final class ProfileDisk implements Disk {
+		private static final ProfileDisk INSTANCE = new ProfileDisk();
+
+		@Override
+		public byte[] read() {
+			final FileHandle file = CSaveStorage.profileFile(STORE_FILE);
+			if (!file.exists()) {
+				return null;
+			}
+			try {
+				return file.readBytes();
+			}
+			catch (final RuntimeException e) {
+				e.printStackTrace();
+				return null;
+			}
+		}
+
+		@Override
+		public boolean write(final byte[] bytes) {
+			return CSaveStorage.writeAtomically(CSaveStorage.profileFile(STORE_FILE), out -> out.write(bytes));
+		}
 	}
 
 	private static void loadFromDiskOnce() {

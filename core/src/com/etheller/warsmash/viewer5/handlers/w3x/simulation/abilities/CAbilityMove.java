@@ -9,6 +9,7 @@ import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.targeting
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.targeting.AbilityTarget;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.targeting.AbilityTargetVisitor;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.behaviors.CBehavior;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.behaviors.CBehaviorAttackMove;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.behaviors.CBehaviorBoardTransport;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.behaviors.CBehaviorFollow;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.behaviors.CBehaviorHoldPosition;
@@ -40,11 +41,36 @@ public class CAbilityMove extends AbstractCAbility {
 		case OrderIds.smart:
 		case OrderIds.patrol:
 		case OrderIds.move:
+			if ((orderId == OrderIds.smart) && (target instanceof CUnit)
+					&& CAbilityAttack.isUnhittableEnemy(game, unit, (CUnit) target, receiver)) {
+				// Measured on 1.29: a smart order on an enemy no weapon can hit (a Footman on a flyer) is refused,
+				// not taken as a follow.
+				break;
+			}
 			if ((target instanceof CUnit) && (target != unit)) {
 				receiver.targetOk(target);
 			}
 			else {
 				receiver.targetCheckFailed(CommandStringErrorKeys.MUST_TARGET_A_UNIT_WITH_THIS_ACTION);
+			}
+			break;
+		case OrderIds.board:
+			if ((target instanceof CUnit) && (target != unit) && (unit.getBoardTransportBehavior()
+					.getPartnerAbility(game, unit, (CUnit) target, true, true) != null)) {
+				receiver.targetOk(target);
+			}
+			else {
+				receiver.targetCheckFailed(CommandStringErrorKeys.UNABLE_TO_LOAD_TARGET);
+			}
+			break;
+		case OrderIds.attack:
+			// Measured on 1.29: a unit without an attack (Goblin Sapper, or one whose 'Aatk' a script removed) takes
+			// an attack order on a unit or a destructable and walks up to it.
+			if (hasNoAttack(unit) && (target != unit)) {
+				receiver.targetOk(target);
+			}
+			else {
+				receiver.orderIdNotAccepted();
 			}
 			break;
 		default:
@@ -62,6 +88,15 @@ public class CAbilityMove extends AbstractCAbility {
 		case OrderIds.move:
 		case OrderIds.patrol:
 			receiver.targetOk(target);
+			break;
+		case OrderIds.attack:
+			// Measured on 1.29: a unit without an attack (transport ship) takes an attack-move and moves.
+			if (hasNoAttack(unit)) {
+				receiver.targetOk(target);
+			}
+			else {
+				receiver.orderIdNotAccepted();
+			}
 			break;
 		default:
 			receiver.orderIdNotAccepted();
@@ -82,6 +117,10 @@ public class CAbilityMove extends AbstractCAbility {
 		}
 	}
 
+	private static boolean hasNoAttack(final CUnit unit) {
+		return unit.getCurrentAttacks().isEmpty() || (unit.getAttackBehavior() == null);
+	}
+
 	@Override
 	public void onAdd(final CSimulation game, final CUnit unit) {
 		unit.setMoveBehavior(new CBehaviorMove(unit));
@@ -89,11 +128,27 @@ public class CAbilityMove extends AbstractCAbility {
 		unit.setPatrolBehavior(new CBehaviorPatrol(unit));
 		unit.setHoldPositionBehavior(new CBehaviorHoldPosition(unit));
 		unit.setBoardTransportBehavior(new CBehaviorBoardTransport(unit));
+		if ((unit.getAttackBehavior() != null) && (unit.getAttackMoveBehavior() == null)) {
+			unit.setAttackMoveBehavior(new CBehaviorAttackMove(unit));
+		}
 	}
 
 	@Override
 	public void onRemove(final CSimulation game, final CUnit unit) {
 
+	}
+
+	@Override
+	public void onRemoveDisabled(final CSimulation game, final CUnit unit) {
+		// Removed for good (a script removing 'Amov'): the unit stays where it is, as a unit without move speed.
+		unit.releaseBehaviors(game, unit.getMoveBehavior(), unit.getFollowBehavior(), unit.getPatrolBehavior(),
+				unit.getHoldPositionBehavior(), unit.getBoardTransportBehavior(), unit.getAttackMoveBehavior());
+		unit.setMoveBehavior(null);
+		unit.setFollowBehavior(null);
+		unit.setPatrolBehavior(null);
+		unit.setHoldPositionBehavior(null);
+		unit.setBoardTransportBehavior(null);
+		unit.setAttackMoveBehavior(null);
 	}
 
 	@Override
@@ -112,8 +167,14 @@ public class CAbilityMove extends AbstractCAbility {
 		final boolean smart = orderId == OrderIds.smart;
 		final CUnit targetUnit = target.visit(AbilityTargetVisitor.UNIT);
 		if (targetUnit != null) {
+			if (orderId == OrderIds.attack) {
+				// Measured on 1.29: the unit walks up to where its target stands and the order ends there; it does
+				// not follow.
+				return caster.getMoveBehavior().reset(OrderIds.move,
+						new AbilityPointTarget(targetUnit.getX(), targetUnit.getY()));
+			}
 			CBehavior behavior = null;
-			if (smart) {
+			if (smart || (orderId == OrderIds.board)) {
 				final CBehaviorBoardTransport boardTransportBehavior = caster.getBoardTransportBehavior();
 				final CAbilityRanged transportLoad = boardTransportBehavior.getPartnerAbility(game, caster, targetUnit,
 						true, true);
@@ -130,6 +191,9 @@ public class CAbilityMove extends AbstractCAbility {
 				caster.setDefaultBehavior(behavior);
 			}
 			return behavior;
+		}
+		if (orderId == OrderIds.attack) {
+			return caster.getMoveBehavior().reset(OrderIds.move, new AbilityPointTarget(target.getX(), target.getY()));
 		}
 		// NOTE: shouldn't happen, target is always unit for this ability
 		return caster.pollNextOrderBehavior(game);

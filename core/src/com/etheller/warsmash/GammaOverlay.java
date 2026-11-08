@@ -7,6 +7,7 @@ import com.badlogic.gdx.graphics.Pixmap;
 import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.math.Matrix4;
+import com.etheller.warsmash.util.GraphicsContext;
 import com.etheller.warsmash.viewer5.handlers.w3x.ui.GameOptions;
 
 /**
@@ -21,6 +22,7 @@ final class GammaOverlay {
 	private static Texture white;
 	// A finished game activity takes its GL context along, and with it the texture; the next one makes its own.
 	private static Object whiteContext;
+	private static int whiteGeneration;
 
 	private GammaOverlay() {
 	}
@@ -30,8 +32,9 @@ final class GammaOverlay {
 		if (gamma == GameOptions.NEUTRAL_GAMMA) {
 			return;
 		}
-		if ((white == null) || (whiteContext != Gdx.app)) {
+		if ((white == null) || (whiteContext != Gdx.app) || (whiteGeneration != GraphicsContext.generation())) {
 			whiteContext = Gdx.app;
+			whiteGeneration = GraphicsContext.generation();
 			final Pixmap pixmap = new Pixmap(1, 1, Pixmap.Format.RGBA8888);
 			pixmap.setColor(Color.WHITE);
 			pixmap.fill();

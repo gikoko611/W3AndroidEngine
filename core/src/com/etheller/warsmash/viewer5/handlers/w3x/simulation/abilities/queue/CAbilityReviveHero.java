@@ -40,7 +40,7 @@ public final class CAbilityReviveHero extends AbstractCAbility {
 					if (player.getLumber() >= heroReviveLumberCost) {
 						if ((deadHero.getUnitType().getFoodUsed() == 0)
 								|| ((player.getFoodUsed() + deadHero.getUnitType().getFoodUsed()) <= player
-										.getFoodCap())) {
+										.getFoodCapLimit())) {
 							receiver.useOk();
 						}
 						else {
@@ -54,6 +54,11 @@ public final class CAbilityReviveHero extends AbstractCAbility {
 				else {
 					receiver.activationCheckFailed(CommandStringErrorKeys.NOT_ENOUGH_GOLD);
 				}
+			}
+			else {
+				// A hero already in a revive queue (or not dead) is not offered again; saying nothing here would
+				// leave the caller with the previous ability's answer.
+				receiver.notAnActiveAbility();
 			}
 		}
 		else {
@@ -126,7 +131,7 @@ public final class CAbilityReviveHero extends AbstractCAbility {
 	public CBehavior beginNoTarget(final CSimulation game, final CUnit caster, final int playerIndex, final int orderId,
 			final boolean autoOrder) {
 		if (orderId == OrderIds.cancel) {
-			caster.cancelBuildQueueItem(game, 0);
+			caster.cancelLastBuildQueueItem(game);
 		}
 		else {
 			caster.queueRevivingHero(game, game.getUnit(orderId));
@@ -145,10 +150,7 @@ public final class CAbilityReviveHero extends AbstractCAbility {
 
 	@Override
 	public void onDeath(final CSimulation game, final CUnit cUnit) {
-		// refund stuff when building dies
-		while (cUnit.getBuildQueueTypes()[0] != null) {
-			cUnit.cancelBuildQueueItem(game, 0);
-		}
+		cUnit.clearBuildQueueOnDeath(game);
 	}
 
 	@Override

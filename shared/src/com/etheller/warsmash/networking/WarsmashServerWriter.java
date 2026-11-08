@@ -111,6 +111,16 @@ public class WarsmashServerWriter implements ServerToClientListener {
 	}
 
 	@Override
+	public void issuePlayerCommand(final int playerIndex, final byte[] command) {
+		this.sendBuffer.clear();
+		this.sendBuffer.putInt(4 + 4 + 4 + command.length);
+		this.sendBuffer.putInt(ServerToClientProtocol.ISSUE_PLAYER_COMMAND);
+		this.sendBuffer.putInt(playerIndex);
+		this.sendBuffer.putInt(command.length);
+		this.sendBuffer.put(command);
+	}
+
+	@Override
 	public void finishedTurn(final int gameTurnTick) {
 		this.sendBuffer.clear();
 		this.sendBuffer.putInt(4 + 4);

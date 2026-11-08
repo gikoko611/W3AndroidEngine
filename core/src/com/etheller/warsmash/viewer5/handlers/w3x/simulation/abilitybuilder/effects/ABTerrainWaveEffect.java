@@ -100,7 +100,7 @@ public class ABTerrainWaveEffect extends ABTerrainEffect {
 				float dsq = (x - dpx) * (x - dpx) + (y - dpy) * (y - dpy);
 				if (dsq <= this.terrainRadiusSq) {
 					float d = Math.min(Math.max((float) Math.sqrt(dsq) / this.terrainRadius, 0.0f), 1.0f);
-					dz = (float) (-0.5 * this.depth * (Math.cos(d * Math.PI) + 1));
+					dz = (float) (-0.5 * this.depth * (StrictMath.cos(d * Math.PI) + 1));
 					if (timeRatio > 0.89999998) {
 						dz *= (1.0 - ((timeRatio - 0.89999998) / 0.10000002));
 					}
