@@ -21,8 +21,8 @@ import com.etheller.warsmash.units.DataTable;
 import com.etheller.warsmash.util.StringBundle;
 
 /**
- * The graphics packages are laid over the Classic data by path, the interface apart from the in-game graphics, and
- * data without the packages is read as it is.
+ * The graphics packages are laid over the Classic data by path, the in-game interface with the models, and data
+ * without the packages is read as it is.
  */
 class LayeredDataSourceTest {
 	private static final String FOOTMAN = "units\\human\\footman\\footman.mdx";
@@ -32,56 +32,50 @@ class LayeredDataSourceTest {
 	@Test
 	void classicChoicesReadTheDataItself() {
 		final DataSource data = installed();
-		assertSame(data, LayeredDataSource.wrap(data, GraphicsSet.CLASSIC, false, "enus"));
+		assertSame(data, LayeredDataSource.wrap(data, GraphicsSet.CLASSIC, "enus"));
 	}
 
 	@Test
 	void dataWithoutThePackagesStaysClassic() {
 		final DataSource data = new Files("units\\human\\footman\\footman.mdx");
-		assertSame(data, LayeredDataSource.wrap(data, GraphicsSet.REFORGED, true, "enus"));
+		assertSame(data, LayeredDataSource.wrap(data, GraphicsSet.REFORGED, "enus"));
 		assertFalse(GraphicsSet.REFORGED.isAvailable(data));
 		assertTrue(GraphicsSet.CLASSIC.isAvailable(data));
 	}
 
 	@Test
 	void reforgedGraphicsReadTheHdPackageFirst() throws Exception {
-		final DataSource layered = LayeredDataSource.wrap(installed(), GraphicsSet.REFORGED, false, "enus");
+		final DataSource layered = LayeredDataSource.wrap(installed(), GraphicsSet.REFORGED, "enus");
 		assertEquals("_hd.w3mod\\" + FOOTMAN, text(layered, FOOTMAN));
 		// Only the DE package has it.
 		assertEquals("_de.w3mod\\doodads\\tree.mdx", text(layered, "doodads\\tree.mdx"));
 		// Neither package has it.
 		assertEquals("units\\orc\\grunt\\grunt.mdx", text(layered, "units\\orc\\grunt\\grunt.mdx"));
 		assertEquals(GraphicsSet.REFORGED, LayeredDataSource.graphicsOf(layered));
-		assertFalse(LayeredDataSource.reforgedInterfaceOf(layered));
 	}
 
 	@Test
 	void deGraphicsReadTheDePackageFirst() throws Exception {
-		final DataSource layered = LayeredDataSource.wrap(installed(), GraphicsSet.DE, false, "enus");
+		final DataSource layered = LayeredDataSource.wrap(installed(), GraphicsSet.DE, "enus");
 		assertEquals("_de.w3mod\\" + FOOTMAN, text(layered, FOOTMAN));
 	}
 
 	@Test
-	void interfaceFollowsItsOwnChoice() throws Exception {
-		final DataSource hdGraphics = LayeredDataSource.wrap(installed(), GraphicsSet.REFORGED, false, "enus");
-		assertEquals("ui\\console\\human\\humanuitile01.blp",
-				text(hdGraphics, "UI\\Console\\Human\\HumanUITile01.blp"));
-		final DataSource hdInterface = LayeredDataSource.wrap(installed(), GraphicsSet.CLASSIC, true, "enus");
+	void interfaceAndIconsFollowTheGraphics() throws Exception {
+		final DataSource classic = installed();
+		assertEquals("ui\\console\\human\\humanuitile01.blp", text(classic, "UI\\Console\\Human\\HumanUITile01.blp"));
+		assertEquals(BUTTON, text(classic, BUTTON));
+		final DataSource hd = LayeredDataSource.wrap(installed(), GraphicsSet.REFORGED, "enus");
 		assertEquals("_hd.w3mod\\ui\\console\\human\\humanuitile01.blp",
-				text(hdInterface, "UI\\Console\\Human\\HumanUITile01.blp"));
-		assertEquals("units\\human\\footman\\footman.mdx", text(hdInterface, FOOTMAN));
-		assertTrue(LayeredDataSource.reforgedInterfaceOf(hdInterface));
-		// The icons follow the graphics.
-		assertEquals(BUTTON, text(hdInterface, BUTTON));
-		assertEquals("_hd.w3mod\\" + BUTTON, text(hdGraphics, BUTTON));
+				text(hd, "UI\\Console\\Human\\HumanUITile01.blp"));
+		assertEquals("_hd.w3mod\\" + BUTTON, text(hd, BUTTON));
 		// The package's cinematic border is the portrait's frame, not the letterbox edge of the same name.
-		assertEquals(CINEMATIC_BORDER, text(hdInterface, CINEMATIC_BORDER));
-		assertEquals(GraphicsSet.CLASSIC, LayeredDataSource.graphicsOf(hdInterface));
+		assertEquals(CINEMATIC_BORDER, text(hd, CINEMATIC_BORDER));
 	}
 
 	@Test
 	void diffuseTexturesAndLocalesAreFound() throws Exception {
-		final DataSource layered = LayeredDataSource.wrap(installed(), GraphicsSet.REFORGED, false, "enus");
+		final DataSource layered = LayeredDataSource.wrap(installed(), GraphicsSet.REFORGED, "enus");
 		assertEquals("_hd.w3mod\\terrainart\\lordaeron\\grass_diffuse.dds",
 				text(layered, "TerrainArt\\Lordaeron\\Grass.dds"));
 		assertEquals("_hd.w3mod\\_locales\\enus.w3mod\\sound\\footman.flac",

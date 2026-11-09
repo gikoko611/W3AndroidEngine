@@ -61,6 +61,8 @@ final class LauncherArt {
 	private FreeTypeFontGenerator generator;
 	private boolean generatorTried;
 	private Map<String, String> missionPictures;
+	/** While set, the pictures made are made without colour and darker. */
+	private boolean muting;
 
 	LauncherArt(final DataSource data, final boolean reforged) {
 		this.data = data;
@@ -98,6 +100,34 @@ final class LauncherArt {
 			}
 		}
 		this.images.put(name, region);
+		return region;
+	}
+
+	/** A picture of the skin without its colours and darkened, for what cannot be chosen yet; null when missing. */
+	TextureRegion muted(final String name) {
+		final String key = "muted:" + name;
+		if (this.images.containsKey(key)) {
+			return this.images.get(key);
+		}
+		TextureRegion region = null;
+		final SkinArt.Item item = this.items.get(name);
+		if (item != null) {
+			this.muting = true;
+			try {
+				final Texture texture = load(item);
+				if (texture != null) {
+					region = new TextureRegion(texture);
+					region.flip(false, true);
+				}
+			}
+			catch (final IOException | RuntimeException e) {
+				LauncherLog.w("Unable to read " + item.path, e);
+			}
+			finally {
+				this.muting = false;
+			}
+		}
+		this.images.put(key, region);
 		return region;
 	}
 
@@ -159,10 +189,25 @@ final class LauncherArt {
 		}
 		final Pixmap pixmap = new Pixmap(bytes, 0, bytes.length);
 		try {
+			if (this.muting) {
+				mute(pixmap);
+			}
 			return own(path, new Texture(pixmap, false));
 		}
 		finally {
 			pixmap.dispose();
+		}
+	}
+
+	private static void mute(final Pixmap pixmap) {
+		pixmap.setBlending(Pixmap.Blending.None);
+		for (int y = 0; y < pixmap.getHeight(); y++) {
+			for (int x = 0; x < pixmap.getWidth(); x++) {
+				final int rgba = pixmap.getPixel(x, y);
+				final int grey = Math.round(((((rgba >>> 24) & 0xFF) * 0.299f) + (((rgba >> 16) & 0xFF) * 0.587f)
+						+ (((rgba >> 8) & 0xFF) * 0.114f)) * 0.8f);
+				pixmap.drawPixel(x, y, (grey << 24) | (grey << 16) | (grey << 8) | (rgba & 0xFF));
+			}
 		}
 	}
 
@@ -188,6 +233,9 @@ final class LauncherArt {
 		}
 		rgba.position(0);
 		try {
+			if (this.muting) {
+				mute(pixmap);
+			}
 			return own("image", new Texture(pixmap, false));
 		}
 		finally {

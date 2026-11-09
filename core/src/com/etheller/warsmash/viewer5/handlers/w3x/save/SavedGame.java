@@ -391,6 +391,7 @@ public final class SavedGame {
 		for (final CDestructable destructable : simulation.getDestructables()) {
 			rules.nameDestructable(destructable, destructable.getHandleId());
 		}
+		simulation.dropStalePathfindingNodes();
 		try {
 			final Root root = new Root();
 			root.simulation = simulation;

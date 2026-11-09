@@ -9,10 +9,14 @@ import java.util.List;
 import java.util.Locale;
 
 import android.graphics.Bitmap;
+import android.text.InputType;
 import android.util.Log;
+import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.inputmethod.EditorInfo;
+import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
@@ -97,14 +101,59 @@ final class LoadPage extends LauncherViews {
 		final LauncherBoard b = this.activity.board;
 		final boolean t = b.tablet;
 		final float frame = b.pageInset;
+		float top = frame + (t ? 8 : 4);
+		EditText filter = null;
+		if (this.activity.art.reforged()) {
+			// The Reforged list of saved games has a field above it that keeps the saves whose name has its text.
+			final float fieldH = 96;
+			filter = filterField(t ? 34 : 26);
+			place(listPanel, filter, frame, top, rowW, fieldH);
+			final float glass = fieldH * 0.5f;
+			place(listPanel, image(SkinArt.ICON_SEARCH, ImageView.ScaleType.FIT_CENTER),
+					(frame + rowW) - glass - (fieldH * 0.3f), top + ((fieldH - glass) / 2), glass, glass);
+			top += fieldH + (t ? 16 : 8);
+		}
+		final LinearLayout rows = scrollList(listPanel, frame, top, rowW, b.contentH - frame - top);
+		listSaves(rows, "");
+		if (filter != null) {
+			final EditText field = filter;
+			afterTextChanged(field, () -> listSaves(rows, field.getText().toString()));
+		}
+	}
+
+	private EditText filterField(final float size) {
+		final boolean t = this.activity.board.tablet;
+		final EditText field = new EditText(this.activity);
+		field.setBackground(editFrame(t ? 14 : 8));
+		field.setTextSize(TypedValue.COMPLEX_UNIT_PX, size * this.activity.scale);
+		field.setTextColor(this.activity.art.text());
+		field.setHintTextColor(LauncherKit.DISABLED);
+		field.setHint(R.string.launcher_filter_saves);
+		field.setTypeface(this.activity.art.font());
+		field.setSingleLine(true);
+		field.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
+		field.setImeOptions(EditorInfo.IME_ACTION_DONE | EditorInfo.IME_FLAG_NO_EXTRACT_UI);
+		final int pad = px(t ? 24 : 14);
+		field.setPadding(pad, 0, px(96), 0);
+		field.setGravity(Gravity.CENTER_VERTICAL);
+		return field;
+	}
+
+	/** The saves whose name has the filter's text, the one chosen marked. */
+	private void listSaves(final LinearLayout rows, final String filterText) {
+		final LauncherBoard b = this.activity.board;
+		final boolean t = b.tablet;
 		final float rowH = t ? 123 : 96;
-		final LinearLayout rows = scrollList(listPanel, frame, frame + (t ? 8 : 4), rowW,
-				b.contentH - (2 * frame) - (t ? 8 : 4));
+		rows.removeAllViews();
+		final String filter = filterText.trim().toLowerCase(Locale.ROOT);
 		final GameCatalog.SaveEntry chosen = chosenSave();
 		final List<View> saveRows = new ArrayList<>();
 		final DateFormat format = DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT);
 		View chosenRow = null;
 		for (final GameCatalog.SaveEntry entry : this.saves) {
+			if (!entry.name.toLowerCase(Locale.ROOT).contains(filter)) {
+				continue;
+			}
 			final boolean loadable = entry.loadability == SavedGame.Loadability.LOADABLE;
 			final LinearLayout row = new LinearLayout(this.activity);
 			row.setGravity(Gravity.CENTER_VERTICAL);

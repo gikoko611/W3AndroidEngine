@@ -5,7 +5,8 @@ import java.util.List;
 
 public class CPlayerUnitOrderListenerDelaying implements CPlayerUnitOrderListener {
 	private final CPlayerUnitOrderListener delegate;
-	private final List<Runnable> actions = new ArrayList<>();
+	private List<Runnable> actions = new ArrayList<>();
+	private List<Runnable> publishing = new ArrayList<>();
 
 	public CPlayerUnitOrderListenerDelaying(final CPlayerUnitOrderListener delegate) {
 		this.delegate = delegate;
@@ -141,11 +142,20 @@ public class CPlayerUnitOrderListenerDelaying implements CPlayerUnitOrderListene
 		this.delegate.trackableEvent(trackableHandleId, hit);
 	}
 
+	// An action can make the script issue more of them (skipping a cinematic selects units); those are inputs of the
+	// next step, as any other input given between two steps, so they wait for the next publish.
 	public void publishDelayedActions() {
-		for (final Runnable action : this.actions) {
-			action.run();
+		final List<Runnable> batch = this.actions;
+		this.actions = this.publishing;
+		this.publishing = batch;
+		try {
+			for (final Runnable action : batch) {
+				action.run();
+			}
 		}
-		this.actions.clear();
+		finally {
+			batch.clear();
+		}
 	}
 
 }

@@ -95,7 +95,7 @@ public class CollisionShape extends GenericObject {
 	}
 
 	public static boolean intersectRayTriangles(final Ray ray, final GenericNode mdxNode, final float[] vertices,
-			final int[] indices, final int vertexSize, final Vector3 intersection) {
+			final char[] indices, final int vertexSize, final Vector3 intersection) {
 		intersectMatrixHeap.set(mdxNode.worldMatrix);
 		Matrix4.inv(intersectMatrixHeap.val);
 		intersectHeap.set(ray.origin);

@@ -71,6 +71,8 @@ import com.etheller.warsmash.common.FetchDataTypeName;
 import com.etheller.warsmash.common.LoadGenericCallback;
 import com.etheller.warsmash.datasources.CompoundDataSource;
 import com.etheller.warsmash.datasources.DataSource;
+import com.etheller.warsmash.datasources.GraphicsSet;
+import com.etheller.warsmash.datasources.LayeredDataSource;
 import com.etheller.warsmash.datasources.MpqDataSource;
 import com.etheller.warsmash.datasources.SubdirDataSource;
 import com.etheller.warsmash.networking.GameTurnManager;
@@ -3708,8 +3710,16 @@ public class War3MapViewer extends AbstractMdxModelViewer implements MdxAssetLoa
 	 * Reforged mode, with that mode's interface for its cinematics.
 	 */
 	public boolean isReforgedGraphicsMap() {
-		return (this.lastLoadedMapInformation != null)
-				&& (this.lastLoadedMapInformation.getSupportedModes() == SUPPORTED_MODES_REFORGED);
+		return isReforgedGraphicsMap(this.lastLoadedMapInformation);
+	}
+
+	public static boolean isReforgedGraphicsMap(final War3MapW3i mapInformation) {
+		return (mapInformation != null) && (mapInformation.getSupportedModes() == SUPPORTED_MODES_REFORGED);
+	}
+
+	/** Whether the game is played with Reforged graphics, whose interface has the Reforged cinematics. */
+	public boolean isReforgedGraphics() {
+		return isReforgedGraphicsMap() || (LayeredDataSource.graphicsOf(this.gameDataSource) != GraphicsSet.CLASSIC);
 	}
 
 	public CPlayerFogOfWar getFogOfWar() {

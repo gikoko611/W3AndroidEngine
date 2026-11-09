@@ -42,6 +42,7 @@ import com.badlogic.gdx.math.Rectangle;
 import com.etheller.warsmash.GlueBackdropRenderer;
 import com.etheller.warsmash.launcher.CampaignChoice;
 import com.etheller.warsmash.launcher.DataFolderCheck;
+import com.etheller.warsmash.launcher.CampaignResult;
 import com.etheller.warsmash.launcher.GameResult;
 import com.etheller.warsmash.launcher.LaunchRequest;
 import com.etheller.warsmash.launcher.LauncherBoard;
@@ -111,6 +112,8 @@ public class LauncherActivity extends AndroidApplication {
 	GameCatalog catalog;
 	GameCatalog.Campaigns campaigns;
 	private GameResult returned;
+	/** The campaign mission's result the Missions page shows instead of the chapters, until Continue or Back. */
+	GameResult campaignResult;
 	private boolean returnedUnexpectedly;
 	Profiles profiles;
 	GlueBackdropRenderer renderer;
@@ -248,6 +251,13 @@ public class LauncherActivity extends AndroidApplication {
 		this.afterPrep = this.preferences.getInt(KEY_RETURN_PAGE, PAGE_HOME);
 		if ((this.returned != null) && "exit".equals(this.returned.result)) {
 			this.afterPrep = PAGE_HOME;
+		}
+		this.campaignResult = null;
+		if (CampaignResult.shows(this.returned)) {
+			// As the Reforged campaign screen does, the mission's result comes first, over its campaign; both skins
+			// share the flow and differ only in its look.
+			this.campaignResult = this.returned;
+			this.afterPrep = PAGE_MISSIONS;
 		}
 		final GameResult result = this.returned;
 		if ((result != null) && LaunchRequest.SOURCE_CUSTOM.equals(result.source) && !result.failed()
@@ -423,6 +433,10 @@ public class LauncherActivity extends AndroidApplication {
 				this.dialogs.closeDialog();
 			}
 		}
+		else if ((this.shown == PAGE_MISSIONS) && (this.campaignResult != null)) {
+			this.campaignResult = null;
+			this.campaignPage.showMissions();
+		}
 		else if (this.shown == PAGE_MISSIONS) {
 			this.campaignPage.showCampaign();
 		}
@@ -480,6 +494,10 @@ public class LauncherActivity extends AndroidApplication {
 		final View previous = this.page;
 		this.page = view;
 		this.shown = kind;
+		// Preparing the skin comes before the page a game returns to, and keeps its result for it.
+		if ((kind != PAGE_MISSIONS) && (kind != PAGE_PREP)) {
+			this.campaignResult = null;
+		}
 		this.generation++;
 		final int at = previous != null ? this.root.indexOfChild(previous) + 1 : this.sceneView != null ? 1 : 0;
 		this.root.addView(view, at, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,

@@ -49,7 +49,7 @@ public class SetupGroups {
 	}
 
 	public static float getBackup2Prio(final Batch object) {
-		final float result = (object.geoset.mdlxGeoset.extent.max[2] + object.geoset.mdlxGeoset.extent.min[2]) / 2;
+		final float result = object.geoset.centerZ;
 		if (MdxHandler.CURRENT_SHADER_TYPE == ShaderEnvironmentType.MENU) {
 			return -result;
 		}

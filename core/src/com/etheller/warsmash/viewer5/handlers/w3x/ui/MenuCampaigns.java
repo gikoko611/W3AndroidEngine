@@ -5,6 +5,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import com.badlogic.gdx.utils.viewport.Viewport;
+import com.etheller.warsmash.launcher.CampaignResult;
 import com.etheller.warsmash.parsers.fdf.GameUI;
 import com.etheller.warsmash.parsers.fdf.datamodel.FramePoint;
 import com.etheller.warsmash.parsers.fdf.datamodel.MenuItem;
@@ -58,6 +59,8 @@ final class MenuCampaigns {
 	private CMapDifficulty campaignDifficulty = CMapDifficulty.NORMAL;
 	private CampaignMenuUI campaignRootMenuUI;
 	private CampaignMenuUI currentMissionSelectMenuUI;
+	/** The campaign a launcher started a mission of, else null. */
+	private CampaignCatalog.Entry startedEntry;
 
 	MenuCampaigns(final MenuUI menu) {
 		this.menu = menu;
@@ -178,7 +181,7 @@ final class MenuCampaigns {
 
 				for (final CampaignMission mission : campaign.getMissions()) {
 					missionButtons.add(missionSelectMenuUI.addButton(mission.getHeader(), mission.getMissionName(),
-							() -> startMission(mission)));
+							() -> startMission(mission, false)));
 				}
 
 				final CampaignButtonUI campaignButtonUI = this.campaignRootMenuUI.addButton(campaign.getHeader(),
@@ -244,8 +247,11 @@ final class MenuCampaigns {
 		this.menu.menuState = MenuState.GOING_TO_CAMPAIGN;
 	}
 
-	/** @return false when the mission's map cannot be started; the campaign screens then stay as they are */
-	private boolean startMission(final CampaignMission mission) {
+	/**
+	 * @param reforged whether the mission is played in the Reforged campaign version, else the Classic one
+	 * @return false when the mission's map cannot be started; the campaign screens then stay as they are
+	 */
+	private boolean startMission(final CampaignMission mission, final boolean reforged) {
 		if (!this.menu.mapStart.prepareMapConfigs(mission.getMapFilename())) {
 			return false;
 		}
@@ -271,6 +277,7 @@ final class MenuCampaigns {
 		this.menu.beginGameInformation = beginGameInformation;
 		beginGameInformation.gameMapLookup = new CurrentNetGameMapLookupPath(mission.getMapFilename());
 		beginGameInformation.localPlayerIndex = localPlayerIndex;
+		this.menu.mapStart.setReforgedCampaign(reforged);
 		return true;
 	}
 
@@ -297,7 +304,8 @@ final class MenuCampaigns {
 				if (difficulty != null) {
 					this.campaignDifficulty = difficulty;
 				}
-				if (!startMission(mission)) {
+				this.startedEntry = catalogEntry;
+				if (!startMission(mission, reforgedMaps)) {
 					this.menu.mainMenuFrame.setVisible(true);
 					return false;
 				}
@@ -305,6 +313,12 @@ final class MenuCampaigns {
 			}
 		}
 		return false;
+	}
+
+	/** Whether a map is one of the missions of the campaign the launcher started, in either version of its maps. */
+	boolean isStartedCampaignMission(final String mapFile) {
+		return (this.startedEntry != null)
+				&& (CampaignResult.playedMission(this.campaignCatalog, this.startedEntry, mapFile) >= 0);
 	}
 
 	/**

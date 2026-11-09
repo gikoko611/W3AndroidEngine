@@ -327,6 +327,11 @@ public class CUnit extends CWidget {
 	// soon as the spell's cooldown ends (Spell Steal, Web, Heal).
 	private static final int AUTOCAST_IDLE_RESCAN_TICKS = CTimer.wholeSteps(3.0f);
 	private int nextIdleAutocastScanTick;
+	// Measured (1.29): an idle unit looks for something to attack every half second, not every step. A new unit
+	// first looks up to half a second after it is made, at its own phase; an order, or the end of one, makes it look
+	// at once. Changing the acquisition range does not.
+	private static final int IDLE_ACQUIRE_SCAN_TICKS = CTimer.wholeSteps(0.5f);
+	private int nextIdleAcquireScanTick;
 	// Measured (1.29): a creep thinks of its spells when it starts a fight, then once a second while it lasts
 	// (Rain of Fire at once, Animate Dead and Devour about a second later once the attackers reach it).
 	private static final int CREEP_CAST_INTERVAL_TICKS = CTimer.wholeSteps(1.0f);
@@ -500,6 +505,8 @@ public class CUnit extends CWidget {
 			final int lastBehaviorHighlightOrderId = this.currentBehavior != null
 					? this.currentBehavior.getHighlightOrderId()
 					: -1;
+			this.nextIdleAcquireScanTick = game.getGameTurnTick()
+					+ ((this.currentBehavior == null) ? firstIdleAcquireScanDelay() : 0);
 			if (this.currentBehavior != null) {
 				this.currentBehavior.end(game, interrupted);
 			}
@@ -2385,6 +2392,10 @@ public class CUnit extends CWidget {
 	}
 
 	public boolean autoAcquireTargets(final CSimulation game, final boolean disableMove) {
+		return autoAcquireTargets(game, disableMove, true);
+	}
+
+	private boolean autoAcquireTargets(final CSimulation game, final boolean disableMove, final boolean attack) {
 		// Cinematic maps park hostile units hidden among the player's (ShowUnit false); hidden units carry out
 		// script orders but never pick targets themselves.
 		if (this.hidden) {
@@ -2401,11 +2412,31 @@ public class CUnit extends CWidget {
 			}
 		}
 		if (!autocast) {
-			if (this.autoAttack) {
+			if (attack && this.autoAttack) {
 				return autoAcquireAttackTargets(game, disableMove);
 			}
 		}
 		return autocast;
+	}
+
+	/**
+	 * {@link #autoAcquireTargets} for a unit standing idle or holding its position: it looks for something to attack
+	 * only when its scan is due.
+	 */
+	public boolean autoAcquireIdleTargets(final CSimulation game, final boolean disableMove) {
+		final int tick = game.getGameTurnTick();
+		final boolean due = tick >= this.nextIdleAcquireScanTick;
+		if (due) {
+			this.nextIdleAcquireScanTick = tick + IDLE_ACQUIRE_SCAN_TICKS;
+		}
+		return autoAcquireTargets(game, disableMove, due);
+	}
+
+	/** A new unit's first scan, 1 step to a whole scan period away, spread over units by their handle. */
+	private int firstIdleAcquireScanDelay() {
+		int hash = getHandleId() * 0x9E3779B1;
+		hash ^= hash >>> 16;
+		return 1 + Math.floorMod(hash, IDLE_ACQUIRE_SCAN_TICKS);
 	}
 
 	/**
@@ -2641,6 +2672,7 @@ public class CUnit extends CWidget {
 			}
 			this.stateNotifier.waypointsChanged();
 		} else {
+			this.nextIdleAcquireScanTick = game.getGameTurnTick();
 			setDefaultBehavior(this.stopBehavior);
 			final boolean walking = (this.moveBehavior != null) && (this.currentBehavior == this.moveBehavior);
 			final CRangedBehavior walkingFor = walking ? this.moveBehavior.getRangedBehavior() : null;

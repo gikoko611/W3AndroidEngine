@@ -8,8 +8,6 @@ import java.security.SecureRandom;
 import java.util.List;
 import java.util.Locale;
 
-import org.json.JSONException;
-import org.json.JSONObject;
 
 import android.app.ActivityManager;
 import android.app.ApplicationExitInfo;
@@ -145,23 +143,10 @@ final class LaunchContract {
 	}
 
 	static void writeResult(final Context context, final GameResult result) {
-		final JSONObject json = new JSONObject();
 		try {
-			json.put("version", 1);
-			json.put("result", result.result);
-			json.put("source", result.source);
-			json.put("map", result.map);
-			json.put("profile", result.profile);
-			if (result.loadFailure != null) {
-				json.put("loadFailure", result.loadFailure);
-			}
-			if (result.race > 0) {
-				json.put("race", result.race);
-			}
-			json.put("finished", result.finished);
-			writeAtomically(new File(context.getFilesDir(), RESULT_FILE), json.toString(2));
+			writeAtomically(new File(context.getFilesDir(), RESULT_FILE), result.toJson());
 		}
-		catch (final JSONException | IOException e) {
+		catch (final IOException e) {
 			Log.e(TAG, "Unable to write the game result", e);
 		}
 	}
@@ -177,19 +162,9 @@ final class LaunchContract {
 			return null;
 		}
 		try {
-			final JSONObject json = new JSONObject(
-					new String(Files.readAllBytes(file.toPath()), StandardCharsets.UTF_8));
-			final GameResult result = new GameResult();
-			result.result = json.optString("result", "quit");
-			result.source = json.optString("source", "");
-			result.map = json.optString("map", "");
-			result.profile = json.optString("profile", "");
-			result.loadFailure = json.has("loadFailure") ? json.optString("loadFailure") : null;
-			result.race = json.optInt("race");
-			result.finished = json.optLong("finished");
-			return result;
+			return GameResult.fromJson(new String(Files.readAllBytes(file.toPath()), StandardCharsets.UTF_8));
 		}
-		catch (final IOException | JSONException e) {
+		catch (final IOException | IllegalArgumentException e) {
 			Log.w(TAG, "Unable to read the game result", e);
 			return null;
 		}

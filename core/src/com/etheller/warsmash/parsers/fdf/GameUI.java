@@ -684,6 +684,7 @@ public final class GameUI extends AbstractUIFrame implements UIFrame {
 				if (justifyH == null) {
 					justifyH = TextJustify.LEFT;
 				}
+				final TextJustify lineJustifyH = justifyH;
 				TextJustify justifyV = frameDefinition.getTextJustify("FontJustificationV");
 				if (justifyV == null) {
 					justifyV = TextJustify.MIDDLE;
@@ -771,6 +772,9 @@ public final class GameUI extends AbstractUIFrame implements UIFrame {
 				}
 				final StringFrame stringFrame = new StringFrame(frameDefinition.getName(), parent, fontColor, justifyH,
 						justifyV, frameFont, textString, fontHighlightColor, fontDisabledColor);
+				// A text anchored by its top or bottom middle stands centered there, but its lines keep the
+				// justification of its definition.
+				stringFrame.setLineJustifyH(lineJustifyH);
 				if (fontFlags.contains(FontFlags.PASSWORDFIELD)) {
 					stringFrame.setPasswordField(true);
 				}

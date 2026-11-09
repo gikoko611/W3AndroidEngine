@@ -19,6 +19,86 @@ public final class CampaignChoice {
 	private CampaignChoice() {
 	}
 
+	public static final int SECTION_REIGN = 0;
+	public static final int SECTION_FROZEN = 1;
+	public static final int SECTION_FORSAKEN = 2;
+	/** The campaigns of Forsaken Kingdom (Reforged 3.0), which the engine cannot play yet. */
+	public static final int FORSAKEN_CAMPAIGNS = 2;
+
+	/** A line of the campaign list: a gap, a section's header, an open campaign or a campaign still to come. */
+	public static final class ListLine {
+		public static final int GAP = 0;
+		public static final int SECTION = 1;
+		public static final int CAMPAIGN = 2;
+		public static final int COMING = 3;
+
+		public final int kind;
+		/** The section of a header; the place among {@link #FORSAKEN_CAMPAIGNS} of a campaign to come. */
+		public final int index;
+		public final CampaignCatalog.Entry entry;
+
+		private ListLine(final int kind, final int index, final CampaignCatalog.Entry entry) {
+			this.kind = kind;
+			this.index = index;
+			this.entry = entry;
+		}
+	}
+
+	/** The section of a campaign: the expansion's campaigns are named with "Ex". */
+	public static int section(final CampaignCatalog.Entry entry) {
+		return entry.getSection().toLowerCase(Locale.ROOT).endsWith("ex") ? SECTION_FROZEN : SECTION_REIGN;
+	}
+
+	/**
+	 * The campaign list in sections, each under its header: Reign of Chaos, The Frozen Throne, the gaps of the data's
+	 * list kept within them; then, when the data has its campaigns, Forsaken Kingdom still to come.
+	 */
+	public static List<ListLine> campaignList(final CampaignCatalog catalog,
+			final CCampaignProgress.Snapshot progress) {
+		final List<ListLine> lines = new ArrayList<>();
+		boolean gap = true;
+		int section = -1;
+		int number = 0;
+		for (final Object data : catalog.getDatas()) {
+			if (data == null) {
+				if (!gap) {
+					lines.add(new ListLine(ListLine.GAP, 0, null));
+					gap = true;
+				}
+				continue;
+			}
+			final CampaignCatalog.Entry entry = catalog.getEntry(number++);
+			if (!CampaignCatalog.isOpen(entry, progress)) {
+				continue;
+			}
+			if (section(entry) != section) {
+				section = section(entry);
+				if (!gap) {
+					lines.add(new ListLine(ListLine.GAP, 0, null));
+				}
+				lines.add(new ListLine(ListLine.SECTION, section, null));
+			}
+			lines.add(new ListLine(ListLine.CAMPAIGN, 0, entry));
+			gap = false;
+		}
+		if (lines.isEmpty()) {
+			return lines;
+		}
+		if (catalog.hasForsakenKingdom()) {
+			if (!gap) {
+				lines.add(new ListLine(ListLine.GAP, 0, null));
+			}
+			lines.add(new ListLine(ListLine.SECTION, SECTION_FORSAKEN, null));
+			for (int i = 0; i < FORSAKEN_CAMPAIGNS; i++) {
+				lines.add(new ListLine(ListLine.COMING, i, null));
+			}
+		}
+		else if (gap) {
+			lines.remove(lines.size() - 1);
+		}
+		return lines;
+	}
+
 	/**
 	 * The campaign the progress last chose; else the last one a mission opened or got into; else the first open one.
 	 */

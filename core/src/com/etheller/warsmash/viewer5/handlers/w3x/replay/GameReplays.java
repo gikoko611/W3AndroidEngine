@@ -7,13 +7,13 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
-import java.util.Locale;
 import java.util.zip.CRC32;
 
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.files.FileHandle;
 import com.etheller.warsmash.datasources.DataSource;
 import com.etheller.warsmash.util.Log;
+import com.etheller.warsmash.viewer5.handlers.w3x.CampaignMaps;
 import com.etheller.warsmash.viewer5.handlers.w3x.War3MapViewer;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.campaign.CGameCache;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.config.War3MapConfig;
@@ -127,15 +127,7 @@ public final class GameReplays {
 		if (forcedRecordFile() != null) {
 			return true;
 		}
-		return !isCampaignMap(mapFile);
-	}
-
-	static boolean isCampaignMap(final String mapFile) {
-		if (mapFile == null) {
-			return false;
-		}
-		final String name = mapFile.toLowerCase(Locale.ROOT).replace('\\', '/');
-		return name.startsWith("maps/campaign/") || name.contains("/campaign/");
+		return !CampaignMaps.isCampaignMap(mapFile);
 	}
 
 	/** The header of a game about to be loaded: the viewer has its seed, the config the game setup's slots. */

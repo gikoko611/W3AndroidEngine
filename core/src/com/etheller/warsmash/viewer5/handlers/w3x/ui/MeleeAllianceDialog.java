@@ -2,7 +2,6 @@ package com.etheller.warsmash.viewer5.handlers.w3x.ui;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.utils.viewport.Viewport;
@@ -19,6 +18,7 @@ import com.etheller.warsmash.parsers.fdf.frames.StringFrame;
 import com.etheller.warsmash.parsers.fdf.frames.UIFrame;
 import com.etheller.warsmash.util.WarsmashConstants;
 import com.etheller.warsmash.viewer5.handlers.mdx.ReplaceableIds;
+import com.etheller.warsmash.viewer5.handlers.w3x.CampaignMaps;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CSimulation;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.players.CAllianceType;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.players.CPlayer;
@@ -49,11 +49,15 @@ public class MeleeAllianceDialog {
 	private final UIFrame dialog;
 	private final List<Row> rows = new ArrayList<>();
 	private final CheckBoxFrame alliedVictory;
+	/**
+	 * Campaign missions are scripted, so their alliances are not the player's to change: the button stays grey and
+	 * F11 does nothing. 1.29 does this in every single player game; Custom Game keeps the dialog (owner's choice).
+	 */
 	private final boolean campaign;
 
 	public MeleeAllianceDialog(final GameUI rootFrame, final Viewport uiViewport, final CSimulation simulation,
 			final CPlayer localPlayer, final String mapFileName, final CPlayerUnitOrderListener commandListener) {
-		this.campaign = isCampaignMap(mapFileName);
+		this.campaign = CampaignMaps.isCampaignMap(mapFileName);
 		this.commandListener = commandListener;
 		this.rootFrame = rootFrame;
 		this.uiViewport = uiViewport;
@@ -120,17 +124,6 @@ public class MeleeAllianceDialog {
 		return false;
 	}
 
-	/**
-	 * Campaign missions are scripted, so their alliances are not the player's to change: the button stays grey and
-	 * F11 does nothing. 1.29 does this in every single player game; Custom Game keeps the dialog (owner's choice).
-	 */
-	static boolean isCampaignMap(final String mapFileName) {
-		if (mapFileName == null) {
-			return false;
-		}
-		final String name = mapFileName.toLowerCase(Locale.ROOT).replace('\\', '/');
-		return name.startsWith("maps/campaign/") || name.contains("/campaign/");
-	}
 
 	public void setVisible(final boolean visible) {
 		if (visible) {

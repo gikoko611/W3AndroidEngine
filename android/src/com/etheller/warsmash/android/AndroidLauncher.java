@@ -285,7 +285,7 @@ public class AndroidLauncher extends AndroidApplication {
 				}
 				if (!started) {
 					Log.e(TAG, "The launcher asked for a game the engine cannot start: " + launch);
-					gameEnded("error", null, null, 0);
+					gameEnded(withoutGame("error"));
 				}
 			});
 		}
@@ -311,15 +311,14 @@ public class AndroidLauncher extends AndroidApplication {
 		final WarsmashGdxMapScreen running = game.getRunningMapScreen();
 		final FileHandle save = Gdx.files.local(CONTEXT_LOSS_SAVE);
 		final boolean saved = (running != null) && running.saveAfterContextLoss(save);
-		final String result = (running != null) && !saved ? running.localPlayerResult() : null;
-		final String mapFile = running != null ? running.getViewer().getMapFileName() : null;
-		final int race = running != null ? running.localPlayerRace() : 0;
+		final GameResult result = (running != null) && !saved ? running.gameResult(running.localPlayerResult())
+				: null;
 		if (saved) {
 			Log.i(TAG, "The game goes on from a save made at step " + running.getViewer().simulation.getGameTurnTick());
 		}
 		game.disposeLostScreens();
 		if ((result != null) && this.fromLauncher) {
-			gameEnded(result, mapFile, null, race);
+			gameEnded(result);
 			return;
 		}
 		startEngine(game, warsmashIni, fileToLoad, saved ? save : null);
@@ -343,8 +342,8 @@ public class AndroidLauncher extends AndroidApplication {
 	}
 
 	/** Leaves the result for the launcher and gives the screen back to it. */
-	private void gameEnded(final String result, final String mapFile, final String loadFailure, final int race) {
-		writeResult(result, mapFile, loadFailure, race);
+	private void gameEnded(final GameResult result) {
+		writeResult(result);
 		runOnUiThread(() -> {
 			final Intent intent = new Intent(this, LauncherActivity.class);
 			intent.putExtra(LaunchContract.EXTRA_RETURNED, true);
@@ -354,20 +353,25 @@ public class AndroidLauncher extends AndroidApplication {
 		});
 	}
 
-	private void writeResult(final String result, final String mapFile, final String loadFailure, final int race) {
+	private void writeResult(final GameResult written) {
 		if (this.resultWritten) {
 			return;
 		}
 		this.resultWritten = true;
-		final GameResult written = new GameResult();
-		written.result = result;
 		written.source = LaunchContract.request(getIntent()).source();
-		written.map = mapFile != null ? mapFile : "";
+		if (written.map == null) {
+			written.map = "";
+		}
 		written.profile = GameCatalog.currentProfile(this);
-		written.loadFailure = loadFailure;
-		written.race = race;
 		written.finished = System.currentTimeMillis();
 		LaunchContract.writeResult(this, written);
+	}
+
+	/** A result without the game's own: one that could not start, a crash or the program closed. */
+	private static GameResult withoutGame(final String result) {
+		final GameResult failed = new GameResult();
+		failed.result = result;
+		return failed;
 	}
 
 	/** An exception that ends the program leaves a crash result, so the launcher can tell a crash from a force stop. */
@@ -381,7 +385,7 @@ public class AndroidLauncher extends AndroidApplication {
 			final AndroidLauncher game = launched;
 			if (game != null) {
 				try {
-					game.writeResult("crash", null, null, 0);
+					game.writeResult(withoutGame("crash"));
 				}
 				catch (final Throwable e) {
 					Log.e(TAG, "Unable to leave the crash result", e);
@@ -426,7 +430,7 @@ public class AndroidLauncher extends AndroidApplication {
 		Movies.removePlayer(this.moviePlayer);
 		// Exit Program in the game menu closes the program; the launcher hears that it was no crash.
 		if (this.fromLauncher && isFinishing()) {
-			writeResult("exit", null, null, 0);
+			writeResult(withoutGame("exit"));
 		}
 		if (!this.initialized) {
 			skipKeyboardHeightClose();

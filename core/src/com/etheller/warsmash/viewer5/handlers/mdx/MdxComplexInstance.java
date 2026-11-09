@@ -30,7 +30,6 @@ import com.etheller.warsmash.viewer5.gl.DataTexture;
 import com.badlogic.gdx.graphics.glutils.ShaderProgram;
 import com.etheller.warsmash.viewer5.gl.BoneAtlas;
 import com.etheller.warsmash.viewer5.handlers.w3x.DynamicShadowManager;
-import com.hiveworkshop.rms.parsers.mdlx.MdlxGeoset;
 
 public class MdxComplexInstance extends ModelInstance {
 	private static final float[] visibilityHeap = new float[1];
@@ -976,9 +975,8 @@ public class MdxComplexInstance extends ModelInstance {
 			if (!geoset.unselectable) {
 				geoset.getAlpha(alphaHeap, this.sequence, this.frame, this.counter);
 				if (alphaHeap[0] > 0) {
-					final MdlxGeoset mdlxGeoset = geoset.mdlxGeoset;
-					if (CollisionShape.intersectRayTriangles(ray, this, mdlxGeoset.getVertices(), mdlxGeoset.getFaces(),
-							3, intersectionHeap)) {
+					if (CollisionShape.intersectRayTriangles(ray, this, geoset.pickVertices, geoset.pickFaces, 3,
+							intersectionHeap)) {
 						if (intersectionHeap.dst2(ray.origin) < intersection.dst2(ray.origin)) {
 							intersection.set(intersectionHeap);
 						}
@@ -1014,9 +1012,8 @@ public class MdxComplexInstance extends ModelInstance {
 				if (!geoset.unselectable) {
 					geoset.getAlpha(alphaHeap, this.sequence, this.frame, this.counter);
 					if (alphaHeap[0] > 0) {
-						final MdlxGeoset mdlxGeoset = geoset.mdlxGeoset;
-						if (CollisionShape.intersectRayTriangles(ray, this, mdlxGeoset.getVertices(),
-								mdlxGeoset.getFaces(), 3, intersection)) {
+						if (CollisionShape.intersectRayTriangles(ray, this, geoset.pickVertices, geoset.pickFaces, 3,
+								intersection)) {
 							return true;
 						}
 					}

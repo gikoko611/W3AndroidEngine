@@ -207,6 +207,16 @@ public class CBehaviorMove implements CBehavior {
 		return this.highlightOrderId;
 	}
 
+	/**
+	 * The last leg of a path to a followed unit heads for the unit itself, which may have moved on. A Way Gate does
+	 * not move and its last path point already lies by its edge: heading for its centre instead runs the unit into the
+	 * gate's own pathing, and it stands there until it paths again (1.29 walks on into the gate without a stop).
+	 */
+	private boolean isLastLegToFollowedUnit() {
+		return (this.followUnit != null) && (this.path.size() == 1)
+				&& !((this.rangedBehavior instanceof CBehaviorMoveThroughWayGate) && this.followUnit.isBuilding());
+	}
+
 	@Override
 	public CBehavior update(final CSimulation simulation) {
 		if ((this.rangedBehavior != null) && (this.rangedBehavior.isWithinRange(simulation)
@@ -290,7 +300,7 @@ public class CBehaviorMove implements CBehavior {
 			}
 		}
 		else {
-			if ((this.followUnit != null) && (this.path.size() == 1)) {
+			if (isLastLegToFollowedUnit()) {
 				currentTargetX = this.followUnit.getX();
 				currentTargetY = this.followUnit.getY();
 			}
@@ -428,7 +438,7 @@ public class CBehaviorMove implements CBehavior {
 								}
 							}
 							else {
-								if ((this.followUnit != null) && (this.path.size() == 1)) {
+								if (isLastLegToFollowedUnit()) {
 									currentTargetX = this.followUnit.getX();
 									currentTargetY = this.followUnit.getY();
 								}

@@ -60,7 +60,7 @@ import com.etheller.warsmash.util.ArgbImage;
 final class SkinCache {
 	private static final String TAG = "Warsmash";
 	/** Raised whenever the list of cached files or the way they are made changes. */
-	private static final int FORMAT = 11;
+	private static final int FORMAT = 14;
 	private static final String STAMP = "stamp";
 	private static final String PENDING = "pending";
 

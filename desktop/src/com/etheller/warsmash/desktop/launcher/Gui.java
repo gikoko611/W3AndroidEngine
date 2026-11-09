@@ -495,6 +495,13 @@ final class Gui {
 		v[at + 4] = vv;
 	}
 
+	/** A colour without its hue, darkened and half seen, for what cannot be chosen yet. */
+	static int muted(final int argb) {
+		final int grey = Math.round(((((argb >> 16) & 0xFF) * 0.299f) + (((argb >> 8) & 0xFF) * 0.587f)
+				+ ((argb & 0xFF) * 0.114f)) * 0.8f);
+		return ((((argb >>> 24) & 0xFF) / 2) << 24) | (grey << 16) | (grey << 8) | grey;
+	}
+
 	private float packed(final int argb) {
 		this.color.set(((argb >> 16) & 0xFF) / 255f, ((argb >> 8) & 0xFF) / 255f, (argb & 0xFF) / 255f,
 				((argb >>> 24) & 0xFF) / 255f);
@@ -746,7 +753,7 @@ final class Gui {
 		drawButton(x, y, w, h, tone, 1);
 	}
 
-	private void drawButton(final float x, final float y, final float w, final float h, final int tone,
+	void drawButton(final float x, final float y, final float w, final float h, final int tone,
 			final float alpha) {
 		if (this.art.reforged) {
 			final String name;

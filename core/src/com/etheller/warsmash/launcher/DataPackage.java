@@ -21,15 +21,25 @@ import java.util.zip.CRC32;
 import org.apache.commons.compress.archivers.zip.ZipArchiveEntry;
 import org.apache.commons.compress.archivers.zip.ZipFile;
 
+import com.etheller.warsmash.datasources.LayeredDataSource;
+
 /**
  * A game data package as the data packer hands it out: a zip of an extracted game data folder with the packer's marker
  * file, which says the tool, the game version and how many files the package holds. Importing unpacks it next to the
  * target folder, checks every file against the zip's checksums and the count against the marker, and only then puts
  * it in place of the target, so a cancelled or failed import leaves the old data as it was.
+ * <p>
+ * The packer hands a graphics set (the DE or HD package) out as a zip of its own, without a marker, whose files all lie
+ * in the package folders. Such a zip is added to Classic data already in the target rather than replacing it, and the
+ * graphics sets of the target are kept when a newer Classic package replaces it.
  */
 public final class DataPackage implements Closeable {
 	/** The packer's marker file, the last file it writes into a folder it made. */
 	public static final String MARKER = "w3-datapacker.txt";
+	/** The folders of the graphics sets inside the Classic data, as the engine reads them. */
+	private static final String[] SET_FOLDERS = { LayeredDataSource.DE_PACKAGE, LayeredDataSource.HD_PACKAGE };
+	/** The packer puts this into the folder of the set a set zip is made for, and only there. */
+	private static final String NOMEDIA = ".nomedia";
 	/** Kept free beside the unpacked files, for the engine's own files and the system. */
 	public static final long SPARE_BYTES = 64L << 20;
 	private static final int BUFFER = 1 << 16;
@@ -50,6 +60,8 @@ public final class DataPackage implements Closeable {
 		DAMAGED,
 		/** The unpacked folder is not game data. */
 		NO_GAME_DATA,
+		/** A graphics set, and the target has no Classic data to add it to. */
+		NO_CLASSIC,
 		/** A file could not be read or written. */
 		IO,
 		CANCELLED
@@ -82,7 +94,10 @@ public final class DataPackage implements Closeable {
 	/** A folder the whole package lies in ("w3-data-classic/"), or empty. */
 	private final String root;
 	private final List<ZipArchiveEntry> files = new ArrayList<>();
+	/** Null for a graphics set. */
 	private final ZipArchiveEntry marker;
+	/** The package folder of the graphics set this zip holds ("_de.w3mod"); null for a Classic package. */
+	public final String graphicsSet;
 	/** Bytes of the unpacked files. */
 	public final long totalBytes;
 	public final String tool;
@@ -103,13 +118,18 @@ public final class DataPackage implements Closeable {
 			}
 		}
 		if (found == null) {
-			throw new ImportException(Problem.NO_MARKER, "");
+			this.marker = null;
+			this.root = setRoot(all);
+			this.graphicsSet = setFolder(all, this.root);
 		}
-		this.marker = found;
-		final String markerName = found.getName().replace('\\', '/');
-		this.root = markerName.substring(0, markerName.length() - MARKER.length());
-		if (!this.root.isEmpty() && !this.root.endsWith("/")) {
-			throw new ImportException(Problem.NO_MARKER, "");
+		else {
+			this.marker = found;
+			this.graphicsSet = null;
+			final String markerName = found.getName().replace('\\', '/');
+			this.root = markerName.substring(0, markerName.length() - MARKER.length());
+			if (!this.root.isEmpty() && !this.root.endsWith("/")) {
+				throw new ImportException(Problem.NO_MARKER, "");
+			}
 		}
 		long bytes = 0;
 		for (final ZipArchiveEntry entry : all) {
@@ -127,6 +147,13 @@ public final class DataPackage implements Closeable {
 			bytes += Math.max(0, entry.getSize());
 		}
 		this.totalBytes = bytes;
+		if (found == null) {
+			this.tool = "";
+			this.gameVersion = "";
+			this.profile = "";
+			this.locale = "";
+			return;
+		}
 		final List<String> lines = new ArrayList<>();
 		try (BufferedReader reader = new BufferedReader(
 				new InputStreamReader(zip.getInputStream(found), StandardCharsets.UTF_8))) {
@@ -208,6 +235,84 @@ public final class DataPackage implements Closeable {
 		return "";
 	}
 
+	private static String setFolderOf(final String path) {
+		final int slash = path.indexOf('/');
+		if (slash > 0) {
+			final String first = path.substring(0, slash);
+			for (final String folder : SET_FOLDERS) {
+				if (folder.equalsIgnoreCase(first)) {
+					return folder;
+				}
+			}
+		}
+		return null;
+	}
+
+	/**
+	 * The folder a zip without a marker lies in when all its files are in graphics set folders, either at its top or in
+	 * one folder it was zipped with; a zip of anything else is not a package.
+	 */
+	private static String setRoot(final List<ZipArchiveEntry> all) throws ImportException {
+		String root = null;
+		for (final ZipArchiveEntry entry : all) {
+			if (entry.isDirectory()) {
+				continue;
+			}
+			final String name = entry.getName().replace('\\', '/');
+			if (root == null) {
+				final int slash = name.indexOf('/');
+				root = (setFolderOf(name) != null) || (slash < 0) ? "" : name.substring(0, slash + 1);
+			}
+			if (!name.startsWith(root) || (setFolderOf(name.substring(root.length())) == null)) {
+				throw new ImportException(Problem.NO_MARKER, "");
+			}
+		}
+		if (root == null) {
+			throw new ImportException(Problem.NO_MARKER, "");
+		}
+		return root;
+	}
+
+	/**
+	 * The set a set zip is made for. The zip of one set also carries the few files of the other set that its graphics
+	 * take, so the set is the one with the packer's .nomedia file, or else the one with the most files.
+	 */
+	private static String setFolder(final List<ZipArchiveEntry> all, final String root) {
+		final int[] counts = new int[SET_FOLDERS.length];
+		for (final ZipArchiveEntry entry : all) {
+			if (entry.isDirectory()) {
+				continue;
+			}
+			final String name = entry.getName().replace('\\', '/').substring(root.length());
+			final String folder = setFolderOf(name);
+			for (int i = 0; i < SET_FOLDERS.length; i++) {
+				if (SET_FOLDERS[i].equals(folder)) {
+					if (name.substring(folder.length() + 1).equalsIgnoreCase(NOMEDIA)) {
+						return folder;
+					}
+					counts[i]++;
+				}
+			}
+		}
+		int best = 0;
+		for (int i = 1; i < counts.length; i++) {
+			if (counts[i] > counts[best]) {
+				best = i;
+			}
+		}
+		return SET_FOLDERS[best];
+	}
+
+	/** "DE" or "HD" for a graphics set, empty for a Classic package. */
+	public String setName() {
+		if (this.graphicsSet == null) {
+			return "";
+		}
+		final String name = this.graphicsSet.startsWith("_") ? this.graphicsSet.substring(1) : this.graphicsSet;
+		final int dot = name.indexOf('.');
+		return (dot < 0 ? name : name.substring(0, dot)).toUpperCase(Locale.ROOT);
+	}
+
 	/** A relative path that stays inside the folder it is unpacked into. */
 	private static boolean isSafe(final String name) {
 		if (name.isEmpty() || name.startsWith("/") || (name.indexOf(':') >= 0) || (name.indexOf('\0') >= 0)) {
@@ -224,6 +329,7 @@ public final class DataPackage implements Closeable {
 	/**
 	 * Unpacks the package and puts it in place of the target folder; the old folder is removed afterwards. The marker is
 	 * written last, as the packer does, so a folder with it is whole. The caller chooses a target that may be replaced.
+	 * The graphics sets of the old folder are kept. A graphics set is added to the Classic data of the target instead.
 	 *
 	 * @param cancelled asked between blocks; true stops the import and removes what was unpacked
 	 * @return the target folder
@@ -235,11 +341,16 @@ public final class DataPackage implements Closeable {
 		final File staging = new File(parent, target.getName() + ".importing");
 		final File old = new File(parent, target.getName() + ".old");
 		deleteTree(staging);
-		// Old data left by an import that stopped between the two renames is given back first.
+		// Old data left by an import that stopped between the two renames is given back first, and the graphics sets
+		// of one that stopped before taking them over are taken over now.
 		if (!target.exists() && old.isDirectory()) {
 			old.renameTo(target);
 		}
+		keepGraphicsSets(old, target);
 		deleteTree(old);
+		if (this.graphicsSet != null) {
+			return importSet(target, staging, progress, cancelled);
+		}
 		final long free = parent.getUsableSpace();
 		if (free < neededBytes()) {
 			throw new ImportException(Problem.NO_SPACE, free + " / " + neededBytes());
@@ -264,9 +375,108 @@ public final class DataPackage implements Closeable {
 				deleteTree(staging);
 			}
 		}
+		keepGraphicsSets(old, target);
 		deleteTree(old);
 		DataFolderCheck.forget(target);
 		return target;
+	}
+
+	/**
+	 * Unpacks a graphics set beside the target and then moves its files into the Classic data of the target, over the
+	 * files of the same names; the files of the target that the set does not have stay.
+	 */
+	private File importSet(final File target, final File staging, final Progress progress,
+			final BooleanSupplier cancelled) throws ImportException {
+		if (DataFolderCheck.detect(target) == DataFolderCheck.Kind.NONE) {
+			throw new ImportException(Problem.NO_CLASSIC, setName());
+		}
+		final long free = staging.getAbsoluteFile().getParentFile().getUsableSpace();
+		if (free < neededBytes()) {
+			throw new ImportException(Problem.NO_SPACE, free + " / " + neededBytes());
+		}
+		try {
+			unpack(staging, progress, cancelled);
+			final File[] folders = staging.listFiles();
+			if (folders != null) {
+				for (final File folder : folders) {
+					final File into = existingChild(target, folder.getName());
+					if (!move(folder, into, true)) {
+						throw new ImportException(Problem.IO, folder.getName());
+					}
+				}
+			}
+		}
+		finally {
+			deleteTree(staging);
+		}
+		DataFolderCheck.forget(target);
+		return target;
+	}
+
+	/** Moves the graphics set folders of old data into the data that replaces it, without the files it has itself. */
+	private static void keepGraphicsSets(final File old, final File target) {
+		final File[] children = old.isDirectory() && target.isDirectory() ? old.listFiles() : null;
+		if (children == null) {
+			return;
+		}
+		for (final File child : children) {
+			for (final String folder : SET_FOLDERS) {
+				if (child.isDirectory() && folder.equalsIgnoreCase(child.getName())) {
+					move(child, existingChild(target, child.getName()), false);
+				}
+			}
+		}
+	}
+
+	/** The child of that name in any case, as the engine finds it, or a new one with the name as given. */
+	private static File existingChild(final File folder, final String name) {
+		final File[] children = folder.listFiles();
+		if (children != null) {
+			for (final File child : children) {
+				if (child.getName().equalsIgnoreCase(name)) {
+					return child;
+				}
+			}
+		}
+		return new File(folder, name);
+	}
+
+	/**
+	 * Moves a file or a folder; a folder that is there already gets the files moved into it one by one, and a file
+	 * that is there already is replaced or, when not, kept.
+	 *
+	 * @return whether everything that was to be moved was moved
+	 */
+	private static boolean move(final File from, final File to, final boolean replace) {
+		if (!to.exists()) {
+			if (from.renameTo(to)) {
+				return true;
+			}
+			if (!from.isDirectory()) {
+				return false;
+			}
+		}
+		if (from.isDirectory() && to.isDirectory()) {
+			boolean moved = true;
+			final File[] children = from.listFiles();
+			if (children != null) {
+				for (final File child : children) {
+					moved &= move(child, existingChild(to, child.getName()), replace);
+				}
+			}
+			return moved;
+		}
+		if (from.isDirectory() && !to.exists()) {
+			// The rename failed; the folder's files are moved one by one.
+			if (!to.mkdirs()) {
+				return false;
+			}
+			return move(from, to, replace);
+		}
+		if (!replace || from.isDirectory() || to.isDirectory()) {
+			return !replace;
+		}
+		return to.delete() && from.renameTo(to);
 	}
 
 	private void unpack(final File staging, final Progress progress, final BooleanSupplier cancelled)
@@ -274,8 +484,10 @@ public final class DataPackage implements Closeable {
 		final byte[] buffer = new byte[BUFFER];
 		final CRC32 crc = new CRC32();
 		final List<ZipArchiveEntry> ordered = new ArrayList<>(this.files);
-		ordered.remove(this.marker);
-		ordered.add(this.marker);
+		if (this.marker != null) {
+			ordered.remove(this.marker);
+			ordered.add(this.marker);
+		}
 		long bytes = 0;
 		int count = 0;
 		progress.update(0, this.totalBytes, 0, ordered.size());
@@ -323,9 +535,13 @@ public final class DataPackage implements Closeable {
 		file.delete();
 	}
 
-	/** The zip files directly in a folder that hold a data package, by name; empty when there are none. */
+	/**
+	 * The zip files directly in a folder that hold a data package, by name, the Classic packages before the graphics
+	 * sets, which need them; empty when there are none.
+	 */
 	public static List<File> packagesIn(final File folder) {
 		final List<File> found = new ArrayList<>();
+		final List<File> sets = new ArrayList<>();
 		final File[] children = folder == null ? null : folder.listFiles();
 		if (children == null) {
 			return found;
@@ -333,7 +549,7 @@ public final class DataPackage implements Closeable {
 		for (final File child : children) {
 			if (child.isFile() && child.getName().toLowerCase(Locale.ROOT).endsWith(".zip")) {
 				try (DataPackage dataPackage = open(child)) {
-					found.add(child);
+					(dataPackage.graphicsSet == null ? found : sets).add(child);
 				}
 				catch (final IOException e) {
 					// Not a data package.
@@ -341,6 +557,8 @@ public final class DataPackage implements Closeable {
 			}
 		}
 		Collections.sort(found);
+		Collections.sort(sets);
+		found.addAll(sets);
 		return found;
 	}
 

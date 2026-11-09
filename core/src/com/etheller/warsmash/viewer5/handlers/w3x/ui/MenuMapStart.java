@@ -15,6 +15,7 @@ import com.badlogic.gdx.files.FileHandle;
 import com.etheller.warsmash.WarsmashGdxMapScreen;
 import com.etheller.warsmash.WarsmashGdxMenuScreen;
 import com.etheller.warsmash.datasources.DataSource;
+import com.etheller.warsmash.datasources.GraphicsSet;
 import com.etheller.warsmash.datasources.GraphicsSettings;
 import com.etheller.warsmash.networking.GameTurnManager;
 import com.etheller.warsmash.networking.WarsmashClient;
@@ -29,6 +30,7 @@ import com.etheller.warsmash.units.DataTable;
 import com.etheller.warsmash.units.custom.WTS;
 import com.etheller.warsmash.util.Log;
 import com.etheller.warsmash.util.WarsmashConstants;
+import com.etheller.warsmash.viewer5.handlers.w3x.CampaignMaps;
 import com.etheller.warsmash.viewer5.handlers.w3x.War3MapViewer;
 import com.etheller.warsmash.viewer5.handlers.w3x.War3MapViewer.MapLoader;
 import com.etheller.warsmash.viewer5.handlers.w3x.replay.GameReplays;
@@ -73,6 +75,13 @@ final class MenuMapStart {
 	private FileHandle pendingSavedGame;
 	private boolean loadedFixedPlayerSettings;
 	private boolean pendingSavedGameByScript;
+	/**
+	 * The campaign version of the mission started last from the campaign screens; the levels its scripts change to
+	 * are played in it too.
+	 */
+	private boolean reforgedCampaign;
+	/** The map prepared last when it is made for the Reforged graphics alone, else null. */
+	private String reforgedGraphicsMap;
 
 	MenuMapStart(final MenuUI menu) {
 		this.menu = menu;
@@ -117,13 +126,30 @@ final class MenuMapStart {
 		this.menu.dialog.showError(MAP_LOAD_ERROR, null);
 	}
 
+	void setReforgedCampaign(final boolean reforged) {
+		this.reforgedCampaign = reforged;
+	}
+
+	/**
+	 * The graphics a game is played with, its models, icons and interface alike; the menu skin has no say in them. A
+	 * campaign mission has those of its campaign version, any other map those the options set for custom games. A map
+	 * made for the Reforged graphics alone is never played in Classic.
+	 */
+	private GraphicsSet gameGraphics(final String mapFilename) {
+		final boolean reforgedMap = mapFilename.equals(this.reforgedGraphicsMap);
+		if (CampaignMaps.isCampaignMap(mapFilename)) {
+			return this.reforgedCampaign || reforgedMap ? GraphicsSet.REFORGED : GraphicsSet.CLASSIC;
+		}
+		final GraphicsSet custom = GraphicsSettings.graphicsSet(this.menu.warsmashIni);
+		return reforgedMap && (custom == GraphicsSet.CLASSIC) ? GraphicsSet.REFORGED : custom;
+	}
+
 	private void internalStartMap(final String mapFilename, final int localPlayerIndex) {
 		this.menu.loadingScreen.beginLoading();
-		final boolean reforgedLoadingScreens = this.menu.loadingScreen.isReforgedLoadingScreens();
 		final DataSource codebase = GraphicsSettings.gameData(
 				this.menu.gameData != null ? this.menu.gameData
 						: WarsmashGdxMapScreen.parseDataSources(this.menu.warsmashIni),
-				this.menu.warsmashIni, reforgedLoadingScreens);
+				this.menu.warsmashIni, gameGraphics(mapFilename));
 		final GameTurnManager turnManager;
 		turnManager = GameTurnManager.PAUSED;
 		final War3MapViewer viewer = new War3MapViewer(codebase, this.menu.screenManager, this.menu.currentMapConfig,
@@ -457,6 +483,7 @@ final class MenuMapStart {
 			return false;
 		}
 		final CReplayHeader header = replay.getHeader();
+		this.reforgedCampaign = false;
 		if (!startMap(header.getMapPath(), null)) {
 			return false;
 		}
@@ -472,6 +499,7 @@ final class MenuMapStart {
 		try {
 			final SavedGame.Header header = SavedGame.readHeader(file);
 			setPendingLoad(file, false);
+			this.reforgedCampaign = false;
 			if (!startMap(header.mapFile, null)) {
 				setPendingLoad(null, false);
 				return false;
@@ -489,6 +517,7 @@ final class MenuMapStart {
 	private void loadAndCacheMapConfigs(final String mapFilename) throws IOException {
 		final War3Map map = War3MapViewer.beginLoadingMap(this.menu.dataSource, mapFilename);
 		final War3MapW3i mapInfo = map.readMapInformation();
+		this.reforgedGraphicsMap = War3MapViewer.isReforgedGraphicsMap(mapInfo) ? mapFilename : null;
 		requireJassScript(map, mapFilename);
 		final WTS wtsFile = Warcraft3MapObjectData.loadWTS(map);
 		this.menu.rootFrame.setMapStrings(wtsFile);

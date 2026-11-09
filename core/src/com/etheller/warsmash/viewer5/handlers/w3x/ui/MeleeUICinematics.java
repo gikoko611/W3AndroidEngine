@@ -67,7 +67,7 @@ final class MeleeUICinematics {
 	void createCinematicPanel() {
 		this.ui.cinematicPanel = this.ui.rootFrame.createFrame("CinematicPanel", this.ui.rootFrame, 0, 0);
 		this.ui.cinematicPanel.setVisible(false);
-		this.ui.reforgedCinematics = this.ui.war3MapViewer.isReforgedGraphicsMap();
+		this.ui.reforgedCinematics = this.ui.war3MapViewer.isReforgedGraphics();
 		this.cinematicSpeakerText = (StringFrame) this.ui.rootFrame.getFrameByName("CinematicSpeakerText", 0);
 		this.ui.rootFrame.setText(this.cinematicSpeakerText, "");
 		this.cinematicDialogueText = (StringFrame) this.ui.rootFrame.getFrameByName("CinematicDialogueText", 0);

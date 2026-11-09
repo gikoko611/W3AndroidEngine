@@ -955,6 +955,13 @@ public class CSimulation implements CPlayerAPI, CFogMaskSettings {
 				startX, startY, goal, movementType, collisionSize, allowSmoothing, queueItem);
 	}
 
+	/** Path search nodes that only earlier searches used are made again when needed; a save leaves them out. */
+	public void dropStalePathfindingNodes() {
+		if (this.pathfindingGraph != null) {
+			this.pathfindingGraph.dropStaleNodes();
+		}
+	}
+
 	public void removeFromPathfindingQueue(final CBehaviorMove behaviorMove) {
 		final int playerIndex = behaviorMove.getUnit().getPlayerIndex();
 		final CPathfindingProcessor pathfindingProcessor = this.pathfindingProcessors[playerIndex];

@@ -205,8 +205,8 @@ public class DesktopLauncher {
 						// program instead of showing the menu.
 						menuScreen.setLauncherMode(true);
 						menuScreen.setStartupMap(finalFileToLoad);
-						menuScreen.setGameEndListener((result, mapFile, loadFailure, race) -> {
-							Log.error("Game ended: " + result + " " + mapFile + " " + loadFailure);
+						menuScreen.setGameEndListener(result -> {
+							Log.error("Game ended: " + result.result + " " + result.map + " " + result.loadFailure);
 							Gdx.app.exit();
 						});
 					}

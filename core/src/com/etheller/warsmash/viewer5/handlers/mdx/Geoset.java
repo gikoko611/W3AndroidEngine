@@ -32,7 +32,13 @@ public class Geoset {
 	private final int skinStride;
 	private final int boneCountOffsetBytes;
 	public final boolean unselectable;
-	public final MdlxGeoset mdlxGeoset;
+	/**
+	 * Only what picking and sorting read stays on the heap once the geometry is in the GPU buffers: the normals,
+	 * tangents, skin and texture coordinates of HD models are several times larger and do not fit a phone's heap.
+	 */
+	public final float[] pickVertices;
+	public final char[] pickFaces;
+	public final float centerZ;
 
 	public Geoset(final MdxModel model, final int index, final int fileIndex, final int positionOffset,
 			final int normalOffset, final int uvOffset, final int tangentOffset, final int skinOffset,
@@ -54,7 +60,13 @@ public class Geoset {
 		this.skinStride = skinStride;
 		this.boneCountOffsetBytes = boneCountOffsetBytes;
 		this.unselectable = unselectable;
-		this.mdlxGeoset = mdlxGeoset;
+		this.pickVertices = mdlxGeoset.getVertices();
+		final int[] faces = mdlxGeoset.getFaces();
+		this.pickFaces = new char[faces.length];
+		for (int i = 0; i < faces.length; i++) {
+			this.pickFaces[i] = (char) faces[i];
+		}
+		this.centerZ = (mdlxGeoset.extent.max[2] + mdlxGeoset.extent.min[2]) / 2;
 
 		for (final GeosetAnimation geosetAnimation : model.getGeosetAnimations()) {
 			if (geosetAnimation.geosetId == fileIndex) {

@@ -10,8 +10,9 @@ import com.etheller.warsmash.units.Element;
 
 /**
  * The [Graphics] section of the engine configuration, which both launchers write from their Options page: the in-game
- * graphics set and the texture size limit. The interface skin (Classic or Reforged) is the launcher's own choice and
- * comes with the game it starts.
+ * graphics set of custom games and the texture size limit. A campaign mission is played with the graphics of the
+ * campaign version it was started in, whatever the set. The menu skin (Classic or Reforged) is the launcher's own
+ * choice and changes only the menus.
  */
 public final class GraphicsSettings {
 	public static final String SECTION = "Graphics";
@@ -98,9 +99,9 @@ public final class GraphicsSettings {
 		return "enus";
 	}
 
-	/** The game data as a game reads it: the configured graphics, and the interface the launcher chose. */
-	public static DataSource gameData(final DataSource data, final DataTable ini, final boolean reforgedInterface) {
-		return LayeredDataSource.wrap(data, graphicsSet(ini), reforgedInterface, locale(ini));
+	/** The game data as a game with these graphics reads it, its models, icons and interface alike. */
+	public static DataSource gameData(final DataSource data, final DataTable ini, final GraphicsSet graphics) {
+		return LayeredDataSource.wrap(data, graphics, locale(ini));
 	}
 
 	private static String locale(final DataTable ini) {

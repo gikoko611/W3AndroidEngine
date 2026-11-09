@@ -69,7 +69,13 @@ import com.etheller.warsmash.viewer5.handlers.w3x.camera.CameraRates;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.players.CPlayerUnitOrderListener;
 import com.etheller.warsmash.viewer5.handlers.w3x.save.SavedGame;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.players.CPlayerGameResult;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.players.CPlayer;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.players.CPlayerScore;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.players.CRace;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CSimulation;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.config.War3MapConfig;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.trigger.enumtypes.CMapDifficulty;
+import com.etheller.warsmash.launcher.GameResult;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.campaign.CGameExit;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.campaign.CGameCache;
 import com.etheller.warsmash.viewer5.handlers.w3x.ui.MeleeUI;
@@ -253,20 +259,23 @@ public class WarsmashGdxMapScreen implements InputProcessor, Screen, TouchTarget
 					}
 
 					private void leaveGame() {
-						final String result = WarsmashGdxMapScreen.this.scriptFailed ? "error" : localPlayerResult();
-						final int race = localPlayerRace();
+						final GameResult result = gameResult(
+								WarsmashGdxMapScreen.this.scriptFailed ? "error" : localPlayerResult());
 						// The menu picks up its own sounds and textures from here on.
 						WarsmashGdxMapScreen.this.endSession();
 						final WarsmashGdxMenuScreen.GameEndListener gameEndListener = WarsmashGdxMapScreen.this.menuScreen
 								.getGameEndListener();
 						final CGameExit exit = WarsmashGdxMapScreen.this.viewer.getGameExit();
-						if ((gameEndListener != null) && !exit.hasNextLevel() && (exit.getNextReplay() == null)) {
+						// A save to go on with (a hub left for a zone) is the engine's to load, not the launcher's.
+						final boolean ended = !exit.hasNextLevel() || ((exit.getSavedGame() == null)
+								&& "victory".equals(result.result)
+								&& WarsmashGdxMapScreen.this.menuScreen.endsBefore(exit.getNextLevel()));
+						if ((gameEndListener != null) && ended && (exit.getNextReplay() == null)) {
 							final SavedGame.Loadability loadFailure = SavedGame.consumeLoadFailure();
-							final String mapFile = WarsmashGdxMapScreen.this.viewer.getMapFileName();
+							result.loadFailure = loadFailure == null ? null : loadFailure.name();
 							WarsmashGdxMapScreen.this.screenManager.setScreen(null);
 							CGameCache.dropUnsaved();
-							gameEndListener.gameEnded(result, mapFile, loadFailure == null ? null : loadFailure.name(),
-									race);
+							gameEndListener.gameEnded(result);
 							return;
 						}
 						WarsmashGdxMapScreen.this.menuScreen.onReturnFromGame(exit.isCampaignSelectScreenForced());
@@ -490,6 +499,46 @@ public class WarsmashGdxMapScreen implements InputProcessor, Screen, TouchTarget
 		catch (final RuntimeException e) {
 			return "quit";
 		}
+	}
+
+	/**
+	 * How the game ended for the local player: the map, the race played, the time, the difficulty and the numbers the
+	 * score screen shows.
+	 */
+	public GameResult gameResult(final String result) {
+		final GameResult ended = new GameResult();
+		ended.result = result;
+		ended.map = this.viewer.getMapFileName();
+		ended.race = localPlayerRace();
+		try {
+			final CSimulation simulation = this.viewer.simulation;
+			ended.seconds = (int) (simulation.getGameTurnTick() * WarsmashConstants.SIMULATION_STEP_TIME);
+			final War3MapConfig config = this.viewer.getMapConfig();
+			if (config != null) {
+				final String name = config.getMapName();
+				ended.mapName = name == null ? "" : name;
+				final CMapDifficulty difficulty = config.getGameDifficulty();
+				ended.difficulty = difficulty == null ? "" : difficulty.name().toLowerCase(Locale.ROOT);
+			}
+			final CPlayer player = simulation.getPlayer(this.viewer.getLocalPlayerIndex());
+			final GameResult.Score score = new GameResult.Score();
+			score.heroScore = player.getScore(CPlayerScore.HERO_TOTAL);
+			score.heroesKilled = player.getScore(CPlayerScore.HEROES_KILLED);
+			score.unitScore = player.getScore(CPlayerScore.UNIT_TOTAL);
+			score.unitsTrained = player.getScore(CPlayerScore.UNITS_TRAINED);
+			score.unitsKilled = player.getScore(CPlayerScore.UNITS_KILLED);
+			score.structuresBuilt = player.getScore(CPlayerScore.STRUCT_BUILT);
+			score.structuresRazed = player.getScore(CPlayerScore.STRUCT_RAZED);
+			score.resourceScore = player.getScore(CPlayerScore.RESOURCE_TOTAL);
+			score.totalScore = player.getScore(CPlayerScore.TOTAL);
+			score.goldMined = player.getScore(CPlayerScore.GOLD_MINED_TOTAL);
+			score.lumberHarvested = player.getScore(CPlayerScore.LUMBER_TOTAL);
+			ended.score = score;
+		}
+		catch (final RuntimeException e) {
+			Log.error("Unable to read the score of the game: " + e);
+		}
+		return ended;
 	}
 
 	/** The race the local player played, a random one as it was drawn; 0 when unknown. */

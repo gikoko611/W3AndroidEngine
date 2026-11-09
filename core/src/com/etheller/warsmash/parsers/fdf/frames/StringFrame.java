@@ -23,6 +23,8 @@ public class StringFrame extends AbstractRenderableFrame {
 	private String text = "Default string";
 	private String displayText = this.text;
 	private TextJustify justifyH;
+	/** How the lines lie within the block of text, where justifyH places the block in the frame. */
+	private TextJustify lineJustifyH;
 	private TextJustify justifyV;
 	private final BitmapFont frameFont;
 	private Color fontShadowColor;
@@ -48,6 +50,7 @@ public class StringFrame extends AbstractRenderableFrame {
 		this.fontColor = color;
 		this.color = color;
 		this.justifyH = justifyH;
+		this.lineJustifyH = justifyH;
 		this.justifyV = justifyV;
 		this.frameFont = frameFont;
 		this.text = text;
@@ -63,6 +66,11 @@ public class StringFrame extends AbstractRenderableFrame {
 
 	public void setJustifyH(final TextJustify justifyH) {
 		this.justifyH = justifyH;
+		this.lineJustifyH = justifyH;
+	}
+
+	public void setLineJustifyH(final TextJustify lineJustifyH) {
+		this.lineJustifyH = lineJustifyH;
 	}
 
 	public String getText() {
@@ -529,7 +537,7 @@ public class StringFrame extends AbstractRenderableFrame {
 			usedHeight += this.frameFont.getCapHeight();
 		}
 
-		if (this.justifyH == TextJustify.CENTER) {
+		if (this.lineJustifyH == TextJustify.CENTER) {
 			centerLines(usedWidthMax);
 		}
 		this.internalFramesContainer.setWidth(usedWidthMax);

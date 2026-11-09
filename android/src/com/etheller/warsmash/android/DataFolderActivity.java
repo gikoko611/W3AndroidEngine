@@ -768,9 +768,12 @@ public class DataFolderActivity extends Activity {
 		final Context app = getApplicationContext();
 		new Thread(() -> {
 			try (DataPackage dataPackage = source.open()) {
-				job.summary = app.getString(R.string.data_folder_import_package, name,
-						dataPackage.gameVersion.isEmpty() ? "?" : dataPackage.gameVersion, dataPackage.fileCount(),
-						Formatter.formatShortFileSize(app, dataPackage.totalBytes));
+				job.summary = dataPackage.graphicsSet != null
+						? app.getString(R.string.data_folder_import_set, name, dataPackage.setName(),
+								dataPackage.fileCount(), Formatter.formatShortFileSize(app, dataPackage.totalBytes))
+						: app.getString(R.string.data_folder_import_package, name,
+								dataPackage.gameVersion.isEmpty() ? "?" : dataPackage.gameVersion,
+								dataPackage.fileCount(), Formatter.formatShortFileSize(app, dataPackage.totalBytes));
 				job.update(0, dataPackage.totalBytes, 0, dataPackage.fileCount());
 				job.opened = true;
 				dataPackage.importInto(target, job, () -> job.cancelled);
@@ -841,6 +844,8 @@ public class DataFolderActivity extends Activity {
 			return getString(R.string.data_folder_import_damaged, name, failure.file);
 		case NO_GAME_DATA:
 			return getString(R.string.data_folder_import_no_game_data, name);
+		case NO_CLASSIC:
+			return getString(R.string.data_folder_import_no_classic, name, failure.file);
 		case CANCELLED:
 			return getString(R.string.data_folder_import_cancelled);
 		case IO:

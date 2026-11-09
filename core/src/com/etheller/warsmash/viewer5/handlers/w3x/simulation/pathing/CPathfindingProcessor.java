@@ -85,6 +85,28 @@ public class CPathfindingProcessor {
 			this.cornerNodes = new Node[pathingGrid.getHeight() + 1][pathingGrid.getWidth() + 1];
 		}
 
+		/**
+		 * Lets go of the nodes only searches before the last one touched. Such a node is reset on its next touch, so
+		 * one made again in its place searches the same; kept, every part of the map ever searched stayed in memory
+		 * and in each saved game, which grew with every visit of a zone map's hub.
+		 */
+		public void dropStaleNodes() {
+			dropStaleNodes(this.nodes);
+			dropStaleNodes(this.cornerNodes);
+		}
+
+		private void dropStaleNodes(final Node[][] graph) {
+			for (final Node[] row : graph) {
+				for (int x = 0; x < row.length; x++) {
+					final Node node = row[x];
+					if ((node != null) && (node.pathfindJobId != this.lastJobId)
+							&& (node.pathableJobId != this.lastJobId)) {
+						row[x] = null;
+					}
+				}
+			}
+		}
+
 		private Reachability reachability(final PathingGrid pathingGrid, final MovementType movementType,
 				final float collisionSize, final boolean corners) {
 			final MovementType ground = Reachability.ground(movementType);

@@ -140,6 +140,124 @@ class DataPackageTest {
 		assertEquals(1, DataPackage.packagesIn(this.temp).size());
 	}
 
+	/** A graphics set zip as the packer makes it: its own folder with .nomedia, and a file of the other set. */
+	private static Map<String, String> setFiles(final String root, final String set, final String other) {
+		final Map<String, String> files = new LinkedHashMap<>();
+		files.put(root + other + "/units/shared.blp", "from " + set);
+		files.put(root + set + "/.nomedia", "");
+		files.put(root + set + "/units/human/footman/footman.mdx", set + " footman");
+		files.put(root + set + "/units/fallback.blp", "from " + set);
+		return files;
+	}
+
+	private static void importZip(final File zip, final File target) throws IOException {
+		try (DataPackage dataPackage = DataPackage.open(zip)) {
+			dataPackage.importInto(target, (bytes, total, files, count) -> {
+			}, () -> false);
+		}
+	}
+
+	private static String read(final File file) throws IOException {
+		return new String(Files.readAllBytes(file.toPath()), StandardCharsets.UTF_8);
+	}
+
+	@Test
+	void recognisesGraphicsSetZips() throws IOException {
+		try (DataPackage dataPackage = DataPackage
+				.open(zip("w3-data-set-de.zip", setFiles("", "_de.w3mod", "_hd.w3mod")))) {
+			assertEquals("_de.w3mod", dataPackage.graphicsSet);
+			assertEquals("DE", dataPackage.setName());
+			assertEquals(4, dataPackage.fileCount());
+			assertEquals("", dataPackage.tool);
+		}
+		try (DataPackage dataPackage = DataPackage
+				.open(zip("w3-data-set-hd.zip", setFiles("w3-data-set-hd/", "_hd.w3mod", "_de.w3mod")))) {
+			assertEquals("HD", dataPackage.setName());
+		}
+		try (DataPackage dataPackage = DataPackage.open(zip("p.zip", gameFiles("", "3")))) {
+			assertEquals(null, dataPackage.graphicsSet);
+			assertEquals("", dataPackage.setName());
+		}
+		final Map<String, String> mixed = setFiles("", "_de.w3mod", "_hd.w3mod");
+		mixed.put("units/UnitData.slk", "ID;PWXL;N;E\n");
+		assertEquals(DataPackage.Problem.NO_MARKER, problem(zip("mixed.zip", mixed)));
+	}
+
+	@Test
+	void aGraphicsSetNeedsTheClassicDataFirst() throws IOException {
+		final File target = new File(this.temp, "data");
+		try (DataPackage dataPackage = DataPackage.open(zip("set.zip", setFiles("", "_de.w3mod", "_hd.w3mod")))) {
+			final DataPackage.ImportException e = assertThrows(DataPackage.ImportException.class,
+					() -> dataPackage.importInto(target, (bytes, total, files, count) -> {
+					}, () -> false));
+			assertEquals(DataPackage.Problem.NO_CLASSIC, e.problem);
+			assertEquals("DE", e.file);
+		}
+		assertFalse(new File(target, "_de.w3mod").exists());
+		assertFalse(new File(this.temp, "data.importing").exists());
+	}
+
+	@Test
+	void aGraphicsSetJoinsTheClassicData() throws IOException {
+		final File target = new File(this.temp, "data");
+		final Map<String, String> classic = gameFiles("", "5");
+		classic.put("_de.w3mod/units/fallback.blp", "from classic");
+		classic.put("_de.w3mod/units/classiconly.blp", "from classic");
+		importZip(zip("classic.zip", classic), target);
+		importZip(zip("set.zip", setFiles("", "_de.w3mod", "_hd.w3mod")), target);
+		assertEquals(DataFolderCheck.Kind.FOLDER, DataFolderCheck.detect(target));
+		assertTrue(new File(target, DataPackage.MARKER).isFile());
+		assertEquals("_de.w3mod footman", read(new File(target, "_de.w3mod/units/human/footman/footman.mdx")));
+		assertEquals("from _de.w3mod", read(new File(target, "_de.w3mod/units/fallback.blp")));
+		assertEquals("from classic", read(new File(target, "_de.w3mod/units/classiconly.blp")));
+		assertEquals("from _de.w3mod", read(new File(target, "_hd.w3mod/units/shared.blp")));
+		assertFalse(new File(this.temp, "data.importing").exists());
+		assertFalse(new File(this.temp, "data.old").exists());
+
+		// The other set joins the same data; what it brings of the first set replaces the same file.
+		importZip(zip("set2.zip", setFiles("", "_hd.w3mod", "_de.w3mod")), target);
+		assertEquals("_hd.w3mod footman", read(new File(target, "_hd.w3mod/units/human/footman/footman.mdx")));
+		assertEquals("from _hd.w3mod", read(new File(target, "_de.w3mod/units/shared.blp")));
+		assertEquals("from _de.w3mod", read(new File(target, "_hd.w3mod/units/shared.blp")));
+		assertEquals("_de.w3mod footman", read(new File(target, "_de.w3mod/units/human/footman/footman.mdx")));
+	}
+
+	@Test
+	void aNewerClassicPackageKeepsTheGraphicsSets() throws IOException {
+		final File target = new File(this.temp, "data");
+		importZip(zip("classic.zip", gameFiles("", "3")), target);
+		importZip(zip("set.zip", setFiles("", "_hd.w3mod", "_de.w3mod")), target);
+		Files.write(new File(target, "stale.txt").toPath(), new byte[] { 1 });
+		final Map<String, String> newer = gameFiles("", "4");
+		newer.put("_de.w3mod/units/shared.blp", "from the newer classic");
+		importZip(zip("classic2.zip", newer), target);
+		assertFalse(new File(target, "stale.txt").exists());
+		assertEquals("_hd.w3mod footman", read(new File(target, "_hd.w3mod/units/human/footman/footman.mdx")));
+		assertEquals("from the newer classic", read(new File(target, "_de.w3mod/units/shared.blp")));
+		assertFalse(new File(this.temp, "data.old").exists());
+	}
+
+	@Test
+	void setsOfAnImportThatStoppedBeforeTakingThemAreKept() throws IOException {
+		final File target = new File(this.temp, "data");
+		importZip(zip("classic.zip", gameFiles("", "3")), target);
+		final File old = new File(this.temp, "data.old");
+		new File(old, "_de.w3mod/units").mkdirs();
+		Files.write(new File(old, "_de.w3mod/units/kept.blp").toPath(), new byte[] { 1 });
+		importZip(zip("set.zip", setFiles("", "_hd.w3mod", "_de.w3mod")), target);
+		assertTrue(new File(target, "_de.w3mod/units/kept.blp").isFile());
+		assertFalse(old.exists());
+	}
+
+	@Test
+	void listsClassicPackagesBeforeGraphicsSets() throws IOException {
+		zip("a-set.zip", setFiles("", "_de.w3mod", "_hd.w3mod"));
+		zip("w3-data-classic.zip", gameFiles("", "3"));
+		final java.util.List<File> packages = DataPackage.packagesIn(this.temp);
+		assertEquals(2, packages.size());
+		assertEquals("w3-data-classic.zip", packages.get(0).getName());
+	}
+
 	@Test
 	void readabilityCountsFilesAndKeepsTheFirstNames() throws IOException {
 		final File folder = new File(this.temp, "data");

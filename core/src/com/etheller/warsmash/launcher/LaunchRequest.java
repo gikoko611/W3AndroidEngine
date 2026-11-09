@@ -26,7 +26,10 @@ public final class LaunchRequest {
 	public int mission = -1;
 	/** easy, normal or hard. */
 	public String difficulty;
-	/** Which version of the campaign maps is played: {@link #CAMPAIGN_MAPS_REFORGED} or classic (the default). */
+	/**
+	 * The campaign version played, its maps and its graphics: {@link #CAMPAIGN_MAPS_REFORGED} or classic (the
+	 * default).
+	 */
 	public String campaignMaps;
 	/** A map of the custom game list, played with the slots and options. */
 	public String customMap;
@@ -84,6 +87,8 @@ public final class LaunchRequest {
 		menuScreen.setLauncherMode(true);
 		menuScreen.setWaitForTap(true);
 		menuScreen.setReforgedLoadingScreens(SKIN_REFORGED.equals(this.skin));
+		// A won mission's result comes before the next mission, as on the Reforged campaign screen.
+		menuScreen.setEndsAtCampaignVictory(this.campaign >= 0);
 		menuScreen.setReforgedPortrait(this.portrait);
 		menuScreen.setStartupMap(this.mapFile);
 		menuScreen.setStartupSlots(this.slots);

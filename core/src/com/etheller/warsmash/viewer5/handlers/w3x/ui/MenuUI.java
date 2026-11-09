@@ -535,11 +535,16 @@ public class MenuUI {
 
 	/**
 	 * @param reforgedMaps the campaign screen's version choice: the Reforged maps of the missions where the data has
-	 *                     them, else the classic ones
+	 *                     them and the Reforged graphics, else the classic maps and graphics
 	 */
 	public boolean startCampaignMission(final int campaignNumber, final int missionIndex,
 			final CMapDifficulty difficulty, final boolean reforgedMaps) {
 		return this.campaigns.startCampaignMission(campaignNumber, missionIndex, difficulty, reforgedMaps);
+	}
+
+	/** Whether a map is one of the missions of the campaign {@link #startCampaignMission} started. */
+	public boolean isStartedCampaignMission(final String mapFile) {
+		return this.campaigns.isStartedCampaignMission(mapFile);
 	}
 
 	/**

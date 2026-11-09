@@ -500,17 +500,28 @@ public enum RenderMathUtils {
 	 */
 	public static boolean intersectRayTriangles(final Ray ray, final float[] vertices, final int[] indices,
 			final int vertexSize, final Vector3 intersection) {
+		return intersectRayTriangles(ray, vertices, indices, null, indices.length, vertexSize, intersection);
+	}
+
+	/** The same with the unsigned 16 bit indices of a model, kept as chars to halve their size. */
+	public static boolean intersectRayTriangles(final Ray ray, final float[] vertices, final char[] indices,
+			final int vertexSize, final Vector3 intersection) {
+		return intersectRayTriangles(ray, vertices, null, indices, indices.length, vertexSize, intersection);
+	}
+
+	private static boolean intersectRayTriangles(final Ray ray, final float[] vertices, final int[] intIndices,
+			final char[] charIndices, final int indexCount, final int vertexSize, final Vector3 intersection) {
 		float min_dist = Float.MAX_VALUE;
 		boolean hit = false;
 
-		if ((indices.length % 3) != 0) {
+		if ((indexCount % 3) != 0) {
 			throw new RuntimeException("triangle list size is not a multiple of 3");
 		}
 
-		for (int i = 0; i < indices.length; i += 3) {
-			final int i1 = indices[i] * vertexSize;
-			final int i2 = indices[i + 1] * vertexSize;
-			final int i3 = indices[i + 2] * vertexSize;
+		for (int i = 0; i < indexCount; i += 3) {
+			final int i1 = (intIndices != null ? intIndices[i] : charIndices[i]) * vertexSize;
+			final int i2 = (intIndices != null ? intIndices[i + 1] : charIndices[i + 1]) * vertexSize;
+			final int i3 = (intIndices != null ? intIndices[i + 2] : charIndices[i + 2]) * vertexSize;
 
 			final boolean result = FixedIntersector.intersectRayTriangle(ray,
 					tmp1.set(vertices[i1], vertices[i1 + 1], vertices[i1 + 2]),

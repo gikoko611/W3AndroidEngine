@@ -69,9 +69,32 @@ public final class SkinArt {
 	public static final String BUTTON_RED_DOWN = "button-red-down.png";
 	public static final String BUTTON_GREEN = "button-green.png";
 	public static final String BUTTON_GREEN_DOWN = "button-green-down.png";
-	public static final String MISSION_BORDER = "mission-border.png";
-	public static final String MISSION_BORDER_HOVER = "mission-border-hover.png";
-	public static final String MISSION_CHECK = "mission-check.png";
+	/** The Reforged campaign screen's shield of the campaign version its missions are played in. */
+	public static final String VERSION_REFORGED = "version-reforged.png";
+	public static final String VERSION_CLASSIC = "version-classic.png";
+	/** The Reforged chapter icons: a cinematic, a chapter won, a chapter not won yet. */
+	public static final String CHAPTER_CINEMATIC = "chapter-cinematic.png";
+	public static final String CHAPTER_WON = "chapter-won.png";
+	public static final String CHAPTER_OPEN = "chapter-open.png";
+	public static final String CHEVRON_RIGHT = "chevron-right.png";
+	/** The Reforged ornament beside a gold heading; the one on the right is its mirror. */
+	public static final String HEADER_ORNAMENT = "header-ornament.png";
+	public static final String ICON_FOLDER_GOLD = "icon-folder-gold.png";
+	public static final String ICON_SEARCH = "icon-search.png";
+	/** The Reforged campaign result: the campaign's banner, the line under a heading and the icons of the numbers. */
+	public static final String RESULT_BANNER_HUMAN = "result-banner-human.png";
+	public static final String RESULT_BANNER_HORDE = "result-banner-horde.png";
+	public static final String RESULT_BANNER_UNDEAD = "result-banner-undead.png";
+	public static final String RESULT_BANNER_NIGHTELF = "result-banner-nightelf.png";
+	public static final String RESULT_BANNER_FK = "result-banner-fk.png";
+	public static final String RESULT_BANNER_RANDOM = "result-banner-random.png";
+	public static final String RESULT_DIVIDER = "result-divider.png";
+	public static final String RESULT_HEROES = "result-heroes.png";
+	public static final String RESULT_UNITS = "result-units.png";
+	public static final String RESULT_STRUCTURES = "result-structures.png";
+	public static final String DIFFICULTY_EASY = "difficulty-easy.png";
+	public static final String DIFFICULTY_NORMAL = "difficulty-normal.png";
+	public static final String DIFFICULTY_HARD = "difficulty-hard.png";
 	/** The Reforged mission pictures, made small: an index of "file TAB data path" lines and the files it names. */
 	public static final String MISSIONS = "missions/index.txt";
 	/** Where the Reforged mission pictures lie in the game data, in lower case. */
@@ -342,6 +365,7 @@ public final class SkinArt {
 		items.add(web(BUTTON_BORDER_DISABLED, buttons + "wc3_btn_disabled_normal_4k.png", 30, true));
 		items.add(web(LOGO_TFT, "webui\\common\\wc3tft-logo.png", 0, false));
 		items.add(web(LOGO_ROC, "webui\\common\\wc3roc-logo.png", 0, false));
+		items.add(web(HEADER_ORNAMENT, "webui\\common\\header-decoration-gold.png", 0, false));
 		for (int i = 0; i < REFORGED_PORTRAITS; i++) {
 			items.add(web(portraitFile(i), String.format(Locale.ROOT, "webui\\portraits\\p%03d.png", i + 1), 0,
 					false));
@@ -360,9 +384,27 @@ public final class SkinArt {
 		items.add(web(BUTTON_RED_DOWN, buttons + "wc3_btn_red_down_4k.png", 30, true));
 		items.add(web(BUTTON_GREEN, buttons + "wc3_btn_green_normal_4k.png", 30, true));
 		items.add(web(BUTTON_GREEN_DOWN, buttons + "wc3_btn_green_down_4k.png", 30, true));
-		items.add(web(MISSION_BORDER, "webui\\campaign\\campaign-select-border.png", 0, false));
-		items.add(web(MISSION_BORDER_HOVER, "webui\\campaign\\campaign-select-border_hover.png", 0, false));
-		items.add(web(MISSION_CHECK, "webui\\campaign\\campaign-mission-checkmark.png", 0, false));
+		final String campaign = "webui\\campaign\\";
+		items.add(web(VERSION_REFORGED, campaign + "reforged-banner.png", 0, false));
+		items.add(web(VERSION_CLASSIC, campaign + "classic-banner.png", 0, false));
+		items.add(web(CHAPTER_CINEMATIC, campaign + "non-playable_icon.png", 0, false));
+		items.add(web(CHAPTER_WON, campaign + "wc3_victoryscreen_difficulty_normal.png", 0, false));
+		items.add(web(CHAPTER_OPEN, campaign + "wc3_victoryscreen_difficulty_unplayed.png", 0, false));
+		final String icons = "webui\\icons\\";
+		items.add(web(CHEVRON_RIGHT, icons + "chevron-right-icon-resting.png", 0, false));
+		items.add(web(ICON_FOLDER_GOLD, icons + "folder-icon-resting.png", 0, false));
+		items.add(web(ICON_SEARCH, icons + "search-icon-resting.png", 0, false));
+		for (final String banner : new String[] { "human", "horde", "undead", "nightelf", "fk", "random" }) {
+			items.add(web("result-banner-" + banner + ".png", campaign + "wc3_victoryscreen_banner_" + banner + ".png", 0,
+					false));
+		}
+		items.add(web(RESULT_DIVIDER, campaign + "wc3_victoryscreen_divider.png", 0, false));
+		items.add(web(RESULT_HEROES, campaign + "wc3_victoryscreen_staticon_heroes.png", 0, false));
+		items.add(web(RESULT_UNITS, campaign + "wc3_victoryscreen_staticon_units.png", 0, false));
+		items.add(web(RESULT_STRUCTURES, campaign + "wc3_victoryscreen_staticon_structures.png", 0, false));
+		items.add(web(DIFFICULTY_EASY, campaign + "wc3_victoryscreen_difficulty_easy.png", 0, false));
+		items.add(web(DIFFICULTY_NORMAL, campaign + "wc3_victoryscreen_difficulty_normal.png", 0, false));
+		items.add(web(DIFFICULTY_HARD, campaign + "wc3_victoryscreen_difficulty_hard.png", 0, false));
 		items.add(item(MISSIONS, "mission pictures", Kind.MISSIONS, MISSION_FOLDER));
 	}
 

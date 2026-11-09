@@ -17,17 +17,11 @@ import com.badlogic.gdx.InputProcessor;
 import com.badlogic.gdx.audio.AudioDevice;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.GL20;
-import com.badlogic.gdx.graphics.GL30;
-import com.badlogic.gdx.graphics.Pixmap;
-import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.Texture.TextureFilter;
-import com.badlogic.gdx.graphics.Texture.TextureWrap;
-import com.badlogic.gdx.graphics.TextureData;
 import com.badlogic.gdx.graphics.g2d.BitmapFont;
 import com.badlogic.gdx.graphics.g2d.GlyphLayout;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.graphics.g2d.freetype.FreeTypeFontGenerator;
-import com.badlogic.gdx.graphics.glutils.ShaderProgram;
 import com.badlogic.gdx.utils.Align;
 import com.badlogic.gdx.utils.GdxRuntimeException;
 import com.badlogic.gdx.utils.TimeUtils;
@@ -46,34 +40,6 @@ public final class GdxMoviePlayer implements Movies.Player {
 	private static final int PICTURES = 4;
 	private static final int SOUND_SAMPLES = 4096;
 	private static final long STOP_WAIT_MILLIS = 1000;
-
-	private static final String VERTEX_SHADER = "attribute vec4 " + ShaderProgram.POSITION_ATTRIBUTE + ";\n"
-			+ "attribute vec4 " + ShaderProgram.COLOR_ATTRIBUTE + ";\n" //
-			+ "attribute vec2 " + ShaderProgram.TEXCOORD_ATTRIBUTE + "0;\n" //
-			+ "uniform mat4 u_projTrans;\n" //
-			+ "varying vec4 v_color;\n" //
-			+ "varying vec2 v_texCoords;\n" //
-			+ "void main() {\n" //
-			+ "  v_color = " + ShaderProgram.COLOR_ATTRIBUTE + ";\n" //
-			+ "  v_texCoords = " + ShaderProgram.TEXCOORD_ATTRIBUTE + "0;\n" //
-			+ "  gl_Position = u_projTrans * " + ShaderProgram.POSITION_ATTRIBUTE + ";\n" //
-			+ "}\n";
-	private static final String FRAGMENT_SHADER = "#ifdef GL_ES\n" //
-			+ "precision mediump float;\n" //
-			+ "#endif\n" //
-			+ "varying vec4 v_color;\n" //
-			+ "varying vec2 v_texCoords;\n" //
-			+ "uniform sampler2D u_texture;\n" //
-			+ "uniform sampler2D u_textureU;\n" //
-			+ "uniform sampler2D u_textureV;\n" //
-			+ "uniform vec3 u_range;\n" // luma offset, luma scale, chroma scale
-			+ "uniform vec4 u_matrix;\n" // red from V, green from U, green from V, blue from U
-			+ "void main() {\n" //
-			+ "  float y = (texture2D(u_texture, v_texCoords).r - u_range.x) * u_range.y;\n" //
-			+ "  float u = (texture2D(u_textureU, v_texCoords).r - 128.0 / 255.0) * u_range.z;\n" //
-			+ "  float v = (texture2D(u_textureV, v_texCoords).r - 128.0 / 255.0) * u_range.z;\n" //
-			+ "  gl_FragColor = vec4(y + u_matrix.x * v, y - u_matrix.y * u - u_matrix.z * v, y + u_matrix.w * u, v_color.a);\n" //
-			+ "}\n";
 
 	private final MovieDecoders decoders;
 	private final InputProcessor skipInput = new InputAdapter() {
@@ -123,14 +89,7 @@ public final class GdxMoviePlayer implements Movies.Player {
 	private Playback playing;
 
 	private SpriteBatch batch;
-	private ShaderProgram pictureShader;
-	private PlaneTexture planeY;
-	private PlaneTexture planeU;
-	private PlaneTexture planeV;
-	private int pictureWidth;
-	private int pictureHeight;
-	private final float[] range = new float[3];
-	private final float[] matrix = new float[4];
+	private final MovieTexture picture = new MovieTexture();
 	private BitmapFont font;
 	private File fontFile;
 	private int fontSize;
@@ -201,7 +160,7 @@ public final class GdxMoviePlayer implements Movies.Player {
 			final Playback playback = open(movie);
 			if (playback != null) {
 				this.playing = playback;
-				this.pictureWidth = 0;
+				this.picture.forget();
 				playback.start();
 				return true;
 			}
@@ -306,9 +265,9 @@ public final class GdxMoviePlayer implements Movies.Player {
 		}
 		this.batch.getProjectionMatrix().setToOrtho2D(0, 0, width, height);
 		if (picture != null) {
-			upload(picture);
+			this.picture.upload(picture);
 		}
-		if ((this.pictureWidth > 0) && (this.pictureHeight > 0) && (this.pictureShader != null)) {
+		if (this.picture.hasPicture()) {
 			drawPicture(width, height);
 		}
 		final String caption = playback.captionAt(now);
@@ -329,71 +288,20 @@ public final class GdxMoviePlayer implements Movies.Player {
 		}
 	}
 
-	private void upload(final MoviePicture picture) {
-		if (this.pictureShader == null) {
-			this.pictureShader = new ShaderProgram(VERTEX_SHADER, FRAGMENT_SHADER);
-			if (!this.pictureShader.isCompiled()) {
-				Log.warn("The movie shader does not compile: " + this.pictureShader.getLog());
-				this.pictureShader.dispose();
-				this.pictureShader = null;
-				return;
-			}
-		}
-		final int width = picture.getWidth();
-		final int height = picture.getHeight();
-		if ((this.planeY == null) || (this.planeY.getWidth() != width) || (this.planeY.getHeight() != height)) {
-			disposePlanes();
-			this.planeY = new PlaneTexture(width, height);
-			this.planeU = new PlaneTexture(picture.getChromaWidth(), picture.getChromaHeight());
-			this.planeV = new PlaneTexture(picture.getChromaWidth(), picture.getChromaHeight());
-		}
-		Gdx.gl.glPixelStorei(GL20.GL_UNPACK_ALIGNMENT, 1);
-		this.planeY.upload(picture.getY());
-		this.planeU.upload(picture.getU());
-		this.planeV.upload(picture.getV());
-		Gdx.gl.glPixelStorei(GL20.GL_UNPACK_ALIGNMENT, 4);
-		this.pictureWidth = width;
-		this.pictureHeight = height;
-		setColours(picture.isFullRange(), picture.isBt709());
-	}
-
-	/** The YUV to RGB rules of the picture's colour standard. */
-	private void setColours(final boolean fullRange, final boolean bt709) {
-		final float kr = bt709 ? 0.2126f : 0.299f;
-		final float kb = bt709 ? 0.0722f : 0.114f;
-		final float kg = 1 - kr - kb;
-		this.range[0] = fullRange ? 0 : 16f / 255f;
-		this.range[1] = fullRange ? 1 : 255f / 219f;
-		this.range[2] = fullRange ? 1 : 255f / 224f;
-		this.matrix[0] = 2 * (1 - kr);
-		this.matrix[1] = (2 * kb * (1 - kb)) / kg;
-		this.matrix[2] = (2 * kr * (1 - kr)) / kg;
-		this.matrix[3] = 2 * (1 - kb);
-	}
-
 	/** The picture keeps its shape, as large as the window allows, with black beside it. */
 	private void drawPicture(final int width, final int height) {
 		float w = width;
-		float h = (width * (float) this.pictureHeight) / this.pictureWidth;
+		float h = (width * (float) this.picture.getHeight()) / this.picture.getWidth();
 		if (h > height) {
 			h = height;
-			w = (height * (float) this.pictureWidth) / this.pictureHeight;
+			w = (height * (float) this.picture.getWidth()) / this.picture.getHeight();
 		}
 		final SpriteBatch batch = this.batch;
-		batch.setShader(this.pictureShader);
 		batch.disableBlending();
 		batch.begin();
-		this.planeU.bind(1);
-		this.planeV.bind(2);
-		Gdx.gl.glActiveTexture(GL20.GL_TEXTURE0);
-		this.pictureShader.setUniformi("u_textureU", 1);
-		this.pictureShader.setUniformi("u_textureV", 2);
-		this.pictureShader.setUniform3fv("u_range", this.range, 0, 3);
-		this.pictureShader.setUniform4fv("u_matrix", this.matrix, 0, 4);
-		batch.draw(this.planeY, (width - w) / 2, (height - h) / 2, w, h);
+		this.picture.draw(batch, (width - w) / 2, (height - h) / 2, w, h, 0, 1, 1, 0);
 		batch.end();
 		batch.enableBlending();
-		batch.setShader(null);
 	}
 
 	private void drawCaption(final String caption, final MovieCaptions captions, final File fontFile,
@@ -485,29 +393,12 @@ public final class GdxMoviePlayer implements Movies.Player {
 		}
 	}
 
-	private void disposePlanes() {
-		for (final PlaneTexture plane : new PlaneTexture[] { this.planeY, this.planeU, this.planeV }) {
-			if (plane != null) {
-				plane.dispose();
-			}
-		}
-		this.planeY = null;
-		this.planeU = null;
-		this.planeV = null;
-		this.pictureWidth = 0;
-		this.pictureHeight = 0;
-	}
-
 	private void disposeGraphics() {
-		disposePlanes();
+		this.picture.dispose();
 		disposeFont();
 		this.fontFile = null;
 		this.fontCharacters = null;
 		this.fontCaptions = null;
-		if (this.pictureShader != null) {
-			this.pictureShader.dispose();
-			this.pictureShader = null;
-		}
 		if (this.batch != null) {
 			this.batch.dispose();
 			this.batch = null;
@@ -753,93 +644,6 @@ public final class GdxMoviePlayer implements Movies.Player {
 			else {
 				Log.warn("The movie sound did not stop in time");
 			}
-		}
-	}
-
-	/** One plane of the picture: a texture of single bytes, rewritten for every picture. */
-	private static final class PlaneTexture extends Texture {
-		PlaneTexture(final int width, final int height) {
-			super(new PlaneData(width, height));
-			setFilter(TextureFilter.Linear, TextureFilter.Linear);
-			setWrap(TextureWrap.ClampToEdge, TextureWrap.ClampToEdge);
-		}
-
-		void upload(final ByteBuffer plane) {
-			bind();
-			Gdx.gl.glTexSubImage2D(GL20.GL_TEXTURE_2D, 0, 0, 0, getWidth(), getHeight(), PlaneData.format(),
-					GL20.GL_UNSIGNED_BYTE, plane);
-		}
-	}
-
-	private static final class PlaneData implements TextureData {
-		private final int width;
-		private final int height;
-
-		PlaneData(final int width, final int height) {
-			this.width = width;
-			this.height = height;
-		}
-
-		/** One red channel where the context has it, luminance on OpenGL ES 2. */
-		static int format() {
-			return Gdx.gl30 != null ? GL30.GL_RED : GL20.GL_LUMINANCE;
-		}
-
-		@Override
-		public TextureDataType getType() {
-			return TextureDataType.Custom;
-		}
-
-		@Override
-		public boolean isPrepared() {
-			return true;
-		}
-
-		@Override
-		public void prepare() {
-		}
-
-		@Override
-		public Pixmap consumePixmap() {
-			throw new GdxRuntimeException("A movie plane has no pixmap");
-		}
-
-		@Override
-		public boolean disposePixmap() {
-			return false;
-		}
-
-		@Override
-		public void consumeCustomData(final int target) {
-			Gdx.gl.glPixelStorei(GL20.GL_UNPACK_ALIGNMENT, 1);
-			Gdx.gl.glTexImage2D(target, 0, Gdx.gl30 != null ? GL30.GL_R8 : GL20.GL_LUMINANCE, this.width,
-					this.height, 0, format(), GL20.GL_UNSIGNED_BYTE, null);
-			Gdx.gl.glPixelStorei(GL20.GL_UNPACK_ALIGNMENT, 4);
-		}
-
-		@Override
-		public int getWidth() {
-			return this.width;
-		}
-
-		@Override
-		public int getHeight() {
-			return this.height;
-		}
-
-		@Override
-		public Pixmap.Format getFormat() {
-			return Pixmap.Format.Alpha;
-		}
-
-		@Override
-		public boolean useMipMaps() {
-			return false;
-		}
-
-		@Override
-		public boolean isManaged() {
-			return false;
 		}
 	}
 }

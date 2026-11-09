@@ -13,9 +13,8 @@ import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Game data with graphics packages laid over the Classic files: a path the package has is read from the package, every
- * other path from the Classic data. The interface (the "ui" folder) takes its own packages, so the in-game graphics
- * and the interface can be chosen apart, as the launcher offers them. The command button icons show units and
- * spells, so they follow the in-game graphics.
+ * other path from the Classic data. The in-game interface (the "ui" folder) and the command button icons come from
+ * the same packages as the models: the menus have a look of their own, which the game does not follow.
  * <p>
  * A package keeps the textures of the new materials as .dds, many with a "_diffuse" suffix (the terrain tiles), and
  * the speech of its models in its own locale folder; both are looked for under the names the Classic data asks for.
@@ -35,48 +34,31 @@ public final class LayeredDataSource implements DataSource {
 
 	private final DataSource data;
 	private final GraphicsSet graphics;
-	private final String[] graphicsLayers;
-	private final String[] interfaceLayers;
+	private final String[] layers;
 	/** The path in the data that each asked path reads, or NOT_LAYERED for the path itself. */
 	private final Map<String, String> resolved = new ConcurrentHashMap<>();
 
 	/**
-	 * @param graphics          the in-game graphics; its packages the data lacks are left out
-	 * @param reforgedInterface whether the interface comes from the HD package (the Reforged interface)
-	 * @param locale            the language folder of the data, such as "enus"
+	 * @param graphics the in-game graphics; its packages the data lacks are left out
+	 * @param locale   the language folder of the data, such as "enus"
 	 */
-	private LayeredDataSource(final DataSource data, final GraphicsSet graphics, final boolean reforgedInterface,
-			final String locale) {
+	private LayeredDataSource(final DataSource data, final GraphicsSet graphics, final String locale) {
 		this.data = data;
 		this.graphics = graphics;
-		this.graphicsLayers = layers(data, graphics.getPackages(), locale);
-		this.interfaceLayers = reforgedInterface
-				? layers(data, GraphicsSet.REFORGED.getPackages(), locale)
-				: new String[0];
+		this.layers = layers(data, graphics.getPackages(), locale);
 	}
 
-	/**
-	 * The data as the game reads it with these choices: the data itself for Classic graphics and the Classic
-	 * interface, or for data without the packages.
-	 */
-	public static DataSource wrap(final DataSource data, final GraphicsSet graphics, final boolean reforgedInterface,
-			final String locale) {
-		final GraphicsSet available = graphics.isAvailable(data) ? graphics : GraphicsSet.CLASSIC;
-		final boolean reforgedUi = reforgedInterface && GraphicsSet.REFORGED.isAvailable(data);
-		if ((available == GraphicsSet.CLASSIC) && !reforgedUi) {
+	/** The data as a game reads it with these graphics: the data itself for Classic, or for data without them. */
+	public static DataSource wrap(final DataSource data, final GraphicsSet graphics, final String locale) {
+		if ((graphics == GraphicsSet.CLASSIC) || !graphics.isAvailable(data)) {
 			return data;
 		}
-		return new LayeredDataSource(data, available, reforgedUi, locale);
+		return new LayeredDataSource(data, graphics, locale);
 	}
 
 	/** The graphics a data source shows: its own when it is layered, else Classic. */
 	public static GraphicsSet graphicsOf(final DataSource data) {
 		return data instanceof LayeredDataSource ? ((LayeredDataSource) data).graphics : GraphicsSet.CLASSIC;
-	}
-
-	/** Whether a data source shows the Reforged interface. */
-	public static boolean reforgedInterfaceOf(final DataSource data) {
-		return (data instanceof LayeredDataSource) && (((LayeredDataSource) data).interfaceLayers.length > 0);
 	}
 
 	private static String[] layers(final DataSource data, final String[] packages, final String locale) {
@@ -113,18 +95,13 @@ public final class LayeredDataSource implements DataSource {
 		if (lower.startsWith(HD_PACKAGE) || lower.startsWith(DE_PACKAGE)) {
 			return null;
 		}
-		final boolean isInterface = lower.startsWith(INTERFACE_FOLDER);
-		if (isInterface && isOtherPicture(lower)) {
-			return null;
-		}
-		final String[] layers = isInterface ? this.interfaceLayers : this.graphicsLayers;
-		if (layers.length == 0) {
+		if (lower.startsWith(INTERFACE_FOLDER) && isOtherPicture(lower)) {
 			return null;
 		}
 		final String diffuse = lower.endsWith(".dds") && !lower.endsWith(DIFFUSE_SUFFIX + ".dds")
 				? path.substring(0, path.length() - 4) + DIFFUSE_SUFFIX + ".dds"
 				: null;
-		for (final String layer : layers) {
+		for (final String layer : this.layers) {
 			if (this.data.has(layer + path)) {
 				return layer + path;
 			}

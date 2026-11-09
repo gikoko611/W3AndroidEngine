@@ -28,6 +28,18 @@ import com.etheller.warsmash.movie.MoviePicture;
 public final class FfmpegMovieDecoders implements MovieDecoders {
 	private static boolean quiet;
 
+	private final int threads;
+
+	/** Decoders that take every core, as a full screen movie needs. */
+	public FfmpegMovieDecoders() {
+		this(0);
+	}
+
+	/** @param threads the decoding threads of each picture decoder, 0 for one per core */
+	public FfmpegMovieDecoders(final int threads) {
+		this.threads = threads;
+	}
+
 	private static synchronized void quiet() {
 		if (!quiet) {
 			quiet = true;
@@ -41,7 +53,7 @@ public final class FfmpegMovieDecoders implements MovieDecoders {
 			return null;
 		}
 		quiet();
-		return new Vp9Decoder(width, height);
+		return new Vp9Decoder(width, height, this.threads);
 	}
 
 	@Override
@@ -65,7 +77,7 @@ public final class FfmpegMovieDecoders implements MovieDecoders {
 		private SwsContext scaler;
 		private AVFrame converted;
 
-		Vp9Decoder(final int width, final int height) throws IOException {
+		Vp9Decoder(final int width, final int height, final int threads) throws IOException {
 			final AVCodec codec = avcodec.avcodec_find_decoder(avcodec.AV_CODEC_ID_VP9);
 			if (codec == null) {
 				throw new IOException("No VP9 decoder");
@@ -74,7 +86,7 @@ public final class FfmpegMovieDecoders implements MovieDecoders {
 			this.context.width(width);
 			this.context.height(height);
 			// One thread per core: a 1920 wide movie takes more than one core can give at 24 frames a second.
-			this.context.thread_count(0);
+			this.context.thread_count(threads);
 			final int opened = avcodec.avcodec_open2(this.context, codec, (PointerPointer<?>) null);
 			if (opened < 0) {
 				avcodec.avcodec_free_context(this.context);

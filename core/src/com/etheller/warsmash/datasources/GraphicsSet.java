@@ -6,7 +6,7 @@ import java.util.Locale;
  * The look of units, buildings, doodads, effects and terrain in a game: the Classic files, or one of the graphics
  * packages of 2.0 and later data laid over them. The packages are folders of the Classic data (war3.w3mod\_hd.w3mod
  * and war3.w3mod\_de.w3mod in an installed game) that hold the same paths with other files, and their skin fields
- * ("file:hd", "file:de") name other models. The interface has a choice of its own, see {@link LayeredDataSource}.
+ * ("file:hd", "file:de") name other models. The in-game interface follows the set, see {@link LayeredDataSource}.
  */
 public enum GraphicsSet {
 	CLASSIC("Classic", new String[0], new String[] { "sd" }),

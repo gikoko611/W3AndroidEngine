@@ -33,6 +33,7 @@ import com.etheller.warsmash.datasources.DataSource;
 import com.etheller.warsmash.datasources.GraphicsSet;
 import com.etheller.warsmash.datasources.GraphicsSettings;
 import com.etheller.warsmash.launcher.CampaignChoice;
+import com.etheller.warsmash.launcher.CampaignResult;
 import com.etheller.warsmash.launcher.CustomGame;
 import com.etheller.warsmash.launcher.CustomKeys;
 import com.etheller.warsmash.launcher.DataFolderCheck;
@@ -120,6 +121,8 @@ public final class LauncherScreen implements Screen, InputProcessor {
 	private DataTable ini;
 	private File iniFile;
 	private final Gui gui = new Gui();
+	/** The campaign mission's result the Missions page shows instead of the chapters, until Continue or Back. */
+	private GameResult campaignResult;
 	private final Preferences launcherPreferences;
 	private final DesktopStore preferences;
 	private final DesktopStore engineStore;
@@ -145,6 +148,10 @@ public final class LauncherScreen implements Screen, InputProcessor {
 	private final GlueBackdropRenderer.Request[] shownScenes = new GlueBackdropRenderer.Request[2];
 	private final String[] sceneKeys = new String[2];
 	private long sceneRequests;
+	/** The scene recordings playing, by layer. */
+	private final SceneRecording[] recordings = new SceneRecording[2];
+	/** Whether the game data has a scene recording, by its name. */
+	private final Map<String, Boolean> recorded = new HashMap<>();
 	private LauncherBoard board;
 
 	private Page page = Page.HOME;
@@ -158,6 +165,7 @@ public final class LauncherScreen implements Screen, InputProcessor {
 	private String profileShown;
 	private final StringBuilder nameField = new StringBuilder();
 	private final StringBuilder renameField = new StringBuilder();
+	private final StringBuilder saveFilter = new StringBuilder();
 	private Map<String, CCampaignProgress.Snapshot> profileProgress;
 	private boolean launching;
 	private WarsmashGdxMenuScreen menuScreen;
@@ -236,6 +244,7 @@ public final class LauncherScreen implements Screen, InputProcessor {
 
 	/** The art, catalog and scenes, once the data is open; on the window's thread. */
 	private void dataOpened() {
+		this.recorded.clear();
 		this.art = new LauncherArt(this.data, reforgedSkin());
 		this.catalog = new GameCatalog(this.ini, GameCatalog.dataKey(this.ini), this.saves,
 				() -> GameCatalog.currentProfile(this.engineStore), new File("Logs/launcher-maps.txt"),
@@ -264,7 +273,7 @@ public final class LauncherScreen implements Screen, InputProcessor {
 	}
 
 	private void startRenderer() {
-		if (this.renderer == null) {
+		if ((this.renderer == null) && animated()) {
 			this.renderer = new GlueBackdropRenderer(this.ini, new GlueBackdropRenderer.Listener() {
 				@Override
 				public void shown(final int layer, final long request) {
@@ -285,6 +294,13 @@ public final class LauncherScreen implements Screen, InputProcessor {
 			this.renderer.dispose();
 			this.renderer = null;
 		}
+		for (int layer = 0; layer < this.recordings.length; layer++) {
+			closeRecording(layer);
+		}
+	}
+
+	private boolean animated() {
+		return this.preferences.getBoolean(LauncherKeys.KEY_ANIMATED, true);
 	}
 
 	private boolean reforgedSkin() {
@@ -466,8 +482,74 @@ public final class LauncherScreen implements Screen, InputProcessor {
 
 	// ---------------------------------------------------------------- scenes
 
-	/** A scene of a page: its skin field, fog and place in board coordinates; null for none. */
-	private String scene(final int layer, final String skinField, final String fallbackField, final FogSettings fog,
+	/** The focus of a scene framed on its model, which stands at the model x of the recording's width. */
+	private static final float MODEL_FOCUS = -1;
+
+	/**
+	 * A page's original scene, in board coordinates: the skin's recording of it when the game data has one, cropped
+	 * at the focus across (or {@link #MODEL_FOCUS}), else the live 3D scene of the skin field, with its fog. With a
+	 * model x (a part of the recorded width, else negative) the live scene is cropped around its model the way the
+	 * recording is.
+	 *
+	 * @return what the layer shows, which {@link #showScenes} keeps
+	 */
+	private String scene(final int layer, final String scene, final float focus, final String skinField,
+			final String fallbackField, final FogSettings fog, final int fogVersion, final float x, final float y,
+			final float w, final float h, final float modelX) {
+		final String name = SkinArt.sceneName(scene, this.art.reforged);
+		if (hasRecording(name)) {
+			if ((this.sceneKeys[layer] != null) && (this.renderer != null)) {
+				this.renderer.show(layer, null);
+			}
+			this.sceneKeys[layer] = null;
+			SceneRecording playing = this.recordings[layer];
+			final boolean animated = animated();
+			if ((playing == null) || !playing.name.equals(name) || (playing.animated != animated)) {
+				closeRecording(layer);
+				playing = new SceneRecording(this.data, recordingPath(name), name, animated);
+				this.recordings[layer] = playing;
+			}
+			playing.draw(this.gui.batch, x, y, w, h,
+					focus != MODEL_FOCUS ? focus : CampaignChoice.modelFocus(modelX, w / h, playing.aspect()));
+			return name;
+		}
+		closeRecording(layer);
+		return liveScene(layer, skinField, fallbackField, fog, fogVersion, x, y, w, h, modelX);
+	}
+
+	private static String recordingPath(final String name) {
+		return "webui\\webms\\" + name + ".webm";
+	}
+
+	private boolean hasRecording(final String name) {
+		Boolean has = this.recorded.get(name);
+		if (has == null) {
+			has = this.data.has(recordingPath(name));
+			this.recorded.put(name, has);
+		}
+		return has;
+	}
+
+	/** How many of the menu and campaign scenes the game data has recorded for the skin. */
+	private int recordings() {
+		int count = 0;
+		for (final String scene : SkinArt.SCENES) {
+			if (hasRecording(SkinArt.sceneName(scene, this.art.reforged))) {
+				count++;
+			}
+		}
+		return count;
+	}
+
+	private void closeRecording(final int layer) {
+		if (this.recordings[layer] != null) {
+			this.recordings[layer].close();
+			this.recordings[layer] = null;
+		}
+	}
+
+	/** The live 3D scene of a skin field, for game data without the recordings. */
+	private String liveScene(final int layer, final String skinField, final String fallbackField, final FogSettings fog,
 			final int fogVersion, final float x, final float y, final float w, final float h, final float modelX) {
 		final LauncherBoard b = this.board;
 		final float s = b.scale;
@@ -492,6 +574,9 @@ public final class LauncherScreen implements Screen, InputProcessor {
 
 	private void showScenes(final String[] wanted) {
 		for (int layer = 0; layer < 2; layer++) {
+			if (wanted[layer] == null) {
+				closeRecording(layer);
+			}
 			if ((wanted[layer] == null) && (this.sceneKeys[layer] != null) && (this.renderer != null)) {
 				this.sceneKeys[layer] = null;
 				this.renderer.show(layer, null);
@@ -552,8 +637,9 @@ public final class LauncherScreen implements Screen, InputProcessor {
 	private void editionBackdrop(final String[] scenes, final boolean shaded) {
 		final LauncherBoard b = this.board;
 		final boolean roc = roc();
-		scenes[0] = scene(0, roc ? "GlueSpriteLayerBackground_V0" : "GlueSpriteLayerBackground_V1",
-				"GlueSpriteLayerBackground", null, roc ? 0 : 1, 0, 0, b.width, b.height, -1);
+		scenes[0] = scene(0, roc ? "mainmenu" : "mainmenu_tft", roc ? 0.05f : 1,
+				roc ? "GlueSpriteLayerBackground_V0" : "GlueSpriteLayerBackground_V1", "GlueSpriteLayerBackground", null,
+				roc ? 0 : 1, 0, 0, b.width, b.height, -1);
 		if (shaded) {
 			this.gui.fill(0, 0, b.width, b.height, 0x73000000);
 		}
@@ -742,8 +828,9 @@ public final class LauncherScreen implements Screen, InputProcessor {
 		final float bx = b.width - bw;
 		final float fr = b.frame;
 		final Banner next = banner();
-		scenes[1] = scene(1, next.background, null, next.fog, 0, bx + (fr / 2), fr / 2, bw - fr, b.height - fr,
-				CampaignChoice.modelX(next.scene));
+		// The Reforged scenes have their figures near the middle; the classic ones are framed on the model.
+		scenes[1] = scene(1, next.scene, this.art.reforged ? 0.3f : MODEL_FOCUS, next.background, null, next.fog, 0,
+				bx + (fr / 2), fr / 2, bw - fr, b.height - fr, CampaignChoice.modelX(next.scene));
 		g.gradient(bx, b.height * 0.46f, bw, b.height * 0.38f, 0x00000000, 0xE6000000, true);
 		g.fill(bx, b.height * 0.84f, bw, b.height * 0.16f, 0xE6000000);
 		final LauncherArt.Frame frame = this.art.frame(SkinArt.PANEL_BORDER);
@@ -842,10 +929,19 @@ public final class LauncherScreen implements Screen, InputProcessor {
 			return;
 		}
 		final CampaignCatalog.Entry entry = chosenCampaign();
-		scenes[0] = scene(0, entry != null ? entry.getData().getBackground() : "TutorialBackdrop", null,
+		scenes[0] = scene(0, entry != null ? CampaignChoice.campaignScene(entry.getSection()) : "roc_prologue", 0.22f,
+				entry != null ? entry.getData().getBackground() : "TutorialBackdrop", null,
 				entry != null ? entry.getData().getBackgroundFogSettings() : null, 0, 0, 0, b.width, b.height, -1);
 		g.gradient(b.width * 0.4f, 0, b.width * 0.6f, b.height, 0x00000000, 0xC7000000, false);
-		if ((this.page == Page.MISSIONS) && (entry != null)) {
+		if ((this.page == Page.MISSIONS) && (entry != null) && (this.campaignResult != null)) {
+			if (this.art.reforged) {
+				resultPage(entry, this.campaignResult);
+			}
+			else {
+				classicResultPage(entry, this.campaignResult);
+			}
+		}
+		else if ((this.page == Page.MISSIONS) && (entry != null)) {
 			missionsPage(entry);
 		}
 		else {
@@ -861,24 +957,115 @@ public final class LauncherScreen implements Screen, InputProcessor {
 	/** A campaign or mission row: the arrow, the header in gold and the name under it. */
 	private boolean campaignRow(final Object id, final String header, final String name, final boolean chosen,
 			final float x, final float y, final float w, final float rowH) {
+		return campaignRow(id, header, name, chosen, false, x, y, w, rowH);
+	}
+
+	/** A row; a muted one, of a campaign still to come, is drawn without colour, dimmed, and cannot be chosen. */
+	private boolean campaignRow(final Object id, final String header, final String name, final boolean chosen,
+			final boolean muted, final float x, final float y, final float w, final float rowH) {
 		final Gui g = this.gui;
 		final boolean t = this.board.tablet;
 		final float hs = t ? 30 : 20;
 		final float ns = t ? 50 : 32;
 		final float a = Math.min(rowH * 0.62f, 72);
-		final int state = g.hit(id, x, y, w, rowH);
+		final int state = muted ? 0 : g.hit(id, x, y, w, rowH);
 		if ((state & Gui.HOVER) != 0) {
 			g.image(this.art.image(SkinArt.ROW_HIGHLIGHT), x, y, w, rowH, 0.5f);
 		}
-		g.image(SkinArt.CAMPAIGN_ARROW, x, y + ((rowH - a) / 2), a, a);
-		g.text(glue(header, header), x + a + 20, y + (rowH * 0.08f), w - a - 20, hs * 1.4f, hs, g.palette.gold,
-				Align.left);
-		final boolean cut = g.text(glue(name, name), x + a + 20, y + (rowH * 0.08f) + (hs * 1.3f), w - a - 20,
-				ns * 1.3f, ns, chosen ? g.palette.gold : g.palette.text, Align.left);
+		final boolean reforged = this.art.reforged && this.art.has(SkinArt.CHEVRON_RIGHT);
+		final float alpha = muted ? 0.5f : 1;
+		if (reforged) {
+			// The Reforged campaign list's arrow: a small blue button with a gold chevron, its text in capitals.
+			final float button = a * 0.78f;
+			final float bx = x + ((a - button) / 2);
+			final float by = y + ((rowH - button) / 2);
+			g.drawButton(bx, by, button, button, muted ? Gui.TONE_OFF : Gui.TONE_NORMAL, alpha);
+			g.image(muted ? this.art.muted(SkinArt.CHEVRON_RIGHT) : this.art.image(SkinArt.CHEVRON_RIGHT),
+					bx + (button * 0.22f), by + (button * 0.22f), button * 0.56f, button * 0.56f, alpha);
+		}
+		else {
+			g.image(muted ? this.art.muted(SkinArt.CAMPAIGN_ARROW) : this.art.image(SkinArt.CAMPAIGN_ARROW), x,
+					y + ((rowH - a) / 2), a, a, alpha);
+		}
+		final String headerText = reforged ? upper(glue(header, header)) : glue(header, header);
+		final String nameText = reforged ? upper(glue(name, name)) : glue(name, name);
+		g.text(headerText, x + a + 20, y + (rowH * 0.08f), w - a - 20, hs * 1.4f, hs,
+				muted ? Gui.muted(g.palette.gold) : g.palette.gold, Align.left);
+		final int nameColour = chosen ? g.palette.gold : g.palette.text;
+		final boolean cut = g.text(nameText, x + a + 20, y + (rowH * 0.08f) + (hs * 1.3f), w - a - 20, ns * 1.3f,
+				ns, muted ? Gui.muted(nameColour) : nameColour, Align.left);
 		if (cut && ((state & Gui.HOVER) != 0)) {
 			g.tip(GlueText.plain(glue(name, name)));
 		}
 		return (state & Gui.CLICK) != 0;
+	}
+
+	/** A section header of the campaign list is this part of a row high. */
+	private static final float SECTION_HEIGHT = 0.62f;
+
+	/** The header and name of each Forsaken Kingdom campaign, listed as still to come. */
+	private static final String[][] FORSAKEN_NAMES = { { "campaign_fk_prologue_header", "campaign_fk_prologue" },
+		{ "campaign_fk_forsaken_header", "campaign_fk_forsaken" } };
+
+	private static float lineHeight(final CampaignChoice.ListLine line, final float rowH) {
+		switch (line.kind) {
+		case CampaignChoice.ListLine.GAP:
+			return rowH / 2;
+		case CampaignChoice.ListLine.SECTION:
+			return rowH * SECTION_HEIGHT;
+		default:
+			return rowH;
+		}
+	}
+
+	/**
+	 * A section header of the campaign list: the section's name in gold capitals, followed by a thin line on the
+	 * classic skin, between the Reforged heading ornament and its mirror on the Reforged one.
+	 */
+	private void sectionHeader(final int section, final float x, final float y, final float w, final float h) {
+		final Gui g = this.gui;
+		final float size = h * 0.46f;
+		final float gap = size * 0.45f;
+		final float ornamentW = size * 2.9f;
+		final TextureRegion ornament = this.art.reforged ? this.art.image(SkinArt.HEADER_ORNAMENT) : null;
+		float at = x;
+		if (ornament != null) {
+			g.contain(ornament, at, y + ((h - size) / 2), ornamentW, size, 1);
+			at += ornamentW + gap;
+		}
+		final String name = s(section == CampaignChoice.SECTION_FROZEN ? "profile_frozen"
+				: section == CampaignChoice.SECTION_FORSAKEN ? "campaign_forsaken" : "profile_reign");
+		at = spaced(upper(name), at, y, h, size, size * 0.08f, g.palette.gold) + gap;
+		if (section == CampaignChoice.SECTION_FORSAKEN) {
+			final String soon = s("campaign_coming_soon");
+			final float soonW = g.width(soon, size * 0.8f);
+			g.text(soon, at, y, soonW + 2, h, size * 0.8f, g.palette.text2, Align.left);
+			at += soonW + gap;
+		}
+		if (ornament != null) {
+			final float scale = Math.min(ornamentW / ornament.getRegionWidth(), size / ornament.getRegionHeight());
+			final float shownW = ornament.getRegionWidth() * scale;
+			final float shownH = ornament.getRegionHeight() * scale;
+			// A negative width draws the left ornament mirrored.
+			g.image(ornament, at + ((ornamentW + shownW) / 2), y + ((h - shownH) / 2), -shownW, shownH, 1);
+		}
+		else if (at < (x + w)) {
+			final int line = g.palette.line;
+			g.gradient(at, y + ((h - 2) / 2), (x + w) - at, 2, line, line & 0x00FFFFFF, false);
+		}
+	}
+
+	/** A line of letters spaced apart, as the section headers have it; gives where it ends. */
+	private float spaced(final String text, final float x, final float y, final float h, final float size,
+			final float spacing, final int argb) {
+		float at = x;
+		for (int i = 0; i < text.length(); i++) {
+			final String letter = text.substring(i, i + 1);
+			final float letterW = this.gui.width(letter, size);
+			this.gui.text(letter, at, y, letterW + 2, h, size, argb, Align.left);
+			at += letterW + spacing;
+		}
+		return at - spacing;
 	}
 
 	private void campaignPage(final CampaignCatalog.Entry chosen) {
@@ -892,52 +1079,44 @@ public final class LauncherScreen implements Screen, InputProcessor {
 		final float x = listX();
 		final float top = b.contentY + 16;
 		final float listH = (b.height - 8) - top;
-		final List<Object[]> rows = new ArrayList<>();
-		boolean gap = true;
-		int number = 0;
+		final List<CampaignChoice.ListLine> lines = CampaignChoice.campaignList(catalog, progress);
 		float contentH = 0;
-		for (final Object data : catalog.getDatas()) {
-			if (data == null) {
-				if (!gap) {
-					rows.add(null);
-					contentH += rowH / 2;
-					gap = true;
-				}
-				continue;
-			}
-			final CampaignCatalog.Entry entry = catalog.getEntry(number++);
-			if (!CampaignCatalog.isOpen(entry, progress)) {
-				continue;
-			}
-			rows.add(new Object[] { entry });
-			contentH += rowH;
-			gap = false;
+		for (final CampaignChoice.ListLine line : lines) {
+			contentH += lineHeight(line, rowH);
 		}
 		final float offset = g.beginList("campaigns", x, top, w, listH, contentH);
 		float y = top - offset;
-		for (final Object[] row : rows) {
-			if (row == null) {
-				y += rowH / 2;
-				continue;
+		for (final CampaignChoice.ListLine line : lines) {
+			if (line.kind == CampaignChoice.ListLine.SECTION) {
+				sectionHeader(line.index, x, y, w, rowH * SECTION_HEIGHT);
 			}
-			final CampaignCatalog.Entry entry = (CampaignCatalog.Entry) row[0];
-			final CampaignMenuData data = entry.getData();
-			if (campaignRow("camp" + entry.getNumber(), data.getHeader(), data.getName(), entry == chosen, x, y, w,
-					rowH)) {
-				playClick();
-				if (this.preferences.getInt(LauncherKeys.KEY_CAMPAIGN, -1) != entry.getNumber()) {
-					this.preferences.edit().putInt(LauncherKeys.KEY_CAMPAIGN, entry.getNumber())
-							.remove(LauncherKeys.KEY_MISSION).apply();
+			else if (line.kind == CampaignChoice.ListLine.COMING) {
+				final String[] names = FORSAKEN_NAMES[line.index];
+				campaignRow(null, s(names[0]), s(names[1]), false, true, x, y, w, rowH);
+			}
+			else if (line.kind == CampaignChoice.ListLine.CAMPAIGN) {
+				final CampaignCatalog.Entry entry = line.entry;
+				final CampaignMenuData data = entry.getData();
+				if (campaignRow("camp" + entry.getNumber(), data.getHeader(), data.getName(), entry == chosen, x, y,
+						w, rowH)) {
+					playClick();
+					if (this.preferences.getInt(LauncherKeys.KEY_CAMPAIGN, -1) != entry.getNumber()) {
+						this.preferences.edit().putInt(LauncherKeys.KEY_CAMPAIGN, entry.getNumber())
+								.remove(LauncherKeys.KEY_MISSION).apply();
+					}
+					showPage(Page.MISSIONS);
 				}
-				showPage(Page.MISSIONS);
 			}
-			y += rowH;
+			y += lineHeight(line, rowH);
 		}
 		g.endList();
-		if (rows.isEmpty()) {
+		if (lines.isEmpty()) {
 			g.text(s("game_no_campaigns"), x, top, w, 100, b.body, g.palette.text2, Align.left);
 		}
-		difficultyBoxes();
+		// The Reforged campaign screen asks for the version and difficulty on the chosen campaign's page.
+		if (!this.art.reforged) {
+			difficultyBoxes();
+		}
 	}
 
 	/** The campaign version and difficulty boxes at the bottom left, their labels above their menus. */
@@ -1003,25 +1182,14 @@ public final class LauncherScreen implements Screen, InputProcessor {
 		final Gui g = this.gui;
 		final LauncherBoard b = this.board;
 		final boolean t = b.tablet;
+		final boolean reforged = this.art.reforged;
 		final CCampaignProgress.Snapshot progress = this.campaigns.progress;
 		final List<CampaignMission> missions = entry.getData().getMissions();
 		int chosen = this.preferences.getInt(LauncherKeys.KEY_MISSION, -1);
 		if ((chosen < 0) || (chosen >= missions.size()) || !CampaignCatalog.isMissionOpen(entry, chosen, progress)) {
 			chosen = Math.max(0, CampaignChoice.furthestMission(entry, progress));
 		}
-		final boolean pictures = this.art.reforged && this.art.has(SkinArt.MISSION_BORDER);
-		final List<String> pictureFiles;
-		if (pictures) {
-			final List<String> names = new ArrayList<>();
-			for (final CampaignMission mission : missions) {
-				names.add(GlueText.plain(glue(mission.getMissionName(), mission.getMissionName())));
-			}
-			pictureFiles = CampaignChoice.missionPictures(names, this.art.missionPictures());
-		}
-		else {
-			pictureFiles = null;
-		}
-		final float rowH = pictures ? (t ? 146 : 102) : (t ? 135 : 96);
+		final float rowH = reforged ? (t ? 124 : 84) : (t ? 135 : 96);
 		final float w = t ? 924 : 600;
 		final float x = listX();
 		final float top = b.contentY + 16;
@@ -1040,19 +1208,28 @@ public final class LauncherScreen implements Screen, InputProcessor {
 		if (progress.isEndingCinematicAvailable(entry.getNumber())) {
 			addCinematic(rows, data.getEndCinematic());
 		}
-		final float offset = g.beginList("missions" + entry.getNumber(), x, top, w, listH, rows.size() * rowH);
-		float y = top - offset;
+		final float contentH = rows.size() * rowH;
+		float listTop = top;
+		if (reforged) {
+			// As on the Reforged campaign screen, a short chapter list stands level with the campaign's name.
+			final float middle = campaignBlock(entry);
+			listTop = Math.max(top, Math.min((top + listH) - contentH, middle - (contentH / 2)));
+		}
+		final float offset = g.beginList("missions" + entry.getNumber(), x, listTop, w, (top + listH) - listTop,
+				contentH);
+		float y = listTop - offset;
 		for (final Object[] row : rows) {
 			final CampaignMission mission = (CampaignMission) row[0];
 			final int index = row[1] == null ? -1 : (Integer) row[1];
 			final boolean isChosen = index == chosen;
 			final boolean clicked;
-			if (pictures) {
+			if (reforged) {
 				final boolean won = index < 0 ? false
 						: index < (missions.size() - 1) ? CampaignCatalog.isMissionOpen(entry, index + 1, progress)
 								: progress.isEndingCinematicAvailable(entry.getNumber());
-				clicked = missionRow("m" + index + mission.getMissionName(), mission, isChosen, won,
-						index < 0 ? null : pictureFiles.get(index), x, y, w, rowH);
+				clicked = chapterRow("m" + index + mission.getMissionName(), mission, isChosen,
+						index < 0 ? SkinArt.CHAPTER_CINEMATIC : won ? SkinArt.CHAPTER_WON : SkinArt.CHAPTER_OPEN, x, y,
+						w, rowH);
 			}
 			else {
 				clicked = campaignRow("m" + index + mission.getMissionName(), mission.getHeader(),
@@ -1070,8 +1247,22 @@ public final class LauncherScreen implements Screen, InputProcessor {
 			y += rowH;
 		}
 		g.endList();
-		final float nameW = (x - 60) - b.contentX;
-		if (t) {
+		if (!reforged) {
+			classicName(data);
+		}
+		if (g.button("back", glue("BACK", s("launcher_back")), b.backX, b.backY, b.backW, b.backH, t ? 36 : 30,
+				Gui.TONE_NORMAL)) {
+			playClick();
+			showPage(Page.CAMPAIGN);
+		}
+	}
+
+	/** The classic campaign's header and name, centred under the scene left of the list. */
+	private void classicName(final CampaignMenuData data) {
+		final Gui g = this.gui;
+		final LauncherBoard b = this.board;
+		final float nameW = (listX() - 60) - b.contentX;
+		if (b.tablet) {
 			g.text(glue(data.getHeader(), ""), b.contentX, (b.contentY + b.contentH) - 158, nameW, 48, 40,
 					g.palette.gold, Align.center);
 			g.text(glue(data.getName(), ""), b.contentX, (b.contentY + b.contentH) - 106, nameW, 86, 72,
@@ -1083,10 +1274,238 @@ public final class LauncherScreen implements Screen, InputProcessor {
 			g.text(glue(data.getName(), ""), b.contentX, (b.contentY + b.contentH) - 92, nameW, 50, 40,
 					g.palette.text, Align.center);
 		}
+	}
+
+	private static String upper(final String glueText) {
+		return GlueText.plain(glueText).toUpperCase(Locale.ROOT);
+	}
+
+	/** The text size at most this one at which a line fits a width. */
+	private float fitted(final String text, final float size, final float width) {
+		final float natural = this.gui.width(text, size);
+		return natural <= width ? size : Math.max(size * 0.6f, (size * width) / natural);
+	}
+
+	/**
+	 * The Reforged campaign screen's left side: the shield of the campaign version, the campaign's header and name,
+	 * and under the name one bar with the version and difficulty menus and the button to the saved games. Gives the
+	 * height of the name's middle.
+	 */
+	private float campaignBlock(final CampaignCatalog.Entry entry) {
+		return campaignBlock(entry, null);
+	}
+
+	/** The campaign block; after a mission Continue stands in place of the version and difficulty menus. */
+	private float campaignBlock(final CampaignCatalog.Entry entry, final GameResult result) {
+		final Gui g = this.gui;
+		final LauncherBoard b = this.board;
+		final boolean t = b.tablet;
+		final CampaignMenuData data = entry.getData();
+		final boolean versions = this.campaigns.catalog.hasReforgedMaps();
+		final String profile = this.profiles.current();
+		final int version = !versions || LaunchRequest.CAMPAIGN_MAPS_CLASSIC.equals(this.profiles.campaignMaps(profile))
+				? 1
+				: 0;
+		final float shield = t ? 176 : 84;
+		final float headerSize = t ? 46 : 22;
+		final float nameSize = t ? 60 : 30;
+		final float menuH = t ? 98 : 72;
+		final float gap = t ? 12 : 6;
+		final float left = b.contentX + (t ? 24 : 0);
+		final float right = listX() - (t ? 48 : 16);
+		final float y = b.contentY + ((b.contentH - shield - gap - menuH) * 0.5f);
+		g.image(version == 0 ? SkinArt.VERSION_REFORGED : SkinArt.VERSION_CLASSIC, left, y, shield, shield);
+		final float tx = left + shield + (t ? 20 : 10);
+		final float textW = right - tx;
+		final String header = upper(glue(data.getHeader(), data.getHeader()));
+		final String name = upper(glue(data.getName(), data.getName()));
+		g.text(header, tx, y + (shield * 0.06f), textW, shield * 0.4f, fitted(header, headerSize, textW),
+				g.palette.gold, Align.left);
+		g.text(name, tx, y + (shield * 0.48f), textW, shield * 0.46f, fitted(name, nameSize, textW), g.palette.text,
+				Align.left);
+		final float menuY = y + shield + gap;
+		final float text = t ? 32 : 22;
+		final float folderW = t ? 120 : 84;
+		final float difficultyW = t ? 300 : 150;
+		float mx = tx;
+		if (result != null) {
+			final float continueW = t ? 340 : 170;
+			if (g.button("continue", upper(glue("CONTINUE", "Continue")), mx, menuY, continueW, menuH, text,
+					Gui.TONE_NORMAL)) {
+				playClick();
+				continueAfter(entry, result);
+			}
+			mx += continueW + gap;
+		}
+		else {
+			if (versions) {
+				final float versionW = t ? 400 : 170;
+				g.dropdown("version", glueList(LauncherKeys.CAMPAIGN_MAPS, 1), version, mx, menuY, versionW, menuH,
+						text, true, null,
+						choice -> this.profiles.setCampaignMaps(profile, LauncherKeys.CAMPAIGN_MAPS[choice][0]));
+				mx += versionW + gap;
+			}
+			final String current = this.preferences.getString(LauncherKeys.KEY_DIFFICULTY,
+					LauncherKeys.DIFFICULTIES[0][0]);
+			int selected = 0;
+			for (int i = 0; i < LauncherKeys.DIFFICULTIES.length; i++) {
+				if (LauncherKeys.DIFFICULTIES[i][0].equals(current)) {
+					selected = i;
+				}
+			}
+			g.dropdown("difficulty", glueList(LauncherKeys.DIFFICULTIES, 1), selected, mx, menuY, difficultyW, menuH,
+					text, true, null, choice -> this.preferences.edit()
+							.putString(LauncherKeys.KEY_DIFFICULTY, LauncherKeys.DIFFICULTIES[choice][0]).apply());
+			mx += difficultyW + gap;
+		}
+		if (g.button("saves", "", mx, menuY, folderW, menuH, text, Gui.TONE_NORMAL)) {
+			playClick();
+			showPage(Page.LOAD);
+		}
+		if (g.over(mx, menuY, folderW, menuH)) {
+			g.tip(GlueText.plain(glue("KEY_LOAD_SAVED_GAME", "Load Saved Game")));
+		}
+		final float icon = menuH * 0.5f;
+		g.image(SkinArt.ICON_FOLDER_GOLD, mx + ((folderW - icon) / 2), menuY + ((menuH - icon) / 2), icon, icon);
+		return y + (shield * 0.5f);
+	}
+
+	/**
+	 * After a campaign mission, as on the Reforged campaign screen: the campaign with Continue on the left, the
+	 * campaign's banner with the mission's result on the right.
+	 */
+	private void resultPage(final CampaignCatalog.Entry entry, final GameResult result) {
+		final Gui g = this.gui;
+		final LauncherBoard b = this.board;
+		final boolean t = b.tablet;
+		campaignBlock(entry, result);
+		final CampaignResult.Layout l = new CampaignResult.Layout(listX() + ((t ? 924 : 600) / 2f), b.width,
+				b.height);
+		g.image(CampaignResult.banner(entry.getSection()), l.x, 0, l.w, l.h);
+		final String[] title = CampaignResult.title(result);
+		g.text(glue(title[0], title[1]), l.contentX, l.titleY, l.contentW, l.titleH, l.titleSize, 0xFFFFFFFF,
+				Align.center);
+		for (final float dividerY : l.dividerY) {
+			g.image(SkinArt.RESULT_DIVIDER, l.dividerX, dividerY, l.dividerW, l.dividerH);
+		}
+		for (int i = 0; i < CampaignResult.ROWS.length; i++) {
+			final String[] row = CampaignResult.ROWS[i];
+			final int[] numbers = CampaignResult.numbers(result.score, i);
+			final float y = l.rowY[i];
+			g.image(row[0], l.iconX, y, l.icon, l.icon);
+			g.text(upper(glue(row[1], row[2])), l.detailsX, y + l.headingY, l.columnW * 2, l.headingH, l.headingSize,
+					CampaignResult.HEADING_GOLD, Align.left);
+			final String[] labels = { glue("SCORE", "Score"), glue(row[3], row[4]) };
+			for (int c = 0; c < 2; c++) {
+				final float x = l.detailsX + (c * l.columnW);
+				g.text(labels[c], x, y + l.labelY, l.columnW, l.labelH, l.labelSize, CampaignResult.LABEL_GREY,
+						Align.left);
+				g.text(Integer.toString(numbers[c]), x, y + l.valueY, l.columnW, l.valueH, l.valueSize, 0xFFFFFFFF,
+						Align.left);
+			}
+		}
+		final String name = missionName(entry, result);
+		g.text(name, l.contentX, l.nameY, l.contentW, l.nameH, fitted(GlueText.plain(name), l.nameSize, l.contentW),
+				0xFFFFFFFF, Align.center);
+		g.text(result.playTime(), l.contentX, l.durationY, l.contentW, l.durationH, l.durationSize,
+				CampaignResult.HEADING_GOLD, Align.center);
+		final String[] difficulty = CampaignResult.difficulty(result.difficulty);
+		if (difficulty != null) {
+			g.text(glue(difficulty[1], difficulty[2]), l.contentX, l.difficultyY, l.contentW, l.difficultyH,
+					l.difficultySize, CampaignResult.LABEL_GREY, Align.center);
+			g.image(difficulty[0], l.difficultyIconX, l.difficultyIconY, l.difficultyIcon, l.difficultyIcon);
+		}
 		if (g.button("back", glue("BACK", s("launcher_back")), b.backX, b.backY, b.backW, b.backH, t ? 36 : 30,
 				Gui.TONE_NORMAL)) {
 			playClick();
-			showPage(Page.CAMPAIGN);
+			this.campaignResult = null;
+		}
+	}
+
+	/**
+	 * After a campaign mission on the classic skin: the same result and Continue as the Reforged one, in a panel of the
+	 * classic frame where the mission list stands, the campaign's name under the scene.
+	 */
+	private void classicResultPage(final CampaignCatalog.Entry entry, final GameResult result) {
+		final Gui g = this.gui;
+		final LauncherBoard b = this.board;
+		final boolean t = b.tablet;
+		classicName(entry.getData());
+		final float bottom = t ? b.contentY + b.contentH : b.height - 8;
+		final CampaignResult.ClassicLayout l = new CampaignResult.ClassicLayout(listX(), b.contentY, t ? 924 : 600,
+				bottom - b.contentY, b.pageFrame, b.buttonH);
+		g.panel(l.x, l.y, l.w, l.h, b.pageFrame);
+		final String[] title = CampaignResult.title(result);
+		g.text(glue(title[0], title[1]), l.contentX, l.titleY, l.contentW, l.titleH, l.titleSize, g.palette.gold,
+				Align.center);
+		for (final float lineY : l.lineY) {
+			final int line = g.palette.line;
+			final float half = l.contentW / 2;
+			g.gradient(l.contentX, lineY, half, l.lineH, line & 0x00FFFFFF, line, false);
+			g.gradient(l.contentX + half, lineY, half, l.lineH, line, line & 0x00FFFFFF, false);
+		}
+		for (int i = 0; i < CampaignResult.ROWS.length; i++) {
+			final String[] row = CampaignResult.ROWS[i];
+			final int[] numbers = CampaignResult.numbers(result.score, i);
+			final float y = l.rowY[i];
+			final String heading = glue(row[1], row[2]);
+			g.text(heading, l.contentX, y, l.headingW, l.rowH, fitted(GlueText.plain(heading), l.headingSize,
+					l.headingW), g.palette.gold, Align.left);
+			final String[] labels = { glue("SCORE", "Score"), glue(row[3], row[4]) };
+			for (int c = 0; c < 2; c++) {
+				g.text(labels[c], l.columnX[c], y + l.labelY, l.columnW, l.labelH, l.labelSize, g.palette.text2,
+						Align.left);
+				g.text(Integer.toString(numbers[c]), l.columnX[c], y + l.valueY, l.columnW, l.valueH, l.valueSize,
+						g.palette.text, Align.left);
+			}
+		}
+		final String name = missionName(entry, result);
+		g.text(name, l.contentX, l.nameY, l.contentW, l.nameH, fitted(GlueText.plain(name), l.nameSize, l.contentW),
+				g.palette.text, Align.center);
+		g.text(result.playTime(), l.contentX, l.durationY, l.contentW, l.durationH, l.durationSize, g.palette.gold,
+				Align.center);
+		final String[] difficulty = CampaignResult.difficulty(result.difficulty);
+		if (difficulty != null) {
+			g.text(glue(difficulty[1], difficulty[2]), l.contentX, l.difficultyY, l.contentW, l.difficultyH,
+					l.difficultySize, g.palette.text2, Align.center);
+		}
+		if (g.button("continue", glue("CONTINUE", "Continue"), l.buttonX, l.buttonY, l.buttonW, l.buttonH,
+				b.buttonText, Gui.TONE_NORMAL)) {
+			playClick();
+			continueAfter(entry, result);
+			return;
+		}
+		if (g.button("back", glue("BACK", s("launcher_back")), b.backX, b.backY, b.backW, b.backH, t ? 36 : 30,
+				Gui.TONE_NORMAL)) {
+			playClick();
+			this.campaignResult = null;
+		}
+	}
+
+	/** The played mission's name as the list has it, else the map's own name. */
+	private String missionName(final CampaignCatalog.Entry entry, final GameResult result) {
+		final String listed = playedName(entry, result);
+		return listed.isEmpty() ? result.mapName : listed;
+	}
+
+	/** The mission's name as the campaign list has it (a map names itself by its file), else empty. */
+	private String playedName(final CampaignCatalog.Entry entry, final GameResult result) {
+		final int played = CampaignResult.playedMission(this.campaigns.catalog, entry, result.map);
+		if (played < 0) {
+			return "";
+		}
+		final CampaignMission mission = entry.getData().getMissions().get(played);
+		return glue(mission.getMissionName(), mission.getMissionName());
+	}
+
+	/** Continue after a mission: the next mission after a victory, the same one after a loss, else the chapters. */
+	private void continueAfter(final CampaignCatalog.Entry entry, final GameResult result) {
+		final int played = CampaignResult.playedMission(this.campaigns.catalog, entry, result.map);
+		final int next = CampaignResult.continueMission(entry, this.campaigns.progress, played,
+				"victory".equals(result.result));
+		this.campaignResult = null;
+		if (next >= 0) {
+			launchMission(entry, next, Page.MISSIONS);
 		}
 	}
 
@@ -1096,32 +1515,25 @@ public final class LauncherScreen implements Screen, InputProcessor {
 		}
 	}
 
-	/** A Reforged mission row: the mission's loading picture in the campaign button frame, a check once won. */
-	private boolean missionRow(final Object id, final CampaignMission mission, final boolean chosen, final boolean won,
-			final String picture, final float x, final float y, final float w, final float rowH) {
+	/** A Reforged chapter row: its icon (cinematic, won or not yet), the chapter's kind in gold and its name. */
+	private boolean chapterRow(final Object id, final CampaignMission mission, final boolean chosen, final String icon,
+			final float x, final float y, final float w, final float rowH) {
 		final Gui g = this.gui;
 		final int state = g.hit(id, x, y, w, rowH);
 		if ((state & Gui.HOVER) != 0) {
 			g.image(this.art.image(SkinArt.ROW_HIGHLIGHT), x, y, w, rowH, 0.5f);
 		}
-		final float f = rowH - 18;
-		final TextureRegion image = picture != null ? this.art.picture(picture) : null;
-		if (image != null) {
-			g.cover(image, x + 16 + (f * 0.07f), y + 4 + (f * 0.07f), f * 0.86f, f * 0.86f, 0.18f);
+		final float a = rowH * 0.62f;
+		g.image(icon, x + (rowH * 0.12f), y + ((rowH - a) / 2), a, a);
+		final float tx = (rowH * 0.24f) + a;
+		final String header = glue(mission.getHeader(), mission.getHeader());
+		final String name = glue(mission.getMissionName(), mission.getMissionName());
+		g.text(header, x + tx, y + (rowH * 0.12f), w - tx, rowH * 0.3f, rowH * 0.22f, g.palette.gold, Align.left);
+		final boolean cut = g.text(name, x + tx, y + (rowH * 0.42f), w - tx, rowH * 0.42f, rowH * 0.32f,
+				chosen ? g.palette.gold : g.palette.text, Align.left);
+		if (cut && ((state & Gui.HOVER) != 0)) {
+			g.tip(GlueText.plain(name));
 		}
-		else {
-			g.fill(x + 16 + (f * 0.07f), y + 4 + (f * 0.07f), f * 0.86f, f * 0.86f, 0xFF000000);
-		}
-		g.image(chosen || ((state & Gui.HOVER) != 0) ? SkinArt.MISSION_BORDER_HOVER : SkinArt.MISSION_BORDER, x + 16,
-				y + 4, f, f);
-		if (won) {
-			g.image(SkinArt.MISSION_CHECK, x + 16 + (f * 0.62f), y + 4 + (f * 0.62f), f * 0.42f, f * 0.42f);
-		}
-		final float tx = 16 + f + 24;
-		g.text(glue(mission.getHeader(), mission.getHeader()), x + tx, y + (rowH * 0.16f), w - tx, rowH * 0.26f,
-				rowH * 0.2f, chosen ? 0xFFFFFFFF : g.palette.gold, Align.left);
-		g.text(glue(mission.getMissionName(), mission.getMissionName()), x + tx, y + (rowH * 0.42f), w - tx,
-				rowH * 0.4f, rowH * 0.3f, chosen ? g.palette.gold : g.palette.text, Align.left);
 		return (state & Gui.CLICK) != 0;
 	}
 
@@ -1515,12 +1927,32 @@ public final class LauncherScreen implements Screen, InputProcessor {
 		else {
 			final float x = b.contentX + pf + 8;
 			final float w = listW - (2 * pf) - 16;
-			final float top = b.contentY + pf + 14;
-			final float offset = g.beginList("saves", x, top, w, b.contentH - (2 * pf) - 28,
-					this.saveList.size() * rowH);
+			float top = b.contentY + pf + 14;
+			List<GameCatalog.SaveEntry> shown = this.saveList;
+			if (this.art.reforged) {
+				// The Reforged list of saved games has a field above it that keeps the saves whose name has its text.
+				final float fieldH = t ? 96 : 72;
+				final float textSize = t ? 34 : 24;
+				g.field("saveFilter", this.saveFilter, x, top, w, fieldH, textSize, 60, s("launcher_filter_saves"));
+				final float glass = fieldH * 0.5f;
+				g.image(SkinArt.ICON_SEARCH, (x + w) - glass - (fieldH * 0.3f), top + ((fieldH - glass) / 2), glass,
+						glass);
+				top += fieldH + (t ? 16 : 8);
+				final String filter = this.saveFilter.toString().trim().toLowerCase(Locale.ROOT);
+				if (!filter.isEmpty()) {
+					shown = new ArrayList<>();
+					for (final GameCatalog.SaveEntry entry : this.saveList) {
+						if (entry.name.toLowerCase(Locale.ROOT).contains(filter)) {
+							shown.add(entry);
+						}
+					}
+				}
+			}
+			final float offset = g.beginList("saves", x, top, w, (b.contentY + b.contentH) - pf - 14 - top,
+					shown.size() * rowH);
 			float y = top - offset;
 			final DateFormat format = DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT);
-			for (final GameCatalog.SaveEntry entry : this.saveList) {
+			for (final GameCatalog.SaveEntry entry : shown) {
 				final boolean loadable = entry.loadability == SavedGame.Loadability.LOADABLE;
 				final int state = g.hit("save" + entry.name, x, y, w, rowH);
 				if ((entry == chosen) || ((state & Gui.HOVER) != 0)) {
@@ -2658,7 +3090,11 @@ public final class LauncherScreen implements Screen, InputProcessor {
 		}
 		rows.add(infoRow(rowY, index, x, w, controlX, s("options_reforged_ui"),
 				s(this.data.has("webui\\common\\homescreen.jpg") ? "options_found" : "options_missing")));
-		rows.add(infoRow(rowY, index, x, w, controlX, s("options_backgrounds"), s("options_live_scenes")));
+		final int recordings = recordings();
+		rows.add(infoRow(rowY, index, x, w, controlX, s("options_backgrounds"),
+				recordings == 0 ? s("options_live_scenes")
+						: s("options_backgrounds_count").replace("%1$d", Integer.toString(recordings))
+								.replace("%2$d", Integer.toString(SkinArt.SCENES.length))));
 		final int buttons = index[0];
 		rows.add(() -> {
 			final LauncherBoard b = this.board;
@@ -2814,7 +3250,7 @@ public final class LauncherScreen implements Screen, InputProcessor {
 
 	/**
 	 * Unpacks a data package into a folder named after the zip, beside it; a folder of that name that is not an earlier
-	 * import of a package is left alone and another name is taken.
+	 * import of a package is left alone and another name is taken. A graphics set is added to the data folder in use.
 	 */
 	private void importPackage(final File zip) {
 		if (this.packageImport != null) {
@@ -2825,16 +3261,22 @@ public final class LauncherScreen implements Screen, InputProcessor {
 		for (int i = 2; target.exists() && !new File(target, DataPackage.MARKER).isFile(); i++) {
 			target = new File(zip.getAbsoluteFile().getParentFile(), base + " (" + i + ")");
 		}
-		final File into = target;
+		final File packageFolder = target;
+		// An installed game is read in place and never written to, so a graphics set has nothing to join there.
+		final File current = installedGame() ? null : dataFolder();
+		final File[] into = { packageFolder };
 		final PackageImport job = new PackageImport(zip.getName());
 		this.packageImport = job;
 		this.dataStatus = "";
 		final Thread thread = new Thread(() -> {
 			String problem = null;
 			try (DataPackage dataPackage = DataPackage.open(zip)) {
+				if ((dataPackage.graphicsSet != null) && (current != null)) {
+					into[0] = current;
+				}
 				job.update(0, dataPackage.totalBytes, 0, dataPackage.fileCount());
 				job.opened = true;
-				dataPackage.importInto(into, job, () -> job.cancelled);
+				dataPackage.importInto(into[0], job, () -> job.cancelled);
 			}
 			catch (final DataPackage.ImportException e) {
 				LauncherLog.w("Game data import from " + zip + " stopped", e);
@@ -2851,7 +3293,7 @@ public final class LauncherScreen implements Screen, InputProcessor {
 					this.dataStatus = failed;
 				}
 				else {
-					useDataFolder(into);
+					useDataFolder(into[0]);
 				}
 			});
 		}, "DataImport");
@@ -2881,6 +3323,8 @@ public final class LauncherScreen implements Screen, InputProcessor {
 			return this.strings.get("data_folder_import_damaged", name, failure.file);
 		case NO_GAME_DATA:
 			return this.strings.get("data_folder_import_no_game_data", name);
+		case NO_CLASSIC:
+			return this.strings.get("data_folder_import_no_classic", name, failure.file);
 		case CANCELLED:
 			return s("data_folder_import_cancelled");
 		case IO:
@@ -3439,6 +3883,9 @@ public final class LauncherScreen implements Screen, InputProcessor {
 	// ---------------------------------------------------------------- navigation and games
 
 	private void showPage(final Page next) {
+		if (next != Page.MISSIONS) {
+			this.campaignResult = null;
+		}
 		this.gui.closeMenu();
 		this.gui.focus = null;
 		this.capturing = null;
@@ -3461,6 +3908,10 @@ public final class LauncherScreen implements Screen, InputProcessor {
 			this.dialog = Dialog.EXIT;
 			break;
 		case MISSIONS:
+			if (this.campaignResult != null) {
+				this.campaignResult = null;
+				break;
+			}
 			showPage(Page.CAMPAIGN);
 			break;
 		default:
@@ -3523,18 +3974,22 @@ public final class LauncherScreen implements Screen, InputProcessor {
 		// The game reads the data the launcher has open rather than opening it again beside it.
 		this.menuScreen.setGameData(this.data);
 		request.prepare(this.menuScreen);
-		this.menuScreen.setGameEndListener((result, mapFile, loadFailure, race) -> Gdx.app
-				.postRunnable(() -> gameEnded(result, mapFile, loadFailure, race)));
+		this.menuScreen.setGameEndListener(result -> Gdx.app.postRunnable(() -> gameEnded(result)));
 		this.menuScreen.whenLoaded(menu -> {
 			if (!request.start(menu)) {
 				LauncherLog.w("The launcher asked for a game the engine cannot start: " + request);
-				Gdx.app.postRunnable(() -> gameEnded("error", request.mapFile, null, 0));
+				final GameResult failed = new GameResult();
+				failed.result = "error";
+				failed.map = request.mapFile;
+				Gdx.app.postRunnable(() -> gameEnded(failed));
 			}
 		});
 		this.game.setScreen(this.menuScreen);
 	}
 
-	private void gameEnded(final String result, final String mapFile, final String loadFailure, final int race) {
+	private void gameEnded(final GameResult returned) {
+		final String result = returned.result;
+		final int race = returned.race;
 		final WarsmashGdxMenuScreen menu = this.menuScreen;
 		this.menuScreen = null;
 		this.launching = false;
@@ -3547,13 +4002,8 @@ public final class LauncherScreen implements Screen, InputProcessor {
 				LauncherLog.w("Unable to let go of the engine's menu", e);
 			}
 		}
-		final GameResult returned = new GameResult();
-		returned.result = result;
 		returned.source = this.launched == null ? LaunchRequest.SOURCE_LOAD : this.launched.source();
-		returned.map = mapFile;
 		returned.profile = this.launched == null ? "" : this.launched.profile;
-		returned.loadFailure = loadFailure;
-		returned.race = race;
 		returned.finished = System.currentTimeMillis();
 		this.launched = null;
 		Page next;
@@ -3578,7 +4028,14 @@ public final class LauncherScreen implements Screen, InputProcessor {
 		readCatalog();
 		startRenderer();
 		updateMusic();
+		final boolean showResult = CampaignResult.shows(returned);
+		if (showResult) {
+			// As the Reforged campaign screen does, the mission's result comes first, over its campaign; both skins
+			// share the flow and differ only in its look.
+			next = Page.MISSIONS;
+		}
 		showPage(next);
+		this.campaignResult = showResult ? returned : null;
 		if (returned.loadFailure != null) {
 			this.messageTitle = s("game_cannot_load");
 			try {

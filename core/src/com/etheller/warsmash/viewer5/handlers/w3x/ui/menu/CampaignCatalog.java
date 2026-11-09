@@ -23,6 +23,13 @@ public final class CampaignCatalog {
 	 * missions; the game's campaign screen chooses between the two versions.
 	 */
 	private static final String REFORGED_FILE = "UI\\CampaignInfoReforged.txt";
+	/**
+	 * The first maps of the two Forsaken Kingdom campaigns, which only Reforged 3.0 brought; no campaign file of the
+	 * data lists them, the game's web menu does.
+	 */
+	private static final String[] FORSAKEN_KINGDOM_MAPS = { "Campaign\\ForsakenKingdom\\HumanRe01.w3xd",
+		"Campaign\\ForsakenKingdom\\UndeadRe01.w3xd", "Campaign\\ForsakenKingdom\\HumanRe01.w3x",
+		"Campaign\\ForsakenKingdom\\UndeadRe01.w3x" };
 
 	/** A campaign with the number scripts know it by. */
 	public static final class Entry {
@@ -58,6 +65,7 @@ public final class CampaignCatalog {
 	private final List<Entry> entries;
 	private DataSource dataSource;
 	private DataTable reforgedStrings;
+	private boolean forsakenKingdom;
 
 	private CampaignCatalog(final DataTable strings, final CCampaignProgress.CampaignList list,
 			final boolean classicList, final boolean unified) {
@@ -110,6 +118,7 @@ public final class CampaignCatalog {
 
 	private CampaignCatalog withReforged(final DataSource dataSource) throws IOException {
 		this.dataSource = dataSource;
+		this.forsakenKingdom = hasForsakenKingdom(dataSource);
 		if (dataSource.has(REFORGED_FILE)) {
 			this.reforgedStrings = new DataTable(StringBundle.EMPTY);
 			try (InputStream stream = dataSource.getResourceAsStream(REFORGED_FILE)) {
@@ -117,6 +126,20 @@ public final class CampaignCatalog {
 			}
 		}
 		return this;
+	}
+
+	/** Whether the game data has the Forsaken Kingdom campaigns. */
+	public static boolean hasForsakenKingdom(final DataSource dataSource) {
+		for (final String map : FORSAKEN_KINGDOM_MAPS) {
+			if (dataSource.has(map)) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	public boolean hasForsakenKingdom() {
+		return this.forsakenKingdom;
 	}
 
 	/** Whether the data has the Reforged version of the campaign maps. */

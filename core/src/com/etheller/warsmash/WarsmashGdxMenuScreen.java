@@ -27,6 +27,7 @@ import com.badlogic.gdx.utils.BufferUtils;
 import com.badlogic.gdx.utils.viewport.ExtendViewport;
 import com.badlogic.gdx.utils.viewport.FitViewport;
 import com.badlogic.gdx.utils.viewport.Viewport;
+import com.etheller.warsmash.launcher.GameResult;
 import com.etheller.warsmash.input.touch.SliderHost;
 import com.etheller.warsmash.datasources.BorrowedDataSource;
 import com.etheller.warsmash.datasources.DataSource;
@@ -105,6 +106,7 @@ public class WarsmashGdxMenuScreen implements InputProcessor, Screen, SingleMode
 	private String startupSlots;
 	private String startupProfile;
 	private boolean launcherMode;
+	private boolean endsAtCampaignVictory;
 	/** The menu shows the startup map's own loading screen while the rest of it is built. */
 	private boolean previewing;
 	private boolean previewTried;
@@ -118,12 +120,12 @@ public class WarsmashGdxMenuScreen implements InputProcessor, Screen, SingleMode
 	 */
 	public interface GameEndListener {
 		/**
-		 * @param result      victory, defeat, tie or quit; error when the map could not be started
-		 * @param mapFile     the map that was played last
-		 * @param loadFailure why a saved game could not be loaded, or null
-		 * @param race        the race id the local player played (a random race as drawn), 0 when unknown
+		 * @param result how the game ended (victory, defeat, tie or quit; error when the map could not be started),
+		 *               the map played last, why a saved game could not be loaded, the race the local player played
+		 *               and the score; where it was started from, the profile and the time it ended are left to the
+		 *               launcher
 		 */
-		void gameEnded(String result, String mapFile, String loadFailure, int race);
+		void gameEnded(GameResult result);
 	}
 
 	public WarsmashGdxMenuScreen(final DataTable warsmashIni, final WarsmashGdxMultiScreenGame game) {
@@ -1208,6 +1210,19 @@ public class WarsmashGdxMenuScreen implements InputProcessor, Screen, SingleMode
 		this.launcherMode = launcherMode;
 	}
 
+	/**
+	 * A won campaign mission ends the game for the launcher, which shows the result and starts the next mission
+	 * itself, rather than going on to the next mission's map as the engine's own menu does.
+	 */
+	public void setEndsAtCampaignVictory(final boolean endsAtCampaignVictory) {
+		this.endsAtCampaignVictory = endsAtCampaignVictory;
+	}
+
+	/** Whether a won game ends here rather than going on to this next level. */
+	public boolean endsBefore(final String nextLevel) {
+		return this.endsAtCampaignVictory && (this.menuUI != null) && this.menuUI.isStartedCampaignMission(nextLevel);
+	}
+
 	/** See {@link MenuUI#setReforgedLoadingScreens(boolean)}; must be set before the menu is built. */
 	public void setReforgedLoadingScreens(final boolean reforgedLoadingScreens) {
 		this.reforgedLoadingScreens = reforgedLoadingScreens;
@@ -1239,7 +1254,10 @@ public class WarsmashGdxMenuScreen implements InputProcessor, Screen, SingleMode
 		if (this.gameEndListener == null) {
 			return false;
 		}
-		this.gameEndListener.gameEnded("error", mapFile, null, 0);
+		final GameResult failed = new GameResult();
+		failed.result = "error";
+		failed.map = mapFile;
+		this.gameEndListener.gameEnded(failed);
 		return true;
 	}
 

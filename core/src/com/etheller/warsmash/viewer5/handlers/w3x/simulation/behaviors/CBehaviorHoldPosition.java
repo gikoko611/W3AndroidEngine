@@ -21,7 +21,7 @@ public class CBehaviorHoldPosition implements CBehavior {
 
 	@Override
 	public CBehavior update(final CSimulation game) {
-		if (this.unit.autoAcquireTargets(game, true)) {
+		if (this.unit.autoAcquireIdleTargets(game, true)) {
 			// kind of a hack
 			return this.unit.getCurrentBehavior();
 		}

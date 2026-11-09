@@ -19,7 +19,7 @@ public class CBehaviorStop implements CBehavior {
 
 	@Override
 	public CBehavior update(final CSimulation game) {
-		if (this.unit.autoAcquireTargets(game, false)) {
+		if (this.unit.autoAcquireIdleTargets(game, false)) {
 			return this.unit.getCurrentBehavior();
 		}
 		return this.unit.pollNextOrderBehavior(game);
