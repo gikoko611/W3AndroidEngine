@@ -347,6 +347,10 @@ final class MeleeUIInput {
 			this.ui.minimapPanel.setFormationMovement(!GameOptions.get().isFormationMovement());
 			return true;
 		}
+		if ((keycode >= Input.Keys.F1) && (keycode < (Input.Keys.F1 + MeleeUIControlGroups.HERO_HOTKEYS))
+				&& this.ui.groups.heroHotkeyPressed(keycode - Input.Keys.F1)) {
+			return true;
+		}
 		if ((keycode == Input.Keys.F8) && !this.ui.idleWorkers.isEmpty()) {
 			this.ui.groups.idleWorkerClicked(false);
 			return true;
@@ -1314,8 +1318,10 @@ final class MeleeUIInput {
 	public boolean isOverClickableUi(final int screenX, final int screenY) {
 		MeleeUI.screenCoordsVector.set(screenX, screenY);
 		this.ui.uiViewport.unproject(MeleeUI.screenCoordsVector);
-		return this.ui.rootFrame.getFrameChildUnderMouse(MeleeUI.screenCoordsVector.x,
-				MeleeUI.screenCoordsVector.y) instanceof ClickableFrame;
+		// The panel parts with a tool tip count too: a long press on them shows the tip, it is no right click.
+		return (this.ui.rootFrame.getFrameChildUnderMouse(MeleeUI.screenCoordsVector.x,
+				MeleeUI.screenCoordsVector.y) instanceof ClickableFrame)
+				|| (this.ui.tooltips.panelTipAt(MeleeUI.screenCoordsVector.x, MeleeUI.screenCoordsVector.y) != -1);
 	}
 
 	public void screenToWorld(final int screenX, final int screenY, final float[] out) {
@@ -1344,6 +1350,23 @@ final class MeleeUIInput {
 			this.ui.mouseOverUIFrame = null;
 		}
 		this.ui.tooltipFrame.setVisible(false);
+		this.ui.hoveredPanelTip = -1;
+		this.ui.panelTipX = Float.NaN;
+	}
+
+	/** Shows the tool tip of the panel part under the point; a refresh reloads it for the changed values. */
+	void updatePanelTip(final float x, final float y, final boolean refresh) {
+		final int previous = this.ui.hoveredPanelTip;
+		final int tip = this.ui.tooltips.panelTipAt(x, y);
+		this.ui.hoveredPanelTip = tip;
+		if (tip != -1) {
+			if (((tip != previous) || refresh) && !this.ui.tooltips.loadPanelTip(tip)) {
+				this.ui.tooltipFrame.setVisible(false);
+			}
+		}
+		else if (previous != -1) {
+			this.ui.tooltipFrame.setVisible(false);
+		}
 	}
 
 	public boolean mouseMoved(final int screenX, final int screenY, final float worldScreenY) {
@@ -1371,20 +1394,15 @@ final class MeleeUIInput {
 				this.ui.mouseOverUIFrame = null;
 				this.ui.tooltipFrame.setVisible(false);
 			}
-			this.ui.hoveredResource = -1;
+			this.ui.hoveredPanelTip = -1;
 		}
 		if (this.ui.mouseOverUIFrame == null) {
-			final int resource = this.ui.tooltips.resourceAt(MeleeUI.screenCoordsVector.x,
-					MeleeUI.screenCoordsVector.y);
-			if (resource != this.ui.hoveredResource) {
-				this.ui.hoveredResource = resource;
-				if (resource == -1) {
-					this.ui.tooltipFrame.setVisible(false);
-				}
-				else {
-					this.ui.tooltips.loadResourceTooltip(resource);
-				}
-			}
+			this.ui.panelTipX = MeleeUI.screenCoordsVector.x;
+			this.ui.panelTipY = MeleeUI.screenCoordsVector.y;
+			updatePanelTip(this.ui.panelTipX, this.ui.panelTipY, false);
+		}
+		else {
+			this.ui.panelTipX = Float.NaN;
 		}
 		final UIFrame hover = getHoveredFrame(this.ui.rootFrame, MeleeUI.screenCoordsVector.x,
 				MeleeUI.screenCoordsVector.y, this.ui.includeFrames, this.ui.ignoreFrames);

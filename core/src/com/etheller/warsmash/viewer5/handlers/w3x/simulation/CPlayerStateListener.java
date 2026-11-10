@@ -1,6 +1,7 @@
 package com.etheller.warsmash.viewer5.handlers.w3x.simulation;
 
 import com.etheller.warsmash.util.SubscriberSetNotifier;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.players.CAllianceType;
 
 public interface CPlayerStateListener {
 	void goldChanged();
@@ -14,6 +15,10 @@ public interface CPlayerStateListener {
 	void heroDeath();
 
 	void heroTokensChanged();
+
+	/** The player changed one of its alliance settings toward another player. */
+	default void allianceChanged(final int otherPlayerIndex, final CAllianceType allianceType, final boolean value) {
+	}
 
 	public static final class CPlayerStateNotifier extends SubscriberSetNotifier<CPlayerStateListener>
 			implements CPlayerStateListener {
@@ -56,6 +61,14 @@ public interface CPlayerStateListener {
 		public void heroTokensChanged() {
 			for (final CPlayerStateListener listener : set) {
 				listener.heroTokensChanged();
+			}
+		}
+
+		@Override
+		public void allianceChanged(final int otherPlayerIndex, final CAllianceType allianceType,
+				final boolean value) {
+			for (final CPlayerStateListener listener : set) {
+				listener.allianceChanged(otherPlayerIndex, allianceType, value);
 			}
 		}
 	}

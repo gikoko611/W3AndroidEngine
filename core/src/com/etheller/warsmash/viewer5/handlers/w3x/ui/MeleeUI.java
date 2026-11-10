@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.Date;
@@ -39,6 +40,7 @@ import com.etheller.warsmash.input.touch.VirtualCursor;
 import com.etheller.warsmash.datasources.DataSource;
 import com.etheller.warsmash.parsers.fdf.GameUI;
 import com.etheller.warsmash.parsers.fdf.datamodel.FramePoint;
+import com.etheller.warsmash.parsers.fdf.frames.ColorCodedText;
 import com.etheller.warsmash.parsers.fdf.frames.FadingSpriteBatch;
 import com.etheller.warsmash.parsers.fdf.frames.SetPoint;
 import com.etheller.warsmash.parsers.fdf.frames.SimpleButtonFrame;
@@ -100,6 +102,7 @@ public class MeleeUI implements CUnitStateListener, CommandButtonListener, Comma
 		QueueIconListener, CommandErrorListener, CPlayerStateListener, WarsmashUI, WarsmashToggleableUI,
 		War3MapViewer.InterfaceStateKeeper {
 	private static final float QUEST_BUTTON_FLASH_PERIOD = 0.5f;
+	private static final float PANEL_TIP_REFRESH_PERIOD = 0.25f;
 	static final float CHAT_MESSAGE_SECONDS = 10;
 	static final String BUILDING_PATHING_PREVIEW_KEY = "buildingPathingPreview";
 	public static final float DEFAULT_COMMAND_CARD_ICON_WIDTH = 0.039f;
@@ -230,9 +233,11 @@ public class MeleeUI implements CUnitStateListener, CommandButtonListener, Comma
 	Set<RenderUnit> dragSelectPreviewUnits = new HashSet<>();
 	private Set<RenderUnit> dragSelectPreviewUnitsUpcoming = new HashSet<>();
 	private final FreeTypeFontParameter textTagFontParam = new FreeTypeFontParameter();
+	private final Color textTagShadowColor = new Color(0, 0, 0, 1);
 	CItem draggingItem;
 	SimpleButtonFrame questsButton;
 	private final Runnable exitGameRunnable;
+	private boolean resultShownOutside;
 	SimpleFrame smashEscMenu;
 	MeleeGameMenu gameMenu;
 	private String mapMusicField;
@@ -313,7 +318,11 @@ public class MeleeUI implements CUnitStateListener, CommandButtonListener, Comma
 	UIFrame minimapButtonBar;
 	boolean minimapSignalTargeting;
 	final java.util.Map<UIFrame, Integer> timerDialogSlots = new java.util.IdentityHashMap<>();
-	int hoveredResource = -1;
+	int hoveredPanelTip = -1;
+	/** Where the mouse rests outside the clickable frames, in UI coordinates; NaN when nowhere. */
+	float panelTipX = Float.NaN;
+	float panelTipY;
+	private float panelTipRefreshTime;
 	UIFrame simpleInfoPanelItemDetail;
 	StringFrame simpleItemNameValue;
 	StringFrame simpleItemDescriptionValue;
@@ -364,6 +373,7 @@ public class MeleeUI implements CUnitStateListener, CommandButtonListener, Comma
 		this.heightRatioCorrection = this.uiViewport.getMinWorldHeight() / 1200f;
 
 		this.localPlayer.addStateListener(this);
+		this.messages.watchSharedControl();
 
 		this.musicSLK = new DataTable(StringBundle.EMPTY);
 		final String musicSLKPath = "UI\\SoundInfo\\Music.SLK";
@@ -384,6 +394,23 @@ public class MeleeUI implements CUnitStateListener, CommandButtonListener, Comma
 		}
 		war3MapViewer.getSoundMixer().setMusicScaleListener(this.musicPlayer::optionsChanged);
 		war3MapViewer.getSoundMixer().makeAudible();
+	}
+
+	/**
+	 * The interface sounds a game plays from its start: clicks, rally points, item pick up, and the warnings and
+	 * errors the skin names (no gold, under attack, ...).
+	 */
+	public List<String> getInterfaceSoundKeys() {
+		final List<String> keys = new ArrayList<>(Arrays.asList(ClickableFrame.SOUND_KEY_INTERFACE_CLICK,
+				ClickableFrame.SOUND_KEY_MENU_BUTTON_CLICK, ClickableFrame.SOUND_KEY_SUB_GROUP_SELECTION_CHANGE,
+				"InterfaceError", "RallyPointPlace", "PlaceBuildingDefault", "AutoCastButtonClick", "MapPing",
+				"ItemGet", "ItemDrop"));
+		for (final String field : this.rootFrame.getSkinFieldNames()) {
+			if (field.endsWith("Sound")) {
+				keys.add(this.rootFrame.getSkinField(field));
+			}
+		}
+		return keys;
 	}
 
 	/**
@@ -800,6 +827,14 @@ public class MeleeUI implements CUnitStateListener, CommandButtonListener, Comma
 		if (this.selectedUnit != null) {
 			this.infoPanel.updateBuildTimeIndicators();
 		}
+		if ((this.mouseOverUIFrame == null) && !Float.isNaN(this.panelTipX)) {
+			this.panelTipRefreshTime += deltaTime;
+			// Resources, the clock, the selection and its values change under a resting mouse.
+			if (this.panelTipRefreshTime >= PANEL_TIP_REFRESH_PERIOD) {
+				this.panelTipRefreshTime = 0;
+				this.input.updatePanelTip(this.panelTipX, this.panelTipY, true);
+			}
+		}
 
 		this.cameraManager.frameTime(deltaTime, this.war3MapViewer.isGamePaused());
 		this.cameraManager.updateCamera();
@@ -887,21 +922,20 @@ public class MeleeUI implements CUnitStateListener, CommandButtonListener, Comma
 					// font object on every loop, which would be wasteful
 					final BitmapFont myTextTagFont = this.rootFrame.getFontGenerator()
 							.generateFont(this.textTagFontParam);
-					myTextTagFont.setColor(0, 0, 0, textTag.getColor().a);
+					final ColorCodedText textTagText = textTag.getLayout();
+					textTagText.set(textTag.getText(), myTextTagFont, glyphLayout);
 					float x = unprojected.x;
 					float y = unprojected.y;
 					if (textTag.isCentered()) {
-						glyphLayout.setText(myTextTagFont, textTag.getText());
-						x -= (glyphLayout.width / 2);
-						y += (glyphLayout.height / 2);
+						x -= (textTagText.getWidth() / 2);
+						y += (textTagText.getHeight() / 2);
 					}
 					else {
-						y += glyphLayout.height;
+						y += textTagText.getHeight();
 					}
-					myTextTagFont.draw(batch, textTag.getText(), x + 3, (y - 1));
-					myTextTagFont.setColor(textTag.getColor().r, textTag.getColor().g, textTag.getColor().b,
-							textTag.getColor().a);
-					myTextTagFont.draw(batch, textTag.getText(), x, y);
+					this.textTagShadowColor.a = textTag.getColor().a;
+					textTagText.drawInColor(batch, x + 3, (y - 1), this.textTagShadowColor);
+					textTagText.draw(batch, x, y, textTag.getColor());
 				}
 			}
 		}
@@ -1041,7 +1075,6 @@ public class MeleeUI implements CUnitStateListener, CommandButtonListener, Comma
 		}
 		// The frame under the mouse is another one now; the next mouse move shows its tooltip where it belongs.
 		this.input.endTouchHover();
-		this.hoveredResource = -1;
 	}
 
 	/**
@@ -1539,6 +1572,7 @@ public class MeleeUI implements CUnitStateListener, CommandButtonListener, Comma
 	@Override
 	public void restoreInterfaceState(final SavedInterfaceState state) {
 		this.localPlayer.addStateListener(this);
+		this.messages.watchSharedControl();
 		this.menus.goldChanged();
 		this.menus.lumberChanged();
 		this.menus.foodChanged();
@@ -1621,9 +1655,17 @@ public class MeleeUI implements CUnitStateListener, CommandButtonListener, Comma
 		return CSaveStorage.safeName(map + " " + new SimpleDateFormat("yyyy-MM-dd HH.mm.ss").format(new Date()));
 	}
 
+	/**
+	 * Set when what started the game shows its result on its own page, as a launcher does after a campaign mission:
+	 * the game then ends without its score screen.
+	 */
+	public void setResultShownOutside(final boolean resultShownOutside) {
+		this.resultShownOutside = resultShownOutside;
+	}
+
 	@Override
 	public void endGame(final boolean showScoreScreen) {
-		if (showScoreScreen) {
+		if (showScoreScreen && !this.resultShownOutside) {
 			this.war3MapViewer.gameEnded();
 			this.cinematics.updateInterfaceVisibility(false);
 			this.cinematicPanel.setVisible(false);

@@ -1249,6 +1249,11 @@ public class WarsmashGdxMenuScreen implements InputProcessor, Screen, SingleMode
 		return this.gameEndListener;
 	}
 
+	/** Whether the launcher shows the game's result on its own page, as it does for a campaign mission. */
+	public boolean showsResultOutside() {
+		return (this.gameEndListener != null) && this.endsAtCampaignVictory;
+	}
+
 	/** A launcher showing its own menu hears of a map that cannot be loaded as of a game that ended in an error. */
 	private boolean mapLoadFailed(final String mapFile) {
 		if (this.gameEndListener == null) {

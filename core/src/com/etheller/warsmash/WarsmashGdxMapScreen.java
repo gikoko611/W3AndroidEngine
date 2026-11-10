@@ -293,6 +293,7 @@ public class WarsmashGdxMapScreen implements InputProcessor, Screen, TouchTarget
 						}
 					}
 				});
+		baseMeleeUI.setResultShownOutside(this.menuScreen.showsResultOutside());
 		this.baseMeleeUI = baseMeleeUI;
 		final MeleeToggleUI toggleUI = new MeleeToggleUI(baseMeleeUI, Arrays.asList(baseMeleeUI));
 		this.meleeUI = toggleUI;
@@ -345,6 +346,7 @@ public class WarsmashGdxMapScreen implements InputProcessor, Screen, TouchTarget
 		else {
 			this.commonEnv.main();
 		}
+		this.viewer.preloadSoundsAtStart(this.baseMeleeUI.getInterfaceSoundKeys());
 		DataErrors.logReport("map start");
 	}
 

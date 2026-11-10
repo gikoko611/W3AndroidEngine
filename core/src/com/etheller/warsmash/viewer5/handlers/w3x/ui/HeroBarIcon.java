@@ -5,10 +5,13 @@ import com.badlogic.gdx.graphics.g2d.GlyphLayout;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.utils.viewport.Viewport;
 import com.etheller.warsmash.parsers.fdf.GameUI;
+import com.etheller.warsmash.parsers.fdf.datamodel.FrameTemplateEnvironment;
 import com.etheller.warsmash.parsers.fdf.frames.SingleStringFrame;
 import com.etheller.warsmash.parsers.fdf.frames.SpriteFrame;
 import com.etheller.warsmash.parsers.fdf.frames.TextureFrame;
 import com.etheller.warsmash.parsers.fdf.frames.UIFrame;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CUnit;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.hero.CAbilityHero;
 import com.etheller.warsmash.viewer5.handlers.w3x.ui.command.MultiSelectionIconListener;
 
 /**
@@ -20,6 +23,8 @@ final class HeroBarIcon extends MultiSelectionIcon {
 	private SingleStringFrame pointsText;
 	private SpriteFrame pointsGlow;
 	private int shownPoints = -1;
+	private CUnit tipHero;
+	private int tipLevel;
 
 	HeroBarIcon(final String name, final UIFrame parent, final MultiSelectionIconListener clickListener,
 			final int index) {
@@ -48,6 +53,24 @@ final class HeroBarIcon extends MultiSelectionIcon {
 		if ((this.pointsGlow != null) && (this.pointsGlow.isVisible() != glow)) {
 			this.pointsGlow.setVisible(glow);
 		}
+	}
+
+	/** The tool tip: the hero's name with its key, the level in gray below. */
+	void setHero(final int index, final CUnit hero, final FrameTemplateEnvironment strings) {
+		final CAbilityHero heroData = hero.getHeroData();
+		final int level = heroData.getHeroLevel();
+		if ((hero == this.tipHero) && (level == this.tipLevel)) {
+			return;
+		}
+		this.tipHero = hero;
+		this.tipLevel = level;
+		String name = heroData.getProperName();
+		if (index < MeleeUIControlGroups.HERO_HOTKEYS) {
+			name += " (|cfffed312F" + (index + 1) + "|r)";
+		}
+		setToolTip(name);
+		setInfoTip(String.format(strings.getDecoratedString("INFOPANEL_LEVEL").replace("%u", "%d"), level));
+		setUberTip("");
 	}
 
 	@Override

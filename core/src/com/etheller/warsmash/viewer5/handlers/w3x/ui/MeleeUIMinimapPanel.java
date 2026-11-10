@@ -32,9 +32,11 @@ import com.etheller.warsmash.viewer5.handlers.w3x.environment.PathingGrid;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CSimulation;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CUnit;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.players.CAllianceType;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.players.CMapControl;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.players.CPlayer;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.players.vision.CPlayerFogOfWar;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.trigger.enumtypes.CFogState;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.trigger.enumtypes.CPlayerSlotState;
 
 /**
  * The minimap with its buttons, signals, pings, creep camps and the attack alerts that
@@ -461,10 +463,11 @@ final class MeleeUIMinimapPanel {
 	}
 
 	/**
-	 * The "under attack" alert, as on 1.29: when an enemy hurts a unit of the local player or of an ally out of view, a
-	 * sound by the local race (town or unit), a red minimap ping and Space jumping there; for an ally also a message
-	 * naming it. Not again for the same player within AttackNotifyDelay seconds and AttackNotifyRange of its last alert,
-	 * and then Space keeps the last alert's place too.
+	 * The "under attack" alert, as on 1.29: when an enemy hurts a unit the local player controls (its own, or one of a
+	 * player sharing control with it) or a unit of an allied human player out of view, a sound by the local race (town
+	 * or unit), a red minimap ping and Space jumping there; for the human ally also a message naming it. Allied
+	 * computer and campaign players without shared control raise no alert at all. Not again for the same player within
+	 * AttackNotifyDelay seconds and AttackNotifyRange of its last alert, and then Space keeps the last alert's place too.
 	 */
 	public void unitAttacked(final CUnit unit, final CUnit attacker) {
 		final CSimulation simulation = this.ui.war3MapViewer.simulation;
@@ -475,8 +478,11 @@ final class MeleeUIMinimapPanel {
 				|| ownerPlayer.hasAlliance(attacker.getPlayerIndex(), CAllianceType.PASSIVE)) {
 			return;
 		}
-		final boolean own = owner == localPlayerIndex;
-		if (!own && !(ownerPlayer.hasAlliance(localPlayerIndex, CAllianceType.PASSIVE)
+		final boolean own = (owner == localPlayerIndex)
+				|| ownerPlayer.hasAlliance(localPlayerIndex, CAllianceType.SHARED_CONTROL);
+		if (!own && !((ownerPlayer.getController() == CMapControl.USER)
+				&& (ownerPlayer.getSlotState() == CPlayerSlotState.PLAYING)
+				&& ownerPlayer.hasAlliance(localPlayerIndex, CAllianceType.PASSIVE)
 				&& simulation.getPlayer(localPlayerIndex).hasAlliance(owner, CAllianceType.PASSIVE))) {
 			return;
 		}

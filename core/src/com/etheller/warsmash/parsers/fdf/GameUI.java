@@ -10,6 +10,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.Texture;
@@ -272,6 +273,10 @@ public final class GameUI extends AbstractUIFrame implements UIFrame {
 
 	public boolean hasSkinField(final String file) {
 		return (file != null) && this.skin.hasField(file);
+	}
+
+	public Set<String> getSkinFieldNames() {
+		return this.skin.keySet();
 	}
 
 	public String getSkinField(String file) {

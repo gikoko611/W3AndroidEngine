@@ -23,7 +23,7 @@ public final class UnitSound {
 	private static final UnitSound SILENT = new UnitSound(null, 0, 0, 0, 0, 0, 0, false);
 
 	// Decoding every sound of a unit type when its first unit appeared held up the start of a game for seconds, so a
-	// sound is decoded when it is first played.
+	// sound is decoded when it is first played, unless a map's loading decoded it ahead (preload).
 	private final DataSource dataSource;
 	private final List<String> soundPaths = new ArrayList<>();
 	private final List<Sound> sounds = new ArrayList<>();
@@ -106,6 +106,15 @@ public final class UnitSound {
 			this.sounds.set(index, sound);
 		}
 		return sound;
+	}
+
+	/**
+	 * Decodes every file of this sound now rather than at its first play.
+	 */
+	public void preload() {
+		for (int i = 0; i < this.sounds.size(); i++) {
+			getSound(i);
+		}
 	}
 
 	/**

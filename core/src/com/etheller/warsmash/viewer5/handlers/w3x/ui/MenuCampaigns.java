@@ -86,8 +86,11 @@ final class MenuCampaigns {
 		return this.campaignFade;
 	}
 
-	CampaignMenuUI getCurrentMissionSelectMenuUI() {
-		return this.currentMissionSelectMenuUI;
+	void setMissionSelectMenuVisible(final boolean visible) {
+		// Null when the game data has no campaign list.
+		if (this.currentMissionSelectMenuUI != null) {
+			this.currentMissionSelectMenuUI.setVisible(visible);
+		}
 	}
 
 	/** @return false when the game data lists no campaigns */
@@ -136,7 +139,7 @@ final class MenuCampaigns {
 
 		this.campaignBackButton.setOnClick(() -> {
 			if (this.menu.menuState == MenuState.MISSION_SELECT) {
-				this.currentMissionSelectMenuUI.setVisible(false);
+				setMissionSelectMenuVisible(false);
 				this.missionSelectFrame.setVisible(false);
 				this.menu.menuState = MenuState.CAMPAIGN;
 			}
@@ -174,6 +177,7 @@ final class MenuCampaigns {
 				this.campaignRootMenuUI.addGap();
 			}
 			else {
+				final int number = campaignNumber;
 				final List<CampaignButtonUI> missionButtons = new ArrayList<>();
 				final CampaignMenuUI missionSelectMenuUI = createCampaignMenuUI();
 				missionSelectMenuUI.setVisible(false);
@@ -181,7 +185,7 @@ final class MenuCampaigns {
 
 				for (final CampaignMission mission : campaign.getMissions()) {
 					missionButtons.add(missionSelectMenuUI.addButton(mission.getHeader(), mission.getMissionName(),
-							() -> startMission(mission, false)));
+							() -> startMission(number, mission, false)));
 				}
 
 				final CampaignButtonUI campaignButtonUI = this.campaignRootMenuUI.addButton(campaign.getHeader(),
@@ -197,7 +201,7 @@ final class MenuCampaigns {
 							else {
 								this.campaignSelectFrame.setVisible(false);
 								this.campaignRootMenuUI.setVisible(false);
-								this.currentMissionSelectMenuUI.setVisible(true);
+								setMissionSelectMenuVisible(true);
 								this.missionSelectFrame.setVisible(true);
 								this.menu.menuState = MenuState.MISSION_SELECT;
 							}
@@ -248,17 +252,16 @@ final class MenuCampaigns {
 	}
 
 	/**
-	 * @param reforged whether the mission is played in the Reforged campaign version, else the Classic one
+	 * @param campaignNumber the mission's campaign, by the number scripts know it by
+	 * @param reforged       whether the mission is played in the Reforged campaign version, else the Classic one
 	 * @return false when the mission's map cannot be started; the campaign screens then stay as they are
 	 */
-	private boolean startMission(final CampaignMission mission, final boolean reforged) {
+	private boolean startMission(final int campaignNumber, final CampaignMission mission, final boolean reforged) {
 		if (!this.menu.mapStart.prepareMapConfigs(mission.getMapFilename())) {
 			return false;
 		}
 		hideScreens();
-		if (this.currentMissionSelectMenuUI != null) {
-			this.currentMissionSelectMenuUI.setVisible(false);
-		}
+		setMissionSelectMenuVisible(false);
 		this.campaignFade.setSequence("Birth");
 		this.difficultySelect.getPopupMenuFrame().setVisible(false);
 		this.menu.currentMapConfig.setGameDifficulty(this.campaignDifficulty);
@@ -277,7 +280,7 @@ final class MenuCampaigns {
 		this.menu.beginGameInformation = beginGameInformation;
 		beginGameInformation.gameMapLookup = new CurrentNetGameMapLookupPath(mission.getMapFilename());
 		beginGameInformation.localPlayerIndex = localPlayerIndex;
-		this.menu.mapStart.setReforgedCampaign(reforged);
+		this.menu.mapStart.setCampaign(campaignNumber, reforged);
 		return true;
 	}
 
@@ -305,7 +308,7 @@ final class MenuCampaigns {
 					this.campaignDifficulty = difficulty;
 				}
 				this.startedEntry = catalogEntry;
-				if (!startMission(mission, reforgedMaps)) {
+				if (!startMission(campaignNumber, mission, reforgedMaps)) {
 					this.menu.mainMenuFrame.setVisible(true);
 					return false;
 				}
@@ -313,6 +316,23 @@ final class MenuCampaigns {
 			}
 		}
 		return false;
+	}
+
+	/**
+	 * A saved game of a campaign's mission goes on as a mission of that campaign, as if the launcher had started it.
+	 *
+	 * @param campaignNumber by the number scripts know it by; -1 (not a campaign's game) leaves the campaign as it was
+	 */
+	void setStartedCampaign(final int campaignNumber) {
+		if ((campaignNumber >= 0) && (this.campaignCatalog != null)) {
+			this.startedEntry = this.campaignCatalog.getEntry(campaignNumber);
+		}
+	}
+
+	/** The campaign a map is a mission of, by the number scripts know it by; -1 when none or more than one lists it. */
+	int campaignOfMap(final String mapFile) {
+		final CampaignCatalog.Entry entry = CampaignResult.campaignOfMap(this.campaignCatalog, mapFile);
+		return entry == null ? -1 : entry.getNumber();
 	}
 
 	/** Whether a map is one of the missions of the campaign the launcher started, in either version of its maps. */
@@ -397,7 +417,7 @@ final class MenuCampaigns {
 			this.campaignMenu.setVisible(true);
 			this.campaignBackButton.setVisible(true);
 			this.campaignWarcraftIIILogo.setVisible(true);
-			this.currentMissionSelectMenuUI.setVisible(true);
+			setMissionSelectMenuVisible(true);
 			this.missionSelectFrame.setVisible(true);
 			return true;
 		default:
@@ -408,7 +428,7 @@ final class MenuCampaigns {
 	/** Back on the campaign screens from a mission. */
 	void onReturnFromGame(final boolean forceCampaignSelect) {
 		// The mission may have opened missions or campaigns and picked the campaign the menu shows.
-		this.currentMissionSelectMenuUI.setVisible(false);
+		setMissionSelectMenuVisible(false);
 		refreshCampaignAvailability();
 		if (forceCampaignSelect) {
 			this.missionSelectFrame.setVisible(false);

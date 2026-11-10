@@ -628,6 +628,9 @@ public class CSimulation implements CPlayerAPI, CFogMaskSettings {
 			if (createdUnit.getCollisionRectangle() == null) {
 				this.worldCollision.addUnit(createdUnit);
 			} // else the unit was probably injected into collision before default behaviors
+			if (createdUnit.isGuarding()) {
+				createdUnit.joinCreepCamp(this);
+			}
 			createdUnit.performDefaultBehavior(this);
 			// Fog is recomputed once a second; without this a script could not order a unit it just made against
 			// anything, because the new unit would not yet see its target.
@@ -1438,6 +1441,10 @@ public class CSimulation implements CPlayerAPI, CFogMaskSettings {
 
 	public boolean isNeutralAggressive(final int playerIndex) {
 		return playerIndex == (this.players.size() - 4);
+	}
+
+	public boolean isNeutralPassive(final int playerIndex) {
+		return playerIndex == (this.players.size() - 1);
 	}
 
 	public void setScriptOrder(final boolean scriptOrder) {

@@ -232,8 +232,13 @@ final class CameraNatives extends CommonNatives {
 					final CustomCameraSetup cameraSetup = nullable(arguments, 0,
 							ObjectJassValueVisitor.getInstance());
 					final CCameraField cameraField = nullable(arguments, 1, ObjectJassValueVisitor.getInstance());
-					final float fieldValue = arguments.get(2).visit(RealJassValueVisitor.getInstance())
-							.floatValue();
+					float fieldValue = arguments.get(2).visit(RealJassValueVisitor.getInstance()).floatValue();
+					// Measured on 1.29: a setup keeps a negative value as 0 (a roll of -9 reads back as 0, not 351),
+					// and values over 360 as set. The local angles are newer than that and are kept as they are.
+					if ((fieldValue < 0) && (cameraField != CCameraField.LOCAL_PITCH)
+							&& (cameraField != CCameraField.LOCAL_YAW) && (cameraField != CCameraField.LOCAL_ROLL)) {
+						fieldValue = 0;
+					}
 					if ((cameraSetup != null) && (cameraField != null)) {
 						cameraSetup.setField(cameraField, fieldValue);
 					}

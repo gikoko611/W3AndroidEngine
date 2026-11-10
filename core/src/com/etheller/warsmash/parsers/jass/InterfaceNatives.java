@@ -367,7 +367,8 @@ final class InterfaceNatives extends CommonNatives {
 							.getTrigStr(arguments.get(3).visit(StringJassValueVisitor.getInstance()));
 					if (whichPlayer == this.simulation
 							.getPlayer(war3MapViewer.getLocalPlayerIndex())) {
-						meleeUI.displayTimedText(x, y, (message.length() / 6) + 5, message);
+						// Measured on 1.29: longer texts stay longer, up to about 10.7 s.
+						meleeUI.displayTimedText(x, y, Math.min(2.8f + (0.1f * message.length()), 10.7f), message);
 					}
 					return null;
 				});

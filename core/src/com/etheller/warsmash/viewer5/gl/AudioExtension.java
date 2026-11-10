@@ -19,6 +19,13 @@ public interface AudioExtension {
 		return Gdx.audio.newSound(file);
 	}
 
+	/**
+	 * Waits, at most this long, until the sounds made so far can play. A backend that decodes in newSound has
+	 * nothing to wait for.
+	 */
+	default void finishLoading(final long maxMillis) {
+	}
+
 	default Music newMusic(final FileHandle file) {
 		return Gdx.audio.newMusic(file);
 	}

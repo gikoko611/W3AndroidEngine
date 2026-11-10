@@ -17,6 +17,11 @@ public interface ClickableActionFrame extends ClickableFrame {
 
 	String getUberTip();
 
+	/** Gray lines between the name and the description, such as a hero's level. */
+	default String getInfoTip() {
+		return null;
+	}
+
 	int getToolTipGoldCost();
 
 	int getToolTipLumberCost();

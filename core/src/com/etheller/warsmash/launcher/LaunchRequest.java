@@ -60,11 +60,30 @@ public final class LaunchRequest {
 		return request;
 	}
 
-	/** A saved game of the current profile. */
-	public static LaunchRequest load(final GameCatalog.SaveEntry entry) {
+	/**
+	 * A saved game of the current profile. A campaign mission's save goes on as that campaign's mission, ending on the
+	 * campaign's result as a mission started from its list does; a save that did not keep its campaign is known by its
+	 * map when only one campaign lists it.
+	 *
+	 * @param catalog the campaigns, or null when not known yet (the save is then loaded as any other)
+	 */
+	public static LaunchRequest load(final GameCatalog.SaveEntry entry, final CampaignCatalog catalog) {
 		final LaunchRequest request = new LaunchRequest();
 		request.saveFile = entry.name;
 		request.mapFile = entry.mapFile;
+		if (catalog == null) {
+			return request;
+		}
+		CampaignCatalog.Entry campaign = catalog.getEntry(entry.campaign);
+		if ((campaign == null) && !entry.campaignKept) {
+			campaign = CampaignResult.campaignOfMap(catalog, entry.mapFile);
+		}
+		if (campaign != null) {
+			request.campaign = campaign.getNumber();
+			request.mission = CampaignResult.playedMission(catalog, campaign, entry.mapFile);
+			request.campaignMaps = entry.reforgedCampaignMaps ? CAMPAIGN_MAPS_REFORGED : CAMPAIGN_MAPS_CLASSIC;
+			request.difficulty = entry.difficulty;
+		}
 		return request;
 	}
 
@@ -99,15 +118,16 @@ public final class LaunchRequest {
 	public boolean start(final MenuUI menu) {
 		try {
 			menu.useProfile(this.profile);
+			// A campaign mission's save names its campaign too; the save is what is played.
+			if (this.saveFile != null) {
+				return menu.startSavedGame(this.saveFile);
+			}
 			if (this.campaign >= 0) {
 				return menu.startCampaignMission(this.campaign, this.mission, difficulty(this.difficulty),
 						CAMPAIGN_MAPS_REFORGED.equals(this.campaignMaps));
 			}
 			if (this.customMap != null) {
 				return menu.startSkirmish(this.customMap, this.slots, this.options);
-			}
-			if (this.saveFile != null) {
-				return menu.startSavedGame(this.saveFile);
 			}
 			if (this.replayFile != null) {
 				return menu.startReplay(Gdx.files.absolute(this.replayFile));

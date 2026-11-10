@@ -126,8 +126,12 @@ public class CPlayer extends CBasePlayer {
 	public void setAlliance(final int otherPlayerIndex, final CAllianceType allianceType, final boolean value) {
 		final boolean before = hasAlliance(otherPlayerIndex, allianceType);
 		super.setAlliance(otherPlayerIndex, allianceType, value);
+		if (before == value) {
+			return;
+		}
+		this.stateNotifier.allianceChanged(otherPlayerIndex, allianceType, value);
 		final List<CPlayerEvent> eventList = getEventList(JassGameEventsWar3.EVENT_PLAYER_ALLIANCE_CHANGED);
-		if ((before != value) && (eventList != null)) {
+		if (eventList != null) {
 			for (final CPlayerEvent event : new ArrayList<>(eventList)) {
 				if (((CPlayerAllianceEvent) event).getAllianceType() == allianceType) {
 					event.fire(this, CommonTriggerExecutionScope.triggerPlayerScope(

@@ -23,10 +23,12 @@ import com.etheller.warsmash.parsers.fdf.frames.UIFrame;
 import com.etheller.warsmash.units.Element;
 import com.etheller.warsmash.util.War3ID;
 import com.etheller.warsmash.viewer5.handlers.w3x.UnitSound;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CPlayerStateListener;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CUnit;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CUpgradeType;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CUpgradeType.UpgradeLevel;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.campaign.CLeaderboard;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.players.CAllianceType;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.players.CPlayer;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.timers.CTimer;
 import com.etheller.warsmash.viewer5.handlers.w3x.ui.dialog.CScriptDialog;
@@ -44,6 +46,19 @@ final class MeleeUIMessages {
 			- WORLD_FRAME_MESSAGE_FADEOUT_MILLIS;
 	private StringFrame errorMessageFrame;
 	private final ArrayDeque<GameMessage> gameMessages = new ArrayDeque<>();
+	// Measured on 1.29: a message is shown fully for its duration and then fades out over 3 s; 0 shows it until it is
+	// cleared or scrolled away. New messages come in at the bottom line and push the older ones up; a message that
+	// has faded out keeps its lines empty.
+	private static final long GAME_MESSAGE_FADE_MILLIS = 3000;
+	private static final float GAME_MESSAGE_LEFT = 0.0527f;
+	private static final float GAME_MESSAGE_BOTTOM = 0.2405f;
+	private static final float GAME_MESSAGE_WIDTH = 0.495f;
+	private static final int GAME_MESSAGE_MAX_LINES = 16;
+	// The x and y of the last script message move all of them, by about this much per 1.
+	private static final float GAME_MESSAGE_OFFSET_X_SCALE = 0.308f;
+	private static final float GAME_MESSAGE_OFFSET_Y_SCALE = 0.223f;
+	private float gameMessageOffsetX;
+	private float gameMessageOffsetY;
 	private float gameMessageLift;
 	private long lastErrorMessageExpireTime;
 	private long lastErrorMessageFadeTime;
@@ -60,8 +75,12 @@ final class MeleeUIMessages {
 	private static final float TIMER_DIALOG_GAP = 0.002f;
 	// Measured on 1.29: shown 1 s after the death, fully for 10 s, then fading out.
 	private static final long HERO_DEATH_MESSAGE_DELAY_MILLIS = 1000;
-	private static final float HERO_DEATH_MESSAGE_SECONDS = 12;
+	private static final float HERO_DEATH_MESSAGE_SECONDS = 10;
 	private final ArrayDeque<PendingHeroDeath> pendingHeroDeaths = new ArrayDeque<>();
+	// Measured on 1.29: shown fully for 10 s, then fading out; gold on the screen, plain in the log.
+	private static final float SHARED_CONTROL_MESSAGE_SECONDS = 10;
+	private static final Color SHARED_CONTROL_MESSAGE_COLOR = new Color(0xFED312FF);
+	private SharedControlWatcher[] sharedControlWatchers;
 	private static final float LEADERBOARD_WIDTH = 0.2f;
 	private static final float LEADERBOARD_FONT_HEIGHT = 0.009f;
 	private static final float LEADERBOARD_INSET_X = 0.016f;
@@ -137,78 +156,106 @@ final class MeleeUIMessages {
 
 	private static final class GameMessage {
 		private final StringFrame stringFrame;
-		private final long lastGameMessageExpireTime;
-		private final long lastGameMessageFadeTime;
+		private final int lines;
+		private final long fadeTime;
+		private final long expireTime;
+		private boolean expired;
 
-		public GameMessage(final StringFrame stringFrame, final long lastGameMessageExpireTime,
-				final long lastGameMessageFadeTime) {
+		private GameMessage(final StringFrame stringFrame, final int lines, final long fadeTime,
+				final long expireTime) {
 			this.stringFrame = stringFrame;
-			this.lastGameMessageExpireTime = lastGameMessageExpireTime;
-			this.lastGameMessageFadeTime = lastGameMessageFadeTime;
+			this.lines = lines;
+			this.fadeTime = fadeTime;
+			this.expireTime = expireTime;
 		}
 	}
 
-	/** Messages stack up from the middle of the screen; a chat line lifted by the on-screen keyboard can reach it. */
+	/** Messages stack up from their bottom line; a chat line lifted by the on-screen keyboard can reach it. */
 	void liftGameMessages() {
 		float lift = 0;
 		final float chatTop = this.ui.chat.entryTop();
 		if (!this.gameMessages.isEmpty() && (chatTop != Float.NEGATIVE_INFINITY)) {
-			final float newestHeight = this.gameMessages.getLast().stringFrame.getAssignedHeight();
-			final float newestBottom = this.ui.rootFrame.getFramePointY(FramePoint.LEFT) - (newestHeight / 2);
-			lift = Math.max(0, (chatTop + GameUI.convertY(this.ui.uiViewport, 0.005f)) - newestBottom);
+			final float bottom = this.ui.rootFrame.getFramePointY(FramePoint.BOTTOM)
+					+ GameUI.convertY(this.ui.uiViewport, GAME_MESSAGE_BOTTOM);
+			lift = Math.max(0, (chatTop + GameUI.convertY(this.ui.uiViewport, 0.005f)) - bottom);
 		}
 		if (lift == this.gameMessageLift) {
 			return;
 		}
 		this.gameMessageLift = lift;
-		if (this.gameMessages.isEmpty()) {
-			return;
-		}
-		this.gameMessages.getLast().stringFrame.addAnchor(new AnchorDefinition(FramePoint.LEFT, 0, lift));
+		layoutGameMessages();
+	}
+
+	private void layoutGameMessages() {
+		final float left = GameUI.convertX(this.ui.uiViewport,
+				GAME_MESSAGE_LEFT + (this.gameMessageOffsetX * GAME_MESSAGE_OFFSET_X_SCALE));
+		float bottom = GameUI.convertY(this.ui.uiViewport,
+				GAME_MESSAGE_BOTTOM + (this.gameMessageOffsetY * GAME_MESSAGE_OFFSET_Y_SCALE)) + this.gameMessageLift;
 		final Iterator<GameMessage> descendingIterator = this.gameMessages.descendingIterator();
 		while (descendingIterator.hasNext()) {
-			descendingIterator.next().stringFrame.positionBounds(this.ui.rootFrame, this.ui.uiViewport);
+			final GameMessage gameMessage = descendingIterator.next();
+			if (!gameMessage.expired) {
+				gameMessage.stringFrame.addAnchor(new AnchorDefinition(FramePoint.BOTTOMLEFT, left, bottom));
+				gameMessage.stringFrame.positionBounds(this.ui.rootFrame, this.ui.uiViewport);
+			}
+			bottom += gameMessage.stringFrame.getAssignedHeight();
 		}
 	}
 
-	public void showGameMessage(final String message, final float expireTime) {
+	public void showGameMessage(final String message, final float duration) {
+		showGameMessage(message, Color.WHITE, duration);
+	}
+
+	private void showGameMessage(final String message, final Color color, final float duration) {
 		this.ui.messageLog.add(message);
 		// The score screen replaces the game screen; messages that come after it are only kept in the log.
 		if ((this.ui.scoreScreen != null) && this.ui.scoreScreen.isVisible()) {
 			return;
 		}
 		final StringFrame gameMessagesFrame = this.ui.rootFrame.createStringFrame("SmashGameMessageFrame",
-				this.ui.rootFrame, Color.WHITE, TextJustify.LEFT, TextJustify.MIDDLE,
-				this.worldFrameUnitMessageFontHeight);
-		gameMessagesFrame.setWidth(GameUI.convertX(this.ui.uiViewport, 0.35f));
-//		gameMessagesFrame.setHeight(GameUI.convertY(this.uiViewport, this.worldFrameUnitMessageFontHeight));
+				this.ui.rootFrame, color, TextJustify.LEFT, TextJustify.MIDDLE, this.worldFrameUnitMessageFontHeight);
+		gameMessagesFrame.setWidth(GameUI.convertX(this.ui.uiViewport, GAME_MESSAGE_WIDTH));
 
 		gameMessagesFrame.setFontShadowColor(new Color(0f, 0f, 0f, 0.9f));
 		gameMessagesFrame.setFontShadowOffsetX(GameUI.convertX(this.ui.uiViewport, 0.001f));
 		gameMessagesFrame.setFontShadowOffsetY(GameUI.convertY(this.ui.uiViewport, -0.001f));
 
 		this.ui.rootFrame.setText(gameMessagesFrame, message);
+		gameMessagesFrame.setHeight(gameMessagesFrame.getPredictedViewportHeight());
 		gameMessagesFrame.setVisible(true);
+		gameMessagesFrame.setAlpha(1.0f);
 
-		final long millis = TimeUtils.millis();
-
-		final long lastGameMessageExpireTime = millis + (long) (expireTime * 1000);
-		final long lastGameMessageFadeTime = millis + (long) (expireTime * 900);
-		gameMessagesFrame.addAnchor(new AnchorDefinition(FramePoint.LEFT, 0, this.gameMessageLift));
-		if (!this.gameMessages.isEmpty()) {
-			final GameMessage lastFrame = this.gameMessages.getLast();
-			lastFrame.stringFrame
-					.addSetPoint(new SetPoint(FramePoint.BOTTOMLEFT, gameMessagesFrame, FramePoint.TOPLEFT, 0, 0));
+		final int lines = Math.max(1,
+				Math.round(gameMessagesFrame.getAssignedHeight() / gameMessagesFrame.getFrameFont().getLineHeight()));
+		final long fadeTime;
+		final long expireTime;
+		if (duration == 0) {
+			fadeTime = Long.MAX_VALUE;
+			expireTime = Long.MAX_VALUE;
 		}
-		this.gameMessages
-				.addLast(new GameMessage(gameMessagesFrame, lastGameMessageExpireTime, lastGameMessageFadeTime));
+		else {
+			fadeTime = TimeUtils.millis() + (long) (Math.max(0, duration) * 1000);
+			expireTime = fadeTime + GAME_MESSAGE_FADE_MILLIS;
+		}
+		this.gameMessages.addLast(new GameMessage(gameMessagesFrame, lines, fadeTime, expireTime));
+		int shownLines = 0;
 		final Iterator<GameMessage> descendingIterator = this.gameMessages.descendingIterator();
 		while (descendingIterator.hasNext()) {
 			final GameMessage gameMessage = descendingIterator.next();
-			gameMessage.stringFrame.positionBounds(this.ui.rootFrame, this.ui.uiViewport);
-			gameMessage.stringFrame.setHeight(gameMessage.stringFrame.getPredictedViewportHeight());
+			shownLines += gameMessage.lines;
+			if (shownLines > GAME_MESSAGE_MAX_LINES) {
+				removeGameMessage(gameMessage);
+				descendingIterator.remove();
+			}
 		}
-		gameMessagesFrame.setAlpha(1.0f);
+		layoutGameMessages();
+	}
+
+	private void removeGameMessage(final GameMessage gameMessage) {
+		if (!gameMessage.expired) {
+			gameMessage.expired = true;
+			this.ui.rootFrame.remove(gameMessage.stringFrame);
+		}
 	}
 
 	/**
@@ -229,6 +276,80 @@ final class MeleeUIMessages {
 						.replaceFirst("%d", Integer.toString(hero.getHeroData().getHeroLevel()));
 		this.pendingHeroDeaths.addLast(new PendingHeroDeath(TimeUtils.millis() + HERO_DEATH_MESSAGE_DELAY_MILLIS,
 				message));
+	}
+
+	/**
+	 * Listens to every other player for it giving the local player shared control of its units or taking it away.
+	 * Again after a load, since the listeners are not part of a saved game.
+	 */
+	void watchSharedControl() {
+		final List<CPlayer> players = this.ui.war3MapViewer.simulation.getPlayers();
+		if ((this.sharedControlWatchers == null) || (this.sharedControlWatchers.length != players.size())) {
+			this.sharedControlWatchers = new SharedControlWatcher[players.size()];
+		}
+		final int localPlayerIndex = this.ui.war3MapViewer.getLocalPlayerIndex();
+		for (int i = 0; i < players.size(); i++) {
+			if (i != localPlayerIndex) {
+				if (this.sharedControlWatchers[i] == null) {
+					this.sharedControlWatchers[i] = new SharedControlWatcher(i);
+				}
+				players.get(i).addStateListener(this.sharedControlWatchers[i]);
+			}
+		}
+	}
+
+	/** As on 1.29, the owner's name in its player color. */
+	private void sharedControlChanged(final int ownerIndex, final boolean granted) {
+		final String format = this.ui.rootFrame.getErrorString(granted ? "Controlgranted" : "Controlrevoked");
+		if ((format == null) || format.isEmpty()) {
+			return;
+		}
+		final CPlayer owner = this.ui.war3MapViewer.simulation.getPlayer(ownerIndex);
+		final String name = "|cff" + MeleeChat.playerTextHex(owner.getColor()) + owner.getName() + "|r";
+		showGameMessage(format.replaceFirst("%s", Matcher.quoteReplacement(name)), SHARED_CONTROL_MESSAGE_COLOR,
+				SHARED_CONTROL_MESSAGE_SECONDS);
+	}
+
+	private final class SharedControlWatcher implements CPlayerStateListener {
+		private final int playerIndex;
+
+		private SharedControlWatcher(final int playerIndex) {
+			this.playerIndex = playerIndex;
+		}
+
+		@Override
+		public void allianceChanged(final int otherPlayerIndex, final CAllianceType allianceType,
+				final boolean value) {
+			// Full shared control alone gives no message.
+			if ((allianceType == CAllianceType.SHARED_CONTROL)
+					&& (otherPlayerIndex == MeleeUIMessages.this.ui.war3MapViewer.getLocalPlayerIndex())) {
+				sharedControlChanged(this.playerIndex, value);
+			}
+		}
+
+		@Override
+		public void goldChanged() {
+		}
+
+		@Override
+		public void lumberChanged() {
+		}
+
+		@Override
+		public void foodChanged() {
+		}
+
+		@Override
+		public void upkeepChanged() {
+		}
+
+		@Override
+		public void heroDeath() {
+		}
+
+		@Override
+		public void heroTokensChanged() {
+		}
 	}
 
 	private void showPendingHeroDeaths(final long currentMillis) {
@@ -290,18 +411,21 @@ final class MeleeUIMessages {
 					/ (float) WORLD_FRAME_MESSAGE_FADE_DURATION;
 			this.errorMessageFrame.setAlpha(fadeAlpha);
 		}
-		final Iterator<GameMessage> iterator = this.gameMessages.iterator();
-		while (iterator.hasNext()) {
-			final GameMessage gameMessage = iterator.next();
-			if (currentMillis > gameMessage.lastGameMessageExpireTime) {
-				this.ui.rootFrame.remove(gameMessage.stringFrame);
-				iterator.remove();
+		for (final GameMessage gameMessage : this.gameMessages) {
+			if (gameMessage.expired) {
+				continue;
 			}
-			else if (currentMillis > gameMessage.lastGameMessageFadeTime) {
-				final float fadeAlpha = (gameMessage.lastGameMessageExpireTime - currentMillis)
-						/ (float) (gameMessage.lastGameMessageExpireTime - gameMessage.lastGameMessageFadeTime);
-				gameMessage.stringFrame.setAlpha(fadeAlpha);
+			if (currentMillis > gameMessage.expireTime) {
+				removeGameMessage(gameMessage);
 			}
+			else if (currentMillis > gameMessage.fadeTime) {
+				gameMessage.stringFrame
+						.setAlpha((gameMessage.expireTime - currentMillis) / (float) GAME_MESSAGE_FADE_MILLIS);
+			}
+		}
+		// Faded out messages above every shown one hold no place any more.
+		while (!this.gameMessages.isEmpty() && this.gameMessages.getFirst().expired) {
+			this.gameMessages.removeFirst();
 		}
 	}
 
@@ -525,12 +649,14 @@ final class MeleeUIMessages {
 	}
 
 	public void displayTimedText(final float x, final float y, final float duration, final String message) {
-		showGameMessage(message, duration); // TODO x y
+		this.gameMessageOffsetX = x;
+		this.gameMessageOffsetY = y;
+		showGameMessage(message, duration);
 	}
 
 	public void clearTextMessages() {
 		for (final GameMessage gameMessage : this.gameMessages) {
-			this.ui.rootFrame.remove(gameMessage.stringFrame);
+			removeGameMessage(gameMessage);
 		}
 		this.gameMessages.clear();
 	}

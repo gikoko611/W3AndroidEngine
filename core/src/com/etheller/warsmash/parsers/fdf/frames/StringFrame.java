@@ -200,342 +200,55 @@ public class StringFrame extends AbstractRenderableFrame {
 		}
 	}
 
+	/**
+	 * Splits the text into one frame per run of one color on one line. "|cAARRGGBB" starts a color, "|r" ends it and
+	 * "|n" breaks the line; spaces next to them are kept. Text wraps at spaces when the frame has a width.
+	 */
 	private void createInternalFrames(final GlyphLayout glyphLayout) {
 		for (final SingleStringFrame internalFrame : this.internalFrames) {
 			this.internalFramesContainer.remove(internalFrame);
 		}
 		this.internalFrames.clear();
-		final StringBuilder currentLine = new StringBuilder();
-		final StringBuilder currentWord = new StringBuilder();
-		float currentXCoordForWord = 0;
-		float currentXCoordForFrames = 0;
-		final float usedWidth = 0;
-		float usedHeight = 0;
-		float usedWidthMax = 0;
-		final float startingBoundsWidth = getAssignedWidth();
-		final boolean firstInLine = false;
-		Color currentColor = this.color;
-		final String displayTextToUse = this.displayText;
-		for (int i = 0; i < displayTextToUse.length(); i++) {
-			final char c = displayTextToUse.charAt(i);
-			switch (c) {
-			case '|': {
-				// special control character
-				if ((i + 1) < displayTextToUse.length()) {
-					final char escapedCharacter = displayTextToUse.charAt(i + 1);
-					switch (escapedCharacter) {
-					case 'c':
-					case 'C':
-						if ((i + 9) < displayTextToUse.length()) {
-							int colorInt;
-							try {
-								final String upperCase = displayTextToUse.substring(i + 2, i + 10).toUpperCase();
-								colorInt = (int) Long.parseLong(upperCase, 16);
-							}
-							catch (final NumberFormatException exc) {
-								currentWord.append(c);
-								break;
-							}
-							i += 9;
-							{
-								final String wordString = currentWord.toString();
-								currentWord.setLength(0);
-								glyphLayout.setText(this.frameFont, wordString);
-								final float wordWidth = glyphLayout.width;
-								if ((startingBoundsWidth > 0)
-										&& ((currentXCoordForWord + wordWidth) >= startingBoundsWidth)) {
-									final String currentLineString = currentLine.toString();
-									currentLine.setLength(0);
-									glyphLayout.setText(this.frameFont, currentLineString);
-									usedWidthMax = Math.max(currentXCoordForFrames + glyphLayout.width, usedWidthMax);
-									final SingleStringFrame singleStringFrame = new SingleStringFrame(currentLineString,
-											this.internalFramesContainer, currentColor, TextJustify.LEFT,
-											TextJustify.TOP, this.frameFont);
-									singleStringFrame.setHeight(this.frameFont.getLineHeight());
-									singleStringFrame.setWidth(glyphLayout.width);
-									singleStringFrame.setAlpha(this.alpha);
-									singleStringFrame.setFontShadowColor(this.fontShadowColor);
-									singleStringFrame.setFontShadowOffsetX(this.fontShadowOffsetX);
-									singleStringFrame.setFontShadowOffsetY(this.fontShadowOffsetY);
-									singleStringFrame.addAnchor(new AnchorDefinition(FramePoint.TOPLEFT,
-											currentXCoordForFrames, usedHeight));
-									this.internalFrames.add(singleStringFrame);
-									usedHeight += this.frameFont.getLineHeight();
-									currentXCoordForWord = 0;
-									currentXCoordForFrames = 0;
-								}
-								currentXCoordForWord += wordWidth;
-								currentLine.append(wordString);
-
-								final String currentLineString = currentLine.toString();
-								currentLine.setLength(0);
-								glyphLayout.setText(this.frameFont, currentLineString);
-								usedWidthMax = Math.max(currentXCoordForFrames + glyphLayout.width, usedWidthMax);
-								final SingleStringFrame singleStringFrame = new SingleStringFrame(currentLineString,
-										this.internalFramesContainer, currentColor, TextJustify.LEFT, TextJustify.TOP,
-										this.frameFont);
-								singleStringFrame.setHeight(this.frameFont.getLineHeight());
-								singleStringFrame.setWidth(glyphLayout.width);
-								singleStringFrame.setAlpha(this.alpha);
-								singleStringFrame.setFontShadowColor(this.fontShadowColor);
-								singleStringFrame.setFontShadowOffsetX(this.fontShadowOffsetX);
-								singleStringFrame.setFontShadowOffsetY(this.fontShadowOffsetY);
-								singleStringFrame.addAnchor(
-										new AnchorDefinition(FramePoint.TOPLEFT, currentXCoordForFrames, -usedHeight));
-								this.internalFrames.add(singleStringFrame);
-								currentXCoordForFrames = currentXCoordForWord;
-
-								currentColor = new Color((colorInt << 8) | (colorInt >>> 24)
-										| 0xFF /* always show, hacky setting alpha=1 */);
-							}
-						}
-						break;
-					case 'r':
-					case 'R':
-						i++; {
-						final String wordString = currentWord.toString();
-						currentWord.setLength(0);
-						glyphLayout.setText(this.frameFont, wordString);
-						final float wordWidth = glyphLayout.width;
-						if ((startingBoundsWidth > 0) && ((currentXCoordForWord + wordWidth) >= startingBoundsWidth)) {
-							final String currentLineString = currentLine.toString();
-							currentLine.setLength(0);
-							glyphLayout.setText(this.frameFont, currentLineString);
-							usedWidthMax = Math.max(currentXCoordForFrames + glyphLayout.width, usedWidthMax);
-							final SingleStringFrame singleStringFrame = new SingleStringFrame(currentLineString,
-									this.internalFramesContainer, currentColor, TextJustify.LEFT, TextJustify.TOP,
-									this.frameFont);
-							singleStringFrame.setHeight(this.frameFont.getLineHeight());
-							singleStringFrame.setWidth(glyphLayout.width);
-							singleStringFrame.setAlpha(this.alpha);
-							singleStringFrame.setFontShadowColor(this.fontShadowColor);
-							singleStringFrame.setFontShadowOffsetX(this.fontShadowOffsetX);
-							singleStringFrame.setFontShadowOffsetY(this.fontShadowOffsetY);
-							singleStringFrame.addAnchor(
-									new AnchorDefinition(FramePoint.TOPLEFT, currentXCoordForFrames, -usedHeight));
-							this.internalFrames.add(singleStringFrame);
-							usedHeight += this.frameFont.getLineHeight();
-							currentXCoordForWord = 0;
-							currentXCoordForFrames = 0;
-						}
-						currentXCoordForWord += wordWidth;
-						currentLine.append(wordString);
-
-						final String currentLineString = currentLine.toString();
-						currentLine.setLength(0);
-						glyphLayout.setText(this.frameFont, currentLineString);
-						usedWidthMax = Math.max(currentXCoordForFrames + glyphLayout.width, usedWidthMax);
-						final SingleStringFrame singleStringFrame = new SingleStringFrame(currentLineString,
-								this.internalFramesContainer, currentColor, TextJustify.LEFT, TextJustify.TOP,
-								this.frameFont);
-						singleStringFrame.setHeight(this.frameFont.getLineHeight());
-						singleStringFrame.setWidth(glyphLayout.width);
-						singleStringFrame.setAlpha(this.alpha);
-						singleStringFrame.setFontShadowColor(this.fontShadowColor);
-						singleStringFrame.setFontShadowOffsetX(this.fontShadowOffsetX);
-						singleStringFrame.setFontShadowOffsetY(this.fontShadowOffsetY);
-						singleStringFrame.addAnchor(
-								new AnchorDefinition(FramePoint.TOPLEFT, currentXCoordForFrames, -usedHeight));
-						this.internalFrames.add(singleStringFrame);
-						currentXCoordForFrames = currentXCoordForWord;
-					}
-						currentColor = this.color;
-						break;
-					case 'n':
-					case 'N': {
-
-						final String wordString = currentWord.toString();
-						currentWord.setLength(0);
-						glyphLayout.setText(this.frameFont, wordString);
-						final float wordWidth = glyphLayout.width;
-						if ((startingBoundsWidth > 0) && ((currentXCoordForWord + wordWidth) >= startingBoundsWidth)) {
-							final String currentLineString = currentLine.toString();
-							currentLine.setLength(0);
-							glyphLayout.setText(this.frameFont, currentLineString);
-							usedWidthMax = Math.max(currentXCoordForFrames + glyphLayout.width, usedWidthMax);
-							final SingleStringFrame singleStringFrame = new SingleStringFrame(currentLineString,
-									this.internalFramesContainer, currentColor, TextJustify.LEFT, TextJustify.TOP,
-									this.frameFont);
-							singleStringFrame.setHeight(this.frameFont.getLineHeight());
-							singleStringFrame.setWidth(glyphLayout.width);
-							singleStringFrame.setAlpha(this.alpha);
-							singleStringFrame.setFontShadowColor(this.fontShadowColor);
-							singleStringFrame.setFontShadowOffsetX(this.fontShadowOffsetX);
-							singleStringFrame.setFontShadowOffsetY(this.fontShadowOffsetY);
-							singleStringFrame.addAnchor(
-									new AnchorDefinition(FramePoint.TOPLEFT, currentXCoordForFrames, -usedHeight));
-							this.internalFrames.add(singleStringFrame);
-							usedHeight += this.frameFont.getLineHeight();
-							currentXCoordForWord = 0;
-							currentXCoordForFrames = 0;
-						}
-						currentXCoordForWord += wordWidth;
-						currentLine.append(wordString);
-
-						final String currentLineString = currentLine.toString();
-						currentLine.setLength(0);
-						glyphLayout.setText(this.frameFont, currentLineString);
-						usedWidthMax = Math.max(currentXCoordForFrames + glyphLayout.width, usedWidthMax);
-						final SingleStringFrame singleStringFrame = new SingleStringFrame(currentLineString,
-								this.internalFramesContainer, currentColor, TextJustify.LEFT, TextJustify.TOP,
-								this.frameFont);
-						singleStringFrame.setHeight(this.frameFont.getLineHeight());
-						singleStringFrame.setWidth(glyphLayout.width);
-						singleStringFrame.setAlpha(this.alpha);
-						singleStringFrame.setFontShadowColor(this.fontShadowColor);
-						singleStringFrame.setFontShadowOffsetX(this.fontShadowOffsetX);
-						singleStringFrame.setFontShadowOffsetY(this.fontShadowOffsetY);
-						singleStringFrame.addAnchor(
-								new AnchorDefinition(FramePoint.TOPLEFT, currentXCoordForFrames, -usedHeight));
-						this.internalFrames.add(singleStringFrame);
-						usedHeight += this.frameFont.getLineHeight();
-						currentXCoordForWord = 0;
-						currentXCoordForFrames = 0;
-
-					}
-						i++;
-						break;
-					default:
-						currentWord.append(c);
-						break;
+		final LineBuilder line = new LineBuilder(glyphLayout, getAssignedWidth());
+		final String text = this.displayText;
+		final int length = text.length();
+		for (int i = 0; i < length; i++) {
+			final char c = text.charAt(i);
+			if ((c == '|') && ((i + 1) < length)) {
+				final char escaped = text.charAt(i + 1);
+				if (((escaped == 'c') || (escaped == 'C')) && ((i + 10) <= length)) {
+					final Color parsed = ColorCodedText.parseColor(text.substring(i + 2, i + 10));
+					if (parsed != null) {
+						line.setColor(parsed);
+						i += 9;
+						continue;
 					}
 				}
-			}
-				break;
-			case ' ': {
-				currentWord.append(' ');
-				final String wordString = currentWord.toString();
-				currentWord.setLength(0);
-				glyphLayout.setText(this.frameFont, wordString);
-				final float wordWidth = glyphLayout.width;
-				if ((startingBoundsWidth > 0) && ((currentXCoordForWord + wordWidth) >= startingBoundsWidth)) {
-					final String currentLineString = currentLine.toString();
-					currentLine.setLength(0);
-					glyphLayout.setText(this.frameFont, currentLineString);
-					usedWidthMax = Math.max(currentXCoordForFrames + glyphLayout.width, usedWidthMax);
-					final SingleStringFrame singleStringFrame = new SingleStringFrame(currentLineString,
-							this.internalFramesContainer, currentColor, TextJustify.LEFT, TextJustify.TOP,
-							this.frameFont);
-					singleStringFrame.setHeight(this.frameFont.getLineHeight());
-					singleStringFrame.setWidth(glyphLayout.width);
-					singleStringFrame.setAlpha(this.alpha);
-					singleStringFrame.setFontShadowColor(this.fontShadowColor);
-					singleStringFrame.setFontShadowOffsetX(this.fontShadowOffsetX);
-					singleStringFrame.setFontShadowOffsetY(this.fontShadowOffsetY);
-					singleStringFrame
-							.addAnchor(new AnchorDefinition(FramePoint.TOPLEFT, currentXCoordForFrames, -usedHeight));
-					this.internalFrames.add(singleStringFrame);
-					usedHeight += this.frameFont.getLineHeight();
-					currentXCoordForWord = 0;
-					currentXCoordForFrames = 0;
+				else if ((escaped == 'r') || (escaped == 'R')) {
+					line.setColor(this.color);
+					i++;
+					continue;
 				}
-				currentXCoordForWord += wordWidth;
-				currentLine.append(wordString);
-				break;
-			}
-			case '\n':
-			case '\r': {
-				final String wordString = currentWord.toString();
-				currentWord.setLength(0);
-				glyphLayout.setText(this.frameFont, wordString);
-				final float wordWidth = glyphLayout.width;
-				if ((startingBoundsWidth > 0) && ((currentXCoordForWord + wordWidth) >= startingBoundsWidth)) {
-					final String currentLineString = currentLine.toString();
-					currentLine.setLength(0);
-					glyphLayout.setText(this.frameFont, currentLineString);
-					usedWidthMax = Math.max(currentXCoordForFrames + glyphLayout.width, usedWidthMax);
-					final SingleStringFrame singleStringFrame = new SingleStringFrame(currentLineString,
-							this.internalFramesContainer, currentColor, TextJustify.LEFT, TextJustify.TOP,
-							this.frameFont);
-					singleStringFrame.setHeight(this.frameFont.getLineHeight());
-					singleStringFrame.setWidth(glyphLayout.width);
-					singleStringFrame.setAlpha(this.alpha);
-					singleStringFrame.setFontShadowColor(this.fontShadowColor);
-					singleStringFrame.setFontShadowOffsetX(this.fontShadowOffsetX);
-					singleStringFrame.setFontShadowOffsetY(this.fontShadowOffsetY);
-					singleStringFrame
-							.addAnchor(new AnchorDefinition(FramePoint.TOPLEFT, currentXCoordForFrames, -usedHeight));
-					this.internalFrames.add(singleStringFrame);
-					usedHeight += this.frameFont.getLineHeight();
-					currentXCoordForWord = 0;
-					currentXCoordForFrames = 0;
+				else if ((escaped == 'n') || (escaped == 'N')) {
+					line.breakLine();
+					i++;
+					continue;
 				}
-				currentXCoordForWord += wordWidth;
-				currentLine.append(wordString);
-
-				final String currentLineString = currentLine.toString();
-				currentLine.setLength(0);
-				glyphLayout.setText(this.frameFont, currentLineString);
-				usedWidthMax = Math.max(currentXCoordForFrames + glyphLayout.width, usedWidthMax);
-				final SingleStringFrame singleStringFrame = new SingleStringFrame(currentLineString,
-						this.internalFramesContainer, currentColor, TextJustify.LEFT, TextJustify.TOP, this.frameFont);
-				singleStringFrame.setHeight(this.frameFont.getLineHeight());
-				singleStringFrame.setWidth(glyphLayout.width);
-				singleStringFrame.setAlpha(this.alpha);
-				singleStringFrame.setFontShadowColor(this.fontShadowColor);
-				singleStringFrame.setFontShadowOffsetX(this.fontShadowOffsetX);
-				singleStringFrame.setFontShadowOffsetY(this.fontShadowOffsetY);
-				singleStringFrame
-						.addAnchor(new AnchorDefinition(FramePoint.TOPLEFT, currentXCoordForFrames, -usedHeight));
-				this.internalFrames.add(singleStringFrame);
-				usedHeight += this.frameFont.getLineHeight();
-				currentXCoordForWord = 0;
-				currentXCoordForFrames = 0;
-				break;
+				line.appendChar(c);
 			}
-
-			default:
-				currentWord.append(c);
-				break;
+			else if ((c == '\r') || (c == '\n')) {
+				if ((c == '\r') && ((i + 1) < length) && (text.charAt(i + 1) == '\n')) {
+					i++;
+				}
+				line.breakLine();
+			}
+			else {
+				line.appendChar(c);
 			}
 		}
-
-		{
-
-			final String wordString = currentWord.toString();
-			currentWord.setLength(0);
-			glyphLayout.setText(this.frameFont, wordString);
-			final float wordWidth = glyphLayout.width;
-			if ((startingBoundsWidth > 0) && ((currentXCoordForWord + wordWidth) >= startingBoundsWidth)) {
-				final String currentLineString = currentLine.toString();
-				currentLine.setLength(0);
-				glyphLayout.setText(this.frameFont, currentLineString);
-				usedWidthMax = Math.max(currentXCoordForFrames + glyphLayout.width, usedWidthMax);
-				final SingleStringFrame singleStringFrame = new SingleStringFrame(currentLineString,
-						this.internalFramesContainer, currentColor, TextJustify.LEFT, TextJustify.TOP, this.frameFont);
-				singleStringFrame.setHeight(this.frameFont.getLineHeight());
-				singleStringFrame.setWidth(glyphLayout.width);
-				singleStringFrame.setAlpha(this.alpha);
-				singleStringFrame.setFontShadowColor(this.fontShadowColor);
-				singleStringFrame.setFontShadowOffsetX(this.fontShadowOffsetX);
-				singleStringFrame.setFontShadowOffsetY(this.fontShadowOffsetY);
-				singleStringFrame
-						.addAnchor(new AnchorDefinition(FramePoint.TOPLEFT, currentXCoordForFrames, -usedHeight));
-				this.internalFrames.add(singleStringFrame);
-				usedHeight += this.frameFont.getLineHeight();
-				currentXCoordForWord = 0;
-				currentXCoordForFrames = 0;
-			}
-			currentXCoordForWord += wordWidth;
-			currentLine.append(wordString);
-
-			final String currentLineString = currentLine.toString();
-			currentLine.setLength(0);
-			glyphLayout.setText(this.frameFont, currentLineString);
-			usedWidthMax = Math.max(currentXCoordForFrames + glyphLayout.width, usedWidthMax);
-			final SingleStringFrame singleStringFrame = new SingleStringFrame(currentLineString,
-					this.internalFramesContainer, currentColor, TextJustify.LEFT, TextJustify.TOP, this.frameFont);
-			singleStringFrame.setHeight(this.frameFont.getLineHeight());
-			singleStringFrame.setWidth(glyphLayout.width);
-			singleStringFrame.setAlpha(this.alpha);
-			singleStringFrame.setFontShadowColor(this.fontShadowColor);
-			singleStringFrame.setFontShadowOffsetX(this.fontShadowOffsetX);
-			singleStringFrame.setFontShadowOffsetY(this.fontShadowOffsetY);
-			singleStringFrame.addAnchor(new AnchorDefinition(FramePoint.TOPLEFT, currentXCoordForFrames, -usedHeight));
-			this.internalFrames.add(singleStringFrame);
-			currentXCoordForFrames = currentXCoordForWord;
-			usedHeight += this.frameFont.getCapHeight();
-		}
+		line.finish();
+		final float usedWidthMax = line.usedWidthMax;
+		final float usedHeight = line.lineTop + this.frameFont.getCapHeight();
 
 		if (this.lineJustifyH == TextJustify.CENTER) {
 			centerLines(usedWidthMax);
@@ -594,6 +307,114 @@ public class StringFrame extends AbstractRenderableFrame {
 
 		for (final SingleStringFrame internalFrame : this.internalFrames) {
 			this.internalFramesContainer.add(internalFrame);
+		}
+	}
+
+	/**
+	 * Lays out words and colored runs line by line. A run starts where its first glyph would be in the whole line,
+	 * spaces before it included.
+	 */
+	private final class LineBuilder {
+		private final GlyphLayout glyphLayout;
+		private final float wrapWidth;
+		private final StringBuilder word = new StringBuilder();
+		private final StringBuilder run = new StringBuilder();
+		private final TextPen pen = new TextPen(StringFrame.this.frameFont);
+		private Color runColor = StringFrame.this.color;
+		private Color color = StringFrame.this.color;
+		private float runX;
+		private float lineTop;
+		private float usedWidthMax;
+		private boolean lineEmpty = true;
+
+		private LineBuilder(final GlyphLayout glyphLayout, final float wrapWidth) {
+			this.glyphLayout = glyphLayout;
+			this.wrapWidth = wrapWidth;
+		}
+
+		void appendChar(final char c) {
+			this.word.append(c);
+			if (c == ' ') {
+				endWord();
+			}
+		}
+
+		void setColor(final Color color) {
+			endWord();
+			endRun();
+			this.color = color;
+		}
+
+		void breakLine() {
+			endWord();
+			endRun();
+			if (this.lineEmpty) {
+				addFrame("", 0);
+			}
+			newLine();
+		}
+
+		void finish() {
+			endWord();
+			endRun();
+			if (this.lineEmpty) {
+				addFrame("", 0);
+			}
+		}
+
+		private void endWord() {
+			if (this.word.length() == 0) {
+				return;
+			}
+			final String wordString = this.word.toString();
+			this.word.setLength(0);
+			if ((this.wrapWidth > 0) && this.pen.isLineStarted()
+					&& ((this.pen.nextX(wordString.charAt(0)) + measure(wordString)) >= this.wrapWidth)) {
+				endRun();
+				newLine();
+			}
+			final float wordX = this.pen.place(wordString);
+			if (this.run.length() == 0) {
+				this.runX = wordX;
+				this.runColor = this.color;
+			}
+			this.run.append(wordString);
+		}
+
+		private void endRun() {
+			if (this.run.length() == 0) {
+				return;
+			}
+			addFrame(this.run.toString(), this.runX);
+			this.run.setLength(0);
+		}
+
+		private void newLine() {
+			this.lineTop += StringFrame.this.frameFont.getLineHeight();
+			this.pen.newLine();
+			this.lineEmpty = true;
+		}
+
+		private void addFrame(final String text, final float x) {
+			final float width = measure(text);
+			this.usedWidthMax = Math.max(this.usedWidthMax, x + width);
+			final SingleStringFrame frame = new SingleStringFrame(text, StringFrame.this.internalFramesContainer,
+					this.runColor, TextJustify.LEFT, TextJustify.TOP, StringFrame.this.frameFont);
+			frame.setHeight(StringFrame.this.frameFont.getLineHeight());
+			frame.setWidth(width);
+			frame.setAlpha(StringFrame.this.alpha);
+			frame.setFontShadowColor(StringFrame.this.fontShadowColor);
+			frame.setFontShadowOffsetX(StringFrame.this.fontShadowOffsetX);
+			frame.setFontShadowOffsetY(StringFrame.this.fontShadowOffsetY);
+			frame.addAnchor(new AnchorDefinition(FramePoint.TOPLEFT, x, -this.lineTop));
+			StringFrame.this.internalFrames.add(frame);
+			this.runColor = this.color;
+			this.lineEmpty = false;
+		}
+
+		private float measure(final String text) {
+			this.glyphLayout.setText(StringFrame.this.frameFont, text);
+			return this.glyphLayout.width;
 		}
 	}
 

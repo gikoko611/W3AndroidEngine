@@ -57,6 +57,15 @@ public final class GameCameraManager extends CameraManager {
 	private GroundHeight groundHeight;
 	private int steppedTick;
 	private float renderLead;
+	private float roll;
+	private float localPitch;
+	private float localYaw;
+	private float localRoll;
+	private final Vector3 viewForward = new Vector3();
+	private final Vector3 viewUp = new Vector3();
+	private final Vector3 viewRight = new Vector3();
+	private final Vector3 viewTemp = new Vector3();
+	private final Vector3 viewLookAt = new Vector3();
 
 	public GameCameraManager(final CameraPreset[] presets, final CameraRates cameraRates) {
 		this.presets = presets;
@@ -198,6 +207,18 @@ public final class GameCameraManager extends CameraManager {
 		final float fovDegrees = Math.min(MAX_FOV, Math.max(MIN_FOV, cameraPreset.getFov()));
 		this.fov = applyAtRate(this.fov, (float) Math.toRadians(fovDegrees / 2),
 				(float) Math.toRadians(cameraRate.fov / 2), deltaTime);
+		this.roll = applyAtRateAngle(this.roll, localRadians(cameraPreset.getRoll()),
+				(float) Math.toRadians(cameraRate.roll), deltaTime);
+		this.localPitch = applyAtRateAngle(this.localPitch, localRadians(cameraPreset.getLocalPitch()),
+				(float) Math.toRadians(cameraRate.localPitch), deltaTime);
+		this.localYaw = applyAtRateAngle(this.localYaw, localRadians(cameraPreset.getLocalYaw()),
+				(float) Math.toRadians(cameraRate.localYaw), deltaTime);
+		this.localRoll = applyAtRateAngle(this.localRoll, localRadians(cameraPreset.getLocalRoll()),
+				(float) Math.toRadians(cameraRate.localRoll), deltaTime);
+	}
+
+	private static float localRadians(final float degrees) {
+		return (float) Math.toRadians(normalizeDegrees(degrees));
 	}
 
 	/**
@@ -227,7 +248,40 @@ public final class GameCameraManager extends CameraManager {
 		final CameraSetup setup = getCurrentSetup();
 		this.camera.perspective(this.fov, this.camera.getAspect(), Math.max(MIN_NEAR_Z, setup.getNearZ()),
 				Math.max(MIN_FAR_Z, setup.getFarZ()));
-		this.camera.moveToAndFace(eye, lookAt, this.worldUp);
+		if ((this.roll == 0) && (this.localPitch == 0) && (this.localYaw == 0) && (this.localRoll == 0)) {
+			this.camera.moveToAndFace(eye, lookAt, this.worldUp);
+			return;
+		}
+		// The roll turns the camera about the line from the eye to the target; measured on 1.29, a positive roll turns
+		// the picture anticlockwise. Reforged local angles then turn the view about the eye, in the camera's own frame:
+		// yaw about the camera's up, then pitch about its right, then roll about the view. The eye and the target the
+		// natives report stay where they are.
+		final Vector3 forward = this.viewForward.set(lookAt).sub(eye).nor();
+		final Vector3 right = this.viewRight.set(forward).crs(this.worldUp);
+		if (right.len2() < 1e-8f) {
+			right.set((float) StrictMath.cos(this.horizontalAngle), (float) StrictMath.sin(this.horizontalAngle), 0);
+		}
+		right.nor();
+		final Vector3 up = this.viewUp.set(right).crs(forward).nor();
+		rotateTowards(up, right, this.roll);
+		right.set(forward).crs(up).nor();
+		rotateTowards(forward, right, -this.localYaw);
+		right.set(forward).crs(up).nor();
+		rotateTowards(forward, up, this.localPitch);
+		up.set(right).crs(forward).nor();
+		rotateTowards(up, right, this.localRoll);
+		this.viewLookAt.set(eye).add(forward);
+		this.camera.moveToAndFace(eye, this.viewLookAt, up);
+	}
+
+	/**
+	 * Turns a unit vector by the angle towards a unit vector perpendicular to it.
+	 */
+	private void rotateTowards(final Vector3 vector, final Vector3 towards, final float angle) {
+		final float cos = (float) StrictMath.cos(angle);
+		final float sin = (float) StrictMath.sin(angle);
+		this.viewTemp.set(towards).scl(sin);
+		vector.scl(cos).add(this.viewTemp).nor();
 	}
 
 	private CameraRates getCurrentRates() {
@@ -353,6 +407,10 @@ public final class GameCameraManager extends CameraManager {
 		private float verticalAngle;
 		private float distance;
 		private float fov;
+		private float roll;
+		private float localPitch;
+		private float localYaw;
+		private float localRoll;
 		private final Vector3 target = new Vector3();
 		private float targetZOffset;
 		private Float zOffsetDestination;
@@ -371,6 +429,10 @@ public final class GameCameraManager extends CameraManager {
 			this.verticalAngle = camera.verticalAngle;
 			this.distance = camera.distance;
 			this.fov = camera.fov;
+			this.roll = camera.roll;
+			this.localPitch = camera.localPitch;
+			this.localYaw = camera.localYaw;
+			this.localRoll = camera.localRoll;
 			this.target.set(camera.target);
 			this.targetZOffset = camera.targetZOffset;
 			this.zOffsetDestination = camera.zOffsetDestination;
@@ -389,6 +451,10 @@ public final class GameCameraManager extends CameraManager {
 			camera.verticalAngle = this.verticalAngle;
 			camera.distance = this.distance;
 			camera.fov = this.fov;
+			camera.roll = this.roll;
+			camera.localPitch = this.localPitch;
+			camera.localYaw = this.localYaw;
+			camera.localRoll = this.localRoll;
 			camera.target.set(this.target);
 			camera.targetZOffset = this.targetZOffset;
 			camera.zOffsetDestination = this.zOffsetDestination;
@@ -641,6 +707,10 @@ public final class GameCameraManager extends CameraManager {
 		return normalizeDegrees((float) Math.toDegrees(this.horizontalAngle) + 90);
 	}
 
+	private float currentRollDegrees() {
+		return normalizeDegrees((float) Math.toDegrees(this.roll));
+	}
+
 	private static float normalizeDegrees(final float degrees) {
 		final float normalized = degrees % 360;
 		return normalized < 0 ? normalized + 360 : normalized;
@@ -663,11 +733,17 @@ public final class GameCameraManager extends CameraManager {
 		case ZOFFSET:
 			return this.targetZOffset;
 		case ROLL:
-			return (float) Math.toRadians(getCurrentSetup().getRoll());
+			return (float) Math.toRadians(currentRollDegrees());
 		case FARZ:
 			return Math.max(MIN_FAR_Z, getCurrentSetup().getFarZ());
 		case NEARZ:
 			return getCurrentSetup().getField(field);
+		case LOCAL_PITCH:
+			return this.localPitch;
+		case LOCAL_YAW:
+			return this.localYaw;
+		case LOCAL_ROLL:
+			return this.localRoll;
 		default:
 			return 0;
 		}
@@ -691,12 +767,19 @@ public final class GameCameraManager extends CameraManager {
 			setup.setDestPositionX(((CustomCameraSetup) current).getDestPositionX());
 			setup.setDestPositionY(((CustomCameraSetup) current).getDestPositionY());
 		}
+		setup.setField(CCameraField.LOCAL_PITCH, current.getLocalPitch());
+		setup.setField(CCameraField.LOCAL_YAW, current.getLocalYaw());
+		setup.setField(CCameraField.LOCAL_ROLL, current.getLocalRoll());
 		setup.setField(field, value);
 		final CameraRates rates = getCurrentRates();
 		float aoaRate = rates.aoa;
 		float fovRate = rates.fov;
 		float rotationRate = rates.rotation;
 		float distanceRate = rates.distance;
+		float rollRate = rates.roll;
+		float localPitchRate = rates.localPitch;
+		float localYawRate = rates.localYaw;
+		float localRollRate = rates.localRoll;
 		final boolean instant = duration <= 0;
 		switch (field) {
 		case ANGLE_OF_ATTACK: {
@@ -718,12 +801,25 @@ public final class GameCameraManager extends CameraManager {
 		case TARGET_DISTANCE:
 			distanceRate = instant ? Float.POSITIVE_INFINITY : Math.abs(value - this.distance) / duration;
 			break;
+		case ROLL:
+			rollRate = instant ? Float.POSITIVE_INFINITY : localDegreesTo(value, this.roll) / duration;
+			break;
+		case LOCAL_PITCH:
+			localPitchRate = instant ? Float.POSITIVE_INFINITY : localDegreesTo(value, this.localPitch) / duration;
+			break;
+		case LOCAL_YAW:
+			localYawRate = instant ? Float.POSITIVE_INFINITY : localDegreesTo(value, this.localYaw) / duration;
+			break;
+		case LOCAL_ROLL:
+			localRollRate = instant ? Float.POSITIVE_INFINITY : localDegreesTo(value, this.localRoll) / duration;
+			break;
 		default:
 			break;
 		}
 		this.customSetup = setup;
 		this.customCameraRates = new CameraRates(aoaRate, fovRate, rotationRate, distanceRate,
-				this.cameraRates.forward, this.cameraRates.strafe);
+				this.cameraRates.forward, this.cameraRates.strafe, rollRate, localPitchRate, localYawRate,
+				localRollRate);
 		if (instant) {
 			applyFieldsNow(setup, this.customCameraRates);
 		}
@@ -743,7 +839,12 @@ public final class GameCameraManager extends CameraManager {
 			current = (float) Math.toDegrees(this.fov * 2);
 			break;
 		case ROLL:
-			current = getCurrentSetup().getRoll();
+			current = currentRollDegrees();
+			break;
+		case LOCAL_PITCH:
+		case LOCAL_YAW:
+		case LOCAL_ROLL:
+			current = (float) Math.toDegrees(getField(field));
 			break;
 		default:
 			current = getField(field);
@@ -755,16 +856,13 @@ public final class GameCameraManager extends CameraManager {
 	public void applyCameraSetupForceDuration(final CustomCameraSetup cameraSetup, final boolean doPan,
 			final float forceDuration) {
 		syncToGameStep();
-		final CameraSetup previousSetup = getCurrentSetup();
+		if (cameraSetup == null) {
+			return;
+		}
 		this.customSetup = cameraSetup;
 		setTargetZOffset(cameraSetup.getHeight(), forceDuration);
 		if (forceDuration > 0) {
-			final float aoaRate = (cameraSetup.getAoa() - previousSetup.getAoa()) / forceDuration;
-			final float fovRate = (cameraSetup.getFov() - previousSetup.getFov()) / forceDuration;
-			final float rotationRate = (cameraSetup.getRotation() - previousSetup.getRotation()) / forceDuration;
-			final float distanceRate = (cameraSetup.getDistance() - previousSetup.getDistance()) / forceDuration;
-			this.customCameraRates = new CameraRates(Math.abs(aoaRate), Math.abs(fovRate), Math.abs(rotationRate),
-					Math.abs(distanceRate), this.cameraRates.forward, this.cameraRates.strafe);
+			this.customCameraRates = ratesTowards(cameraSetup, forceDuration);
 			if (doPan) {
 				panToTimed(cameraSetup.getDestPositionX(), cameraSetup.getDestPositionY(), forceDuration);
 			}
@@ -775,6 +873,34 @@ public final class GameCameraManager extends CameraManager {
 				setTarget(cameraSetup.getDestPositionX(), cameraSetup.getDestPositionY());
 			}
 		}
+	}
+
+	/**
+	 * Rates that bring each field from where the camera is now to the setup's value in the duration. Angles go the
+	 * short way round, as the camera moves them: from an angle of attack of 335 to one of 10 it tilts 35 degrees over
+	 * the whole duration. A rate from the difference of the two numbers (325) got there in a ninth of the time,
+	 * while the eye was still close to the target, under the ground.
+	 */
+	private CameraRates ratesTowards(final CameraSetup setup, final float duration) {
+		final float aoaRate = angleBetween(setup.getAoa(), currentAoaDegrees()) / duration;
+		final float rotationRate = angleBetween(setup.getRotation(), currentRotationDegrees()) / duration;
+		final float fovDegrees = Math.min(MAX_FOV, Math.max(MIN_FOV, setup.getFov()));
+		final float fovRate = Math.abs(fovDegrees - (float) Math.toDegrees(this.fov * 2)) / duration;
+		final float distanceRate = Math.abs(Math.max(MIN_DISTANCE, setup.getDistance()) - this.distance) / duration;
+		return new CameraRates(aoaRate, fovRate, rotationRate, distanceRate, this.cameraRates.forward,
+				this.cameraRates.strafe, localDegreesTo(setup.getRoll(), this.roll) / duration,
+				localDegreesTo(setup.getLocalPitch(), this.localPitch) / duration,
+				localDegreesTo(setup.getLocalYaw(), this.localYaw) / duration,
+				localDegreesTo(setup.getLocalRoll(), this.localRoll) / duration);
+	}
+
+	private static float localDegreesTo(final float degrees, final float currentRadians) {
+		return angleBetween(degrees, (float) Math.toDegrees(currentRadians));
+	}
+
+	private static float angleBetween(final float degrees, final float otherDegrees) {
+		final float difference = Math.abs(normalizeDegrees(degrees) - normalizeDegrees(otherDegrees));
+		return Math.min(difference, 360 - difference);
 	}
 
 	public void applyCameraSetup(CustomCameraSetup cameraSetup, boolean doPan, boolean panTimed) {
@@ -792,23 +918,16 @@ public final class GameCameraManager extends CameraManager {
 
 	public void resetToGameCamera(final float duration) {
 		syncToGameStep();
-		final CameraSetup previousSetup = getCurrentSetup();
 		clearCustomSetup();
 		setTargetZOffset(0, duration);
 		if (duration == 0) {
 			this.customCameraRates = new CameraRates(9999, 9999, 9999, 9999, this.cameraRates.forward,
-					this.cameraRates.strafe);
+					this.cameraRates.strafe, 9999, 9999, 9999, 9999);
+			// Measured on 1.29: the game camera is back in the same call, not at the next step.
+			applyFieldsNow(getCurrentSetup(), CameraRates.INFINITY);
 		}
 		else {
-			final CameraSetup cameraSetup = getCurrentSetup();
-			final float aoaRate = (cameraSetup.getAoa() - previousSetup.getAoa()) / duration;
-			final float fovRate = (cameraSetup.getFov() - previousSetup.getFov()) / duration;
-			float rotationDistance = Math.abs(cameraSetup.getRotation() - previousSetup.getRotation());
-			rotationDistance = Math.min(rotationDistance, 360 - rotationDistance);
-			final float rotationRate = rotationDistance / duration;
-			final float distanceRate = (cameraSetup.getDistance() - previousSetup.getDistance()) / duration;
-			this.customCameraRates = new CameraRates(Math.abs(aoaRate), Math.abs(fovRate), Math.abs(rotationRate),
-					Math.abs(distanceRate), this.cameraRates.forward, this.cameraRates.strafe);
+			this.customCameraRates = ratesTowards(getCurrentSetup(), duration);
 		}
 	}
 

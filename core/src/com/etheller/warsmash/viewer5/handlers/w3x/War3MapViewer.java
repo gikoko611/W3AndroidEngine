@@ -37,6 +37,7 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.UnsupportedEncodingException;
 import java.nio.channels.SeekableByteChannel;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -44,6 +45,7 @@ import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.LinkedHashSet;
 import java.util.LinkedList;
 import java.util.Collection;
 import java.util.List;
@@ -117,6 +119,7 @@ import com.etheller.warsmash.viewer5.Scene;
 import com.etheller.warsmash.viewer5.SceneLightManager;
 import com.etheller.warsmash.viewer5.Texture;
 import com.etheller.warsmash.viewer5.WorldScene;
+import com.etheller.warsmash.viewer5.gl.Extensions;
 import com.etheller.warsmash.viewer5.gl.WebGL;
 import com.etheller.warsmash.viewer5.handlers.AbstractMdxModelViewer;
 import com.etheller.warsmash.viewer5.handlers.mdx.Attachment;
@@ -168,6 +171,7 @@ import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CDestructable;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CItem;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CSimulation;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CUnit;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CUnitType;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.campaign.CGameExit;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.campaign.CImage;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.campaign.CTrackable;
@@ -202,6 +206,8 @@ import mpq.MPQException;
 
 public class War3MapViewer extends AbstractMdxModelViewer implements MdxAssetLoader {
 	private static final int MAX_STEPS_PER_FRAME = 3;
+	// A sound not decoded by then plays as soon as it is; the start of the game does not wait longer for it.
+	private static final long SOUND_PRELOAD_WAIT_MILLIS = 3000;
 	/** Game seconds per real second (desktop -speed), so automated playthroughs of long games finish sooner. */
 	private static float defaultTimeScale = 1;
 	private static final byte FOGGED_SHADE = (byte) 168;
@@ -351,6 +357,7 @@ public class War3MapViewer extends AbstractMdxModelViewer implements MdxAssetLoa
 	private final QuadtreeIntersectorFindsHighestWalkable intersectorFindsHighestWalkable = new QuadtreeIntersectorFindsHighestWalkable();
 
 	KeyedSounds uiSounds;
+	private Collection<String> soundsToPreload;
 	int localPlayerIndex;
 	private final SettableCommandErrorListener commandErrorListener;
 
@@ -372,6 +379,8 @@ public class War3MapViewer extends AbstractMdxModelViewer implements MdxAssetLoa
 
 	private War3MapW3i lastLoadedMapInformation;
 	private String mapFileName;
+	private int campaign = -1;
+	private boolean reforgedCampaignMaps;
 	private FileHandle savedGameToLoad;
 	private boolean savedGameLoadedByScript;
 	private InterfaceStateKeeper interfaceStateKeeper;
@@ -955,6 +964,77 @@ public class War3MapViewer extends AbstractMdxModelViewer implements MdxAssetLoa
 
 	private void loadSounds() {
 		this.uiSounds = new KeyedSounds(this.uiSoundsTable, this.mapMpq);
+	}
+
+	/**
+	 * Decodes the sounds the first minutes of a game play as soon as the map's script has made its starting units in
+	 * the first game step, before the player can click anything: the answers to selecting and
+	 * ordering the local player's units, the selection and ready answers of every unit type they can build, train or
+	 * upgrade into, the selection answer of the other players' units, and these interface sounds. Android plays a
+	 * sound only once it is decoded, so the first play of a sound decoded on demand came late or not at all (a unit's
+	 * first answer). The rest of a unit type's answers are decoded when first played: all of them for a whole tech
+	 * tree took over three times the memory. Only what is heard changes; scripts wait by the length of a file, which comes
+	 * from its header and never from this.
+	 */
+	public void preloadSoundsAtStart(final Collection<String> interfaceSoundKeys) {
+		this.soundsToPreload = interfaceSoundKeys;
+	}
+
+	private void preloadSounds(final Collection<String> interfaceSoundKeys) {
+		final long started = System.currentTimeMillis();
+		final Set<War3ID> own = new LinkedHashSet<>();
+		final Set<War3ID> others = new LinkedHashSet<>();
+		for (final CUnit unit : this.simulation.getUnits()) {
+			(unit.getPlayerIndex() == this.localPlayerIndex ? own : others).add(unit.getTypeId());
+		}
+		final Set<War3ID> made = new LinkedHashSet<>(own);
+		addMadeUnitTypes(made);
+		made.removeAll(own);
+		others.removeAll(own);
+		for (final War3ID typeId : own) {
+			final UnitSoundset soundset = this.renderUnitTypeData.getSoundset(typeId);
+			if (soundset != null) {
+				soundset.preload();
+			}
+		}
+		for (final War3ID typeId : made) {
+			final UnitSoundset soundset = this.renderUnitTypeData.getSoundset(typeId);
+			if (soundset != null) {
+				soundset.ready.preload();
+				soundset.what.preload();
+			}
+		}
+		for (final War3ID typeId : others) {
+			final UnitSoundset soundset = this.renderUnitTypeData.getSoundset(typeId);
+			if (soundset != null) {
+				soundset.what.preload();
+			}
+		}
+		for (final String key : interfaceSoundKeys) {
+			this.uiSounds.getSound(key).preload();
+		}
+		Extensions.audio.finishLoading(SOUND_PRELOAD_WAIT_MILLIS);
+		Log.info("Sounds preloaded for " + own.size() + " unit types of the player, " + made.size()
+				+ " they can make and " + others.size() + " others in " + (System.currentTimeMillis() - started)
+				+ " ms");
+	}
+
+	private void addMadeUnitTypes(final Set<War3ID> typeIds) {
+		final ArrayDeque<War3ID> open = new ArrayDeque<>(typeIds);
+		while (!open.isEmpty()) {
+			final CUnitType unitType = this.simulation.getUnitData().getUnitType(open.poll());
+			if (unitType == null) {
+				continue;
+			}
+			for (final List<War3ID> made : Arrays.asList(unitType.getStructuresBuilt(), unitType.getUnitsTrained(),
+					unitType.getUpgradesTo())) {
+				for (final War3ID typeId : made) {
+					if (typeIds.add(typeId)) {
+						open.add(typeId);
+					}
+				}
+			}
+		}
 	}
 
 	/**
@@ -1820,6 +1900,26 @@ public class War3MapViewer extends AbstractMdxModelViewer implements MdxAssetLoa
 	}
 
 	/**
+	 * The campaign the game is a mission of, which its saves keep so that a loaded save goes on as that campaign's
+	 * mission.
+	 *
+	 * @param campaign     by the number scripts know it by, -1 for none
+	 * @param reforgedMaps whether the campaign is played in its Reforged version
+	 */
+	public void setCampaign(final int campaign, final boolean reforgedMaps) {
+		this.campaign = campaign;
+		this.reforgedCampaignMaps = reforgedMaps;
+	}
+
+	public int getCampaign() {
+		return this.campaign;
+	}
+
+	public boolean isReforgedCampaignMaps() {
+		return this.reforgedCampaignMaps;
+	}
+
+	/**
 	 * @param savedGame the save put in place of the map's start, or null to start the map
 	 * @param byScript  whether the map's own LoadGame asked for it (zone travel), not the player
 	 */
@@ -2062,15 +2162,21 @@ public class War3MapViewer extends AbstractMdxModelViewer implements MdxAssetLoa
 	public void updateAndRender() {
 		if ((this.fastForwardTarget >= 0) && this.anyReady && !isGamePaused()) {
 			fastForwardSteps();
-			return;
 		}
-		if (NO_RENDER) {
+		else if (NO_RENDER) {
 			if (this.anyReady) {
 				stepSimulationWithoutRender();
 			}
-			return;
 		}
-		super.updateAndRender();
+		else {
+			super.updateAndRender();
+		}
+		// The map's script makes its starting units in the first game step.
+		if ((this.soundsToPreload != null) && (this.simulation.getGameTurnTick() > 0)) {
+			final Collection<String> interfaceSoundKeys = this.soundsToPreload;
+			this.soundsToPreload = null;
+			preloadSounds(interfaceSoundKeys);
+		}
 	}
 
 	/**

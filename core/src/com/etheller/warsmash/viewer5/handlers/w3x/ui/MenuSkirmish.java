@@ -7,6 +7,7 @@ import java.util.List;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Preferences;
 import com.badlogic.gdx.utils.viewport.Viewport;
+import com.etheller.warsmash.launcher.LauncherSlot;
 import com.etheller.warsmash.parsers.fdf.GameUI;
 import com.etheller.warsmash.parsers.fdf.frames.GlueTextButtonFrame;
 import com.etheller.warsmash.parsers.fdf.frames.ListBoxFrame.ListBoxSelelectionListener;
@@ -182,7 +183,7 @@ final class MenuSkirmish {
 			preferences.putString(SKIRMISH_MAP_PREFERENCE, selectedItem);
 			preferences.flush();
 			this.menu.campaigns.hideScreens();
-			this.menu.campaigns.getCurrentMissionSelectMenuUI().setVisible(false);
+			this.menu.campaigns.setMissionSelectMenuVisible(false);
 			this.skirmish.setVisible(false);
 			this.menu.setGlueLayersSequence("Death");
 			final War3MapConfig currentMapConfig = this.menu.currentMapConfig;
@@ -244,23 +245,16 @@ final class MenuSkirmish {
 				|| (this.skirmishSlotListener == null)) {
 			return false;
 		}
-		if (slots != null) {
-			for (final String slot : slots.split(";")) {
-				final String[] parts = slot.trim().split(":");
-				if (parts.length < 2) {
-					continue;
-				}
-				final int index = Integer.parseInt(parts[0].trim());
-				this.skirmishSlotListener.setPlayerSlot(index, LobbyPlayerType.valueOf(parts[1].trim()));
-				if ((parts.length > 2) && (Integer.parseInt(parts[2].trim()) >= 0)) {
-					this.skirmishSlotListener.setPlayerRace(index, Integer.parseInt(parts[2].trim()));
-				}
-				if ((parts.length > 3) && (Integer.parseInt(parts[3].trim()) >= 0)) {
-					this.skirmishSlotListener.setPlayerTeam(index, Integer.parseInt(parts[3].trim()));
-				}
-				if ((parts.length > 4) && (Integer.parseInt(parts[4].trim()) >= 0)) {
-					this.skirmishSlotListener.setPlayerColor(index, Integer.parseInt(parts[4].trim()));
-				}
+		for (final LauncherSlot slot : LauncherSlot.parse(slots)) {
+			this.skirmishSlotListener.setPlayerSlot(slot.player, LobbyPlayerType.valueOf(slot.type));
+			if (slot.race >= 0) {
+				this.skirmishSlotListener.setPlayerRace(slot.player, slot.race);
+			}
+			if (slot.team >= 0) {
+				this.skirmishSlotListener.setPlayerTeam(slot.player, slot.team);
+			}
+			if (slot.color >= 0) {
+				this.skirmishSlotListener.setPlayerColor(slot.player, slot.color);
 			}
 		}
 		if (options != null) {

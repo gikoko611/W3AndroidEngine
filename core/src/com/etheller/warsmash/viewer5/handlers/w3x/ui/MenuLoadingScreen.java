@@ -18,6 +18,7 @@ import com.badlogic.gdx.graphics.g2d.GlyphLayout;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.math.Matrix4;
 import com.etheller.warsmash.datasources.DataSource;
+import com.etheller.warsmash.launcher.LauncherSlot;
 import com.etheller.warsmash.parsers.fdf.GameSkin;
 import com.etheller.warsmash.parsers.fdf.GameUI;
 import com.etheller.warsmash.parsers.fdf.datamodel.FramePoint;
@@ -441,29 +442,7 @@ final class MenuLoadingScreen {
 	 * player.
 	 */
 	private static String previewSkinKey(final War3MapW3i mapInfo, final String startupSlots) {
-		int raceId = -1;
-		if (startupSlots != null) {
-			for (final String slot : startupSlots.split(";")) {
-				final String[] parts = slot.trim().split(":");
-				if ((parts.length > 2) && "USER".equals(parts[1].trim())) {
-					try {
-						raceId = Integer.parseInt(parts[2].trim());
-					}
-					catch (final NumberFormatException e) {
-						raceId = -1;
-					}
-					break;
-				}
-			}
-		}
-		if (raceId < 0) {
-			for (final Player player : mapInfo.getPlayers()) {
-				if (player.getType() == 1) {
-					raceId = player.getRace();
-					break;
-				}
-			}
-		}
+		final int raceId = previewRace(mapInfo, startupSlots);
 		final CRace race = raceId > 0 ? WarsmashConstants.RACE_MANAGER.getRace(raceId) : null;
 		final CRaceManagerEntry entry = race == null ? null : WarsmashConstants.RACE_MANAGER.get(race);
 		return entry == null ? "Default" : entry.getKey();
@@ -598,6 +577,7 @@ final class MenuLoadingScreen {
 				&& !mapInfo.hasFlag(War3MapW3iFlags.FIXED_PLAYER_SETTINGS_FOR_CUSTOM_FORCES);
 		final Map<Integer, List<ReforgedLoadingScreen.Player>> players = new TreeMap<>();
 		boolean localListed = false;
+		final List<LauncherSlot> launcherSlots = LauncherSlot.parse(startupSlots);
 		final int count = Math.min(WarsmashConstants.MAX_PLAYERS, mapPlayers.size());
 		for (int i = 0; i < count; i++) {
 			final Player mapPlayer = mapPlayers.get(i);
@@ -608,16 +588,13 @@ final class MenuLoadingScreen {
 			int color = mapPlayer.getId();
 			if (startupSlots != null) {
 				type = null;
-				for (final String slot : startupSlots.split(";")) {
-					final String[] parts = slot.trim().split(":");
+				final LauncherSlot slot = LauncherSlot.of(launcherSlots, i);
+				if (slot != null) {
 					try {
-						if ((parts.length < 2) || (Integer.parseInt(parts[0].trim()) != i)) {
-							continue;
-						}
-						type = LobbyPlayerType.valueOf(parts[1].trim());
-						race = slotNumber(parts, 2, race);
-						team = slotNumber(parts, 3, team);
-						color = slotNumber(parts, 4, color);
+						type = LobbyPlayerType.valueOf(slot.type);
+						race = LauncherSlot.orMap(slot.race, race);
+						team = LauncherSlot.orMap(slot.team, team);
+						color = LauncherSlot.orMap(slot.color, color);
 					}
 					catch (final IllegalArgumentException e) {
 						type = null;
@@ -652,15 +629,6 @@ final class MenuLoadingScreen {
 							rootFrame.getTemplates().getDecoratedString(raceKey), reforgedRaceIcon(raceKey), local));
 		}
 		return reforgedTeams(players);
-	}
-
-	/** A number of a launcher slot's entry; -1 there keeps what the map has. */
-	private static int slotNumber(final String[] parts, final int index, final int mapValue) {
-		if (parts.length <= index) {
-			return mapValue;
-		}
-		final int value = Integer.parseInt(parts[index].trim());
-		return value < 0 ? mapValue : value;
 	}
 
 	/** The force of the map information a player starts in; 0 when none names it. */
@@ -767,20 +735,8 @@ final class MenuLoadingScreen {
 
 	/** The race of the local player of a launcher's slots, else of the map's first human player; 0 for random. */
 	private static int previewRace(final War3MapW3i mapInfo, final String startupSlots) {
-		if (startupSlots != null) {
-			for (final String slot : startupSlots.split(";")) {
-				final String[] parts = slot.trim().split(":");
-				if ((parts.length > 2) && "USER".equals(parts[1].trim())) {
-					try {
-						return Integer.parseInt(parts[2].trim());
-					}
-					catch (final NumberFormatException e) {
-						break;
-					}
-				}
-			}
-		}
-		return localRace(mapInfo);
+		final LauncherSlot user = LauncherSlot.firstUser(startupSlots);
+		return LauncherSlot.orMap(user == null ? LauncherSlot.MAP_VALUE : user.race, localRace(mapInfo));
 	}
 
 	/** A player's chosen race as the map information numbers races; the given one for a random race. */

@@ -60,6 +60,12 @@ public interface CCreepCastAbility {
 	 */
 	boolean tryCreepCast(CSimulation game, CUnit creep, CUnit attackTarget, boolean inAttackRange);
 
+	/** Whether a creep casts this spell by itself in a fight. */
+	static boolean isCreepSpell(final CAbility ability) {
+		return (ability instanceof CCreepCastAbility) || ((ability instanceof GenericSingleIconActiveAbility)
+				&& (Rule.of(((GenericSingleIconActiveAbility) ability).getBaseOrderId()) != null));
+	}
+
 	/**
 	 * Measured on 1.29: buffs (Bloodlust, Inner Fire) go to a fighting ally without them before the creep itself, Heal
 	 * to the most hurt ally, Slow and Curse to an enemy attacking the creep's side, and other curses and blasts

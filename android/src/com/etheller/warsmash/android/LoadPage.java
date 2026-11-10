@@ -316,6 +316,7 @@ final class LoadPage extends LauncherViews {
 		if ((entry == null) || (entry.loadability != SavedGame.Loadability.LOADABLE)) {
 			return;
 		}
-		this.activity.launchGame(LaunchRequest.load(entry), LauncherActivity.PAGE_LOAD);
+		this.activity.launchGame(LaunchRequest.load(entry,
+				this.activity.campaigns == null ? null : this.activity.campaigns.catalog), LauncherActivity.PAGE_LOAD);
 	}
 }

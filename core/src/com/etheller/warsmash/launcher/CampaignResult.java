@@ -333,6 +333,35 @@ public final class CampaignResult {
 	}
 
 	/**
+	 * The campaign a map is a mission of, by its path in either version of the campaign maps; null when no campaign
+	 * or more than one lists it. For saves that did not keep their campaign.
+	 */
+	public static CampaignCatalog.Entry campaignOfMap(final CampaignCatalog catalog, final String mapFile) {
+		if ((catalog == null) || (mapFile == null) || mapFile.isEmpty()) {
+			return null;
+		}
+		final String played = normal(mapFile);
+		CampaignCatalog.Entry found = null;
+		for (final CampaignCatalog.Entry entry : catalog.getEntries()) {
+			boolean lists = false;
+			final int count = entry.getData().getMissions().size();
+			for (int i = 0; (i < count) && !lists; i++) {
+				for (final boolean reforged : new boolean[] { false, true }) {
+					final String map = catalog.missionMapFilename(entry, i, reforged);
+					lists |= (map != null) && normal(map).equals(played);
+				}
+			}
+			if (lists) {
+				if (found != null) {
+					return null;
+				}
+				found = entry;
+			}
+		}
+		return found;
+	}
+
+	/**
 	 * The mission Continue starts: after a victory the one after the mission played, after a loss the same one again,
 	 * else the furthest open; -1 when there is none to start (the campaign's last mission won), and the campaign's
 	 * missions are shown instead.

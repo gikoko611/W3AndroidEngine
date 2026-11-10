@@ -20,4 +20,12 @@ public class UnitSoundset {
 		this.warcry = UnitSound.create(dataSource, unitAckSounds, soundName, "Warcry");
 	}
 
+	/** Decodes the answers a player hears when he selects and orders a unit of his own. */
+	public void preload() {
+		this.what.preload();
+		this.yes.preload();
+		this.yesAttack.preload();
+		this.pissed.preload();
+	}
+
 }

@@ -354,6 +354,7 @@ public class CUnit extends CWidget {
 	private boolean pendingAttackBackHelp;
 	private int fleeMoveResetCount = -1;
 	private static final float CREEP_ALERT_RADIUS = 800f;
+	private CreepCamp creepCamp;
 	private boolean guarding;
 	private float guardX;
 	private float guardY;
@@ -1912,6 +1913,11 @@ public class CUnit extends CWidget {
 		return this.moveDisabled ? 0 : this.finalSpeed;
 	}
 
+	/** What buffs and items add to the move speed, or take from it. */
+	public int getSpeedBonus() {
+		return this.speedBonus;
+	}
+
 	/**
 	 * Updates one tick of simulation logic and return true if it's time to remove
 	 * this unit from the game.
@@ -2432,6 +2438,22 @@ public class CUnit extends CWidget {
 		return autoAcquireTargets(game, disableMove, due);
 	}
 
+	/**
+	 * Measured (1.29): a creep with spells starts its fight, and so thinks of its spells, as soon as an enemy is sent to
+	 * attack it; without spells, or when an enemy only comes near, it looks at its own phase.
+	 */
+	private void onAttackOrdered(final CSimulation game, final CUnit attacker) {
+		if ((attacker != this) && game.isNeutralAggressive(this.playerIndex) && !isDead()
+				&& !game.getPlayer(this.playerIndex).hasAlliance(attacker.playerIndex, CAllianceType.PASSIVE)) {
+			for (final CAbility ability : this.abilities) {
+				if (!ability.isDisabled() && CCreepCastAbility.isCreepSpell(ability)) {
+					this.nextIdleAcquireScanTick = Math.min(this.nextIdleAcquireScanTick, game.getGameTurnTick());
+					return;
+				}
+			}
+		}
+	}
+
 	/** A new unit's first scan, 1 step to a whole scan period away, spread over units by their handle. */
 	private int firstIdleAcquireScanDelay() {
 		int hash = getHandleId() * 0x9E3779B1;
@@ -2673,6 +2695,15 @@ public class CUnit extends CWidget {
 			this.stateNotifier.waypointsChanged();
 		} else {
 			this.nextIdleAcquireScanTick = game.getGameTurnTick();
+			if ((order != null)
+					&& ((order.getOrderId() == OrderIds.attack) || (order.getOrderId() == OrderIds.smart))) {
+				final AbilityTarget orderTarget = order.getTarget(game);
+				final CUnit orderTargetUnit = (orderTarget != null) ? orderTarget.visit(AbilityTargetVisitor.UNIT)
+						: null;
+				if (orderTargetUnit != null) {
+					orderTargetUnit.onAttackOrdered(game, this);
+				}
+			}
 			setDefaultBehavior(this.stopBehavior);
 			final boolean walking = (this.moveBehavior != null) && (this.currentBehavior == this.moveBehavior);
 			final CRangedBehavior walkingFor = walking ? this.moveBehavior.getRangedBehavior() : null;
@@ -3534,6 +3565,7 @@ public class CUnit extends CWidget {
 				trueDamage *= this.illusionDamageTakenFactor;
 			}
 
+			acquireAttackerOnHit(simulation, source, damage + bonusDamage);
 			final List<CWidgetEvent> eventList = getEventList(JassGameEventsWar3.EVENT_UNIT_DAMAGED);
 			if (eventList != null) {
 				for (final CWidgetEvent event : eventList) {
@@ -3810,6 +3842,19 @@ public class CUnit extends CWidget {
 		}
 	}
 
+	/**
+	 * Measured on 1.29 (creeps and player units): a unit that will strike back acquires its attacker as the hit lands,
+	 * before the damage triggers run, while the answer itself still waits for the unit's update.
+	 */
+	private void acquireAttackerOnHit(final CSimulation simulation, final CUnit source, final float damage) {
+		if ((source != null) && (source != this) && (damage > 0)
+				&& !((this.pendingAttackBackSource != null) && this.pendingAttackBackWasHit)
+				&& (isIdleForAttack() || isReturningFromLostTarget())
+				&& (attackBackAttack(simulation, source) != null)) {
+			fireAcquiredTargetEvents(simulation, source);
+		}
+	}
+
 	private void resolveAttackBack(final CSimulation simulation) {
 		CUnit source = this.pendingAttackBackSource;
 		final boolean wasHit = this.pendingAttackBackWasHit;
@@ -3820,12 +3865,18 @@ public class CUnit extends CWidget {
 			return;
 		}
 		final CUnit attacker = source;
-		if (this.pendingAttackBackHelp) {
+		final boolean help = this.pendingAttackBackHelp;
+		if (help) {
 			source = nearestHelpTarget(simulation, source);
 		}
 		final boolean foundMatchingReturnFireAttack = attackBack(simulation, source);
 		if (wasHit && foundMatchingReturnFireAttack) {
 			alertCreeps(simulation, source);
+		}
+		// Measured on 1.29 (creeps and player units): a unit called for help acquires its target like one that found
+		// it itself.
+		else if (help && foundMatchingReturnFireAttack) {
+			fireAcquiredTargetEvents(simulation, source);
 		}
 		// Measured on 1.29: a critter called for help by another runs too, away from the caller's attacker.
 		if (!foundMatchingReturnFireAttack && (wasHit || critter)) {
@@ -3929,29 +3980,38 @@ public class CUnit extends CWidget {
 	}
 
 	private boolean attackBack(final CSimulation simulation, final CUnit source) {
-		if ((source == null)
-				|| simulation.getPlayer(getPlayerIndex()).hasAlliance(source.getPlayerIndex(), CAllianceType.PASSIVE)
-				|| this.classifications.contains(CUnitClassification.PEON)) {
+		final CUnitAttack attack = attackBackAttack(simulation, source);
+		if (attack == null) {
 			return false;
 		}
 		// 1.29: a unit on hold position answers only an attacker it reaches from where it stands.
 		final boolean disableMove = this.moveDisabled || (this.defaultBehavior == this.holdPositionBehavior);
+		final CBehaviorAttack attackBehaviorForAtk = getAttackBehavior();
+		final CBehavior chase = attackBehaviorForAtk.reset(simulation, OrderIds.attack, attack, source, disableMove,
+				CBehaviorAttackListener.DO_NOTHING);
+		attackBehaviorForAtk.setThroughFog(true);
+		beginBehavior(simulation, chase, true);
+		return true;
+	}
+
+	private CUnitAttack attackBackAttack(final CSimulation simulation, final CUnit source) {
+		if ((source == null)
+				|| simulation.getPlayer(getPlayerIndex()).hasAlliance(source.getPlayerIndex(), CAllianceType.PASSIVE)
+				|| this.classifications.contains(CUnitClassification.PEON)) {
+			return null;
+		}
+		final CAbilityAttack attackAbility = getFirstAbilityOfType(CAbilityAttack.class);
+		if ((getAttackBehavior() == null) || ((attackAbility != null) && attackAbility.isDisabled())) {
+			return null;
+		}
 		for (final CUnitAttack attack : getCurrentAttacks()) {
 			// 1.29 (creep-wake-sleep r1): an attacker out of sight in the fog is still chased.
 			if (source.canBeTargetedBy(simulation, this, true, attack.getTargetsAllowed(),
 					BooleanAbilityTargetCheckReceiver.<CWidget>getInstance().reset(), true)) {
-				final CBehaviorAttack attackBehaviorForAtk = getAttackBehavior();
-				final CAbilityAttack attackAbility = getFirstAbilityOfType(CAbilityAttack.class);
-				if ((attackBehaviorForAtk != null) && ((attackAbility == null) || !attackAbility.isDisabled())) {
-					final CBehavior chase = attackBehaviorForAtk.reset(simulation, OrderIds.attack, attack, source,
-							disableMove, CBehaviorAttackListener.DO_NOTHING);
-					attackBehaviorForAtk.setThroughFog(true);
-					beginBehavior(simulation, chase, true);
-					return true;
-				}
+				return attack;
 			}
 		}
-		return false;
+		return null;
 	}
 
 	/**
@@ -4014,26 +4074,119 @@ public class CUnit extends CWidget {
 			// 1.29 data has no AICallForHelp entry; its computer players are helped like users.
 			radius = constants.getCallForHelp();
 		}
-		summonHelpers(simulation, attacker, radius, true);
+		summonHelpers(simulation, attacker, radius);
 	}
 
 	/**
-	 * A creep that starts attacking alerts the idle creeps around it, before any damage is dealt. Measured in 1.29:
-	 * this reach does not follow CreepCallForHelp, GuardDistance or MaxGuardDistance.
+	 * Measured on 1.29: a creep that starts attacking (before any damage) brings its camp along at the same instant,
+	 * each one acquiring the same target; every creep so brought in alerts in turn the idle creeps within
+	 * {@link #CREEP_ALERT_RADIUS} of itself, and those call nobody. The caller alerts no creep outside its camp: of two
+	 * idle creeps 600 to either side of it only the camp mate joins.
 	 */
 	private void alertCreeps(final CSimulation simulation, final CUnit target) {
-		if ((target != null) && simulation.isNeutralAggressive(this.playerIndex)) {
-			summonHelpers(simulation, target, CREEP_ALERT_RADIUS, false);
+		if ((target == null) || !simulation.isNeutralAggressive(this.playerIndex)) {
+			return;
+		}
+		if (this.creepCamp == null) {
+			// Given to Neutral Hostile after it was made.
+			joinCreepCamp(simulation);
+		}
+		final List<CUnit> joined = new ArrayList<>();
+		final List<CUnit> members = this.creepCamp.members;
+		for (int i = 0; i < members.size(); i++) {
+			final CUnit mate = members.get(i);
+			if (mate.isDead() || mate.isRemovedFromGame() || (mate.creepCamp != this.creepCamp)) {
+				members.remove(i--);
+			}
+			else if ((mate != this) && (mate.playerIndex == this.playerIndex)) {
+				mate.wakeUp(simulation);
+				if (mate.answerAlert(simulation, target)) {
+					joined.add(mate);
+				}
+			}
+		}
+		for (final CUnit mate : joined) {
+			for (final CUnit neighbour : mate.helpersInRange(simulation, CREEP_ALERT_RADIUS)) {
+				neighbour.wakeUp(simulation);
+				neighbour.answerAlert(simulation, target);
+			}
+		}
+	}
+
+	private boolean answerAlert(final CSimulation simulation, final CUnit target) {
+		if (isDead() || isHidden() || target.isDead() || target.isHidden() || target.isRemovedFromGame()
+				|| !(isIdleForAttack() || isReturningFromLostTarget())) {
+			return false;
+		}
+		if (attackBack(simulation, target)) {
+			fireAcquiredTargetEvents(simulation, target);
+			return true;
+		}
+		return false;
+	}
+
+	/**
+	 * Measured on 1.29: a new creep joins the camp of the nearest camp founder within {@link #CREEP_ALERT_RADIUS}
+	 * (counted to its own edge, as for an alert), not of the nearest member, so of three creeps made in a row 600
+	 * apart the third starts a camp of its own. A founder that dies or is removed hands the camp to its oldest
+	 * living member, and the camp still answers together.
+	 */
+	public void joinCreepCamp(final CSimulation simulation) {
+		final float collisionSize = this.unitType.getCollisionSize();
+		final float reach = CREEP_ALERT_RADIUS + collisionSize;
+		final CUnit[] founder = { null };
+		final double[] founderDistance = { Double.MAX_VALUE };
+		callForHelpRect.set(getX() - reach, getY() - reach, reach * 2, reach * 2);
+		simulation.getWorldCollision().enumUnitsInRect(callForHelpRect, (unit) -> {
+			if ((unit != this) && (unit.playerIndex == this.playerIndex) && (unit.creepCamp != null)
+					&& (unit.creepCamp.founder() == unit)) {
+				final double unitDistance = distance(unit.getX(), unit.getY());
+				if ((unitDistance <= CREEP_ALERT_RADIUS) && ((unitDistance < founderDistance[0])
+						|| ((unitDistance == founderDistance[0]) && (unit.getHandleId() < founder[0].getHandleId())))) {
+					founder[0] = unit;
+					founderDistance[0] = unitDistance;
+				}
+			}
+			return false;
+		});
+		this.creepCamp = (founder[0] != null) ? founder[0].creepCamp : new CreepCamp();
+		this.creepCamp.members.add(this);
+	}
+
+	private static final class CreepCamp {
+		private final List<CUnit> members = new ArrayList<>();
+
+		private CUnit founder() {
+			while (!this.members.isEmpty()) {
+				final CUnit first = this.members.get(0);
+				if (!first.isDead() && !first.isRemovedFromGame() && (first.creepCamp == this)) {
+					return first;
+				}
+				this.members.remove(0);
+			}
+			return null;
 		}
 	}
 
 	/**
-	 * Idle units of this owner, and of players this owner asks for help who answer it, join against the attacker. The
+	 * Idle units of this owner, and of players this owner asks for help who answer it, join against the attacker.
+	 */
+	private void summonHelpers(final CSimulation simulation, final CUnit attacker, final float radius) {
+		for (final CUnit helper : helpersInRange(simulation, radius)) {
+			helper.wakeUp(simulation);
+			if (helper.isIdleForAttack() || (helper.isFleeing() && helper.isCritter())) {
+				helper.queueAttackBack(simulation, attacker, false, true);
+			}
+		}
+	}
+
+	/**
+	 * Living, shown units of this owner, and of players this owner asks for help who answer it, within the radius. The
 	 * reach counts to the helper's edge, as the original's thresholds sit one Footman radius past the constant.
 	 */
-	private void summonHelpers(final CSimulation simulation, final CUnit attacker, final float radius,
-			final boolean help) {
+	private List<CUnit> helpersInRange(final CSimulation simulation, final float radius) {
 		final CPlayer owner = simulation.getPlayer(this.playerIndex);
+		final List<CUnit> helpers = new ArrayList<>();
 		callForHelpRect.set(getX() - radius, getY() - radius, radius * 2, radius * 2);
 		simulation.getWorldCollision().enumUnitsInRect(callForHelpRect, (helper) -> {
 			if ((helper != this) && !helper.isDead() && !helper.isHidden()
@@ -4042,13 +4195,11 @@ public class CUnit extends CWidget {
 									&& simulation.getPlayer(helper.playerIndex).hasAlliance(this.playerIndex,
 											CAllianceType.HELP_RESPONSE)))
 					&& ((helper.distance(getX(), getY()) - helper.unitType.getCollisionSize()) <= radius)) {
-				helper.wakeUp(simulation);
-				if (helper.isIdleForAttack() || (helper.isFleeing() && helper.isCritter())) {
-					helper.queueAttackBack(simulation, attacker, false, help);
-				}
+				helpers.add(helper);
 			}
 			return false;
 		});
+		return helpers;
 	}
 
 	private void kill(final CSimulation simulation, final CUnit source) {
@@ -4995,14 +5146,18 @@ public class CUnit extends CWidget {
 		 */
 		private boolean attackNearest() {
 			if (this.nearestTarget != null) {
-				final CBehavior attack = this.source.getAttackBehavior().reset(this.game, OrderIds.attack,
-						this.nearestTargetAttack, this.nearestTarget, this.disableMove,
-						CBehaviorAttackListener.DO_NOTHING);
-				this.source.getAttackBehavior().delayFirstSwing(this.game);
-				this.source.beginBehavior(this.game, attack, true);
-				this.source.alertCreeps(this.game, this.nearestTarget);
-				this.source.fireAcquiredTargetEvents(this.game, this.nearestTarget);
+				// The events below run triggers that may look for targets with this same finder.
+				final CSimulation game = this.game;
+				final CUnit source = this.source;
+				final CUnit target = this.nearestTarget;
+				final CBehavior attack = source.getAttackBehavior().reset(game, OrderIds.attack,
+						this.nearestTargetAttack, target, this.disableMove, CBehaviorAttackListener.DO_NOTHING);
+				source.getAttackBehavior().delayFirstSwing(game);
+				source.beginBehavior(game, attack, true);
 				this.foundAnyTarget = true;
+				source.fireAcquiredTargetEvents(game, target);
+				source.alertCreeps(game, target);
+				return true;
 			}
 			return this.foundAnyTarget;
 		}

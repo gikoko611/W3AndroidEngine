@@ -144,6 +144,13 @@ public class GameCatalog {
 		public SavedGame.Loadability loadability = SavedGame.Loadability.DAMAGED;
 		public String mapFile;
 		public float gameTime;
+		/** The campaign the game is a mission of, by the number scripts know it by; -1 for none or not told. */
+		public int campaign = -1;
+		/** Whether the save says its campaign (-1 then is a game of no campaign); older saves do not. */
+		public boolean campaignKept;
+		public boolean reforgedCampaignMaps;
+		/** easy, normal, hard or insane; null when not told. */
+		public String difficulty;
 
 		SaveEntry(final String name, final File file) {
 			this.name = name;
@@ -649,6 +656,11 @@ public class GameCatalog {
 						final SavedGame.Header header = SavedGame.readHeader(handle);
 						entry.mapFile = header.mapFile;
 						entry.gameTime = header.gameTime;
+						entry.campaign = header.campaign;
+						entry.campaignKept = header.formatVersion >= SavedGame.CAMPAIGN_FORMAT_VERSION;
+						entry.reforgedCampaignMaps = header.reforgedCampaignMaps;
+						entry.difficulty = header.difficulty == null ? null
+								: header.difficulty.name().toLowerCase(Locale.ROOT);
 						if ((entry.mapFile != null) && MapListContainer.isTestMap(entry.mapFile)) {
 							continue;
 						}

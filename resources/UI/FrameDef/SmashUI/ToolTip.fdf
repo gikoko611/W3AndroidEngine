@@ -34,6 +34,14 @@ Frame "FRAME" "SmashToolTip" {
 	    FontFlags "FIXEDSIZE",
 	    FontColor 1.0 1.0 1.0 1.0,
 	}
+	Frame "TEXT" "SmashToolTipInfoText" {
+	    DecorateFileNames,
+	    FrameFont "MasterFont", 0.010, "",
+	    FontJustificationH JUSTIFYLEFT,
+	    FontJustificationV JUSTIFYTOP,
+	    FontFlags "FIXEDSIZE",
+	    FontColor 0.57 0.565 0.565 1.0,
+	}
 	Frame "TEXT" "SmashUberTipText" {
 	    DecorateFileNames,
 	    FrameFont "MasterFont", 0.010, "",

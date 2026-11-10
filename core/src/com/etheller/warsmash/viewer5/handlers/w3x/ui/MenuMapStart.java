@@ -80,6 +80,8 @@ final class MenuMapStart {
 	 * are played in it too.
 	 */
 	private boolean reforgedCampaign;
+	/** The campaign of the mission started last, by the number scripts know it by; -1 for none. */
+	private int campaign = -1;
 	/** The map prepared last when it is made for the Reforged graphics alone, else null. */
 	private String reforgedGraphicsMap;
 
@@ -126,8 +128,45 @@ final class MenuMapStart {
 		this.menu.dialog.showError(MAP_LOAD_ERROR, null);
 	}
 
-	void setReforgedCampaign(final boolean reforged) {
+	/**
+	 * @param campaign the campaign of the mission started, by the number scripts know it by
+	 * @param reforged whether the mission is played in the Reforged campaign version, else the Classic one
+	 */
+	void setCampaign(final int campaign, final boolean reforged) {
+		this.campaign = campaign;
 		this.reforgedCampaign = reforged;
+	}
+
+	/**
+	 * A saved game goes on in the campaign, version and difficulty it was saved in, so that it ends as that
+	 * campaign's mission. A save from before saves kept their campaign is known by its map when only one campaign
+	 * lists it; its version and difficulty stay as they were.
+	 */
+	private void continueSavedCampaign(final FileHandle savedGame, final boolean byScript) {
+		final SavedGame.Header header;
+		try {
+			header = SavedGame.readHeader(savedGame);
+		}
+		catch (final IOException e) {
+			// Loading itself tells why the save cannot be read.
+			return;
+		}
+		int savedCampaign = header.campaign;
+		if (header.formatVersion < SavedGame.CAMPAIGN_FORMAT_VERSION) {
+			savedCampaign = this.menu.campaigns.campaignOfMap(header.mapFile);
+			if ((savedCampaign < 0) && byScript) {
+				// A zone left by the map's own LoadGame stays in the campaign it was entered from.
+				return;
+			}
+		}
+		else {
+			this.reforgedCampaign = header.reforgedCampaignMaps;
+			if (header.difficulty != null) {
+				this.menu.currentMapConfig.setGameDifficulty(header.difficulty);
+			}
+		}
+		this.campaign = savedCampaign;
+		this.menu.campaigns.setStartedCampaign(savedCampaign);
 	}
 
 	/**
@@ -145,6 +184,9 @@ final class MenuMapStart {
 	}
 
 	private void internalStartMap(final String mapFilename, final int localPlayerIndex) {
+		if (this.pendingSavedGame != null) {
+			continueSavedCampaign(this.pendingSavedGame, this.pendingSavedGameByScript);
+		}
 		this.menu.loadingScreen.beginLoading();
 		final DataSource codebase = GraphicsSettings.gameData(
 				this.menu.gameData != null ? this.menu.gameData
@@ -155,6 +197,7 @@ final class MenuMapStart {
 		final War3MapViewer viewer = new War3MapViewer(codebase, this.menu.screenManager, this.menu.currentMapConfig,
 				turnManager);
 		viewer.setTextureSizeLimit(GraphicsSettings.textureSize(this.menu.warsmashIni));
+		viewer.setCampaign(CampaignMaps.isCampaignMap(mapFilename) ? this.campaign : -1, this.reforgedCampaign);
 		final boolean loadingSavedGame = this.pendingSavedGame != null;
 		viewer.setSavedGameToLoad(this.pendingSavedGame, this.pendingSavedGameByScript);
 		setPendingLoad(null, false);
@@ -354,9 +397,7 @@ final class MenuMapStart {
 		currentMapConfig.setGameDifficulty(difficulty);
 
 		this.menu.campaigns.hideScreens();
-		if (this.menu.campaigns.getCurrentMissionSelectMenuUI() != null) {
-			this.menu.campaigns.getCurrentMissionSelectMenuUI().setVisible(false);
-		}
+		this.menu.campaigns.setMissionSelectMenuVisible(false);
 		this.menu.skirmish.hide();
 		this.menu.setGlueLayersSequence("Death");
 		final BeginGameInformation beginGameInformation = new BeginGameInformation();
@@ -484,6 +525,7 @@ final class MenuMapStart {
 		}
 		final CReplayHeader header = replay.getHeader();
 		this.reforgedCampaign = false;
+		this.campaign = -1;
 		if (!startMap(header.getMapPath(), null)) {
 			return false;
 		}

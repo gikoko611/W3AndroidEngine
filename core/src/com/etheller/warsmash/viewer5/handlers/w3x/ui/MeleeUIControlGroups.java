@@ -39,6 +39,8 @@ import com.etheller.warsmash.viewer5.handlers.w3x.ui.command.MultiSelectionIconL
 final class MeleeUIControlGroups {
 	// Hero buttons down the left edge of the console, below the upper button bar, in 4:3 interface units.
 	private static final int HERO_BAR_SIZE = 7;
+	/** F1 to F3 select the first three heroes of the bar. */
+	static final int HERO_HOTKEYS = 3;
 	private static final float HERO_BAR_LEFT = 0.004f;
 	private static final float HERO_BAR_TOP = 0.034f;
 	private static final float HERO_BUTTON_SIZE = 0.038f;
@@ -218,9 +220,9 @@ final class MeleeUIControlGroups {
 		iconTexture.setWidth(size);
 		iconTexture.setHeight(size);
 		iconTexture.setTexture(this.ui.rootFrame.loadTexture(this.ui.rootFrame.getSkinField("IdlePeon")));
-		if (!TouchInputRouter.isActive()) {
-			icon.setToolTip("Idle Workers (F8)");
-		}
+		icon.setToolTip(this.ui.rootFrame.getTemplates().getDecoratedString("IDLE_PEON"));
+		icon.setInfoTip(this.ui.rootFrame.getTemplates().getDecoratedString("IDLE_PEON_DESC"));
+		icon.setUberTip("");
 		parent.add(icon);
 		icon.setVisible(false);
 		return icon;
@@ -344,6 +346,7 @@ final class MeleeUIControlGroups {
 				}
 				// Measured on 1.29: a dead hero's button shows no skill points.
 				icon.setSkillPoints(hero.isDead() ? 0 : hero.getHeroData().getSkillPoints(), barShown);
+				icon.setHero(i, hero, this.ui.rootFrame.getTemplates());
 				icon.setLifeRatioRemaining(hero.isDead() ? 0 : hero.getLife() / hero.getMaximumLife());
 				// Measured on 1.29: a dead hero's button has no bars.
 				icon.setLifeBarVisible(!hero.isDead());
@@ -410,19 +413,24 @@ final class MeleeUIControlGroups {
 		this.ui.cameraManager.jumpTo(worker.getX(), worker.getY());
 	}
 
+	/** The hero's key works as its button: false when the bar has no living hero there. */
+	boolean heroHotkeyPressed(final int index) {
+		return heroBarClicked(index);
+	}
+
 	/** A hero button selects its hero, a second press soon after also centers the camera on it. */
-	private void heroBarClicked(final int index) {
+	private boolean heroBarClicked(final int index) {
 		if (index >= this.heroBarUnits.size()) {
-			return;
+			return false;
 		}
 		final CUnit hero = this.heroBarUnits.get(index);
 		final RenderUnit renderUnit = hero == null ? null : this.ui.war3MapViewer.getRenderPeer(hero);
 		if ((renderUnit == null) || hero.isDead()) {
-			return;
+			return false;
 		}
 		if (this.ui.activeCommand != null) {
 			this.ui.commands.useActiveCommandOnUnit(MeleeUIInput.isShiftDown(), renderUnit);
-			return;
+			return true;
 		}
 		final long now = TimeUtils.millis();
 		final boolean doublePress = (index == this.lastHeroBarPressed)
@@ -435,6 +443,7 @@ final class MeleeUIControlGroups {
 		if (doublePress) {
 			this.ui.cameraManager.jumpTo(hero.getX(), hero.getY());
 		}
+		return true;
 	}
 
 	/**

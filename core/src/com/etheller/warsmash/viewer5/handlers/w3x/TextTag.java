@@ -4,6 +4,7 @@ import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.math.Vector3;
 import com.etheller.interpreter.ast.util.CHandle;
+import com.etheller.warsmash.parsers.fdf.frames.ColorCodedText;
 
 public class TextTag implements CHandle {
 	private final Vector3 position;
@@ -22,6 +23,7 @@ public class TextTag implements CHandle {
 	private boolean visible;
 	private boolean permanent;
 	private boolean centered;
+	private final ColorCodedText layout = new ColorCodedText();
 
 	public TextTag(final Vector3 position, final Vector2 velocity, final String text, final Color color,
 			final float lifetimeDuration, final float fadeStart, final float fontHeight, final int handleId) {
@@ -174,5 +176,10 @@ public class TextTag implements CHandle {
 
 	public boolean isCentered() {
 		return this.centered;
+	}
+
+	/** The text laid out for drawing, kept by the renderer between frames. */
+	public ColorCodedText getLayout() {
+		return this.layout;
 	}
 }

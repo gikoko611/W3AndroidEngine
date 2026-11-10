@@ -1044,13 +1044,7 @@ final class MeleeUIInfoPanel {
 					final CUnitAttack attackOne = simulationUnit.getCurrentAttacks().get(0);
 					this.ui.attack1Icon.setVisible(true);// attackOne.isShowUI());
 					this.attack1IconBackdrop.setTexture(damageBackdrops.getTexture(attackOne.getAttackType()));
-					String attackOneDmgText = attackOne.getMinDamageDisplay() + " - " + attackOne.getMaxDamageDisplay();
-					final int attackOneTemporaryDamageBonus = attackOne.getTotalTemporaryDamageBonus();
-					if (attackOneTemporaryDamageBonus != 0) {
-						attackOneDmgText += (attackOneTemporaryDamageBonus > 0 ? "|cFF00FF00 +" : "|cFFFF0000 ")
-								+ attackOneTemporaryDamageBonus + "";
-					}
-					this.ui.rootFrame.setText(this.attack1InfoPanelIconValue, attackOneDmgText);
+					this.ui.rootFrame.setText(this.attack1InfoPanelIconValue, damageText(attackOne));
 					this.ui.attack1InfoPanelIconLevel.setVisible(weaponUpgradeLevelVisible);
 					if (weaponUpgradeLevelVisible) {
 						this.ui.rootFrame.setText(this.ui.attack1InfoPanelIconLevel,
@@ -1064,14 +1058,7 @@ final class MeleeUIInfoPanel {
 						final CUnitAttack attackTwo = simulationUnit.getCurrentAttacks().get(1);
 						this.ui.attack2Icon.setVisible(attackTwo.isShowUI());
 						this.attack2IconBackdrop.setTexture(damageBackdrops.getTexture(attackTwo.getAttackType()));
-						String attackTwoDmgText = attackTwo.getMinDamageDisplay() + " - "
-								+ attackTwo.getMaxDamageDisplay();
-						final int attackTwoTemporaryDamageBonus = attackTwo.getTotalTemporaryDamageBonus();
-						if (attackTwoTemporaryDamageBonus != 0) {
-							attackTwoDmgText += (attackTwoTemporaryDamageBonus > 0 ? "|cFF00FF00 +" : "|cFFFF0000 ")
-									+ attackTwoTemporaryDamageBonus + "";
-						}
-						this.ui.rootFrame.setText(this.attack2InfoPanelIconValue, attackTwoDmgText);
+						this.ui.rootFrame.setText(this.attack2InfoPanelIconValue, damageText(attackTwo));
 						this.ui.attack2InfoPanelIconLevel.setVisible(weaponUpgradeLevelVisible);
 						if (weaponUpgradeLevelVisible) {
 							this.ui.rootFrame.setText(this.ui.attack2InfoPanelIconLevel,
@@ -1193,23 +1180,7 @@ final class MeleeUIInfoPanel {
 				}
 				localArmorIconBackdrop.setTexture(defenseTexture);
 
-				String defenseDisplayString;
-				if (simulationUnit.isInvulnerable()) {
-					defenseDisplayString = this.ui.rootFrame.getTemplates().getDecoratedString("INVULNERABLE");
-				}
-				else {
-					defenseDisplayString = Integer.toString(simulationUnit.getCurrentDefenseDisplay());
-					final float temporaryDefenseBonus = simulationUnit.getTotalTemporaryDefenseBonus();
-					if (temporaryDefenseBonus != 0) {
-						if (temporaryDefenseBonus > 0) {
-							defenseDisplayString += "|cFF00FF00 +" + formatBonus(temporaryDefenseBonus);
-						}
-						else {
-							defenseDisplayString += "|cFFFF0000 " + formatBonus(temporaryDefenseBonus);
-						}
-					}
-				}
-				this.ui.rootFrame.setText(localArmorInfoPanelIconValue, defenseDisplayString);
+				this.ui.rootFrame.setText(localArmorInfoPanelIconValue, defenseText(this.ui.rootFrame, simulationUnit));
 				localArmorInfoPanelIconLevel.setVisible(armorUpgradeLevelVisible);
 				if (armorUpgradeLevelVisible) {
 					this.ui.rootFrame.setText(localArmorInfoPanelIconLevel,
@@ -1498,6 +1469,29 @@ final class MeleeUIInfoPanel {
 	 * Whole bonuses show without a fraction and fractions use a dot whatever the system language is, as in the
 	 * original game.
 	 */
+	/** The damage range of the attack with its temporary bonus, as the panel and the attack's tool tip show it. */
+	static String damageText(final CUnitAttack attack) {
+		final String damage = attack.getMinDamageDisplay() + " - " + attack.getMaxDamageDisplay();
+		final int bonus = attack.getTotalTemporaryDamageBonus();
+		if (bonus == 0) {
+			return damage;
+		}
+		return damage + (bonus > 0 ? "|cFF00FF00 +" : "|cFFFF0000 ") + bonus;
+	}
+
+	/** The armor with its temporary bonus, as the panel and the armor's tool tip show it. */
+	static String defenseText(final GameUI rootFrame, final CUnit unit) {
+		if (unit.isInvulnerable()) {
+			return rootFrame.getTemplates().getDecoratedString("INVULNERABLE");
+		}
+		final String defense = Integer.toString(unit.getCurrentDefenseDisplay());
+		final float bonus = unit.getTotalTemporaryDefenseBonus();
+		if (bonus == 0) {
+			return defense;
+		}
+		return defense + (bonus > 0 ? "|cFF00FF00 +" : "|cFFFF0000 ") + formatBonus(bonus);
+	}
+
 	private static String formatBonus(final float bonus) {
 		if (bonus == Math.round(bonus)) {
 			return Integer.toString(Math.round(bonus));

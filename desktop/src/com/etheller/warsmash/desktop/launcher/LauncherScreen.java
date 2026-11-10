@@ -1971,14 +1971,14 @@ public final class LauncherScreen implements Screen, InputProcessor {
 					playClick();
 					this.preferences.edit().putString(LauncherKeys.KEY_SAVE, entry.name).apply();
 					if (((state & Gui.DOUBLE) != 0) && loadable) {
-						launchGame(LaunchRequest.load(entry), Page.LOAD);
+						launchGame(loadRequest(entry), Page.LOAD);
 					}
 					else if ((state & Gui.RIGHT) != 0) {
 						g.contextMenu("saveMenu",
 								new String[] { glue("LOAD_GAME", "Load Game"), glue("DELETE", "Delete") },
 								new boolean[] { loadable, true }, choice -> {
 									if (choice == 0) {
-										launchGame(LaunchRequest.load(entry), Page.LOAD);
+										launchGame(loadRequest(entry), Page.LOAD);
 									}
 									else {
 										this.dialog = Dialog.DELETE_SAVE;
@@ -2035,7 +2035,7 @@ public final class LauncherScreen implements Screen, InputProcessor {
 		final boolean loadable = (chosen != null) && (chosen.loadability == SavedGame.Loadability.LOADABLE);
 		if (g.button("load", glue("LOAD_GAME", "Load Game"), load[0], b.backY, load[1], b.backH, size,
 				!loadable ? Gui.TONE_OFF : this.art.reforged ? Gui.TONE_CONFIRM : Gui.TONE_DOWN)) {
-			launchGame(LaunchRequest.load(chosen), Page.LOAD);
+			launchGame(loadRequest(chosen), Page.LOAD);
 		}
 	}
 
@@ -3932,7 +3932,7 @@ public final class LauncherScreen implements Screen, InputProcessor {
 		case LOAD: {
 			final GameCatalog.SaveEntry entry = this.saveList == null ? null : chosenSave();
 			if ((entry != null) && (entry.loadability == SavedGame.Loadability.LOADABLE)) {
-				launchGame(LaunchRequest.load(entry), Page.LOAD);
+				launchGame(loadRequest(entry), Page.LOAD);
 			}
 			break;
 		}
@@ -3951,6 +3951,10 @@ public final class LauncherScreen implements Screen, InputProcessor {
 		}
 	}
 
+	private LaunchRequest loadRequest(final GameCatalog.SaveEntry entry) {
+		return LaunchRequest.load(entry, this.campaigns == null ? null : this.campaigns.catalog);
+	}
+
 	/** Starts a game in this window; the launcher comes back when it ends, on the page given. */
 	private void launchGame(final LaunchRequest request, final Page returnPage) {
 		if (this.launching) {
@@ -3963,8 +3967,21 @@ public final class LauncherScreen implements Screen, InputProcessor {
 		if (this.art.reforged) {
 			request.portrait = this.profiles.portrait(request.profile) + 1;
 		}
-		this.preferences.edit().putString(LauncherKeys.KEY_RETURN_PAGE, returnPage.name())
-				.putLong(LauncherKeys.KEY_LAUNCHED, System.currentTimeMillis()).commit();
+		final LauncherStore.Edit edit = this.preferences.edit()
+				.putString(LauncherKeys.KEY_RETURN_PAGE, returnPage.name())
+				.putLong(LauncherKeys.KEY_LAUNCHED, System.currentTimeMillis());
+		if ((request.saveFile != null) && (request.campaign >= 0)) {
+			// A campaign mission's save ends on its campaign's result, over that campaign as a mission started from
+			// its list does.
+			edit.putInt(LauncherKeys.KEY_CAMPAIGN, request.campaign);
+			if (request.mission >= 0) {
+				edit.putInt(LauncherKeys.KEY_MISSION, request.mission);
+			}
+			else {
+				edit.remove(LauncherKeys.KEY_MISSION);
+			}
+		}
+		edit.commit();
 		stopMusic();
 		stopRenderer();
 		disposeCursor();

@@ -394,7 +394,7 @@ final class MenuBattleNetServerListener implements GamingNetworkServerToClientLi
 			final int yourServerPlayerSlot) {
 		Gdx.app.postRunnable(() -> {
 			this.menu.campaigns.hideScreens();
-			this.menu.campaigns.getCurrentMissionSelectMenuUI().setVisible(false);
+			this.menu.campaigns.setMissionSelectMenuVisible(false);
 			this.menu.skirmish.hide();
 			battleNetUI().hideCurrentScreen();
 			this.battleNet.playCurrentBattleNetGlueSpriteDeath();

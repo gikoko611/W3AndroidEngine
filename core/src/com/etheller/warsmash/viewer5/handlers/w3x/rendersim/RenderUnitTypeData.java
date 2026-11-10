@@ -121,6 +121,26 @@ public class RenderUnitTypeData extends RenderWidgetTypeData<RenderUnitType> {
 		return buildingPathingPixelMap;
 	}
 
+	/**
+	 * The unit type's answers, without loading its models as its render type would.
+	 *
+	 * @return null for a type the data does not have
+	 */
+	public UnitSoundset getSoundset(final War3ID key) {
+		final GameObject row = this.objectData.get(key);
+		return row == null ? null : getSoundset(row);
+	}
+
+	private UnitSoundset getSoundset(final GameObject row) {
+		final String soundName = row.getFieldAsString(UNIT_SOUNDSET, 0);
+		UnitSoundset unitSoundset = this.soundsetNameToSoundset.get(soundName);
+		if (unitSoundset == null) {
+			unitSoundset = new UnitSoundset(this.dataSource, this.unitAckSoundsTable, soundName);
+			this.soundsetNameToSoundset.put(soundName, unitSoundset);
+		}
+		return unitSoundset;
+	}
+
 	@Override
 	protected final RenderUnitType createTypeData(War3ID key, GameObject row) {
 		final String path = getUnitModelPath(row);
@@ -156,13 +176,7 @@ public class RenderUnitTypeData extends RenderWidgetTypeData<RenderUnitType> {
 			}
 		}
 
-		final String soundName = row.getFieldAsString(UNIT_SOUNDSET, 0);
-		UnitSoundset unitSoundset = this.soundsetNameToSoundset.get(soundName);
-		if (unitSoundset == null) {
-			unitSoundset = new UnitSoundset(this.dataSource, this.unitAckSoundsTable, soundName);
-			this.soundsetNameToSoundset.put(soundName, unitSoundset);
-		}
-		final UnitSoundset soundset = unitSoundset;
+		final UnitSoundset soundset = getSoundset(row);
 		final String uberSplat = row.getFieldAsString(UBER_SPLAT, 0);
 		String uberSplatTexturePath = null;
 		float uberSplatScaleValue = 0.0f;

@@ -93,7 +93,7 @@ public class MenuUI {
 	SpriteFrame glueSpriteLayerTopLeft;
 	SpriteFrame glueSpriteLayerCenter;
 
-	private WorldEditStrings worldEditStrings;
+	private final WorldEditStrings worldEditStrings;
 
 	private KeyedSounds uiSounds;
 
@@ -158,6 +158,7 @@ public class MenuUI {
 			final DataTable warsmashIni, final RootFrameListener rootFrameListener,
 			final GamingNetworkConnection gamingNetworkConnection, final String mapDownloadDir) {
 		this.dataSource = dataSource;
+		this.worldEditStrings = new WorldEditStrings(dataSource);
 		this.uiViewport = uiViewport;
 		this.uiScene = uiScene;
 		this.viewer = viewer;
@@ -1044,7 +1045,6 @@ public class MenuUI {
 	}
 
 	private void loadSounds() {
-		this.worldEditStrings = new WorldEditStrings(this.dataSource);
 		final DataTable uiSoundsTable = new DataTable(this.worldEditStrings);
 		try {
 			try (InputStream miscDataTxtStream = this.dataSource.getResourceAsStream("UI\\SoundInfo\\UISounds.slk")) {

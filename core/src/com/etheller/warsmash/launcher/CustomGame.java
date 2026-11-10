@@ -141,8 +141,8 @@ public final class CustomGame {
 					continue;
 				}
 				final String type = this.slotTypes[i] == SLOT_YOU ? "USER" : SLOT_TYPES[this.slotTypes[i]][0];
-				slots.append(details.slots.get(i).id).append(':').append(type).append(':').append(this.slotRaces[i])
-						.append(':').append(this.slotTeams[i]).append(':').append(this.slotColors[i]).append(';');
+				new LauncherSlot(details.slots.get(i).id, type, this.slotRaces[i], this.slotTeams[i], this.slotColors[i])
+						.appendTo(slots);
 			}
 		}
 		final StringBuilder options = new StringBuilder();

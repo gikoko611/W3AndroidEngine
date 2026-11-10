@@ -32,6 +32,7 @@ import com.badlogic.gdx.audio.Music;
 import com.badlogic.gdx.audio.Sound;
 import com.badlogic.gdx.backends.android.AndroidApplication;
 import com.badlogic.gdx.backends.android.AndroidApplicationConfiguration;
+import com.badlogic.gdx.backends.android.DisabledAndroidAudio;
 import com.badlogic.gdx.backends.android.keyboardheight.KeyboardHeightObserver;
 import com.badlogic.gdx.backends.android.keyboardheight.KeyboardHeightProvider;
 import com.badlogic.gdx.files.FileHandle;
@@ -411,8 +412,9 @@ public class AndroidLauncher extends AndroidApplication {
 
 	@Override
 	protected void onPause() {
-		// The backend pauses only the music it made itself.
+		// The backend pauses only the music and sounds it made itself.
 		PreparedMusic.pauseAll();
+		PooledSounds.pauseAll();
 		super.onPause();
 	}
 
@@ -420,6 +422,7 @@ public class AndroidLauncher extends AndroidApplication {
 	protected void onResume() {
 		super.onResume();
 		PreparedMusic.resumeAll();
+		PooledSounds.resumeAll();
 	}
 
 	@Override
@@ -596,7 +599,17 @@ public class AndroidLauncher extends AndroidApplication {
 			// game data once.
 			@Override
 			public Sound newSound(final FileHandle file) {
-				return Gdx.audio.newSound(cachedCopy(soundCache, file));
+				final FileHandle copy = cachedCopy(soundCache, file);
+				// The launcher's scenes run without sound.
+				if (Gdx.audio instanceof DisabledAndroidAudio) {
+					return Gdx.audio.newSound(copy);
+				}
+				return PooledSounds.get().newSound(copy.file().getPath());
+			}
+
+			@Override
+			public void finishLoading(final long maxMillis) {
+				PooledSounds.get().finishLoading(maxMillis);
 			}
 
 			@Override

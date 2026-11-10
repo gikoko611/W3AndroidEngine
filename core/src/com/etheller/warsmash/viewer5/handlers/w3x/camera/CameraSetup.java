@@ -11,6 +11,9 @@ public class CameraSetup {
 	private float farZ;
 	private float nearZ;
 	private float height;
+	private float localPitch;
+	private float localYaw;
+	private float localRoll;
 
 	public CameraSetup(final float aoa, final float fov, final float rotation, final float roll, final float distance,
 			final float farZ, final float nearZ, final float height) {
@@ -88,6 +91,18 @@ public class CameraSetup {
 		this.height = height;
 	}
 
+	public float getLocalPitch() {
+		return this.localPitch;
+	}
+
+	public float getLocalYaw() {
+		return this.localYaw;
+	}
+
+	public float getLocalRoll() {
+		return this.localRoll;
+	}
+
 	public void setField(final CCameraField field, final float value) {
 		switch (field) {
 		case ANGLE_OF_ATTACK:
@@ -115,8 +130,14 @@ public class CameraSetup {
 			this.height = value;
 			break;
 		case LOCAL_PITCH:
-		case LOCAL_ROLL:
+			this.localPitch = value;
+			break;
 		case LOCAL_YAW:
+			this.localYaw = value;
+			break;
+		case LOCAL_ROLL:
+			this.localRoll = value;
+			break;
 		default:
 			break;
 		}
@@ -141,8 +162,11 @@ public class CameraSetup {
 		case ZOFFSET:
 			return this.height;
 		case LOCAL_PITCH:
-		case LOCAL_ROLL:
+			return this.localPitch;
 		case LOCAL_YAW:
+			return this.localYaw;
+		case LOCAL_ROLL:
+			return this.localRoll;
 		default:
 			return 0.0f; // TODO ?
 		}

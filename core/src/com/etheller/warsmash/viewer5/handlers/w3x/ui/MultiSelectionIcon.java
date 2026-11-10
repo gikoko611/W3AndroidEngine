@@ -25,6 +25,7 @@ public class MultiSelectionIcon extends AbstractRenderableFrame implements Click
 
 	private String toolTip;
 	private String uberTip;
+	private String infoTip;
 	private boolean focused;
 	private SimpleStatusBarFrame hpBarFrame;
 	private SimpleStatusBarFrame manaBarFrame;
@@ -191,6 +192,15 @@ public class MultiSelectionIcon extends AbstractRenderableFrame implements Click
 	@Override
 	public String getUberTip() {
 		return this.uberTip;
+	}
+
+	public void setInfoTip(final String infoTip) {
+		this.infoTip = infoTip;
+	}
+
+	@Override
+	public String getInfoTip() {
+		return this.infoTip;
 	}
 
 	@Override

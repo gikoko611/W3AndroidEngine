@@ -41,6 +41,7 @@ import com.etheller.warsmash.viewer5.handlers.w3x.simulation.campaign.CTrackable
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.players.CMapFlag;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.players.CPlayer;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.trigger.JassGameEventsWar3;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.trigger.enumtypes.CMapDifficulty;
 
 /**
  * A saved game file: a short header the Load dialog can read alone, then the game's object graph. The map's data and
@@ -53,10 +54,12 @@ public final class SavedGame {
 	 * Raised only when the file layout itself changes. Classes gaining or losing fields need no new version: the class
 	 * table lets older saves load (see SavedObjectGraph). 3 added the table of script functions to the header, 4 the
 	 * types of the saved globals, 5 the game's random seed, 6 came with the handle table (the map's destructables,
-	 * which are found again by id, are numbered differently); 2 is still read, its script positions then need the very
-	 * same scripts.
+	 * which are found again by id, are numbered differently), 7 the campaign and difficulty the game is played in; 2 is
+	 * still read, its script positions then need the very same scripts.
 	 */
-	private static final int FORMAT_VERSION = 6;
+	private static final int FORMAT_VERSION = 7;
+	/** The first format whose header says the campaign and difficulty of the game. */
+	public static final int CAMPAIGN_FORMAT_VERSION = 7;
 	/** Every game used this seed before the seed was saved. */
 	private static final int SEED_BEFORE_FORMAT_5 = 1337;
 	private static final int OLDEST_FORMAT_VERSION = 2;
@@ -70,6 +73,15 @@ public final class SavedGame {
 		public float gameTime;
 		/** The seed the game started from; its random numbers themselves are in the saved simulation. */
 		public int gameSeed = SEED_BEFORE_FORMAT_5;
+		/**
+		 * The campaign the game is a mission of, by the number scripts know it by; -1 for none, or a save before format
+		 * 7, which did not say.
+		 */
+		public int campaign = -1;
+		/** Whether that campaign is played in its Reforged version, its maps and graphics. */
+		public boolean reforgedCampaignMaps;
+		/** The game's difficulty; null in a save before format 7. */
+		public CMapDifficulty difficulty;
 		public int formatVersion = FORMAT_VERSION;
 		public List<AiEntry> aiScripts = new ArrayList<>();
 		/** Script positions are stored by index, so they only mean something on the same scripts and game data. */
@@ -87,6 +99,9 @@ public final class SavedGame {
 			out.writeInt(this.localPlayerIndex);
 			out.writeFloat(this.gameTime);
 			out.writeInt(this.gameSeed);
+			out.writeInt(this.campaign);
+			out.writeBoolean(this.reforgedCampaignMaps);
+			out.writeInt(this.difficulty == null ? -1 : this.difficulty.ordinal());
 			out.writeInt(this.scopeSizes.size());
 			for (final int size : this.scopeSizes) {
 				out.writeInt(size);
@@ -125,6 +140,14 @@ public final class SavedGame {
 			header.gameTime = in.readFloat();
 			if (version >= 5) {
 				header.gameSeed = in.readInt();
+			}
+			if (version >= CAMPAIGN_FORMAT_VERSION) {
+				header.campaign = in.readInt();
+				header.reforgedCampaignMaps = in.readBoolean();
+				final int difficulty = in.readInt();
+				header.difficulty = (difficulty >= 0) && (difficulty < CMapDifficulty.VALUES.length)
+						? CMapDifficulty.VALUES[difficulty]
+						: null;
 			}
 			final int scopeCount = in.readInt();
 			for (int i = 0; i < scopeCount; i++) {
@@ -373,6 +396,9 @@ public final class SavedGame {
 		header.localPlayerIndex = viewer.getLocalPlayerIndex();
 		header.gameTime = simulation.getGameTurnTick() * WarsmashConstants.SIMULATION_STEP_TIME;
 		header.gameSeed = viewer.getGameSeed();
+		header.campaign = viewer.getCampaign();
+		header.reforgedCampaignMaps = viewer.isReforgedCampaignMaps();
+		header.difficulty = viewer.getMapConfig() == null ? null : viewer.getMapConfig().getGameDifficulty();
 		for (int i = 0; i < WarsmashConstants.MAX_PLAYERS; i++) {
 			final CPlayer player = simulation.getPlayer(i);
 			final JassAIEnvironment aiScript = player.getAiScript();

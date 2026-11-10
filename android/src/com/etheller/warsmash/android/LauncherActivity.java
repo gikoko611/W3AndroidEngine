@@ -2,6 +2,7 @@ package com.etheller.warsmash.android;
 
 import static com.etheller.warsmash.launcher.CustomGame.RACES;
 import static com.etheller.warsmash.launcher.LauncherKeys.KEY_ANIMATED;
+import static com.etheller.warsmash.launcher.LauncherKeys.KEY_CAMPAIGN;
 import static com.etheller.warsmash.launcher.LauncherKeys.KEY_EDITION;
 import static com.etheller.warsmash.launcher.LauncherKeys.KEY_LAUNCHED;
 import static com.etheller.warsmash.launcher.LauncherKeys.KEY_LAUNCH_RACE;
@@ -653,8 +654,20 @@ public class LauncherActivity extends AndroidApplication {
 		LaunchContract.put(intent, request);
 		LaunchContract.takeResult(this);
 		intent.putExtra(LaunchContract.EXTRA_TOKEN, LaunchContract.newToken(this));
-		this.preferences.edit().putInt(KEY_RETURN_PAGE, returnPage)
-				.putLong(KEY_LAUNCHED, System.currentTimeMillis()).commit();
+		final SharedPreferences.Editor editor = this.preferences.edit().putInt(KEY_RETURN_PAGE, returnPage)
+				.putLong(KEY_LAUNCHED, System.currentTimeMillis());
+		if ((request.saveFile != null) && (request.campaign >= 0)) {
+			// A campaign mission's save ends on its campaign's result, over that campaign as a mission started from
+			// its list does.
+			editor.putInt(KEY_CAMPAIGN, request.campaign);
+			if (request.mission >= 0) {
+				editor.putInt(KEY_MISSION, request.mission);
+			}
+			else {
+				editor.remove(KEY_MISSION);
+			}
+		}
+		editor.commit();
 		startActivity(intent);
 		finish();
 		cutTo();
