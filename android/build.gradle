@@ -60,27 +60,21 @@ configurations {
 dependencies {
     implementation project(":core")
     implementation "com.badlogicgames.gdx:gdx-backend-android:$gdxVersion"
-    for (abi in ["armeabi-v7a", "arm64-v8a", "x86_64"]) {
-        natives "com.badlogicgames.gdx:gdx-platform:$gdxVersion:natives-$abi"
-        natives "com.badlogicgames.gdx:gdx-freetype-platform:$gdxVersion:natives-$abi"
-        natives "com.badlogicgames.gdx:gdx-box2d-platform:$gdxVersion:natives-$abi"
-    }
+
+    // Only fetch 32-bit ARM native libraries for the Redmi 9A target.
+    natives "com.badlogicgames.gdx:gdx-platform:$gdxVersion:natives-armeabi-v7a"
+    natives "com.badlogicgames.gdx:gdx-freetype-platform:$gdxVersion:natives-armeabi-v7a"
+    natives "com.badlogicgames.gdx:gdx-box2d-platform:$gdxVersion:natives-armeabi-v7a"
 }
 
-// The natives come as jars per ABI; unpack them into the jniLibs folder.
+// Unpack only ARMv7 native libraries into the Android jniLibs folder.
 tasks.register("copyAndroidNatives") {
     doFirst {
         configurations.natives.copy().files.each { jar ->
-            def outputDir = null
-            if (jar.name.endsWith("natives-armeabi-v7a.jar")) outputDir = file("libs/armeabi-v7a")
-            if (jar.name.endsWith("natives-arm64-v8a.jar")) outputDir = file("libs/arm64-v8a")
-            if (jar.name.endsWith("natives-x86_64.jar")) outputDir = file("libs/x86_64")
-            if (outputDir != null) {
-                copy {
-                    from zipTree(jar)
-                    into outputDir
-                    include "*.so"
-                }
+            copy {
+                from zipTree(jar)
+                into file("libs/armeabi-v7a")
+                include "*.so"
             }
         }
     }
