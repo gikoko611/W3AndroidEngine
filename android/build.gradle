@@ -26,6 +26,11 @@ android {
         targetSdk = 36
         versionCode = 1
         versionName = "0.3.6"
+
+        // Build a 32-bit ARM APK for Redmi 9A and other ARMv7 devices.
+        ndk {
+            abiFilters "armeabi-v7a"
+        }
     }
 
     buildTypes {
@@ -85,8 +90,7 @@ tasks.matching { it.name.contains("merge") && it.name.contains("JniLibFolders") 
     packageTask.dependsOn "copyAndroidNatives"
 }
 
-// Ability builder definitions are read as internal files, so they ship inside the APK. The engine's own UI
-// resources ship too and are unpacked by the launcher, because the engine reads them from a folder.
+// Ability builder definitions and engine UI resources ship inside the APK.
 tasks.register("copyAbilityBehaviors", Sync) {
     from("../core/assets/abilityBehaviors") { into "abilityBehaviors" }
     from("../core/assets/abilityBehaviors_compatibility") { into "abilityBehaviors_compatibility" }
