@@ -4,9 +4,6 @@ on:
   workflow_dispatch:
   push:
     branches: [main]
-    paths:
-      - "**"
-      - ".github/workflows/android-apk.yml"
   pull_request:
     branches: [main]
 
@@ -21,7 +18,7 @@ jobs:
   build:
     name: Build ARMv7 APK
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
 
     steps:
       - name: Checkout source
@@ -38,27 +35,49 @@ jobs:
 
       - name: Install Android SDK packages
         run: |
-          sdkmanager "platforms;android-36" "build-tools;36.1.0"
           yes | sdkmanager --licenses
+          sdkmanager "platforms;android-36" "build-tools;36.1.0"
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
+
+      - name: Show build environment
+        run: |
+          java -version
+          ./gradlew --version
+          echo "ANDROID_HOME=$ANDROID_HOME"
 
       - name: Build debug APK
         run: |
           chmod +x ./gradlew
           ./gradlew --no-daemon --stacktrace :android:assembleDebug
 
-      - name: Verify ARMv7 native libraries
+      - name: Verify ARMv7 native libraries and locate APK
         shell: bash
         run: |
-          APK="android/build/outputs/apk/debug/android-debug.apk"
-          test -f "$APK"
-          unzip -Z1 "$APK" | grep -q '^lib/armeabi-v7a/'
-          if unzip -Z1 "$APK" | grep -q '^lib/arm64-v8a/'; then
-            echo "Unexpected ARM64 libraries found in the ARMv7-only APK."
+          set -euo pipefail
+          APK="$(find android/build/outputs/apk/debug -maxdepth 1 -type f -name '*.apk' -print -quit)"
+          if [ -z "$APK" ]; then
+            echo "ERROR: No debug APK was produced."
+            find android/build/outputs -maxdepth 5 -type f -print 2>/dev/null || true
             exit 1
           fi
+
+          echo "APK found: $APK"
+          echo "APK contents (native libraries):"
+          unzip -Z1 "$APK" | grep '^lib/' || true
+
+          unzip -Z1 "$APK" | grep -q '^lib/armeabi-v7a/' || {
+            echo "ERROR: ARMv7 native libraries are missing."
+            exit 1
+          }
+
+          OTHER_ABIS="$(unzip -Z1 "$APK" | awk -F/ '$1=="lib" && $2!="" && $2!="armeabi-v7a" {print $2}' | sort -u)"
+          if [ -n "$OTHER_ABIS" ]; then
+            echo "ERROR: Unexpected native ABIs found: $OTHER_ABIS"
+            exit 1
+          fi
+
           mkdir -p dist
           cp "$APK" dist/GI-KO-KO-WARCRAFT-III-ARMv7-0.3.6-debug.apk
           ls -lh dist/
