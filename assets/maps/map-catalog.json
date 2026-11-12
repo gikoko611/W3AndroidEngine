@@ -1,0 +1,2776 @@
+{
+  "schemaVersion": 1,
+  "title": "G.I KO KO Offline Map Catalog",
+  "description": "100 deterministic original map layout specifications. These are procedural layout recipes, not imported Warcraft III maps or finished art maps.",
+  "counts": {
+    "total": 100,
+    "rts": 60,
+    "moba": 40
+  },
+  "generation": {
+    "algorithm": "seeded-layout-v1",
+    "note": "The game runtime must interpret each layout recipe and generate terrain, paths, resources, camps, towers and spawn points. The seed makes each map reproducible."
+  },
+  "maps": [
+    {
+      "id": "rts-01",
+      "name": "Greenwood Battlefield 01",
+      "mode": "RTS",
+      "biome": "Greenwood",
+      "theme": "Ruined Citadel",
+      "seed": 73097,
+      "grid": {
+        "width": 112,
+        "height": 104,
+        "tileSize": 1
+      },
+      "layout": {
+        "players": 3,
+        "startingBases": "opposite-quadrants",
+        "resourceNodes": 9,
+        "neutralCamps": 3,
+        "chokepoints": 2,
+        "waterways": 0,
+        "forestDensity": "medium",
+        "objective": "destroy-enemy-town-hall"
+      },
+      "performance": {
+        "target": "Android-ARMv7",
+        "textureBudget": "low",
+        "recommendedView": "top-down-or-isometric"
+      }
+    },
+    {
+      "id": "rts-02",
+      "name": "Greenwood Battlefield 02",
+      "mode": "RTS",
+      "biome": "Greenwood",
+      "theme": "Twin Valleys",
+      "seed": 73194,
+      "grid": {
+        "width": 128,
+        "height": 112,
+        "tileSize": 1
+      },
+      "layout": {
+        "players": 4,
+        "startingBases": "opposite-quadrants",
+        "resourceNodes": 10,
+        "neutralCamps": 4,
+        "chokepoints": 3,
+        "waterways": 0,
+        "forestDensity": "high",
+        "objective": "destroy-enemy-town-hall"
+      },
+      "performance": {
+        "target": "Android-ARMv7",
+        "textureBudget": "low",
+        "recommendedView": "top-down-or-isometric"
+      }
+    },
+    {
+      "id": "rts-03",
+      "name": "Greenwood Battlefield 03",
+      "mode": "RTS",
+      "biome": "Greenwood",
+      "theme": "Chokepoint",
+      "seed": 73291,
+      "grid": {
+        "width": 144,
+        "height": 120,
+        "tileSize": 1
+      },
+      "layout": {
+        "players": 2,
+        "startingBases": "opposite-quadrants",
+        "resourceNodes": 11,
+        "neutralCamps": 5,
+        "chokepoints": 4,
+        "waterways": 2,
+        "forestDensity": "low",
+        "objective": "destroy-enemy-town-hall"
+      },
+      "performance": {
+        "target": "Android-ARMv7",
+        "textureBudget": "low",
+        "recommendedView": "top-down-or-isometric"
+      }
+    },
+    {
+      "id": "rts-04",
+      "name": "Greenwood Battlefield 04",
+      "mode": "RTS",
+      "biome": "Greenwood",
+      "theme": "Defensive",
+      "seed": 73388,
+      "grid": {
+        "width": 96,
+        "height": 128,
+        "tileSize": 1
+      },
+      "layout": {
+        "players": 3,
+        "startingBases": "opposite-quadrants",
+        "resourceNodes": 12,
+        "neutralCamps": 6,
+        "chokepoints": 1,
+        "waterways": 0,
+        "forestDensity": "medium",
+        "objective": "destroy-enemy-town-hall"
+      },
+      "performance": {
+        "target": "Android-ARMv7",
+        "textureBudget": "low",
+        "recommendedView": "top-down-or-isometric"
+      }
+    },
+    {
+      "id": "rts-05",
+      "name": "Greenwood Battlefield 05",
+      "mode": "RTS",
+      "biome": "Greenwood",
+      "theme": "Balanced",
+      "seed": 73485,
+      "grid": {
+        "width": 112,
+        "height": 96,
+        "tileSize": 1
+      },
+      "layout": {
+        "players": 4,
+        "startingBases": "opposite-quadrants",
+        "resourceNodes": 13,
+        "neutralCamps": 2,
+        "chokepoints": 2,
+        "waterways": 0,
+        "forestDensity": "high",
+        "objective": "destroy-enemy-town-hall"
+      },
+      "performance": {
+        "target": "Android-ARMv7",
+        "textureBudget": "low",
+        "recommendedView": "top-down-or-isometric"
+      }
+    },
+    {
+      "id": "rts-06",
+      "name": "Greenwood Battlefield 06",
+      "mode": "RTS",
+      "biome": "Greenwood",
+      "theme": "Ruined Citadel",
+      "seed": 73582,
+      "grid": {
+        "width": 128,
+        "height": 104,
+        "tileSize": 1
+      },
+      "layout": {
+        "players": 2,
+        "startingBases": "opposite-quadrants",
+        "resourceNodes": 14,
+        "neutralCamps": 3,
+        "chokepoints": 3,
+        "waterways": 2,
+        "forestDensity": "low",
+        "objective": "destroy-enemy-town-hall"
+      },
+      "performance": {
+        "target": "Android-ARMv7",
+        "textureBudget": "low",
+        "recommendedView": "top-down-or-isometric"
+      }
+    },
+    {
+      "id": "rts-07",
+      "name": "Greenwood Battlefield 07",
+      "mode": "RTS",
+      "biome": "Greenwood",
+      "theme": "Twin Valleys",
+      "seed": 73679,
+      "grid": {
+        "width": 144,
+        "height": 112,
+        "tileSize": 1
+      },
+      "layout": {
+        "players": 3,
+        "startingBases": "opposite-quadrants",
+        "resourceNodes": 15,
+        "neutralCamps": 4,
+        "chokepoints": 4,
+        "waterways": 0,
+        "forestDensity": "medium",
+        "objective": "destroy-enemy-town-hall"
+      },
+      "performance": {
+        "target": "Android-ARMv7",
+        "textureBudget": "low",
+        "recommendedView": "top-down-or-isometric"
+      }
+    },
+    {
+      "id": "rts-08",
+      "name": "Greenwood Battlefield 08",
+      "mode": "RTS",
+      "biome": "Greenwood",
+      "theme": "Chokepoint",
+      "seed": 73776,
+      "grid": {
+        "width": 96,
+        "height": 120,
+        "tileSize": 1
+      },
+      "layout": {
+        "players": 4,
+        "startingBases": "opposite-quadrants",
+        "resourceNodes": 16,
+        "neutralCamps": 5,
+        "chokepoints": 1,
+        "waterways": 0,
+        "forestDensity": "high",
+        "objective": "destroy-enemy-town-hall"
+      },
+      "performance": {
+        "target": "Android-ARMv7",
+        "textureBudget": "low",
+        "recommendedView": "top-down-or-isometric"
+      }
+    },
+    {
+      "id": "rts-09",
+      "name": "Greenwood Battlefield 09",
+      "mode": "RTS",
+      "biome": "Greenwood",
+      "theme": "Defensive",
+      "seed": 73873,
+      "grid": {
+        "width": 112,
+        "height": 128,
+        "tileSize": 1
+      },
+      "layout": {
+        "players": 2,
+        "startingBases": "opposite-quadrants",
+        "resourceNodes": 8,
+        "neutralCamps": 6,
+        "chokepoints": 2,
+        "waterways": 2,
+        "forestDensity": "low",
+        "objective": "destroy-enemy-town-hall"
+      },
+      "performance": {
+        "target": "Android-ARMv7",
+        "textureBudget": "low",
+        "recommendedView": "top-down-or-isometric"
+      }
+    },
+    {
+      "id": "rts-10",
+      "name": "Greenwood Battlefield 10",
+      "mode": "RTS",
+      "biome": "Greenwood",
+      "theme": "Balanced",
+      "seed": 73970,
+      "grid": {
+        "width": 128,
+        "height": 96,
+        "tileSize": 1
+      },
+      "layout": {
+        "players": 3,
+        "startingBases": "opposite-quadrants",
+        "resourceNodes": 9,
+        "neutralCamps": 2,
+        "chokepoints": 3,
+        "waterways": 0,
+        "forestDensity": "medium",
+        "objective": "destroy-enemy-town-hall"
+      },
+      "performance": {
+        "target": "Android-ARMv7",
+        "textureBudget": "low",
+        "recommendedView": "top-down-or-isometric"
+      }
+    },
+    {
+      "id": "rts-11",
+      "name": "Greenwood Battlefield 11",
+      "mode": "RTS",
+      "biome": "Greenwood",
+      "theme": "Ruined Citadel",
+      "seed": 74067,
+      "grid": {
+        "width": 144,
+        "height": 104,
+        "tileSize": 1
+      },
+      "layout": {
+        "players": 4,
+        "startingBases": "opposite-quadrants",
+        "resourceNodes": 10,
+        "neutralCamps": 3,
+        "chokepoints": 4,
+        "waterways": 0,
+        "forestDensity": "high",
+        "objective": "destroy-enemy-town-hall"
+      },
+      "performance": {
+        "target": "Android-ARMv7",
+        "textureBudget": "low",
+        "recommendedView": "top-down-or-isometric"
+      }
+    },
+    {
+      "id": "rts-12",
+      "name": "Greenwood Battlefield 12",
+      "mode": "RTS",
+      "biome": "Greenwood",
+      "theme": "Twin Valleys",
+      "seed": 74164,
+      "grid": {
+        "width": 96,
+        "height": 112,
+        "tileSize": 1
+      },
+      "layout": {
+        "players": 2,
+        "startingBases": "opposite-quadrants",
+        "resourceNodes": 11,
+        "neutralCamps": 4,
+        "chokepoints": 1,
+        "waterways": 2,
+        "forestDensity": "low",
+        "objective": "destroy-enemy-town-hall"
+      },
+      "performance": {
+        "target": "Android-ARMv7",
+        "textureBudget": "low",
+        "recommendedView": "top-down-or-isometric"
+      }
+    },
+    {
+      "id": "rts-13",
+      "name": "Greenwood Battlefield 13",
+      "mode": "RTS",
+      "biome": "Greenwood",
+      "theme": "Chokepoint",
+      "seed": 74261,
+      "grid": {
+        "width": 112,
+        "height": 120,
+        "tileSize": 1
+      },
+      "layout": {
+        "players": 3,
+        "startingBases": "opposite-quadrants",
+        "resourceNodes": 12,
+        "neutralCamps": 5,
+        "chokepoints": 2,
+        "waterways": 0,
+        "forestDensity": "medium",
+        "objective": "destroy-enemy-town-hall"
+      },
+      "performance": {
+        "target": "Android-ARMv7",
+        "textureBudget": "low",
+        "recommendedView": "top-down-or-isometric"
+      }
+    },
+    {
+      "id": "rts-14",
+      "name": "Greenwood Battlefield 14",
+      "mode": "RTS",
+      "biome": "Greenwood",
+      "theme": "Defensive",
+      "seed": 74358,
+      "grid": {
+        "width": 128,
+        "height": 128,
+        "tileSize": 1
+      },
+      "layout": {
+        "players": 4,
+        "startingBases": "opposite-quadrants",
+        "resourceNodes": 13,
+        "neutralCamps": 6,
+        "chokepoints": 3,
+        "waterways": 0,
+        "forestDensity": "high",
+        "objective": "destroy-enemy-town-hall"
+      },
+      "performance": {
+        "target": "Android-ARMv7",
+        "textureBudget": "low",
+        "recommendedView": "top-down-or-isometric"
+      }
+    },
+    {
+      "id": "rts-15",
+      "name": "Greenwood Battlefield 15",
+      "mode": "RTS",
+      "biome": "Greenwood",
+      "theme": "Balanced",
+      "seed": 74455,
+      "grid": {
+        "width": 144,
+        "height": 96,
+        "tileSize": 1
+      },
+      "layout": {
+        "players": 2,
+        "startingBases": "opposite-quadrants",
+        "resourceNodes": 14,
+        "neutralCamps": 2,
+        "chokepoints": 4,
+        "waterways": 2,
+        "forestDensity": "low",
+        "objective": "destroy-enemy-town-hall"
+      },
+      "performance": {
+        "target": "Android-ARMv7",
+        "textureBudget": "low",
+        "recommendedView": "top-down-or-isometric"
+      }
+    },
+    {
+      "id": "rts-16",
+      "name": "Greenwood Battlefield 16",
+      "mode": "RTS",
+      "biome": "Greenwood",
+      "theme": "Ruined Citadel",
+      "seed": 74552,
+      "grid": {
+        "width": 96,
+        "height": 104,
+        "tileSize": 1
+      },
+      "layout": {
+        "players": 3,
+        "startingBases": "opposite-quadrants",
+        "resourceNodes": 15,
+        "neutralCamps": 3,
+        "chokepoints": 1,
+        "waterways": 0,
+        "forestDensity": "medium",
+        "objective": "destroy-enemy-town-hall"
+      },
+      "performance": {
+        "target": "Android-ARMv7",
+        "textureBudget": "low",
+        "recommendedView": "top-down-or-isometric"
+      }
+    },
+    {
+      "id": "rts-17",
+      "name": "Greenwood Battlefield 17",
+      "mode": "RTS",
+      "biome": "Greenwood",
+      "theme": "Twin Valleys",
+      "seed": 74649,
+      "grid": {
+        "width": 112,
+        "height": 112,
+        "tileSize": 1
+      },
+      "layout": {
+        "players": 4,
+        "startingBases": "opposite-quadrants",
+        "resourceNodes": 16,
+        "neutralCamps": 4,
+        "chokepoints": 2,
+        "waterways": 0,
+        "forestDensity": "high",
+        "objective": "destroy-enemy-town-hall"
+      },
+      "performance": {
+        "target": "Android-ARMv7",
+        "textureBudget": "low",
+        "recommendedView": "top-down-or-isometric"
+      }
+    },
+    {
+      "id": "rts-18",
+      "name": "Greenwood Battlefield 18",
+      "mode": "RTS",
+      "biome": "Greenwood",
+      "theme": "Chokepoint",
+      "seed": 74746,
+      "grid": {
+        "width": 128,
+        "height": 120,
+        "tileSize": 1
+      },
+      "layout": {
+        "players": 2,
+        "startingBases": "opposite-quadrants",
+        "resourceNodes": 8,
+        "neutralCamps": 5,
+        "chokepoints": 3,
+        "waterways": 2,
+        "forestDensity": "low",
+        "objective": "destroy-enemy-town-hall"
+      },
+      "performance": {
+        "target": "Android-ARMv7",
+        "textureBudget": "low",
+        "recommendedView": "top-down-or-isometric"
+      }
+    },
+    {
+      "id": "rts-19",
+      "name": "Greenwood Battlefield 19",
+      "mode": "RTS",
+      "biome": "Greenwood",
+      "theme": "Defensive",
+      "seed": 74843,
+      "grid": {
+        "width": 144,
+        "height": 128,
+        "tileSize": 1
+      },
+      "layout": {
+        "players": 3,
+        "startingBases": "opposite-quadrants",
+        "resourceNodes": 9,
+        "neutralCamps": 6,
+        "chokepoints": 4,
+        "waterways": 0,
+        "forestDensity": "medium",
+        "objective": "destroy-enemy-town-hall"
+      },
+      "performance": {
+        "target": "Android-ARMv7",
+        "textureBudget": "low",
+        "recommendedView": "top-down-or-isometric"
+      }
+    },
+    {
+      "id": "rts-20",
+      "name": "Greenwood Battlefield 20",
+      "mode": "RTS",
+      "biome": "Greenwood",
+      "theme": "Balanced",
+      "seed": 74940,
+      "grid": {
+        "width": 96,
+        "height": 96,
+        "tileSize": 1
+      },
+      "layout": {
+        "players": 4,
+        "startingBases": "opposite-quadrants",
+        "resourceNodes": 10,
+        "neutralCamps": 2,
+        "chokepoints": 1,
+        "waterways": 0,
+        "forestDensity": "high",
+        "objective": "destroy-enemy-town-hall"
+      },
+      "performance": {
+        "target": "Android-ARMv7",
+        "textureBudget": "low",
+        "recommendedView": "top-down-or-isometric"
+      }
+    },
+    {
+      "id": "rts-21",
+      "name": "Greenwood Battlefield 21",
+      "mode": "RTS",
+      "biome": "Greenwood",
+      "theme": "Ruined Citadel",
+      "seed": 75037,
+      "grid": {
+        "width": 112,
+        "height": 104,
+        "tileSize": 1
+      },
+      "layout": {
+        "players": 2,
+        "startingBases": "opposite-quadrants",
+        "resourceNodes": 11,
+        "neutralCamps": 3,
+        "chokepoints": 2,
+        "waterways": 2,
+        "forestDensity": "low",
+        "objective": "destroy-enemy-town-hall"
+      },
+      "performance": {
+        "target": "Android-ARMv7",
+        "textureBudget": "low",
+        "recommendedView": "top-down-or-isometric"
+      }
+    },
+    {
+      "id": "rts-22",
+      "name": "Greenwood Battlefield 22",
+      "mode": "RTS",
+      "biome": "Greenwood",
+      "theme": "Twin Valleys",
+      "seed": 75134,
+      "grid": {
+        "width": 128,
+        "height": 112,
+        "tileSize": 1
+      },
+      "layout": {
+        "players": 3,
+        "startingBases": "opposite-quadrants",
+        "resourceNodes": 12,
+        "neutralCamps": 4,
+        "chokepoints": 3,
+        "waterways": 0,
+        "forestDensity": "medium",
+        "objective": "destroy-enemy-town-hall"
+      },
+      "performance": {
+        "target": "Android-ARMv7",
+        "textureBudget": "low",
+        "recommendedView": "top-down-or-isometric"
+      }
+    },
+    {
+      "id": "rts-23",
+      "name": "Greenwood Battlefield 23",
+      "mode": "RTS",
+      "biome": "Greenwood",
+      "theme": "Chokepoint",
+      "seed": 75231,
+      "grid": {
+        "width": 144,
+        "height": 120,
+        "tileSize": 1
+      },
+      "layout": {
+        "players": 4,
+        "startingBases": "opposite-quadrants",
+        "resourceNodes": 13,
+        "neutralCamps": 5,
+        "chokepoints": 4,
+        "waterways": 0,
+        "forestDensity": "high",
+        "objective": "destroy-enemy-town-hall"
+      },
+      "performance": {
+        "target": "Android-ARMv7",
+        "textureBudget": "low",
+        "recommendedView": "top-down-or-isometric"
+      }
+    },
+    {
+      "id": "rts-24",
+      "name": "Greenwood Battlefield 24",
+      "mode": "RTS",
+      "biome": "Greenwood",
+      "theme": "Defensive",
+      "seed": 75328,
+      "grid": {
+        "width": 96,
+        "height": 128,
+        "tileSize": 1
+      },
+      "layout": {
+        "players": 2,
+        "startingBases": "opposite-quadrants",
+        "resourceNodes": 14,
+        "neutralCamps": 6,
+        "chokepoints": 1,
+        "waterways": 2,
+        "forestDensity": "low",
+        "objective": "destroy-enemy-town-hall"
+      },
+      "performance": {
+        "target": "Android-ARMv7",
+        "textureBudget": "low",
+        "recommendedView": "top-down-or-isometric"
+      }
+    },
+    {
+      "id": "rts-25",
+      "name": "Greenwood Battlefield 25",
+      "mode": "RTS",
+      "biome": "Greenwood",
+      "theme": "Balanced",
+      "seed": 75425,
+      "grid": {
+        "width": 112,
+        "height": 96,
+        "tileSize": 1
+      },
+      "layout": {
+        "players": 3,
+        "startingBases": "opposite-quadrants",
+        "resourceNodes": 15,
+        "neutralCamps": 2,
+        "chokepoints": 2,
+        "waterways": 0,
+        "forestDensity": "medium",
+        "objective": "destroy-enemy-town-hall"
+      },
+      "performance": {
+        "target": "Android-ARMv7",
+        "textureBudget": "low",
+        "recommendedView": "top-down-or-isometric"
+      }
+    },
+    {
+      "id": "rts-26",
+      "name": "Greenwood Battlefield 26",
+      "mode": "RTS",
+      "biome": "Greenwood",
+      "theme": "Ruined Citadel",
+      "seed": 75522,
+      "grid": {
+        "width": 128,
+        "height": 104,
+        "tileSize": 1
+      },
+      "layout": {
+        "players": 4,
+        "startingBases": "opposite-quadrants",
+        "resourceNodes": 16,
+        "neutralCamps": 3,
+        "chokepoints": 3,
+        "waterways": 0,
+        "forestDensity": "high",
+        "objective": "destroy-enemy-town-hall"
+      },
+      "performance": {
+        "target": "Android-ARMv7",
+        "textureBudget": "low",
+        "recommendedView": "top-down-or-isometric"
+      }
+    },
+    {
+      "id": "rts-27",
+      "name": "Greenwood Battlefield 27",
+      "mode": "RTS",
+      "biome": "Greenwood",
+      "theme": "Twin Valleys",
+      "seed": 75619,
+      "grid": {
+        "width": 144,
+        "height": 112,
+        "tileSize": 1
+      },
+      "layout": {
+        "players": 2,
+        "startingBases": "opposite-quadrants",
+        "resourceNodes": 8,
+        "neutralCamps": 4,
+        "chokepoints": 4,
+        "waterways": 2,
+        "forestDensity": "low",
+        "objective": "destroy-enemy-town-hall"
+      },
+      "performance": {
+        "target": "Android-ARMv7",
+        "textureBudget": "low",
+        "recommendedView": "top-down-or-isometric"
+      }
+    },
+    {
+      "id": "rts-28",
+      "name": "Greenwood Battlefield 28",
+      "mode": "RTS",
+      "biome": "Greenwood",
+      "theme": "Chokepoint",
+      "seed": 75716,
+      "grid": {
+        "width": 96,
+        "height": 120,
+        "tileSize": 1
+      },
+      "layout": {
+        "players": 3,
+        "startingBases": "opposite-quadrants",
+        "resourceNodes": 9,
+        "neutralCamps": 5,
+        "chokepoints": 1,
+        "waterways": 0,
+        "forestDensity": "medium",
+        "objective": "destroy-enemy-town-hall"
+      },
+      "performance": {
+        "target": "Android-ARMv7",
+        "textureBudget": "low",
+        "recommendedView": "top-down-or-isometric"
+      }
+    },
+    {
+      "id": "rts-29",
+      "name": "Greenwood Battlefield 29",
+      "mode": "RTS",
+      "biome": "Greenwood",
+      "theme": "Defensive",
+      "seed": 75813,
+      "grid": {
+        "width": 112,
+        "height": 128,
+        "tileSize": 1
+      },
+      "layout": {
+        "players": 4,
+        "startingBases": "opposite-quadrants",
+        "resourceNodes": 10,
+        "neutralCamps": 6,
+        "chokepoints": 2,
+        "waterways": 0,
+        "forestDensity": "high",
+        "objective": "destroy-enemy-town-hall"
+      },
+      "performance": {
+        "target": "Android-ARMv7",
+        "textureBudget": "low",
+        "recommendedView": "top-down-or-isometric"
+      }
+    },
+    {
+      "id": "rts-30",
+      "name": "Greenwood Battlefield 30",
+      "mode": "RTS",
+      "biome": "Greenwood",
+      "theme": "Balanced",
+      "seed": 75910,
+      "grid": {
+        "width": 128,
+        "height": 96,
+        "tileSize": 1
+      },
+      "layout": {
+        "players": 2,
+        "startingBases": "opposite-quadrants",
+        "resourceNodes": 11,
+        "neutralCamps": 2,
+        "chokepoints": 3,
+        "waterways": 2,
+        "forestDensity": "low",
+        "objective": "destroy-enemy-town-hall"
+      },
+      "performance": {
+        "target": "Android-ARMv7",
+        "textureBudget": "low",
+        "recommendedView": "top-down-or-isometric"
+      }
+    },
+    {
+      "id": "rts-31",
+      "name": "Greenwood Battlefield 31",
+      "mode": "RTS",
+      "biome": "Greenwood",
+      "theme": "Ruined Citadel",
+      "seed": 76007,
+      "grid": {
+        "width": 144,
+        "height": 104,
+        "tileSize": 1
+      },
+      "layout": {
+        "players": 3,
+        "startingBases": "opposite-quadrants",
+        "resourceNodes": 12,
+        "neutralCamps": 3,
+        "chokepoints": 4,
+        "waterways": 0,
+        "forestDensity": "medium",
+        "objective": "destroy-enemy-town-hall"
+      },
+      "performance": {
+        "target": "Android-ARMv7",
+        "textureBudget": "low",
+        "recommendedView": "top-down-or-isometric"
+      }
+    },
+    {
+      "id": "rts-32",
+      "name": "Greenwood Battlefield 32",
+      "mode": "RTS",
+      "biome": "Greenwood",
+      "theme": "Twin Valleys",
+      "seed": 76104,
+      "grid": {
+        "width": 96,
+        "height": 112,
+        "tileSize": 1
+      },
+      "layout": {
+        "players": 4,
+        "startingBases": "opposite-quadrants",
+        "resourceNodes": 13,
+        "neutralCamps": 4,
+        "chokepoints": 1,
+        "waterways": 0,
+        "forestDensity": "high",
+        "objective": "destroy-enemy-town-hall"
+      },
+      "performance": {
+        "target": "Android-ARMv7",
+        "textureBudget": "low",
+        "recommendedView": "top-down-or-isometric"
+      }
+    },
+    {
+      "id": "rts-33",
+      "name": "Greenwood Battlefield 33",
+      "mode": "RTS",
+      "biome": "Greenwood",
+      "theme": "Chokepoint",
+      "seed": 76201,
+      "grid": {
+        "width": 112,
+        "height": 120,
+        "tileSize": 1
+      },
+      "layout": {
+        "players": 2,
+        "startingBases": "opposite-quadrants",
+        "resourceNodes": 14,
+        "neutralCamps": 5,
+        "chokepoints": 2,
+        "waterways": 2,
+        "forestDensity": "low",
+        "objective": "destroy-enemy-town-hall"
+      },
+      "performance": {
+        "target": "Android-ARMv7",
+        "textureBudget": "low",
+        "recommendedView": "top-down-or-isometric"
+      }
+    },
+    {
+      "id": "rts-34",
+      "name": "Greenwood Battlefield 34",
+      "mode": "RTS",
+      "biome": "Greenwood",
+      "theme": "Defensive",
+      "seed": 76298,
+      "grid": {
+        "width": 128,
+        "height": 128,
+        "tileSize": 1
+      },
+      "layout": {
+        "players": 3,
+        "startingBases": "opposite-quadrants",
+        "resourceNodes": 15,
+        "neutralCamps": 6,
+        "chokepoints": 3,
+        "waterways": 0,
+        "forestDensity": "medium",
+        "objective": "destroy-enemy-town-hall"
+      },
+      "performance": {
+        "target": "Android-ARMv7",
+        "textureBudget": "low",
+        "recommendedView": "top-down-or-isometric"
+      }
+    },
+    {
+      "id": "rts-35",
+      "name": "Greenwood Battlefield 35",
+      "mode": "RTS",
+      "biome": "Greenwood",
+      "theme": "Balanced",
+      "seed": 76395,
+      "grid": {
+        "width": 144,
+        "height": 96,
+        "tileSize": 1
+      },
+      "layout": {
+        "players": 4,
+        "startingBases": "opposite-quadrants",
+        "resourceNodes": 16,
+        "neutralCamps": 2,
+        "chokepoints": 4,
+        "waterways": 0,
+        "forestDensity": "high",
+        "objective": "destroy-enemy-town-hall"
+      },
+      "performance": {
+        "target": "Android-ARMv7",
+        "textureBudget": "low",
+        "recommendedView": "top-down-or-isometric"
+      }
+    },
+    {
+      "id": "rts-36",
+      "name": "Greenwood Battlefield 36",
+      "mode": "RTS",
+      "biome": "Greenwood",
+      "theme": "Ruined Citadel",
+      "seed": 76492,
+      "grid": {
+        "width": 96,
+        "height": 104,
+        "tileSize": 1
+      },
+      "layout": {
+        "players": 2,
+        "startingBases": "opposite-quadrants",
+        "resourceNodes": 8,
+        "neutralCamps": 3,
+        "chokepoints": 1,
+        "waterways": 2,
+        "forestDensity": "low",
+        "objective": "destroy-enemy-town-hall"
+      },
+      "performance": {
+        "target": "Android-ARMv7",
+        "textureBudget": "low",
+        "recommendedView": "top-down-or-isometric"
+      }
+    },
+    {
+      "id": "rts-37",
+      "name": "Greenwood Battlefield 37",
+      "mode": "RTS",
+      "biome": "Greenwood",
+      "theme": "Twin Valleys",
+      "seed": 76589,
+      "grid": {
+        "width": 112,
+        "height": 112,
+        "tileSize": 1
+      },
+      "layout": {
+        "players": 3,
+        "startingBases": "opposite-quadrants",
+        "resourceNodes": 9,
+        "neutralCamps": 4,
+        "chokepoints": 2,
+        "waterways": 0,
+        "forestDensity": "medium",
+        "objective": "destroy-enemy-town-hall"
+      },
+      "performance": {
+        "target": "Android-ARMv7",
+        "textureBudget": "low",
+        "recommendedView": "top-down-or-isometric"
+      }
+    },
+    {
+      "id": "rts-38",
+      "name": "Greenwood Battlefield 38",
+      "mode": "RTS",
+      "biome": "Greenwood",
+      "theme": "Chokepoint",
+      "seed": 76686,
+      "grid": {
+        "width": 128,
+        "height": 120,
+        "tileSize": 1
+      },
+      "layout": {
+        "players": 4,
+        "startingBases": "opposite-quadrants",
+        "resourceNodes": 10,
+        "neutralCamps": 5,
+        "chokepoints": 3,
+        "waterways": 0,
+        "forestDensity": "high",
+        "objective": "destroy-enemy-town-hall"
+      },
+      "performance": {
+        "target": "Android-ARMv7",
+        "textureBudget": "low",
+        "recommendedView": "top-down-or-isometric"
+      }
+    },
+    {
+      "id": "rts-39",
+      "name": "Greenwood Battlefield 39",
+      "mode": "RTS",
+      "biome": "Greenwood",
+      "theme": "Defensive",
+      "seed": 76783,
+      "grid": {
+        "width": 144,
+        "height": 128,
+        "tileSize": 1
+      },
+      "layout": {
+        "players": 2,
+        "startingBases": "opposite-quadrants",
+        "resourceNodes": 11,
+        "neutralCamps": 6,
+        "chokepoints": 4,
+        "waterways": 2,
+        "forestDensity": "low",
+        "objective": "destroy-enemy-town-hall"
+      },
+      "performance": {
+        "target": "Android-ARMv7",
+        "textureBudget": "low",
+        "recommendedView": "top-down-or-isometric"
+      }
+    },
+    {
+      "id": "rts-40",
+      "name": "Greenwood Battlefield 40",
+      "mode": "RTS",
+      "biome": "Greenwood",
+      "theme": "Balanced",
+      "seed": 76880,
+      "grid": {
+        "width": 96,
+        "height": 96,
+        "tileSize": 1
+      },
+      "layout": {
+        "players": 3,
+        "startingBases": "opposite-quadrants",
+        "resourceNodes": 12,
+        "neutralCamps": 2,
+        "chokepoints": 1,
+        "waterways": 0,
+        "forestDensity": "medium",
+        "objective": "destroy-enemy-town-hall"
+      },
+      "performance": {
+        "target": "Android-ARMv7",
+        "textureBudget": "low",
+        "recommendedView": "top-down-or-isometric"
+      }
+    },
+    {
+      "id": "rts-41",
+      "name": "Greenwood Battlefield 41",
+      "mode": "RTS",
+      "biome": "Greenwood",
+      "theme": "Ruined Citadel",
+      "seed": 76977,
+      "grid": {
+        "width": 112,
+        "height": 104,
+        "tileSize": 1
+      },
+      "layout": {
+        "players": 4,
+        "startingBases": "opposite-quadrants",
+        "resourceNodes": 13,
+        "neutralCamps": 3,
+        "chokepoints": 2,
+        "waterways": 0,
+        "forestDensity": "high",
+        "objective": "destroy-enemy-town-hall"
+      },
+      "performance": {
+        "target": "Android-ARMv7",
+        "textureBudget": "low",
+        "recommendedView": "top-down-or-isometric"
+      }
+    },
+    {
+      "id": "rts-42",
+      "name": "Greenwood Battlefield 42",
+      "mode": "RTS",
+      "biome": "Greenwood",
+      "theme": "Twin Valleys",
+      "seed": 77074,
+      "grid": {
+        "width": 128,
+        "height": 112,
+        "tileSize": 1
+      },
+      "layout": {
+        "players": 2,
+        "startingBases": "opposite-quadrants",
+        "resourceNodes": 14,
+        "neutralCamps": 4,
+        "chokepoints": 3,
+        "waterways": 2,
+        "forestDensity": "low",
+        "objective": "destroy-enemy-town-hall"
+      },
+      "performance": {
+        "target": "Android-ARMv7",
+        "textureBudget": "low",
+        "recommendedView": "top-down-or-isometric"
+      }
+    },
+    {
+      "id": "rts-43",
+      "name": "Greenwood Battlefield 43",
+      "mode": "RTS",
+      "biome": "Greenwood",
+      "theme": "Chokepoint",
+      "seed": 77171,
+      "grid": {
+        "width": 144,
+        "height": 120,
+        "tileSize": 1
+      },
+      "layout": {
+        "players": 3,
+        "startingBases": "opposite-quadrants",
+        "resourceNodes": 15,
+        "neutralCamps": 5,
+        "chokepoints": 4,
+        "waterways": 0,
+        "forestDensity": "medium",
+        "objective": "destroy-enemy-town-hall"
+      },
+      "performance": {
+        "target": "Android-ARMv7",
+        "textureBudget": "low",
+        "recommendedView": "top-down-or-isometric"
+      }
+    },
+    {
+      "id": "rts-44",
+      "name": "Greenwood Battlefield 44",
+      "mode": "RTS",
+      "biome": "Greenwood",
+      "theme": "Defensive",
+      "seed": 77268,
+      "grid": {
+        "width": 96,
+        "height": 128,
+        "tileSize": 1
+      },
+      "layout": {
+        "players": 4,
+        "startingBases": "opposite-quadrants",
+        "resourceNodes": 16,
+        "neutralCamps": 6,
+        "chokepoints": 1,
+        "waterways": 0,
+        "forestDensity": "high",
+        "objective": "destroy-enemy-town-hall"
+      },
+      "performance": {
+        "target": "Android-ARMv7",
+        "textureBudget": "low",
+        "recommendedView": "top-down-or-isometric"
+      }
+    },
+    {
+      "id": "rts-45",
+      "name": "Greenwood Battlefield 45",
+      "mode": "RTS",
+      "biome": "Greenwood",
+      "theme": "Balanced",
+      "seed": 77365,
+      "grid": {
+        "width": 112,
+        "height": 96,
+        "tileSize": 1
+      },
+      "layout": {
+        "players": 2,
+        "startingBases": "opposite-quadrants",
+        "resourceNodes": 8,
+        "neutralCamps": 2,
+        "chokepoints": 2,
+        "waterways": 2,
+        "forestDensity": "low",
+        "objective": "destroy-enemy-town-hall"
+      },
+      "performance": {
+        "target": "Android-ARMv7",
+        "textureBudget": "low",
+        "recommendedView": "top-down-or-isometric"
+      }
+    },
+    {
+      "id": "rts-46",
+      "name": "Greenwood Battlefield 46",
+      "mode": "RTS",
+      "biome": "Greenwood",
+      "theme": "Ruined Citadel",
+      "seed": 77462,
+      "grid": {
+        "width": 128,
+        "height": 104,
+        "tileSize": 1
+      },
+      "layout": {
+        "players": 3,
+        "startingBases": "opposite-quadrants",
+        "resourceNodes": 9,
+        "neutralCamps": 3,
+        "chokepoints": 3,
+        "waterways": 0,
+        "forestDensity": "medium",
+        "objective": "destroy-enemy-town-hall"
+      },
+      "performance": {
+        "target": "Android-ARMv7",
+        "textureBudget": "low",
+        "recommendedView": "top-down-or-isometric"
+      }
+    },
+    {
+      "id": "rts-47",
+      "name": "Greenwood Battlefield 47",
+      "mode": "RTS",
+      "biome": "Greenwood",
+      "theme": "Twin Valleys",
+      "seed": 77559,
+      "grid": {
+        "width": 144,
+        "height": 112,
+        "tileSize": 1
+      },
+      "layout": {
+        "players": 4,
+        "startingBases": "opposite-quadrants",
+        "resourceNodes": 10,
+        "neutralCamps": 4,
+        "chokepoints": 4,
+        "waterways": 0,
+        "forestDensity": "high",
+        "objective": "destroy-enemy-town-hall"
+      },
+      "performance": {
+        "target": "Android-ARMv7",
+        "textureBudget": "low",
+        "recommendedView": "top-down-or-isometric"
+      }
+    },
+    {
+      "id": "rts-48",
+      "name": "Greenwood Battlefield 48",
+      "mode": "RTS",
+      "biome": "Greenwood",
+      "theme": "Chokepoint",
+      "seed": 77656,
+      "grid": {
+        "width": 96,
+        "height": 120,
+        "tileSize": 1
+      },
+      "layout": {
+        "players": 2,
+        "startingBases": "opposite-quadrants",
+        "resourceNodes": 11,
+        "neutralCamps": 5,
+        "chokepoints": 1,
+        "waterways": 2,
+        "forestDensity": "low",
+        "objective": "destroy-enemy-town-hall"
+      },
+      "performance": {
+        "target": "Android-ARMv7",
+        "textureBudget": "low",
+        "recommendedView": "top-down-or-isometric"
+      }
+    },
+    {
+      "id": "rts-49",
+      "name": "Greenwood Battlefield 49",
+      "mode": "RTS",
+      "biome": "Greenwood",
+      "theme": "Defensive",
+      "seed": 77753,
+      "grid": {
+        "width": 112,
+        "height": 128,
+        "tileSize": 1
+      },
+      "layout": {
+        "players": 3,
+        "startingBases": "opposite-quadrants",
+        "resourceNodes": 12,
+        "neutralCamps": 6,
+        "chokepoints": 2,
+        "waterways": 0,
+        "forestDensity": "medium",
+        "objective": "destroy-enemy-town-hall"
+      },
+      "performance": {
+        "target": "Android-ARMv7",
+        "textureBudget": "low",
+        "recommendedView": "top-down-or-isometric"
+      }
+    },
+    {
+      "id": "rts-50",
+      "name": "Greenwood Battlefield 50",
+      "mode": "RTS",
+      "biome": "Greenwood",
+      "theme": "Balanced",
+      "seed": 77850,
+      "grid": {
+        "width": 128,
+        "height": 96,
+        "tileSize": 1
+      },
+      "layout": {
+        "players": 4,
+        "startingBases": "opposite-quadrants",
+        "resourceNodes": 13,
+        "neutralCamps": 2,
+        "chokepoints": 3,
+        "waterways": 0,
+        "forestDensity": "high",
+        "objective": "destroy-enemy-town-hall"
+      },
+      "performance": {
+        "target": "Android-ARMv7",
+        "textureBudget": "low",
+        "recommendedView": "top-down-or-isometric"
+      }
+    },
+    {
+      "id": "rts-51",
+      "name": "Greenwood Battlefield 51",
+      "mode": "RTS",
+      "biome": "Greenwood",
+      "theme": "Ruined Citadel",
+      "seed": 77947,
+      "grid": {
+        "width": 144,
+        "height": 104,
+        "tileSize": 1
+      },
+      "layout": {
+        "players": 2,
+        "startingBases": "opposite-quadrants",
+        "resourceNodes": 14,
+        "neutralCamps": 3,
+        "chokepoints": 4,
+        "waterways": 2,
+        "forestDensity": "low",
+        "objective": "destroy-enemy-town-hall"
+      },
+      "performance": {
+        "target": "Android-ARMv7",
+        "textureBudget": "low",
+        "recommendedView": "top-down-or-isometric"
+      }
+    },
+    {
+      "id": "rts-52",
+      "name": "Greenwood Battlefield 52",
+      "mode": "RTS",
+      "biome": "Greenwood",
+      "theme": "Twin Valleys",
+      "seed": 78044,
+      "grid": {
+        "width": 96,
+        "height": 112,
+        "tileSize": 1
+      },
+      "layout": {
+        "players": 3,
+        "startingBases": "opposite-quadrants",
+        "resourceNodes": 15,
+        "neutralCamps": 4,
+        "chokepoints": 1,
+        "waterways": 0,
+        "forestDensity": "medium",
+        "objective": "destroy-enemy-town-hall"
+      },
+      "performance": {
+        "target": "Android-ARMv7",
+        "textureBudget": "low",
+        "recommendedView": "top-down-or-isometric"
+      }
+    },
+    {
+      "id": "rts-53",
+      "name": "Greenwood Battlefield 53",
+      "mode": "RTS",
+      "biome": "Greenwood",
+      "theme": "Chokepoint",
+      "seed": 78141,
+      "grid": {
+        "width": 112,
+        "height": 120,
+        "tileSize": 1
+      },
+      "layout": {
+        "players": 4,
+        "startingBases": "opposite-quadrants",
+        "resourceNodes": 16,
+        "neutralCamps": 5,
+        "chokepoints": 2,
+        "waterways": 0,
+        "forestDensity": "high",
+        "objective": "destroy-enemy-town-hall"
+      },
+      "performance": {
+        "target": "Android-ARMv7",
+        "textureBudget": "low",
+        "recommendedView": "top-down-or-isometric"
+      }
+    },
+    {
+      "id": "rts-54",
+      "name": "Greenwood Battlefield 54",
+      "mode": "RTS",
+      "biome": "Greenwood",
+      "theme": "Defensive",
+      "seed": 78238,
+      "grid": {
+        "width": 128,
+        "height": 128,
+        "tileSize": 1
+      },
+      "layout": {
+        "players": 2,
+        "startingBases": "opposite-quadrants",
+        "resourceNodes": 8,
+        "neutralCamps": 6,
+        "chokepoints": 3,
+        "waterways": 2,
+        "forestDensity": "low",
+        "objective": "destroy-enemy-town-hall"
+      },
+      "performance": {
+        "target": "Android-ARMv7",
+        "textureBudget": "low",
+        "recommendedView": "top-down-or-isometric"
+      }
+    },
+    {
+      "id": "rts-55",
+      "name": "Greenwood Battlefield 55",
+      "mode": "RTS",
+      "biome": "Greenwood",
+      "theme": "Balanced",
+      "seed": 78335,
+      "grid": {
+        "width": 144,
+        "height": 96,
+        "tileSize": 1
+      },
+      "layout": {
+        "players": 3,
+        "startingBases": "opposite-quadrants",
+        "resourceNodes": 9,
+        "neutralCamps": 2,
+        "chokepoints": 4,
+        "waterways": 0,
+        "forestDensity": "medium",
+        "objective": "destroy-enemy-town-hall"
+      },
+      "performance": {
+        "target": "Android-ARMv7",
+        "textureBudget": "low",
+        "recommendedView": "top-down-or-isometric"
+      }
+    },
+    {
+      "id": "rts-56",
+      "name": "Greenwood Battlefield 56",
+      "mode": "RTS",
+      "biome": "Greenwood",
+      "theme": "Ruined Citadel",
+      "seed": 78432,
+      "grid": {
+        "width": 96,
+        "height": 104,
+        "tileSize": 1
+      },
+      "layout": {
+        "players": 4,
+        "startingBases": "opposite-quadrants",
+        "resourceNodes": 10,
+        "neutralCamps": 3,
+        "chokepoints": 1,
+        "waterways": 0,
+        "forestDensity": "high",
+        "objective": "destroy-enemy-town-hall"
+      },
+      "performance": {
+        "target": "Android-ARMv7",
+        "textureBudget": "low",
+        "recommendedView": "top-down-or-isometric"
+      }
+    },
+    {
+      "id": "rts-57",
+      "name": "Greenwood Battlefield 57",
+      "mode": "RTS",
+      "biome": "Greenwood",
+      "theme": "Twin Valleys",
+      "seed": 78529,
+      "grid": {
+        "width": 112,
+        "height": 112,
+        "tileSize": 1
+      },
+      "layout": {
+        "players": 2,
+        "startingBases": "opposite-quadrants",
+        "resourceNodes": 11,
+        "neutralCamps": 4,
+        "chokepoints": 2,
+        "waterways": 2,
+        "forestDensity": "low",
+        "objective": "destroy-enemy-town-hall"
+      },
+      "performance": {
+        "target": "Android-ARMv7",
+        "textureBudget": "low",
+        "recommendedView": "top-down-or-isometric"
+      }
+    },
+    {
+      "id": "rts-58",
+      "name": "Greenwood Battlefield 58",
+      "mode": "RTS",
+      "biome": "Greenwood",
+      "theme": "Chokepoint",
+      "seed": 78626,
+      "grid": {
+        "width": 128,
+        "height": 120,
+        "tileSize": 1
+      },
+      "layout": {
+        "players": 3,
+        "startingBases": "opposite-quadrants",
+        "resourceNodes": 12,
+        "neutralCamps": 5,
+        "chokepoints": 3,
+        "waterways": 0,
+        "forestDensity": "medium",
+        "objective": "destroy-enemy-town-hall"
+      },
+      "performance": {
+        "target": "Android-ARMv7",
+        "textureBudget": "low",
+        "recommendedView": "top-down-or-isometric"
+      }
+    },
+    {
+      "id": "rts-59",
+      "name": "Greenwood Battlefield 59",
+      "mode": "RTS",
+      "biome": "Greenwood",
+      "theme": "Defensive",
+      "seed": 78723,
+      "grid": {
+        "width": 144,
+        "height": 128,
+        "tileSize": 1
+      },
+      "layout": {
+        "players": 4,
+        "startingBases": "opposite-quadrants",
+        "resourceNodes": 13,
+        "neutralCamps": 6,
+        "chokepoints": 4,
+        "waterways": 0,
+        "forestDensity": "high",
+        "objective": "destroy-enemy-town-hall"
+      },
+      "performance": {
+        "target": "Android-ARMv7",
+        "textureBudget": "low",
+        "recommendedView": "top-down-or-isometric"
+      }
+    },
+    {
+      "id": "rts-60",
+      "name": "Greenwood Battlefield 60",
+      "mode": "RTS",
+      "biome": "Greenwood",
+      "theme": "Balanced",
+      "seed": 78820,
+      "grid": {
+        "width": 96,
+        "height": 96,
+        "tileSize": 1
+      },
+      "layout": {
+        "players": 2,
+        "startingBases": "opposite-quadrants",
+        "resourceNodes": 14,
+        "neutralCamps": 2,
+        "chokepoints": 1,
+        "waterways": 2,
+        "forestDensity": "low",
+        "objective": "destroy-enemy-town-hall"
+      },
+      "performance": {
+        "target": "Android-ARMv7",
+        "textureBudget": "low",
+        "recommendedView": "top-down-or-isometric"
+      }
+    },
+    {
+      "id": "moba-01",
+      "name": "Greenwood Arena 01",
+      "mode": "MOBA",
+      "biome": "Greenwood",
+      "theme": "Ruined Citadel",
+      "seed": 78917,
+      "grid": {
+        "width": 128,
+        "height": 136,
+        "tileSize": 1
+      },
+      "layout": {
+        "teams": 2,
+        "lanes": 1,
+        "jungleCamps": 9,
+        "riverCrossings": 2,
+        "towersPerLane": 3,
+        "baseCores": 2,
+        "objective": "destroy-enemy-core"
+      },
+      "performance": {
+        "target": "Android-ARMv7",
+        "textureBudget": "low",
+        "recommendedView": "top-down-or-isometric"
+      }
+    },
+    {
+      "id": "moba-02",
+      "name": "Greenwood Arena 02",
+      "mode": "MOBA",
+      "biome": "Greenwood",
+      "theme": "Twin Valleys",
+      "seed": 79014,
+      "grid": {
+        "width": 144,
+        "height": 144,
+        "tileSize": 1
+      },
+      "layout": {
+        "teams": 2,
+        "lanes": 1,
+        "jungleCamps": 10,
+        "riverCrossings": 3,
+        "towersPerLane": 2,
+        "baseCores": 2,
+        "objective": "destroy-enemy-core"
+      },
+      "performance": {
+        "target": "Android-ARMv7",
+        "textureBudget": "low",
+        "recommendedView": "top-down-or-isometric"
+      }
+    },
+    {
+      "id": "moba-03",
+      "name": "Greenwood Arena 03",
+      "mode": "MOBA",
+      "biome": "Greenwood",
+      "theme": "Chokepoint",
+      "seed": 79111,
+      "grid": {
+        "width": 112,
+        "height": 152,
+        "tileSize": 1
+      },
+      "layout": {
+        "teams": 2,
+        "lanes": 3,
+        "jungleCamps": 4,
+        "riverCrossings": 1,
+        "towersPerLane": 3,
+        "baseCores": 2,
+        "objective": "destroy-enemy-core"
+      },
+      "performance": {
+        "target": "Android-ARMv7",
+        "textureBudget": "low",
+        "recommendedView": "top-down-or-isometric"
+      }
+    },
+    {
+      "id": "moba-04",
+      "name": "Greenwood Arena 04",
+      "mode": "MOBA",
+      "biome": "Greenwood",
+      "theme": "Defensive",
+      "seed": 79208,
+      "grid": {
+        "width": 128,
+        "height": 128,
+        "tileSize": 1
+      },
+      "layout": {
+        "teams": 2,
+        "lanes": 1,
+        "jungleCamps": 5,
+        "riverCrossings": 2,
+        "towersPerLane": 2,
+        "baseCores": 2,
+        "objective": "destroy-enemy-core"
+      },
+      "performance": {
+        "target": "Android-ARMv7",
+        "textureBudget": "low",
+        "recommendedView": "top-down-or-isometric"
+      }
+    },
+    {
+      "id": "moba-05",
+      "name": "Greenwood Arena 05",
+      "mode": "MOBA",
+      "biome": "Greenwood",
+      "theme": "Balanced",
+      "seed": 79305,
+      "grid": {
+        "width": 144,
+        "height": 136,
+        "tileSize": 1
+      },
+      "layout": {
+        "teams": 2,
+        "lanes": 1,
+        "jungleCamps": 6,
+        "riverCrossings": 3,
+        "towersPerLane": 3,
+        "baseCores": 2,
+        "objective": "destroy-enemy-core"
+      },
+      "performance": {
+        "target": "Android-ARMv7",
+        "textureBudget": "low",
+        "recommendedView": "top-down-or-isometric"
+      }
+    },
+    {
+      "id": "moba-06",
+      "name": "Greenwood Arena 06",
+      "mode": "MOBA",
+      "biome": "Greenwood",
+      "theme": "Ruined Citadel",
+      "seed": 79402,
+      "grid": {
+        "width": 112,
+        "height": 144,
+        "tileSize": 1
+      },
+      "layout": {
+        "teams": 2,
+        "lanes": 3,
+        "jungleCamps": 7,
+        "riverCrossings": 1,
+        "towersPerLane": 2,
+        "baseCores": 2,
+        "objective": "destroy-enemy-core"
+      },
+      "performance": {
+        "target": "Android-ARMv7",
+        "textureBudget": "low",
+        "recommendedView": "top-down-or-isometric"
+      }
+    },
+    {
+      "id": "moba-07",
+      "name": "Greenwood Arena 07",
+      "mode": "MOBA",
+      "biome": "Greenwood",
+      "theme": "Twin Valleys",
+      "seed": 79499,
+      "grid": {
+        "width": 128,
+        "height": 152,
+        "tileSize": 1
+      },
+      "layout": {
+        "teams": 2,
+        "lanes": 1,
+        "jungleCamps": 8,
+        "riverCrossings": 2,
+        "towersPerLane": 3,
+        "baseCores": 2,
+        "objective": "destroy-enemy-core"
+      },
+      "performance": {
+        "target": "Android-ARMv7",
+        "textureBudget": "low",
+        "recommendedView": "top-down-or-isometric"
+      }
+    },
+    {
+      "id": "moba-08",
+      "name": "Greenwood Arena 08",
+      "mode": "MOBA",
+      "biome": "Greenwood",
+      "theme": "Chokepoint",
+      "seed": 79596,
+      "grid": {
+        "width": 144,
+        "height": 128,
+        "tileSize": 1
+      },
+      "layout": {
+        "teams": 2,
+        "lanes": 1,
+        "jungleCamps": 9,
+        "riverCrossings": 3,
+        "towersPerLane": 2,
+        "baseCores": 2,
+        "objective": "destroy-enemy-core"
+      },
+      "performance": {
+        "target": "Android-ARMv7",
+        "textureBudget": "low",
+        "recommendedView": "top-down-or-isometric"
+      }
+    },
+    {
+      "id": "moba-09",
+      "name": "Greenwood Arena 09",
+      "mode": "MOBA",
+      "biome": "Greenwood",
+      "theme": "Defensive",
+      "seed": 79693,
+      "grid": {
+        "width": 112,
+        "height": 136,
+        "tileSize": 1
+      },
+      "layout": {
+        "teams": 2,
+        "lanes": 3,
+        "jungleCamps": 10,
+        "riverCrossings": 1,
+        "towersPerLane": 3,
+        "baseCores": 2,
+        "objective": "destroy-enemy-core"
+      },
+      "performance": {
+        "target": "Android-ARMv7",
+        "textureBudget": "low",
+        "recommendedView": "top-down-or-isometric"
+      }
+    },
+    {
+      "id": "moba-10",
+      "name": "Greenwood Arena 10",
+      "mode": "MOBA",
+      "biome": "Greenwood",
+      "theme": "Balanced",
+      "seed": 79790,
+      "grid": {
+        "width": 128,
+        "height": 144,
+        "tileSize": 1
+      },
+      "layout": {
+        "teams": 2,
+        "lanes": 1,
+        "jungleCamps": 4,
+        "riverCrossings": 2,
+        "towersPerLane": 2,
+        "baseCores": 2,
+        "objective": "destroy-enemy-core"
+      },
+      "performance": {
+        "target": "Android-ARMv7",
+        "textureBudget": "low",
+        "recommendedView": "top-down-or-isometric"
+      }
+    },
+    {
+      "id": "moba-11",
+      "name": "Greenwood Arena 11",
+      "mode": "MOBA",
+      "biome": "Greenwood",
+      "theme": "Ruined Citadel",
+      "seed": 79887,
+      "grid": {
+        "width": 144,
+        "height": 152,
+        "tileSize": 1
+      },
+      "layout": {
+        "teams": 2,
+        "lanes": 1,
+        "jungleCamps": 5,
+        "riverCrossings": 3,
+        "towersPerLane": 3,
+        "baseCores": 2,
+        "objective": "destroy-enemy-core"
+      },
+      "performance": {
+        "target": "Android-ARMv7",
+        "textureBudget": "low",
+        "recommendedView": "top-down-or-isometric"
+      }
+    },
+    {
+      "id": "moba-12",
+      "name": "Greenwood Arena 12",
+      "mode": "MOBA",
+      "biome": "Greenwood",
+      "theme": "Twin Valleys",
+      "seed": 79984,
+      "grid": {
+        "width": 112,
+        "height": 128,
+        "tileSize": 1
+      },
+      "layout": {
+        "teams": 2,
+        "lanes": 3,
+        "jungleCamps": 6,
+        "riverCrossings": 1,
+        "towersPerLane": 2,
+        "baseCores": 2,
+        "objective": "destroy-enemy-core"
+      },
+      "performance": {
+        "target": "Android-ARMv7",
+        "textureBudget": "low",
+        "recommendedView": "top-down-or-isometric"
+      }
+    },
+    {
+      "id": "moba-13",
+      "name": "Greenwood Arena 13",
+      "mode": "MOBA",
+      "biome": "Greenwood",
+      "theme": "Chokepoint",
+      "seed": 80081,
+      "grid": {
+        "width": 128,
+        "height": 136,
+        "tileSize": 1
+      },
+      "layout": {
+        "teams": 2,
+        "lanes": 1,
+        "jungleCamps": 7,
+        "riverCrossings": 2,
+        "towersPerLane": 3,
+        "baseCores": 2,
+        "objective": "destroy-enemy-core"
+      },
+      "performance": {
+        "target": "Android-ARMv7",
+        "textureBudget": "low",
+        "recommendedView": "top-down-or-isometric"
+      }
+    },
+    {
+      "id": "moba-14",
+      "name": "Greenwood Arena 14",
+      "mode": "MOBA",
+      "biome": "Greenwood",
+      "theme": "Defensive",
+      "seed": 80178,
+      "grid": {
+        "width": 144,
+        "height": 144,
+        "tileSize": 1
+      },
+      "layout": {
+        "teams": 2,
+        "lanes": 1,
+        "jungleCamps": 8,
+        "riverCrossings": 3,
+        "towersPerLane": 2,
+        "baseCores": 2,
+        "objective": "destroy-enemy-core"
+      },
+      "performance": {
+        "target": "Android-ARMv7",
+        "textureBudget": "low",
+        "recommendedView": "top-down-or-isometric"
+      }
+    },
+    {
+      "id": "moba-15",
+      "name": "Greenwood Arena 15",
+      "mode": "MOBA",
+      "biome": "Greenwood",
+      "theme": "Balanced",
+      "seed": 80275,
+      "grid": {
+        "width": 112,
+        "height": 152,
+        "tileSize": 1
+      },
+      "layout": {
+        "teams": 2,
+        "lanes": 3,
+        "jungleCamps": 9,
+        "riverCrossings": 1,
+        "towersPerLane": 3,
+        "baseCores": 2,
+        "objective": "destroy-enemy-core"
+      },
+      "performance": {
+        "target": "Android-ARMv7",
+        "textureBudget": "low",
+        "recommendedView": "top-down-or-isometric"
+      }
+    },
+    {
+      "id": "moba-16",
+      "name": "Greenwood Arena 16",
+      "mode": "MOBA",
+      "biome": "Greenwood",
+      "theme": "Ruined Citadel",
+      "seed": 80372,
+      "grid": {
+        "width": 128,
+        "height": 128,
+        "tileSize": 1
+      },
+      "layout": {
+        "teams": 2,
+        "lanes": 1,
+        "jungleCamps": 10,
+        "riverCrossings": 2,
+        "towersPerLane": 2,
+        "baseCores": 2,
+        "objective": "destroy-enemy-core"
+      },
+      "performance": {
+        "target": "Android-ARMv7",
+        "textureBudget": "low",
+        "recommendedView": "top-down-or-isometric"
+      }
+    },
+    {
+      "id": "moba-17",
+      "name": "Greenwood Arena 17",
+      "mode": "MOBA",
+      "biome": "Greenwood",
+      "theme": "Twin Valleys",
+      "seed": 80469,
+      "grid": {
+        "width": 144,
+        "height": 136,
+        "tileSize": 1
+      },
+      "layout": {
+        "teams": 2,
+        "lanes": 1,
+        "jungleCamps": 4,
+        "riverCrossings": 3,
+        "towersPerLane": 3,
+        "baseCores": 2,
+        "objective": "destroy-enemy-core"
+      },
+      "performance": {
+        "target": "Android-ARMv7",
+        "textureBudget": "low",
+        "recommendedView": "top-down-or-isometric"
+      }
+    },
+    {
+      "id": "moba-18",
+      "name": "Greenwood Arena 18",
+      "mode": "MOBA",
+      "biome": "Greenwood",
+      "theme": "Chokepoint",
+      "seed": 80566,
+      "grid": {
+        "width": 112,
+        "height": 144,
+        "tileSize": 1
+      },
+      "layout": {
+        "teams": 2,
+        "lanes": 3,
+        "jungleCamps": 5,
+        "riverCrossings": 1,
+        "towersPerLane": 2,
+        "baseCores": 2,
+        "objective": "destroy-enemy-core"
+      },
+      "performance": {
+        "target": "Android-ARMv7",
+        "textureBudget": "low",
+        "recommendedView": "top-down-or-isometric"
+      }
+    },
+    {
+      "id": "moba-19",
+      "name": "Greenwood Arena 19",
+      "mode": "MOBA",
+      "biome": "Greenwood",
+      "theme": "Defensive",
+      "seed": 80663,
+      "grid": {
+        "width": 128,
+        "height": 152,
+        "tileSize": 1
+      },
+      "layout": {
+        "teams": 2,
+        "lanes": 1,
+        "jungleCamps": 6,
+        "riverCrossings": 2,
+        "towersPerLane": 3,
+        "baseCores": 2,
+        "objective": "destroy-enemy-core"
+      },
+      "performance": {
+        "target": "Android-ARMv7",
+        "textureBudget": "low",
+        "recommendedView": "top-down-or-isometric"
+      }
+    },
+    {
+      "id": "moba-20",
+      "name": "Greenwood Arena 20",
+      "mode": "MOBA",
+      "biome": "Greenwood",
+      "theme": "Balanced",
+      "seed": 80760,
+      "grid": {
+        "width": 144,
+        "height": 128,
+        "tileSize": 1
+      },
+      "layout": {
+        "teams": 2,
+        "lanes": 1,
+        "jungleCamps": 7,
+        "riverCrossings": 3,
+        "towersPerLane": 2,
+        "baseCores": 2,
+        "objective": "destroy-enemy-core"
+      },
+      "performance": {
+        "target": "Android-ARMv7",
+        "textureBudget": "low",
+        "recommendedView": "top-down-or-isometric"
+      }
+    },
+    {
+      "id": "moba-21",
+      "name": "Greenwood Arena 21",
+      "mode": "MOBA",
+      "biome": "Greenwood",
+      "theme": "Ruined Citadel",
+      "seed": 80857,
+      "grid": {
+        "width": 112,
+        "height": 136,
+        "tileSize": 1
+      },
+      "layout": {
+        "teams": 2,
+        "lanes": 3,
+        "jungleCamps": 8,
+        "riverCrossings": 1,
+        "towersPerLane": 3,
+        "baseCores": 2,
+        "objective": "destroy-enemy-core"
+      },
+      "performance": {
+        "target": "Android-ARMv7",
+        "textureBudget": "low",
+        "recommendedView": "top-down-or-isometric"
+      }
+    },
+    {
+      "id": "moba-22",
+      "name": "Greenwood Arena 22",
+      "mode": "MOBA",
+      "biome": "Greenwood",
+      "theme": "Twin Valleys",
+      "seed": 80954,
+      "grid": {
+        "width": 128,
+        "height": 144,
+        "tileSize": 1
+      },
+      "layout": {
+        "teams": 2,
+        "lanes": 1,
+        "jungleCamps": 9,
+        "riverCrossings": 2,
+        "towersPerLane": 2,
+        "baseCores": 2,
+        "objective": "destroy-enemy-core"
+      },
+      "performance": {
+        "target": "Android-ARMv7",
+        "textureBudget": "low",
+        "recommendedView": "top-down-or-isometric"
+      }
+    },
+    {
+      "id": "moba-23",
+      "name": "Greenwood Arena 23",
+      "mode": "MOBA",
+      "biome": "Greenwood",
+      "theme": "Chokepoint",
+      "seed": 81051,
+      "grid": {
+        "width": 144,
+        "height": 152,
+        "tileSize": 1
+      },
+      "layout": {
+        "teams": 2,
+        "lanes": 1,
+        "jungleCamps": 10,
+        "riverCrossings": 3,
+        "towersPerLane": 3,
+        "baseCores": 2,
+        "objective": "destroy-enemy-core"
+      },
+      "performance": {
+        "target": "Android-ARMv7",
+        "textureBudget": "low",
+        "recommendedView": "top-down-or-isometric"
+      }
+    },
+    {
+      "id": "moba-24",
+      "name": "Greenwood Arena 24",
+      "mode": "MOBA",
+      "biome": "Greenwood",
+      "theme": "Defensive",
+      "seed": 81148,
+      "grid": {
+        "width": 112,
+        "height": 128,
+        "tileSize": 1
+      },
+      "layout": {
+        "teams": 2,
+        "lanes": 3,
+        "jungleCamps": 4,
+        "riverCrossings": 1,
+        "towersPerLane": 2,
+        "baseCores": 2,
+        "objective": "destroy-enemy-core"
+      },
+      "performance": {
+        "target": "Android-ARMv7",
+        "textureBudget": "low",
+        "recommendedView": "top-down-or-isometric"
+      }
+    },
+    {
+      "id": "moba-25",
+      "name": "Greenwood Arena 25",
+      "mode": "MOBA",
+      "biome": "Greenwood",
+      "theme": "Balanced",
+      "seed": 81245,
+      "grid": {
+        "width": 128,
+        "height": 136,
+        "tileSize": 1
+      },
+      "layout": {
+        "teams": 2,
+        "lanes": 1,
+        "jungleCamps": 5,
+        "riverCrossings": 2,
+        "towersPerLane": 3,
+        "baseCores": 2,
+        "objective": "destroy-enemy-core"
+      },
+      "performance": {
+        "target": "Android-ARMv7",
+        "textureBudget": "low",
+        "recommendedView": "top-down-or-isometric"
+      }
+    },
+    {
+      "id": "moba-26",
+      "name": "Greenwood Arena 26",
+      "mode": "MOBA",
+      "biome": "Greenwood",
+      "theme": "Ruined Citadel",
+      "seed": 81342,
+      "grid": {
+        "width": 144,
+        "height": 144,
+        "tileSize": 1
+      },
+      "layout": {
+        "teams": 2,
+        "lanes": 1,
+        "jungleCamps": 6,
+        "riverCrossings": 3,
+        "towersPerLane": 2,
+        "baseCores": 2,
+        "objective": "destroy-enemy-core"
+      },
+      "performance": {
+        "target": "Android-ARMv7",
+        "textureBudget": "low",
+        "recommendedView": "top-down-or-isometric"
+      }
+    },
+    {
+      "id": "moba-27",
+      "name": "Greenwood Arena 27",
+      "mode": "MOBA",
+      "biome": "Greenwood",
+      "theme": "Twin Valleys",
+      "seed": 81439,
+      "grid": {
+        "width": 112,
+        "height": 152,
+        "tileSize": 1
+      },
+      "layout": {
+        "teams": 2,
+        "lanes": 3,
+        "jungleCamps": 7,
+        "riverCrossings": 1,
+        "towersPerLane": 3,
+        "baseCores": 2,
+        "objective": "destroy-enemy-core"
+      },
+      "performance": {
+        "target": "Android-ARMv7",
+        "textureBudget": "low",
+        "recommendedView": "top-down-or-isometric"
+      }
+    },
+    {
+      "id": "moba-28",
+      "name": "Greenwood Arena 28",
+      "mode": "MOBA",
+      "biome": "Greenwood",
+      "theme": "Chokepoint",
+      "seed": 81536,
+      "grid": {
+        "width": 128,
+        "height": 128,
+        "tileSize": 1
+      },
+      "layout": {
+        "teams": 2,
+        "lanes": 1,
+        "jungleCamps": 8,
+        "riverCrossings": 2,
+        "towersPerLane": 2,
+        "baseCores": 2,
+        "objective": "destroy-enemy-core"
+      },
+      "performance": {
+        "target": "Android-ARMv7",
+        "textureBudget": "low",
+        "recommendedView": "top-down-or-isometric"
+      }
+    },
+    {
+      "id": "moba-29",
+      "name": "Greenwood Arena 29",
+      "mode": "MOBA",
+      "biome": "Greenwood",
+      "theme": "Defensive",
+      "seed": 81633,
+      "grid": {
+        "width": 144,
+        "height": 136,
+        "tileSize": 1
+      },
+      "layout": {
+        "teams": 2,
+        "lanes": 1,
+        "jungleCamps": 9,
+        "riverCrossings": 3,
+        "towersPerLane": 3,
+        "baseCores": 2,
+        "objective": "destroy-enemy-core"
+      },
+      "performance": {
+        "target": "Android-ARMv7",
+        "textureBudget": "low",
+        "recommendedView": "top-down-or-isometric"
+      }
+    },
+    {
+      "id": "moba-30",
+      "name": "Greenwood Arena 30",
+      "mode": "MOBA",
+      "biome": "Greenwood",
+      "theme": "Balanced",
+      "seed": 81730,
+      "grid": {
+        "width": 112,
+        "height": 144,
+        "tileSize": 1
+      },
+      "layout": {
+        "teams": 2,
+        "lanes": 3,
+        "jungleCamps": 10,
+        "riverCrossings": 1,
+        "towersPerLane": 2,
+        "baseCores": 2,
+        "objective": "destroy-enemy-core"
+      },
+      "performance": {
+        "target": "Android-ARMv7",
+        "textureBudget": "low",
+        "recommendedView": "top-down-or-isometric"
+      }
+    },
+    {
+      "id": "moba-31",
+      "name": "Greenwood Arena 31",
+      "mode": "MOBA",
+      "biome": "Greenwood",
+      "theme": "Ruined Citadel",
+      "seed": 81827,
+      "grid": {
+        "width": 128,
+        "height": 152,
+        "tileSize": 1
+      },
+      "layout": {
+        "teams": 2,
+        "lanes": 1,
+        "jungleCamps": 4,
+        "riverCrossings": 2,
+        "towersPerLane": 3,
+        "baseCores": 2,
+        "objective": "destroy-enemy-core"
+      },
+      "performance": {
+        "target": "Android-ARMv7",
+        "textureBudget": "low",
+        "recommendedView": "top-down-or-isometric"
+      }
+    },
+    {
+      "id": "moba-32",
+      "name": "Greenwood Arena 32",
+      "mode": "MOBA",
+      "biome": "Greenwood",
+      "theme": "Twin Valleys",
+      "seed": 81924,
+      "grid": {
+        "width": 144,
+        "height": 128,
+        "tileSize": 1
+      },
+      "layout": {
+        "teams": 2,
+        "lanes": 1,
+        "jungleCamps": 5,
+        "riverCrossings": 3,
+        "towersPerLane": 2,
+        "baseCores": 2,
+        "objective": "destroy-enemy-core"
+      },
+      "performance": {
+        "target": "Android-ARMv7",
+        "textureBudget": "low",
+        "recommendedView": "top-down-or-isometric"
+      }
+    },
+    {
+      "id": "moba-33",
+      "name": "Greenwood Arena 33",
+      "mode": "MOBA",
+      "biome": "Greenwood",
+      "theme": "Chokepoint",
+      "seed": 82021,
+      "grid": {
+        "width": 112,
+        "height": 136,
+        "tileSize": 1
+      },
+      "layout": {
+        "teams": 2,
+        "lanes": 3,
+        "jungleCamps": 6,
+        "riverCrossings": 1,
+        "towersPerLane": 3,
+        "baseCores": 2,
+        "objective": "destroy-enemy-core"
+      },
+      "performance": {
+        "target": "Android-ARMv7",
+        "textureBudget": "low",
+        "recommendedView": "top-down-or-isometric"
+      }
+    },
+    {
+      "id": "moba-34",
+      "name": "Greenwood Arena 34",
+      "mode": "MOBA",
+      "biome": "Greenwood",
+      "theme": "Defensive",
+      "seed": 82118,
+      "grid": {
+        "width": 128,
+        "height": 144,
+        "tileSize": 1
+      },
+      "layout": {
+        "teams": 2,
+        "lanes": 1,
+        "jungleCamps": 7,
+        "riverCrossings": 2,
+        "towersPerLane": 2,
+        "baseCores": 2,
+        "objective": "destroy-enemy-core"
+      },
+      "performance": {
+        "target": "Android-ARMv7",
+        "textureBudget": "low",
+        "recommendedView": "top-down-or-isometric"
+      }
+    },
+    {
+      "id": "moba-35",
+      "name": "Greenwood Arena 35",
+      "mode": "MOBA",
+      "biome": "Greenwood",
+      "theme": "Balanced",
+      "seed": 82215,
+      "grid": {
+        "width": 144,
+        "height": 152,
+        "tileSize": 1
+      },
+      "layout": {
+        "teams": 2,
+        "lanes": 1,
+        "jungleCamps": 8,
+        "riverCrossings": 3,
+        "towersPerLane": 3,
+        "baseCores": 2,
+        "objective": "destroy-enemy-core"
+      },
+      "performance": {
+        "target": "Android-ARMv7",
+        "textureBudget": "low",
+        "recommendedView": "top-down-or-isometric"
+      }
+    },
+    {
+      "id": "moba-36",
+      "name": "Greenwood Arena 36",
+      "mode": "MOBA",
+      "biome": "Greenwood",
+      "theme": "Ruined Citadel",
+      "seed": 82312,
+      "grid": {
+        "width": 112,
+        "height": 128,
+        "tileSize": 1
+      },
+      "layout": {
+        "teams": 2,
+        "lanes": 3,
+        "jungleCamps": 9,
+        "riverCrossings": 1,
+        "towersPerLane": 2,
+        "baseCores": 2,
+        "objective": "destroy-enemy-core"
+      },
+      "performance": {
+        "target": "Android-ARMv7",
+        "textureBudget": "low",
+        "recommendedView": "top-down-or-isometric"
+      }
+    },
+    {
+      "id": "moba-37",
+      "name": "Greenwood Arena 37",
+      "mode": "MOBA",
+      "biome": "Greenwood",
+      "theme": "Twin Valleys",
+      "seed": 82409,
+      "grid": {
+        "width": 128,
+        "height": 136,
+        "tileSize": 1
+      },
+      "layout": {
+        "teams": 2,
+        "lanes": 1,
+        "jungleCamps": 10,
+        "riverCrossings": 2,
+        "towersPerLane": 3,
+        "baseCores": 2,
+        "objective": "destroy-enemy-core"
+      },
+      "performance": {
+        "target": "Android-ARMv7",
+        "textureBudget": "low",
+        "recommendedView": "top-down-or-isometric"
+      }
+    },
+    {
+      "id": "moba-38",
+      "name": "Greenwood Arena 38",
+      "mode": "MOBA",
+      "biome": "Greenwood",
+      "theme": "Chokepoint",
+      "seed": 82506,
+      "grid": {
+        "width": 144,
+        "height": 144,
+        "tileSize": 1
+      },
+      "layout": {
+        "teams": 2,
+        "lanes": 1,
+        "jungleCamps": 4,
+        "riverCrossings": 3,
+        "towersPerLane": 2,
+        "baseCores": 2,
+        "objective": "destroy-enemy-core"
+      },
+      "performance": {
+        "target": "Android-ARMv7",
+        "textureBudget": "low",
+        "recommendedView": "top-down-or-isometric"
+      }
+    },
+    {
+      "id": "moba-39",
+      "name": "Greenwood Arena 39",
+      "mode": "MOBA",
+      "biome": "Greenwood",
+      "theme": "Defensive",
+      "seed": 82603,
+      "grid": {
+        "width": 112,
+        "height": 152,
+        "tileSize": 1
+      },
+      "layout": {
+        "teams": 2,
+        "lanes": 3,
+        "jungleCamps": 5,
+        "riverCrossings": 1,
+        "towersPerLane": 3,
+        "baseCores": 2,
+        "objective": "destroy-enemy-core"
+      },
+      "performance": {
+        "target": "Android-ARMv7",
+        "textureBudget": "low",
+        "recommendedView": "top-down-or-isometric"
+      }
+    },
+    {
+      "id": "moba-40",
+      "name": "Greenwood Arena 40",
+      "mode": "MOBA",
+      "biome": "Greenwood",
+      "theme": "Balanced",
+      "seed": 82700,
+      "grid": {
+        "width": 128,
+        "height": 128,
+        "tileSize": 1
+      },
+      "layout": {
+        "teams": 2,
+        "lanes": 1,
+        "jungleCamps": 6,
+        "riverCrossings": 2,
+        "towersPerLane": 2,
+        "baseCores": 2,
+        "objective": "destroy-enemy-core"
+      },
+      "performance": {
+        "target": "Android-ARMv7",
+        "textureBudget": "low",
+        "recommendedView": "top-down-or-isometric"
+      }
+    }
+  ]
+}
