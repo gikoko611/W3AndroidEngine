@@ -4,10 +4,10 @@ buildscript {
 		flatDir {
 			dirs "$rootProject.projectDir/jars"
 		}
+        google()
         mavenCentral()
         gradlePluginPortal()
         maven { url = "https://maven.nikr.net/" }
-        google()
     }
     dependencies {
         classpath "com.android.tools.build:gradle:9.5.1"
@@ -31,8 +31,8 @@ allprojects {
 
     repositories {
         mavenLocal()
-        mavenCentral()
         google()
+        mavenCentral()
         gradlePluginPortal()
         maven { url = "https://maven.nikr.net/" }
         maven { url = "https://jitpack.io" }
